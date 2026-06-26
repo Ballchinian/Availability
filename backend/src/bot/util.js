@@ -40,6 +40,30 @@ export function findWritableChannel(guild) {
     return guild.channels.cache.find(canSend) || null;
 }
 
+/*
+    Where the welcome message wants to land: the announcements channel if the bot
+    can post there, since that is where a server expects the bot to introduce
+    itself. We take a proper Announcement channel first, then anything named like
+    announcements, and fall back to the next best writable chat if neither works.
+*/
+export function findAnnounceChannel(guild) {
+    const me = guild.members.me;
+    if (!me) return null;
+
+    const canSend = (channel) =>
+        channel &&
+        (channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement) &&
+        channel.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages);
+
+    const byType = guild.channels.cache.find((c) => c.type === ChannelType.GuildAnnouncement && canSend(c));
+    if (byType) return byType;
+
+    const byName = guild.channels.cache.find((c) => /announce/i.test(c.name) && canSend(c));
+    if (byName) return byName;
+
+    return findWritableChannel(guild);
+}
+
 //Looks for a role literally named planner, case insensitive
 export function findPlannerRole(guild) {
     return guild.roles.cache.find((r) => r.name.toLowerCase() === 'planner') || null;

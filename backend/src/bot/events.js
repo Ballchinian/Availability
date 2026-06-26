@@ -3,7 +3,7 @@ import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
 import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
-import { findWritableChannel, welcomeText, warmGuildMembers } from './util.js';
+import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
 
 /*
@@ -32,7 +32,8 @@ export function attachEvents(client) {
 
     //Say hello and nudge an admin towards /setup when added to a server
     client.on('guildCreate', async (guild) => {
-        const channel = findWritableChannel(guild);
+        //The announcements channel is the natural home for this, with a fallback if there is none
+        const channel = findAnnounceChannel(guild);
         if (channel) {
             await channel.send(welcomeText()).catch(() => {});
         }
