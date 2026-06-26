@@ -7,6 +7,8 @@
     import { evaluateDay } from '../lib/overlap.js';
     import UserBadge from '../lib/UserBadge.svelte';
     import CompareGrid from '../lib/CompareGrid.svelte';
+    import MemberPicker from '../lib/MemberPicker.svelte';
+    import type { Member } from '../lib/types.js';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -18,8 +20,6 @@
     let selectedDate = $state<string | null>(null);
     let pingAttending = $state(true);
     let pingAllInvited = $state(false);
-    let dmOnChoose = $state(false);
-    let dmOnExtend = $state(false);
 
     let submitting = $state(false);
     let chosen = $state<any>(null);
@@ -36,6 +36,13 @@
     let cancelling = $state(false);
     let cancelled = $state(false);
     let cancelError = $state('');
+
+    let addOpen = $state(false);
+    let addMembers = $state<Member[]>([]);
+    let addSelectedIds = $state<string[]>([]);
+    let addLoading = $state(false);
+    let adding = $state(false);
+    let addMsg = $state('');
 
     const maxMiss = $derived(data ? Math.max(0, data.confirmedCount - 1) : 0);
 
@@ -66,6 +73,8 @@
         loading = true;
         try {
             data = await api(`/plans/${params.planId}/compare`);
+            //A cancelled plan is read only, the banner stands in for the controls
+            if (data.plan.status === 'cancelled') cancelled = true;
             if (data.plan.chosenDate) {
                 chosen = { chosenDate: data.plan.chosenDate };
                 selectedDate = data.plan.chosenDate;
@@ -96,8 +105,7 @@
                     date: selectedDate,
                     pingAttending,
                     pingAllInvited,
-                    attendingIds: sel?.ev.keptIds || [],
-                    dmPeople: data.isTrusted ? dmOnChoose : false
+                    attendingIds: sel?.ev.keptIds || []
                 })
             });
         } catch (err) {
@@ -130,6 +138,45 @@
         cancelling = false;
     }
 
+    //Open the add panel and pull in the server members who are not already on the plan
+    async function openAdd() {
+        addOpen = true;
+        addMsg = '';
+        if (addMembers.length || addLoading) return;
+        addLoading = true;
+        try {
+            const res = await api(`/guilds/${data.plan.guildId}/members`);
+            const here = new Set(data.participants.map((p: any) => p.userId));
+            addMembers = res.members.filter((m: Member) => !here.has(m.id));
+        } catch (err) {
+            addMsg = errorText(err);
+        }
+        addLoading = false;
+    }
+
+    async function addPeople() {
+        addMsg = '';
+        if (!addSelectedIds.length) {
+            addMsg = 'Pick at least one person to add.';
+            return;
+        }
+        adding = true;
+        try {
+            const res = await api(`/plans/${params.planId}/add`, {
+                method: 'POST',
+                body: JSON.stringify({ userIds: addSelectedIds })
+            });
+            addMsg = `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} and let them know.`;
+            addSelectedIds = [];
+            addMembers = [];
+            addOpen = false;
+            await load();
+        } catch (err) {
+            addMsg = errorText(err);
+        }
+        adding = false;
+    }
+
     async function extend() {
         extendMsg = '';
         if (!newEnd) {
@@ -140,9 +187,9 @@
         try {
             const res = await api(`/plans/${params.planId}/extend`, {
                 method: 'POST',
-                body: JSON.stringify({ newEnd, dmPeople: data.isTrusted ? dmOnExtend : false })
+                body: JSON.stringify({ newEnd })
             });
-            extendMsg = `Extended to ${formatDate(res.end)} and everyone has been pinged.`;
+            extendMsg = `Extended to ${formatDate(res.end)} and everyone has been pinged and DM'd.`;
             chosen = null;
             selectedDate = null;
             await load();
@@ -180,12 +227,15 @@
     {:else if loadError}
         <p class="status error">{loadError}</p>
     {:else if cancelled}
-        <p class="prompt good">This plan has been cancelled and its thread removed.</p>
+        <p class="prompt good">This plan has been cancelled and everyone has been told. Delete its thread in Discord when you are ready to clear it for good.</p>
     {:else}
         <p class="muted">
             <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''} ·
             {formatDate(data.plan.start)} to {formatDate(data.plan.end)}
         </p>
+        {#if data.plan.description}
+            <p class="muted small">{data.plan.description}</p>
+        {/if}
 
         <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
 
@@ -242,15 +292,36 @@
 
                 <label class="check"><input type="checkbox" bind:checked={pingAttending} /> Ping the people who can make it</label>
                 <label class="check"><input type="checkbox" bind:checked={pingAllInvited} /> Ping everyone invited (even those who cannot)</label>
-                {#if data.isTrusted}
-                    <label class="check"><input type="checkbox" bind:checked={dmOnChoose} /> Also DM everyone invited the date</label>
-                {/if}
+                <p class="muted small">Everyone invited gets a DM with the date either way.</p>
                 {#if chooseError}<p class="status error">{chooseError}</p>{/if}
                 <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>
                     {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
                 </button>
             </div>
         {/if}
+
+        <div class="add">
+            {#if !addOpen}
+                <button class="ghost" onclick={openAdd}>Add someone to this plan</button>
+                {#if addMsg}<p class="status small">{addMsg}</p>{/if}
+            {:else}
+                <p class="muted small">Pick anyone in the server to pull into this plan. They get added to the thread and a DM with the link.</p>
+                {#if addLoading}
+                    <p class="muted small">Loading the member list...</p>
+                {:else if addMembers.length === 0}
+                    <p class="muted small">Everyone in the server is already on this plan.</p>
+                {:else}
+                    <MemberPicker members={addMembers} bind:selectedIds={addSelectedIds} />
+                    <div class="add-row">
+                        <button class="primary" onclick={addPeople} disabled={adding}>
+                            {adding ? 'Adding...' : 'Add to the plan'}
+                        </button>
+                        <button class="ghost" onclick={() => (addOpen = false)}>Cancel</button>
+                    </div>
+                {/if}
+                {#if addMsg}<p class="status small">{addMsg}</p>{/if}
+            {/if}
+        </div>
 
         <div class="extend">
             <p class="muted small">Nothing in this range works? Push the end date out and everyone gets asked for the new days.</p>
@@ -260,9 +331,6 @@
                     {extending ? 'Extending...' : 'Extend the range'}
                 </button>
             </div>
-            {#if data.isTrusted}
-                <label class="check"><input type="checkbox" bind:checked={dmOnExtend} /> Also DM everyone the new dates</label>
-            {/if}
             {#if extendMsg}<p class="status small">{extendMsg}</p>{/if}
         </div>
 
@@ -270,7 +338,7 @@
             {#if !cancelArmed}
                 <button class="ghost danger-btn" onclick={() => (cancelArmed = true)}>Cancel this plan</button>
             {:else}
-                <span class="small">Delete this plan and its thread for good?</span>
+                <span class="small">Cancel this plan? Everyone gets told. The thread stays until you delete it by hand in Discord.</span>
                 <button class="ghost danger-btn" onclick={doCancel} disabled={cancelling}>
                     {cancelling ? 'Cancelling...' : 'Yes, cancel it'}
                 </button>

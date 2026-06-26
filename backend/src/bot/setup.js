@@ -1,7 +1,6 @@
 import {
     ActionRowBuilder,
     ChannelSelectMenuBuilder,
-    RoleSelectMenuBuilder,
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
@@ -18,8 +17,7 @@ import { findPlannerRole, createPublicThread, pinMessage, introText } from './ut
 
     Step 1: pick the plans channel (channel select menu)
     Step 2: sort the planner role (adopt an existing one or make a fresh one)
-    Step 3: pick a trusted role, or skip it (the role that gets the higher limits)
-    Step 4: save config, open the planner thread, post and pin the intro, report back
+    Step 3: save config, open the planner thread, post and pin the intro, report back
 */
 
 //Entry point when someone runs /setup
@@ -62,23 +60,9 @@ export async function handleSetupComponent(interaction) {
         const channelId = parts[3];
         const roleId = parts[4];
         //Acknowledge first, since making or adopting a role is a slow call
-        await interaction.deferUpdate();
+        await interaction.update({ content: 'Setting things up...', components: [] });
         const role = await resolveRole(interaction.guild, { mode, roleId });
-        return askAboutTrusted(interaction, channelId, role.id);
-    }
-
-    if (step === 'trust') {
-        const channelId = parts[2];
-        const plannerRoleId = parts[3];
-        await interaction.update({ content: 'Setting things up...', components: [] });
-        return finalize(interaction, channelId, plannerRoleId, interaction.values[0]);
-    }
-
-    if (step === 'trustskip') {
-        const channelId = parts[2];
-        const plannerRoleId = parts[3];
-        await interaction.update({ content: 'Setting things up...', components: [] });
-        return finalize(interaction, channelId, plannerRoleId, null);
+        return finalize(interaction, channelId, role.id);
     }
 }
 
@@ -89,9 +73,9 @@ async function askAboutRole(interaction, channelId) {
 
     if (!existing) {
         //Acknowledge first, since making the role is a slow call
-        await interaction.deferUpdate();
+        await interaction.update({ content: 'Setting things up...', components: [] });
         const role = await resolveRole(interaction.guild, { mode: 'new' });
-        return askAboutTrusted(interaction, channelId, role.id);
+        return finalize(interaction, channelId, role.id);
     }
 
     const row = new ActionRowBuilder().addComponents(
@@ -111,39 +95,8 @@ async function askAboutRole(interaction, channelId) {
     });
 }
 
-/*
-    Step 3: pick the trusted role. Anyone in it gets a much higher daily allowance
-    on the noisy actions and the choice of whether to also DM people, so this is
-    for the one or two people you actually trust to organise, not everyone. It is
-    optional, skipping just means everyone with the planner role is treated the same.
-*/
-function askAboutTrusted(interaction, channelId, plannerRoleId) {
-    const menu = new ActionRowBuilder().addComponents(
-        new RoleSelectMenuBuilder()
-            .setCustomId(`setup|trust|${channelId}|${plannerRoleId}`)
-            .setPlaceholder('Pick a trusted role (optional)')
-            .setMinValues(1)
-            .setMaxValues(1)
-    );
-    const skip = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`setup|trustskip|${channelId}|${plannerRoleId}`)
-            .setLabel('Skip, treat everyone the same')
-            .setStyle(ButtonStyle.Secondary)
-    );
-
-    //Both callers defer first (they make or adopt a role on the way here), so we
-    //edit the acknowledged reply rather than update
-    return interaction.editReply({
-        content:
-            'Last thing: is there a role you trust to organise more freely? People in it can run the noisy ' +
-            'actions up to 10 times a day instead of twice, and get the option to DM everyone. Pick one, or skip it.',
-        components: [menu, skip]
-    });
-}
-
-//Step 4: open the thread, post the intro, save config, report back
-async function finalize(interaction, channelId, plannerRoleId, trustedRoleId) {
+//Step 3: open the thread, post the intro, save config, report back
+async function finalize(interaction, channelId, plannerRoleId) {
     const guild = interaction.guild;
 
     try {
@@ -170,8 +123,8 @@ async function finalize(interaction, channelId, plannerRoleId, trustedRoleId) {
         //The bot lives in a thread so the plans channel stays clear for people
         const thread = await createPublicThread(channel, 'planner');
         const intro = await thread.send({
-            content: introText(guild.id, plannerRoleId, trustedRoleId),
-            //Show the roles as styled mentions without actually pinging them
+            content: introText(guild.id, plannerRoleId),
+            //Show the role as a styled mention without actually pinging it
             allowedMentions: { parse: [] }
         });
 
@@ -187,7 +140,8 @@ async function finalize(interaction, channelId, plannerRoleId, trustedRoleId) {
             guildName: guild.name,
             plansChannelId: channelId,
             plannerRoleId,
-            trustedRoleId: trustedRoleId || null,
+            //Clear any trusted role a previous setup saved, the split is gone now
+            trustedRoleId: null,
             introThreadId: thread.id,
             introMessageId: intro.id,
             setupBy: interaction.user.id,
@@ -197,12 +151,9 @@ async function finalize(interaction, channelId, plannerRoleId, trustedRoleId) {
         const pinNote = pinned
             ? ''
             : '\n\n(Heads up: I could not pin the intro. Give me the Pin Messages permission and rerun /setup if you want it pinned.)';
-        const trustNote = trustedRoleId
-            ? ` The trusted role is <@&${trustedRoleId}>.`
-            : ' No trusted role, so everyone with the planner role gets the same limits.';
 
         return interaction.editReply({
-            content: `All set. I opened the ${thread} thread in <#${channelId}> with the link, and the planner role is <@&${plannerRoleId}>.${trustNote} Each plan gets its own thread, so this channel stays free for normal chat.${pinNote}`,
+            content: `All set. I opened the ${thread} thread in <#${channelId}> with the link, and the planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, extend, cancel or send reminders for a plan. Each plan gets its own thread, so this channel stays free for normal chat.${pinNote}`,
             allowedMentions: { parse: [] }
         });
     } catch (err) {

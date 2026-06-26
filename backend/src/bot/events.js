@@ -1,7 +1,7 @@
 import { MessageFlags } from 'discord.js';
 import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
-import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent } from './plans.js';
+import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findWritableChannel, welcomeText } from './util.js';
 import { inviteUrl } from './permissions.js';
@@ -59,8 +59,11 @@ export function attachEvents(client) {
             if (interaction.isMessageComponent() && interaction.customId.startsWith('setup|')) {
                 return await handleSetupComponent(interaction);
             }
-            if (interaction.isMessageComponent() && (interaction.customId.startsWith('plan|') || interaction.customId.startsWith('cancel|'))) {
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('cancel|')) {
                 return await handlePlanComponent(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('drop|')) {
+                return await handleDrop(interaction);
             }
         } catch (err) {
             console.error('[bot] interaction failed:', err);

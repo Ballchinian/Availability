@@ -1,35 +1,44 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, reviveThread } from './util.js';
-import { setPlanThread, getPlan, getPlanByThread, getOpenPlansForUser, deletePlan } from '../db/plans.js';
+import { createThread, planUrl, reviveThread } from './util.js';
+import { setPlanThread, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange } from '../db/availability.js';
+import { refundAction } from '../db/ratelimits.js';
 import { formatDate } from '../lib/dates.js';
 import { config } from '../config.js';
 
 /*
     Sends the same line to a list of people by DM, best effort, since some have
-    DMs closed. Only ever called when a trusted organiser asked us to, the thread
-    ping is what everyone else gets so nobody is DMed without someone choosing it.
+    DMs closed. The thread ping still reaches anyone the DM cannot. An optional
+    set of components rides along so a DM can carry a button, like drop out.
 */
-async function dmEach(ids, text) {
+async function dmEach(ids, text, components = []) {
     for (const id of ids) {
         try {
             const user = await client.users.fetch(id);
-            await user.send(text);
+            await user.send(components.length ? { content: text, components } : text);
         } catch {
             //DMs off, the thread ping still reaches them
         }
     }
 }
 
+//The drop out button that rides along on the DMs for a plan that is still collecting
+function dropRow(planId) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`drop|${planId}`).setLabel('Drop out of this plan').setStyle(ButtonStyle.Danger)
+    );
+}
+
 /*
-    When a plan is created on the site, this is the Discord side of it: open a
+    When a plan is created on the site this is the Discord side of it: open a
     private thread named after the plan, pull the invited people in, and ping them
-    in the thread. The thread is never locked, so any of them can revive it later
-    just by typing. We only DM when a trusted organiser ticked the box for it.
+    in the thread. Everyone also gets a DM, with the range, what the plan is about,
+    a jump straight to the thread, and a drop out button so they never have to go
+    near the thread if they do not want to. actorName is whoever started it.
 */
-export async function announcePlan(plan, cfg, { dm = false } = {}) {
+export async function announcePlan(plan, cfg, actorName) {
     const guild = await client.guilds.fetch(plan.guildId);
     const channel = await guild.channels.fetch(cfg.plansChannelId);
 
@@ -43,57 +52,70 @@ export async function announcePlan(plan, cfg, { dm = false } = {}) {
     }
 
     const url = planUrl(plan.planId);
+    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     const mentions = ids.map((id) => `<@${id}>`).join(' ');
     await thread.send({
         content:
             `${mentions}\n\n` +
-            `New plan: **${plan.name}** (${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}).\n` +
+            `New plan: **${plan.name}** (${range}).\n` +
+            `What it is about: ${plan.description}\n` +
             `Drop the dates you are free here: ${url}\n` +
             `A planner can run \`/compare\` any time to see where things stand, even before everyone is in.`,
         allowedMentions: { users: ids }
     });
 
-    if (dm) {
-        await dmEach(ids,
-            `You have been added to the plan "${plan.name}" in ${guild.name}.\n` +
-            `Add the dates you are free here: ${url}`);
-    }
+    const jump = thread.url ? `Jump straight to the thread: ${thread.url}` : `Look for the thread in #${channel.name}.`;
+    await dmEach(ids,
+        `${actorName} added you to the plan "${plan.name}" in ${guild.name} (${range}).\n` +
+        `What it is about: ${plan.description}\n` +
+        `Add the dates you are free here: ${url}\n` +
+        `${jump}\n\n` +
+        `Not coming? Hit "Drop out" below and I will take you off it.`,
+        [dropRow(plan.planId)]);
 
     return thread;
 }
 
 /*
-    Posted in the plan's thread when someone confirms their dates. This is the
-    only running update people get, and it stays in the thread on purpose, no
-    DMs, so nobody gets pinged every time another person checks in.
+    Pull extra people into a plan that is already running. They slip into the
+    thread quietly, no ping, with just a no fuss note so the group can see who
+    joined. The welcome goes by DM instead: what it is about, the range, the link
+    and a way to the thread, plus a drop out button, same as the start. actorName
+    is the planner who added them.
 */
-export async function postConfirmation(plan, userId) {
-    if (!plan.threadId) return;
-    const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-    if (!thread) return;
-    await reviveThread(thread);
+export async function announceAddition(plan, newIds, actorName) {
+    const guild = await client.guilds.fetch(plan.guildId);
+    const url = planUrl(plan.planId);
+    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
 
-    const confirmed = plan.participants.filter((p) => p.confirmed).length;
-    const total = plan.participants.length;
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    if (thread) {
+        await reviveThread(thread);
+        for (const id of newIds) await thread.members.add(id).catch(() => {});
+        const names = newIds.map((id) => `<@${id}>`).join(' ');
+        //Names show so the thread has context, but no ping, the DM is how they hear about it
+        await thread.send({
+            content: `${actorName} added ${names} to the plan.`,
+            allowedMentions: { parse: [] }
+        });
+    }
 
-    const line =
-        confirmed >= total
-            ? `<@${userId}> confirmed their dates. That is everyone in (${total}/${total}).\nCompare and pick a day here: ${compareUrl(plan.planId)}`
-            : `<@${userId}> confirmed their dates. Waiting on ${confirmed}/${total}.`;
-
-    //Their name shows, but no ping, they just acted and do not need a notification
-    await thread.send({ content: line, allowedMentions: { parse: [] } });
+    const jump = thread?.url ? `\nJump straight to the thread: ${thread.url}` : '';
+    await dmEach(newIds,
+        `${actorName} invited you to the plan "${plan.name}" in ${guild.name} (${range}).\n` +
+        `What it is about: ${plan.description}\n` +
+        `Add the dates you are free here: ${url}${jump}\n\n` +
+        `Not coming? Hit "Drop out" below and I will take you off it.`,
+        [dropRow(plan.planId)]);
 }
 
 /*
-    Once a planner picks the winning date the plan closes. The outcome always
-    lands in the thread. Two ping options, both about the invited people only:
-    one pings just the people who can make the common time, the other pings
-    everyone invited whether they can come or not. A trusted organiser can also
-    tick dm to send everyone invited a short closing DM with the date.
-    attendingIds is the set who share the chosen window, worked out on the site.
+    Once a planner locks the winning date the plan closes. The outcome lands in
+    the thread, pinging whoever the planner chose (the people who can make it, or
+    everyone invited, or both), and everyone invited gets a DM either way. The
+    headline and DM both name who set or moved it.
 */
-export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited, attendingIds, changed, dm = false }) {
+export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited, attendingIds, changed, actorName }) {
     const ids = plan.participants.map((p) => p.userId);
     const when = formatDate(plan.chosenDate);
 
@@ -118,17 +140,108 @@ export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited
             await reviveThread(thread);
             const lead = pingList.length ? `${pingList.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
             const headline = changed
-                ? `${lead}Change of plan: **${plan.name}** has moved to ${when}.`
-                : `${lead}**${plan.name}** is set for ${when}.`;
+                ? `${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.`
+                : `${lead}${actorName} set **${plan.name}** for ${when}.`;
             await thread.send({ content: headline, allowedMentions: { users: pingList } });
         }
     }
 
-    if (dm) {
-        await dmEach(ids, changed
-            ? `Change of plan: "${plan.name}" has moved to ${when}.`
-            : `The plan "${plan.name}" is set for ${when}.`);
+    await dmEach(ids, changed
+        ? `${actorName} moved the plan "${plan.name}" in ${cfg.guildName} to ${when}.`
+        : `${actorName} set the plan "${plan.name}" in ${cfg.guildName} for ${when}.`);
+}
+
+/*
+    Tells everyone the range moved and they need to look at the new days. Pings in
+    the thread and DMs everyone, with the drop out button since the plan is still
+    collecting. actorName is whoever extended it.
+*/
+export async function announceExtension(plan, cfg, { actorName }) {
+    const ids = plan.participants.map((p) => p.userId);
+    const url = planUrl(plan.planId);
+    const when = formatDate(plan.dateRange.end);
+
+    if (plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            await thread.send({
+                content: `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} extended **${plan.name}** to ${when}. Add the new days here: ${url}`,
+                allowedMentions: { users: ids }
+            });
+        }
     }
+
+    await dmEach(ids,
+        `${actorName} extended the plan "${plan.name}" in ${cfg.guildName} to ${when}. Add the new days here: ${url}`,
+        [dropRow(plan.planId)]);
+}
+
+/*
+    Cancel a plan. It gets marked cancelled and the thread is told, with a ping,
+    but the thread is left in place: deleting it by hand is what finally clears
+    the plan. Everyone gets a DM, and the creator gets their daily plan slot back
+    since the plan never really ran. actorName is whoever cancelled it.
+*/
+export async function cancelPlan(plan, actorName) {
+    await markPlanCancelled(plan.planId);
+
+    const ids = plan.participants.map((p) => p.userId);
+
+    if (plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            await thread.send({
+                content:
+                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` +
+                    `${actorName} cancelled **${plan.name}**. Nothing more to fill in.\n` +
+                    `This thread stays until someone deletes it by hand, and deleting it clears the plan for good.`,
+                allowedMentions: { users: ids }
+            });
+        }
+    }
+
+    await dmEach(ids, `${actorName} cancelled the plan "${plan.name}".`);
+
+    await refundAction(plan.createdBy, plan.guildId, 'create');
+}
+
+/*
+    Drop one person out of a plan, from the site or the DM button. We take them
+    off the guest list so they are no longer pinged or DMed about it, but leave
+    them in the thread so they can still follow along if they want. A quiet note
+    lets the rest of the group know, no ping, they did not do anything to anyone.
+*/
+export async function leavePlan(plan, userId) {
+    await removeParticipant(plan.planId, userId);
+
+    const guild = await client.guilds.fetch(plan.guildId).catch(() => null);
+    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
+    const name = member?.displayName || 'Someone';
+
+    if (plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            await thread.send({ content: `${name} dropped out of **${plan.name}**. They can still read along here but will not be nudged about it.`, allowedMentions: { parse: [] } });
+        }
+    }
+}
+
+//The drop out button on a DM. Takes the clicker off the plan and swaps the button
+//out for a confirmation so it cannot be pressed twice.
+export async function handleDrop(interaction) {
+    const planId = interaction.customId.split('|')[1];
+    const plan = await getPlan(planId);
+    if (!plan) {
+        return interaction.update({ content: 'That plan is no longer around.', components: [] });
+    }
+    if (!plan.participants.some((p) => p.userId === interaction.user.id)) {
+        return interaction.update({ content: `You are not on "${plan.name}" anymore.`, components: [] });
+    }
+    await leavePlan(plan, interaction.user.id);
+    return interaction.update({ content: `Done, you have dropped out of "${plan.name}". I will not nudge you about it again.`, components: [] });
 }
 
 /*
@@ -188,47 +301,6 @@ export async function handleMyAvailability(interaction) {
     });
 }
 
-//Posted in the plans channel when an unconfirmed plan loses its thread
-export async function postThreadGone(plan, cfg) {
-    const channel = await client.channels.fetch(cfg.plansChannelId).catch(() => null);
-    if (!channel) return;
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`plan|remake|${plan.planId}`).setLabel('Remake the thread').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`plan|remove|${plan.planId}`).setLabel('Remove the plan').setStyle(ButtonStyle.Danger)
-    );
-    await channel.send({
-        content: `The thread for **${plan.name}** got deleted. Want me to remake it, or scrap the plan?`,
-        components: [row],
-        allowedMentions: { parse: [] }
-    });
-}
-
-//Opens a fresh private thread for a plan and pulls everyone back in
-export async function remakeThread(plan, cfg) {
-    const guild = await client.guilds.fetch(plan.guildId);
-    const channel = await guild.channels.fetch(cfg.plansChannelId);
-    const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
-    await setPlanThread(plan.planId, thread.id);
-
-    const ids = plan.participants.map((p) => p.userId);
-    for (const id of ids) await thread.members.add(id).catch(() => {});
-    await thread.send({
-        content: `${ids.map((id) => `<@${id}>`).join(' ')}\n\nBack again. Drop the dates you are free for **${plan.name}** here: ${planUrl(plan.planId)}`,
-        allowedMentions: { users: ids }
-    });
-    return thread;
-}
-
-//Deletes the thread and forgets the plan. The thread vanishing is the signal,
-//so we do not DM anyone about a cancellation.
-export async function cancelPlan(plan) {
-    if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) await thread.delete().catch(() => {});
-    }
-    await deletePlan(plan.planId);
-}
-
 //The /cancel command, asks to confirm before scrapping the plan in this thread
 export async function handleCancel(interaction) {
     if (!interaction.inGuild()) {
@@ -250,91 +322,42 @@ export async function handleCancel(interaction) {
         new ButtonBuilder().setCustomId('cancel|no').setLabel('Keep it').setStyle(ButtonStyle.Secondary)
     );
     return interaction.reply({
-        content: `Cancel **${plan.name}**? This deletes this thread and the plan for good.`,
+        content: `Cancel **${plan.name}**? Everyone gets told, and the thread stays until you delete it by hand.`,
         components: [row],
         flags: MessageFlags.Ephemeral
     });
 }
 
-//Routes the remake / remove / cancel buttons
+//Routes the cancel confirm buttons. Cancel is the only plan button left now that
+//a deleted thread just scraps the plan outright.
 export async function handlePlanComponent(interaction) {
-    const [kind, action, planId] = interaction.customId.split('|');
+    const [, action, planId] = interaction.customId.split('|');
 
-    if (kind === 'cancel') {
-        if (action === 'no') return interaction.update({ content: 'Kept it.', components: [] });
-        await interaction.update({ content: 'Cancelling the plan...', components: [] });
-        const plan = await getPlan(planId);
-        if (plan) await cancelPlan(plan);
-        return;
-    }
+    if (action === 'no') return interaction.update({ content: 'Kept it.', components: [] });
 
-    //plan|remake and plan|remove are planner only, since they sit in a public message
-    const cfg = await getGuildConfig(interaction.guildId);
-    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-    if (!cfg || !member || !member.roles.cache.has(cfg.plannerRoleId)) {
-        return interaction.reply({ content: 'You need the planner role to do that.', flags: MessageFlags.Ephemeral });
-    }
-
+    await interaction.update({ content: 'Cancelling the plan...', components: [] });
     const plan = await getPlan(planId);
-    if (!plan) return interaction.update({ content: 'That plan is already gone.', components: [] });
-
-    if (action === 'remake') {
-        await interaction.update({ content: `Remaking the thread for **${plan.name}**...`, components: [] });
-        try {
-            await remakeThread(plan, cfg);
-            await interaction.editReply({ content: `Done, there is a fresh thread for **${plan.name}**.` });
-        } catch (err) {
-            await interaction.editReply({ content: `Could not remake it: ${err.message}` });
-        }
-        return;
+    if (plan) {
+        const actorName = interaction.member?.displayName || interaction.user.username;
+        await cancelPlan(plan, actorName);
     }
-
-    if (action === 'remove') {
-        await interaction.update({ content: `Scrapped **${plan.name}**.`, components: [] });
-        await deletePlan(planId);
-    }
+    return interaction.editReply({ content: 'Done, everyone has been told. Delete this thread when you are ready to clear the plan for good.' });
 }
 
-//Nudges the people who have not confirmed yet, in the thread. The /remind route
-//caps this to once a day, and the ping in the thread is enough to reach them.
-export async function remindStragglers(plan) {
+/*
+    Nudges the people who have not confirmed yet, by DM only, no thread post. The
+    /remind route caps this to once a day. actorName is whoever asked for it, and
+    the drop out button rides along in case someone would rather bow out.
+*/
+export async function remindStragglers(plan, actorName) {
     const pending = plan.participants.filter((p) => !p.confirmed).map((p) => p.userId);
     if (!pending.length) return 0;
 
     const url = planUrl(plan.planId);
-
-    if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            await thread.send({
-                content: `${pending.map((id) => `<@${id}>`).join(' ')} still waiting on your dates for **${plan.name}**: ${url}`,
-                allowedMentions: { users: pending }
-            });
-        }
-    }
+    await dmEach(pending,
+        `${actorName} has asked for your availability for "${plan.name}". ` +
+        `Please fill it in when you are next free, or just confirm if you already have the dates filled in: ${url}`,
+        [dropRow(plan.planId)]);
 
     return pending.length;
-}
-
-//Tells everyone the range moved and they need to look at the new days
-export async function announceExtension(plan, { dm = false } = {}) {
-    const ids = plan.participants.map((p) => p.userId);
-    const url = planUrl(plan.planId);
-    const when = formatDate(plan.dateRange.end);
-
-    if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            await thread.send({
-                content: `${ids.map((id) => `<@${id}>`).join(' ')}\n\nThe range for **${plan.name}** got extended to ${when}. Add the new days here: ${url}`,
-                allowedMentions: { users: ids }
-            });
-        }
-    }
-
-    if (dm) {
-        await dmEach(ids, `The plan "${plan.name}" was extended to ${when}. Add the new days here: ${url}`);
-    }
 }

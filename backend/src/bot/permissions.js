@@ -7,6 +7,8 @@ import { PermissionsBitField, PermissionFlagsBits as P } from 'discord.js';
     to be listed on its own or pinning quietly fails. We deliberately do not ask
     for Mention Everyone: the bot only ever pings named people in a thread, which
     needs no special permission, so leaving it off shrinks what an admin grants.
+    Manage Messages is left off too, the bot only deletes its own intro messages
+    and whole threads, neither of which needs it.
 */
 export const requiredPermissions = new PermissionsBitField([
     P.ViewChannel,
@@ -15,7 +17,6 @@ export const requiredPermissions = new PermissionsBitField([
     P.CreatePublicThreads,
     P.CreatePrivateThreads,
     P.ManageThreads,
-    P.ManageMessages,
     P.PinMessages,
     P.ManageRoles,
     P.ReadMessageHistory,

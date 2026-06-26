@@ -1,10 +1,9 @@
 import { client } from './client.js';
 import { getGuildConfig, saveGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
-import { getPlanByThread, setPlanThread, deletePlansForGuild, removeUserFromGuildPlans } from '../db/plans.js';
+import { getPlanByThread, deletePlan, deletePlansForGuild, removeUserFromGuildPlans } from '../db/plans.js';
 import { getUserById, deleteUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel, createPublicThread, pinMessage, introText } from './util.js';
-import { postThreadGone } from './plans.js';
 
 /*
     Keeping things tidy when bits get deleted, so the user never hits a silent
@@ -24,14 +23,10 @@ async function forgetIfOrphaned(userId) {
 export async function onThreadDelete(thread) {
     const cfg = await getGuildConfig(thread.guildId);
 
+    //Deleting a plan thread by hand is the signal to scrap the whole plan
     const plan = await getPlanByThread(thread.id);
     if (plan) {
-        //A settled plan does not need its thread back, just drop the dead link
-        if (plan.chosenDate) {
-            await setPlanThread(plan.planId, null);
-            return;
-        }
-        if (cfg) await postThreadGone(plan, cfg);
+        await deletePlan(plan.planId);
         return;
     }
 
@@ -46,7 +41,7 @@ async function remakeIntro(guild, cfg) {
     const channel = await guild.channels.fetch(cfg.plansChannelId).catch(() => null);
     if (!channel) return;
     const fresh = await createPublicThread(channel, 'planner');
-    const intro = await fresh.send({ content: introText(guild.id, cfg.plannerRoleId, cfg.trustedRoleId), allowedMentions: { parse: [] } });
+    const intro = await fresh.send({ content: introText(guild.id, cfg.plannerRoleId), allowedMentions: { parse: [] } });
     await pinMessage(intro).catch(() => {});
     await saveGuildConfig(guild.id, { introThreadId: fresh.id, introMessageId: intro.id });
 }

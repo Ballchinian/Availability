@@ -165,7 +165,8 @@ code {
 }
 
 .field input[type='text'],
-.field input[type='date'] {
+.field input[type='date'],
+.field textarea {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -175,9 +176,14 @@ code {
     font-family: inherit;
 }
 
-.field input[type='text'] {
+.field input[type='text'],
+.field textarea {
     width: 100%;
     max-width: 360px;
+}
+
+.field textarea {
+    resize: vertical;
 }
 
 .field.range {
@@ -585,6 +591,20 @@ code {
 
 .who li.dropped .muted {
     text-decoration: none;
+}
+
+/* Add people block */
+.add {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.add-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
 }
 
 /* Extend block */

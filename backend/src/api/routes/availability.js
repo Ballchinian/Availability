@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getPlansCoveredBy, confirmParticipant } from '../../db/plans.js';
-import { postConfirmation } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 
 /*
@@ -42,12 +41,8 @@ router.post('/', requireUser, async (req, res) => {
         for (const plan of plans) {
             const me = plan.participants.find((p) => p.userId === req.user.id);
             if (me && !me.confirmed) {
-                const updated = await confirmParticipant(plan.planId, req.user.id);
-                try {
-                    await postConfirmation(updated, req.user.id);
-                } catch (err) {
-                    console.error('[availability] confirm post failed:', err);
-                }
+                //Quiet confirm, no thread post, the planner sees it on the compare page
+                await confirmParticipant(plan.planId, req.user.id);
                 confirmedPlans.push(plan.name);
             }
         }

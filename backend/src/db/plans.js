@@ -8,12 +8,13 @@ import { shortId } from '../lib/ids.js';
     separate from the actual availability data they save.
 */
 
-export async function createPlan({ guildId, name, createdBy, dateRange, participantIds }) {
+export async function createPlan({ guildId, name, description, createdBy, dateRange, participantIds }) {
     const now = new Date();
     const doc = {
         planId: shortId(10),
         guildId,
         name,
+        description,
         createdBy,
         dateRange,
         participants: participantIds.map((userId) => ({ userId, confirmed: false, confirmedAt: null })),
@@ -38,7 +39,7 @@ export async function getPlanByThread(threadId) {
 //The still-open plans in a server that a given person is invited to, for /mylink
 export async function getOpenPlansForUser(guildId, userId) {
     return col(collections.plans)
-        .find({ guildId, 'participants.userId': userId, status: { $ne: 'closed' } })
+        .find({ guildId, 'participants.userId': userId, status: 'collecting' })
         .sort({ createdAt: -1 })
         .toArray();
 }
@@ -52,7 +53,7 @@ export async function getPlansCoveredBy(userId, start, end) {
     return col(collections.plans)
         .find({
             'participants.userId': userId,
-            status: { $ne: 'closed' },
+            status: 'collecting',
             'dateRange.start': { $gte: start },
             'dateRange.end': { $lte: end }
         })
@@ -62,6 +63,16 @@ export async function getPlansCoveredBy(userId, start, end) {
 //Lock in the winning date and close the plan off
 export async function setPlanChosen(planId, date) {
     await col(collections.plans).updateOne({ planId }, { $set: { chosenDate: date, status: 'closed' } });
+    return getPlan(planId);
+}
+
+/*
+    Mark a plan cancelled. We leave the document and its thread in place, the
+    thread getting deleted by hand is what finally clears the plan, so a cancelled
+    plan just drops out of the open lists in the meantime.
+*/
+export async function markPlanCancelled(planId) {
+    await col(collections.plans).updateOne({ planId }, { $set: { status: 'cancelled' } });
     return getPlan(planId);
 }
 
@@ -105,6 +116,21 @@ export async function deletePlansForGuild(guildId) {
 //Drop someone from the guest list of every plan in a server when they leave it
 export async function removeUserFromGuildPlans(guildId, userId) {
     await col(collections.plans).updateMany({ guildId }, { $pull: { participants: { userId } } });
+}
+
+//Drop one person from a single plan's guest list, for when they opt out themselves
+export async function removeParticipant(planId, userId) {
+    await col(collections.plans).updateOne({ planId }, { $pull: { participants: { userId } } });
+    return getPlan(planId);
+}
+
+//Add one person to a plan that is already running, fresh and unconfirmed
+export async function addParticipant(planId, userId) {
+    await col(collections.plans).updateOne(
+        { planId },
+        { $push: { participants: { userId, confirmed: false, confirmedAt: null } } }
+    );
+    return getPlan(planId);
 }
 
 //Mark one person as having reviewed and confirmed for this plan

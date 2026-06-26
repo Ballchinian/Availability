@@ -39,3 +39,16 @@ export async function takeAction(userId, guildId, action, limit) {
     );
     return { allowed: true, used: recent.length, limit };
 }
+
+/*
+    Give one slot back, used when a plan is cancelled so starting and scrapping a
+    plan to try things out does not eat into the day's allowance. Drops the newest
+    hit, since that is the one being undone.
+*/
+export async function refundAction(userId, guildId, action) {
+    const key = { userId, guildId, action };
+    const doc = await col(collections.ratelimits).findOne(key);
+    if (!doc?.hits?.length) return;
+    const hits = doc.hits.slice(0, -1);
+    await col(collections.ratelimits).updateOne(key, { $set: { hits } });
+}

@@ -15,10 +15,10 @@
 
     //The form
     let planName = $state('');
+    let planDescription = $state('');
     let startDate = $state('');
     let endDate = $state('');
     let selectedIds = $state<string[]>([]);
-    let dmPeople = $state(false);
 
     const minStart = isoFromNow(1, 'day');
     const maxDate = isoFromNow(2, 'year');
@@ -50,6 +50,7 @@
         formError = '';
         result = null;
         if (!planName.trim()) return (formError = 'Give the plan a name.');
+        if (!planDescription.trim()) return (formError = 'Say a little about what the plan is.');
         if (!startDate || !endDate) return (formError = 'Pick a start and end date.');
         if (endDate < startDate) return (formError = 'The end date is before the start.');
         if (selectedIds.length === 0) return (formError = 'Pick at least one person.');
@@ -60,10 +61,10 @@
                 method: 'POST',
                 body: JSON.stringify({
                     name: planName.trim(),
+                    description: planDescription.trim(),
                     start: startDate,
                     end: endDate,
-                    participantIds: selectedIds,
-                    dmPeople: guildInfo.isTrusted ? dmPeople : false
+                    participantIds: selectedIds
                 })
             });
         } catch (err) {
@@ -102,7 +103,7 @@
         <p class="muted">You need the planner role in {guildInfo.guildName} to start a plan. Ask an admin to give it to you.</p>
     {:else if result}
         <div class="result">
-            <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked.</p>
+            <p>Done. I opened a thread for <strong>{planName}</strong> and pinged and DM'd the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked.</p>
             {#if result.dropped > 0}
                 <p class="status">{result.dropped} {result.dropped === 1 ? 'person was' : 'people were'} no longer in the server, so I left them out.</p>
             {/if}
@@ -115,6 +116,11 @@
         <div class="field">
             <label for="planName">Plan name</label>
             <input id="planName" type="text" bind:value={planName} placeholder="e.g. Camping weekend" maxlength="90" />
+        </div>
+
+        <div class="field">
+            <label for="planDescription">What is it about?</label>
+            <textarea id="planDescription" bind:value={planDescription} placeholder="A line or two so people know what they are signing up for." maxlength="280" rows="2"></textarea>
         </div>
 
         <div class="field range">
@@ -133,9 +139,7 @@
             <MemberPicker {members} bind:selectedIds />
         </div>
 
-        {#if guildInfo.isTrusted}
-            <label class="check"><input type="checkbox" bind:checked={dmPeople} /> Also DM everyone the link (they all get pinged in the thread either way)</label>
-        {/if}
+        <p class="muted small">Everyone you pick gets pinged in a new thread and a DM with the link, so they can fill in their dates or drop out from wherever they are.</p>
 
         {#if formError}
             <p class="status error">{formError}</p>

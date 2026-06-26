@@ -17,6 +17,11 @@
     let saved = $state<any>(null);
     let saveError = $state('');
 
+    let leaveArmed = $state(false);
+    let leaving = $state(false);
+    let left = $state(false);
+    let leaveError = $state('');
+
     const freeCount = $derived(Object.keys(selection).length);
     const totalDays = $derived(data ? countDays(data.plan.start, data.plan.end) : 0);
 
@@ -85,6 +90,18 @@
         submitting = false;
     }
 
+    async function dropOut() {
+        leaveError = '';
+        leaving = true;
+        try {
+            await api(`/plans/${params.planId}/leave`, { method: 'POST' });
+            left = true;
+        } catch (err) {
+            leaveError = errorText(err);
+        }
+        leaving = false;
+    }
+
     function countDays(start: string, end: string) {
         const a = new Date(`${start}T00:00:00`);
         const b = new Date(`${end}T00:00:00`);
@@ -116,11 +133,18 @@
         <p class="status error">{loadError}</p>
     {:else if !data.isParticipant}
         <p class="muted">You are not on the guest list for this plan.</p>
+    {:else if left}
+        <p class="prompt good">You have dropped out of <strong>{data.plan.name}</strong>. The group has been told, and you will not get any more nudges about it.</p>
+    {:else if data.plan.status === 'cancelled'}
+        <p class="prompt">This plan was cancelled, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
     {:else}
         <p class="muted">
             <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''} ·
             {formatDate(data.plan.start)} to {formatDate(data.plan.end)}
         </p>
+        {#if data.plan.description}
+            <p class="muted small">{data.plan.description}</p>
+        {/if}
 
         <p class="prompt">{promptText}</p>
 
@@ -140,5 +164,18 @@
         <button class="primary" onclick={confirm} disabled={submitting}>
             {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Confirm my dates'}
         </button>
+
+        <div class="danger">
+            {#if !leaveArmed}
+                <button class="ghost danger-btn" onclick={() => (leaveArmed = true)}>Drop out of this plan</button>
+            {:else}
+                <span class="small">Drop out of this plan? The group gets told and you come off the guest list.</span>
+                <button class="ghost danger-btn" onclick={dropOut} disabled={leaving}>
+                    {leaving ? 'Dropping out...' : 'Yes, drop me out'}
+                </button>
+                <button class="ghost" onclick={() => (leaveArmed = false)}>No</button>
+            {/if}
+            {#if leaveError}<p class="status error">{leaveError}</p>{/if}
+        </div>
     {/if}
 </section>

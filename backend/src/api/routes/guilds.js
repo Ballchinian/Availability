@@ -7,7 +7,7 @@ import { announcePlan } from '../../bot/plans.js';
 import { checkRange } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
-import { limitFor } from '../../lib/limits.js';
+import { DAILY_LIMIT } from '../../lib/limits.js';
 
 /*
     Server scoped routes: who the logged in person is in this server, the member
@@ -29,9 +29,8 @@ async function loadContext(guildId, userId) {
     const member = await guild.members.fetch(userId).catch(() => null);
     const isMember = Boolean(member);
     const isPlanner = isMember && member.roles.cache.has(cfg.plannerRoleId);
-    const isTrusted = isMember && Boolean(cfg.trustedRoleId) && member.roles.cache.has(cfg.trustedRoleId);
 
-    return { guild, cfg, member, isMember, isPlanner, isTrusted };
+    return { guild, cfg, member, isMember, isPlanner };
 }
 
 //Tells the frontend the server name and whether this person can plan here
@@ -42,8 +41,7 @@ router.get('/:guildId', requireUser, async (req, res) => {
         guildId: ctx.cfg.guildId,
         guildName: ctx.cfg.guildName,
         isMember: ctx.isMember,
-        isPlanner: ctx.isPlanner,
-        isTrusted: ctx.isTrusted
+        isPlanner: ctx.isPlanner
     });
 });
 
@@ -75,11 +73,15 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, start, end, participantIds } = req.body || {};
+    const { name, description, start, end, participantIds } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
     if (cleanName.length > 90) return res.status(400).json({ error: 'That name is a bit long, keep it under 90 characters.' });
+
+    const cleanDescription = String(description || '').trim();
+    if (!cleanDescription) return res.status(400).json({ error: 'Say a little about what the plan is.' });
+    if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
 
     const rangeError = checkRange(start, end);
     if (rangeError) return res.status(400).json({ error: rangeError });
@@ -96,28 +98,25 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     }
     if (validIds.length === 0) return res.status(400).json({ error: 'None of those people are in the server.' });
 
-    //Cap how many plans one person can start a day here, so members cannot be spammed
-    const limit = limitFor(ctx.isTrusted);
-    const rl = await takeAction(req.user.id, req.params.guildId, 'create', limit);
+    //A high daily backstop, since the planner role is the real gate on who can do this
+    const rl = await takeAction(req.user.id, req.params.guildId, 'create', DAILY_LIMIT);
     if (!rl.allowed) {
-        return res.status(429).json({ error: `You have started your ${limit} plans for today. Try again in ${rl.retryAfterHours} hours.` });
+        return res.status(429).json({ error: `You have started your ${DAILY_LIMIT} plans for today. Try again in ${rl.retryAfterHours} hours.` });
     }
-
-    //DMs only happen when a trusted organiser asked for them
-    const dm = ctx.isTrusted && Boolean(req.body?.dmPeople);
 
     try {
         const plan = await createPlan({
             guildId: req.params.guildId,
             name: cleanName,
+            description: cleanDescription,
             createdBy: req.user.id,
             dateRange: { start, end },
             participantIds: validIds
         });
 
-        //Open the thread and ping everyone. If this stumbles, the plan still exists.
+        //Open the thread, ping and DM everyone. If this stumbles, the plan still exists.
         try {
-            await announcePlan(plan, ctx.cfg, { dm });
+            await announcePlan(plan, ctx.cfg, ctx.member.displayName);
         } catch (err) {
             console.error('[plans] announce failed:', err);
         }

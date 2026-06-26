@@ -89,21 +89,18 @@ export function welcomeText() {
 }
 
 //Posted and pinned inside the planner thread once setup finishes
-export function introText(guildId, plannerRoleId, trustedRoleId = null) {
-    const lines = [
+export function introText(guildId, plannerRoleId) {
+    return [
         'This is where we sort out when everyone can meet up.',
         '',
         `Start a plan here: ${createUrl(guildId)}`,
         '',
-        'Pick a date range and who is coming. I will open a thread for it and nudge everyone to drop the dates they are free.',
+        'Pick a date range, say what the plan is about, and choose who is coming. I will open a thread for it and nudge everyone to drop the dates they are free.',
         'Once people have filled theirs in we compare and land on a day that works for the group.',
         '',
         `Want to set your availability ahead of time? Do it here any time: ${config.baseUrl}/#/availability`,
         '',
-        `Heads up: only people with the <@&${plannerRoleId}> role can kick off a plan.`
-    ];
-    if (trustedRoleId) {
-        lines.push(`People in <@&${trustedRoleId}> can organise more freely and choose to DM everyone.`);
-    }
-    return lines.join('\n');
+        `Heads up: only people with the <@&${plannerRoleId}> role can start, confirm, extend, cancel or send reminders for a plan. Everyone gets a DM when one of those happens.`,
+        'When a plan is confirmed or cancelled its thread stays put until someone deletes it by hand, and deleting a plan thread clears the plan for good.'
+    ].join('\n');
 }

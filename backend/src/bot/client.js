@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import { config } from '../config.js';
 import { attachEvents } from './events.js';
 
@@ -6,18 +6,16 @@ import { attachEvents } from './events.js';
     the gateway client. it stays connected the whole time the service is up,
     which is why we need an always-on host. GuildMembers is a privileged intent
     and powers the member picker on the site, so it has to be switched on in the
-    discord dev portal too. event and command wiring gets bolted on in phase 1.
+    discord dev portal too. We only need Guilds and GuildMembers: the bot never
+    reads messages, and the DMs and button clicks it does handle arrive over the
+    interaction gateway, which no message intent gates.
 */
 
 export const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.DirectMessages
-    ],
-    //Needed so we can act on dm channels the bot has not cached yet
-    partials: [Partials.Channel]
+        GatewayIntentBits.GuildMembers
+    ]
 });
 
 let started = false;
