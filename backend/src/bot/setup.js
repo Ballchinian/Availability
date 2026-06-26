@@ -25,6 +25,14 @@ export async function startSetup(interaction) {
     if (!interaction.inGuild()) {
         return interaction.reply({ content: 'Run this inside a server, not in a DM.', flags: MessageFlags.Ephemeral });
     }
+    //inGuild can be true while guild is null if I was only added to someone's apps and
+    //not the server itself, in which case I cannot see the roles or channels here
+    if (!interaction.guild) {
+        return interaction.reply({
+            content: 'I am not actually in this server, it looks like I was added to your apps instead of the server. Re-add me with my invite link (choose Add to Server) and run /setup again.',
+            flags: MessageFlags.Ephemeral
+        });
+    }
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({ content: 'You need the Manage Server permission to set me up.', flags: MessageFlags.Ephemeral });
     }
