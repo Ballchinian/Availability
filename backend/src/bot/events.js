@@ -3,7 +3,7 @@ import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
 import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
-import { findWritableChannel, welcomeText } from './util.js';
+import { findWritableChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
 
 /*
@@ -22,6 +22,12 @@ export function attachEvents(client) {
         } catch (err) {
             console.error('[bot] could not register commands:', err.message);
         }
+
+        //Warm the member cache for every server, one at a time so we stay gentle on the
+        //gateway, so the picker can read from cache instead of the rate limited fetch
+        for (const guild of c.guilds.cache.values()) {
+            await warmGuildMembers(guild);
+        }
     });
 
     //Say hello and nudge an admin towards /setup when added to a server
@@ -30,6 +36,8 @@ export function attachEvents(client) {
         if (channel) {
             await channel.send(welcomeText()).catch(() => {});
         }
+        //Warm the member cache now so the first plan's picker does not hit the gateway limit
+        await warmGuildMembers(guild);
     });
 
     //Tidy up after deletions and departures

@@ -46,6 +46,18 @@ export function findPlannerRole(guild) {
 }
 
 /*
+    Pulls a guild's whole member list into the cache once, so the member picker can
+    read it straight from cache instead of the rate limited gateway fetch. Smaller
+    servers already arrive fully cached, so this only does any work for the larger
+    ones, and with the GuildMembers intent the cache then stays current on its own.
+    Best effort: a throttle here just means the picker fetches on demand later.
+*/
+export async function warmGuildMembers(guild) {
+    if (guild.members.cache.size >= guild.memberCount) return;
+    await guild.members.fetch().catch(() => {});
+}
+
+/*
     Opens a thread off a channel. The longer auto archive windows (3 and 7 days)
     are gated to boosted servers, so we ask for the preferred length and quietly
     fall back to 24 hours when the server will not allow it.
@@ -74,20 +86,15 @@ export const INFO_CHANNEL_NAME = 'plan-bot-info';
 */
 export async function createInfoChannel(guild) {
     const me = guild.members.me;
+    //Deny @everyone Send Messages so it stays read only. The bot is part of @everyone,
+    //so re-allow it for the bot alone, otherwise it could not post the intro here.
     const overwrites = [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] }
     ];
     if (me) {
         overwrites.push({
             id: me.id,
-            allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ManageMessages,
-                PermissionFlagsBits.CreatePrivateThreads,
-                PermissionFlagsBits.SendMessagesInThreads,
-                PermissionFlagsBits.ManageThreads
-            ]
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
         });
     }
     return guild.channels.create({
