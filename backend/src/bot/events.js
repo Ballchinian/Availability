@@ -1,0 +1,84 @@
+import { MessageFlags } from 'discord.js';
+import { registerCommands } from './commands.js';
+import { startSetup, handleSetupComponent } from './setup.js';
+import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent } from './plans.js';
+import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
+import { findWritableChannel, welcomeText } from './util.js';
+import { inviteUrl } from './permissions.js';
+
+/*
+    Wires the gateway events to the bits that handle them. Kept separate from the
+    client itself so the login code stays short. Three things matter here: push
+    commands once we are ready, greet a server when we join it, and route every
+    interaction to the right handler.
+*/
+export function attachEvents(client) {
+    client.once('clientReady', async (c) => {
+        console.log(`[bot] logged in as ${c.user.tag}`);
+        //Handy to have the up to date invite link in the logs at all times
+        console.log(`[bot] invite link: ${inviteUrl(c.user.id)}`);
+        try {
+            await registerCommands(c);
+        } catch (err) {
+            console.error('[bot] could not register commands:', err.message);
+        }
+    });
+
+    //Say hello and nudge an admin towards /setup when added to a server
+    client.on('guildCreate', async (guild) => {
+        const channel = findWritableChannel(guild);
+        if (channel) {
+            await channel.send(welcomeText()).catch(() => {});
+        }
+    });
+
+    //Tidy up after deletions and departures
+    client.on('threadDelete', (thread) => onThreadDelete(thread).catch((err) => console.error('[cleanup] threadDelete:', err.message)));
+    client.on('channelDelete', (channel) => onChannelDelete(channel).catch((err) => console.error('[cleanup] channelDelete:', err.message)));
+    client.on('guildDelete', (guild) => onGuildDelete(guild).catch((err) => console.error('[cleanup] guildDelete:', err.message)));
+    client.on('guildMemberRemove', (member) => onGuildMemberRemove(member).catch((err) => console.error('[cleanup] memberRemove:', err.message)));
+    client.on('guildMemberAdd', (member) => onGuildMemberAdd(member).catch((err) => console.error('[cleanup] memberAdd:', err.message)));
+
+    client.on('interactionCreate', async (interaction) => {
+        try {
+            if (interaction.isChatInputCommand() && interaction.commandName === 'setup') {
+                return await startSetup(interaction);
+            }
+            if (interaction.isChatInputCommand() && interaction.commandName === 'compare') {
+                return await handleCompare(interaction);
+            }
+            if (interaction.isChatInputCommand() && interaction.commandName === 'mylink') {
+                return await handleMyLink(interaction);
+            }
+            if (interaction.isChatInputCommand() && interaction.commandName === 'myavailability') {
+                return await handleMyAvailability(interaction);
+            }
+            if (interaction.isChatInputCommand() && interaction.commandName === 'cancel') {
+                return await handleCancel(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('setup|')) {
+                return await handleSetupComponent(interaction);
+            }
+            if (interaction.isMessageComponent() && (interaction.customId.startsWith('plan|') || interaction.customId.startsWith('cancel|'))) {
+                return await handlePlanComponent(interaction);
+            }
+        } catch (err) {
+            console.error('[bot] interaction failed:', err);
+            await replyError(interaction);
+        }
+    });
+}
+
+//Best effort apology when a handler throws, without crashing the bot
+async function replyError(interaction) {
+    const body = { content: 'something went wrong on my end, give it another go.', flags: MessageFlags.Ephemeral };
+    try {
+        if (interaction.deferred || interaction.replied) {
+            await interaction.followUp(body);
+        } else if (interaction.isRepliable()) {
+            await interaction.reply(body);
+        }
+    } catch {
+        //Nothing more we can do here
+    }
+}

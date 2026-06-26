@@ -1,0 +1,23 @@
+# Netlify builds the Svelte site in web/ and serves it. Every /api/* request is
+# proxied through to the Railway backend, so the browser only ever sees this one
+# domain. That keeps the login cookie first-party, which is what makes auth work.
+
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
+
+# Send the api straight to Railway. This must come before the SPA fallback below,
+# since Netlify takes the first rule that matches.
+[[redirects]]
+  from = "/api/*"
+  to = "https://availabilityforfriends.up.railway.app/api/:splat"
+  status = 200
+  force = true
+
+# Everything else is the single-page app, so hand back index.html and let the
+# client-side router sort it out.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

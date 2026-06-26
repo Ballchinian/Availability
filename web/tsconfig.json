@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "module": "ESNext",
+    /* svelte-preprocess cannot tell a value from a type, so make type-only
+       imports use `import type` rather than a plain import. */
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    /* Source maps so compiler errors land on the right line in .svelte files. */
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "types": ["vite/client"],
+    "skipLibCheck": true,
+    /* Strict on purpose now, rather than leaking in from the Svelte tooling. */
+    "strict": true
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte"]
+}
