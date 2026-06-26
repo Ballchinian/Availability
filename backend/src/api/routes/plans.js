@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, extendPlan, addParticipant } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, addParticipant } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { announceOutcome, remindStragglers, announceExtension, cancelPlan, leavePlan, announceAddition, announceVoid } from '../../bot/plans.js';
-import { maxEnd } from '../../lib/dates.js';
+import { announceOutcome, remindStragglers, announceRangeChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn } from '../../bot/plans.js';
+import { today, maxEnd } from '../../lib/dates.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
 
@@ -80,7 +80,13 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     await replaceAvailabilityInRange(req.user.id, start, end, valid);
     const updated = await confirmParticipant(plan.planId, req.user.id);
 
-    //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page
+    //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
+    //If that was the last person though, the planner gets a DM nudging them to compare.
+    try {
+        await notifyCreatorIfAllIn(updated);
+    } catch (err) {
+        console.error('[plans] all-in notify failed:', err);
+    }
 
     res.json({
         ok: true,
@@ -229,8 +235,8 @@ router.post('/:planId/remind', requireUser, async (req, res) => {
     res.json({ ok: true, pinged });
 });
 
-//Push the end date out, reopen, and tell everyone to fill in the new days
-router.post('/:planId/extend', requireUser, async (req, res) => {
+//Set a fresh start and end on the range, reopen, and tell everyone to refill the new window
+router.post('/:planId/range', requireUser, async (req, res) => {
     const plan = await getPlan(req.params.planId);
     if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
 
@@ -238,30 +244,35 @@ router.post('/:planId/extend', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { newEnd, note } = req.body || {};
-    if (typeof newEnd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(newEnd)) {
-        return res.status(400).json({ error: 'Pick a valid new end date.' });
+    const { start, end, note } = req.body || {};
+    const shape = /^\d{4}-\d{2}-\d{2}$/;
+    if (!shape.test(start || '') || !shape.test(end || '')) {
+        return res.status(400).json({ error: 'Pick a valid start and end date.' });
     }
-    if (newEnd <= plan.dateRange.end) return res.status(400).json({ error: 'The new end has to be later than the current one.' });
-    if (newEnd > maxEnd()) return res.status(400).json({ error: 'That is more than two years out.' });
+    if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
+    if (end < today()) return res.status(400).json({ error: 'That whole range is in the past.' });
+    if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
+    if (start === plan.dateRange.start && end === plan.dateRange.end) {
+        return res.status(400).json({ error: 'That is already the range. Move the start or the end to change it.' });
+    }
 
     const cleanNote = String(note || '').trim().slice(0, 200) || null;
 
-    //A high daily backstop on pushing the range out, since each one pings and DMs everyone
+    //A high daily backstop on changing the range, since each one pings and DMs everyone
     const rl = await takeAction(req.user.id, plan.guildId, 'extend', DAILY_LIMIT);
     if (!rl.allowed) {
-        return res.status(429).json({ error: `You have extended ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+        return res.status(429).json({ error: `You have changed the dates ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
-    const updated = await extendPlan(plan.planId, newEnd);
+    const updated = await setPlanRange(plan.planId, start, end);
 
     try {
-        await announceExtension(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote });
+        await announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote });
     } catch (err) {
-        console.error('[plans] extension post failed:', err);
+        console.error('[plans] range post failed:', err);
     }
 
-    res.json({ ok: true, end: newEnd });
+    res.json({ ok: true, start, end });
 });
 
 //Cancel a plan: mark it cancelled, ping and DM everyone, leave the thread to be deleted by hand

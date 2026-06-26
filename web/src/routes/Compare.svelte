@@ -35,6 +35,7 @@
     let voiding = $state(false);
     let voidMsg = $state('');
 
+    let newStart = $state('');
     let newEnd = $state('');
     let extendNote = $state('');
     let extending = $state(false);
@@ -54,9 +55,9 @@
 
     const maxMiss = $derived(data ? Math.max(0, data.confirmedCount - 1) : 0);
 
-    //An extension has to land after the current end and inside the two year cap
-    const extendMin = $derived(data ? nextDay(data.plan.end) : '');
-    const extendMax = isoFromNow(2, 'year');
+    //A range edit can run from today out to the two year cap, with start no later than end
+    const todayIso = isoOf(new Date());
+    const rangeMax = isoFromNow(2, 'year');
 
     const byId = $derived.by(() => {
         const m: Record<string, any> = {};
@@ -94,7 +95,9 @@
                 chosenTime = data.plan.chosenTime || '';
                 chosenNote = data.plan.chosenNote || '';
             }
-            newEnd = '';
+            //Prefill the range editor with the window the plan is on right now
+            newStart = data.plan.start;
+            newEnd = data.plan.end;
         } catch (err) {
             loadError = errorText(err);
         }
@@ -214,19 +217,27 @@
         adding = false;
     }
 
-    async function extend() {
+    async function editRange() {
         extendMsg = '';
-        if (!newEnd) {
-            extendMsg = 'Pick a new end date first.';
+        if (!newStart || !newEnd) {
+            extendMsg = 'Pick a start and end date first.';
+            return;
+        }
+        if (newStart > newEnd) {
+            extendMsg = 'The start date is after the end date.';
+            return;
+        }
+        if (newStart === data.plan.start && newEnd === data.plan.end) {
+            extendMsg = 'That is already the range. Move the start or the end to change it.';
             return;
         }
         extending = true;
         try {
-            const res = await api(`/plans/${params.planId}/extend`, {
+            const res = await api(`/plans/${params.planId}/range`, {
                 method: 'POST',
-                body: JSON.stringify({ newEnd, note: extendNote.trim() || null })
+                body: JSON.stringify({ start: newStart, end: newEnd, note: extendNote.trim() || null })
             });
-            extendMsg = `Extended to ${formatDate(res.end)} and everyone has been pinged and DM'd.`;
+            extendMsg = `Range set to ${formatDate(res.start)} to ${formatDate(res.end)} and everyone has been pinged and DM'd.`;
             extendNote = '';
             chosen = null;
             selectedDate = null;
@@ -237,11 +248,6 @@
         extending = false;
     }
 
-    function nextDay(iso: string) {
-        const d = new Date(`${iso}T00:00:00`);
-        d.setDate(d.getDate() + 1);
-        return isoOf(d);
-    }
     function isoFromNow(amount: number, unit: string) {
         const d = new Date();
         if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
@@ -387,11 +393,14 @@
         </div>
 
         <div class="extend">
-            <p class="muted small">Nothing in this range works? Push the end date out and everyone gets asked for the new days.</p>
+            <p class="muted small">Need different days? Set a new start or end for the range and everyone gets asked to fill in the new window.</p>
             <div class="extend-row">
-                <input type="date" bind:value={newEnd} min={extendMin} max={extendMax} />
-                <button class="ghost" onclick={extend} disabled={extending}>
-                    {extending ? 'Extending...' : 'Extend the range'}
+                <label class="lbl" for="rstart">Start</label>
+                <input id="rstart" type="date" bind:value={newStart} min={todayIso} max={newEnd || rangeMax} />
+                <label class="lbl" for="rend">End</label>
+                <input id="rend" type="date" bind:value={newEnd} min={newStart || todayIso} max={rangeMax} />
+                <button class="ghost" onclick={editRange} disabled={extending}>
+                    {extending ? 'Saving...' : 'Update the date range'}
                 </button>
             </div>
             <input type="text" bind:value={extendNote} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />

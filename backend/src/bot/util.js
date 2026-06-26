@@ -63,9 +63,39 @@ export async function createThread(channel, name, type = ChannelType.PublicThrea
     throw lastErr;
 }
 
-//The intro thread from /setup is public so everyone in the server can read it
-export function createPublicThread(channel, name, preferredDuration = 1440) {
-    return createThread(channel, name, ChannelType.PublicThread, preferredDuration);
+//The name of the read-only channel the bot makes on setup to hold the intro and host plan threads
+export const INFO_CHANNEL_NAME = 'plan-bot-info';
+
+/*
+    Makes the bot its own channel on setup: a read-only info chat where the intro
+    lives and every plan thread spawns from. Everyone can read it but no one can
+    type, so it stays clean. The bot keeps the rights it needs to post, pin and
+    open the private plan threads.
+*/
+export async function createInfoChannel(guild) {
+    const me = guild.members.me;
+    const overwrites = [
+        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] }
+    ];
+    if (me) {
+        overwrites.push({
+            id: me.id,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.CreatePrivateThreads,
+                PermissionFlagsBits.SendMessagesInThreads,
+                PermissionFlagsBits.ManageThreads
+            ]
+        });
+    }
+    return guild.channels.create({
+        name: INFO_CHANNEL_NAME,
+        type: ChannelType.GuildText,
+        topic: 'Plan bot info, and the home for plan threads. Read only, the bot posts here.',
+        permissionOverwrites: overwrites
+    });
 }
 
 /*
@@ -83,24 +113,23 @@ export function welcomeText() {
     return [
         "Trying to help the self-torment of organising when you're an adult",
         '',
-        'To get going, someone with Manage Server runs `/setup` and tells me which channel is your plans chat.',
-        'After that I will set up a thread with the link, and anyone with the planner role can start a plan.'
+        'To get going, someone with Manage Server runs `/setup`. I will make a read-only info channel with the link, and anyone with the planner role can start a plan from there.'
     ].join('\n');
 }
 
-//Posted and pinned inside the planner thread once setup finishes
+//Posted and pinned in the read-only info channel once setup finishes
 export function introText(guildId, plannerRoleId) {
     return [
-        'This is where we sort out when everyone can meet up.',
+        'This is the plan bot info channel. It is read only, I post here and every plan gets its own thread off this channel.',
         '',
         `Start a plan here: ${createUrl(guildId)}`,
         '',
         'Pick a date range, say what the plan is about, and choose who is coming. I will open a thread for it and nudge everyone to drop the dates they are free.',
-        'Once people have filled theirs in we compare and find a day that works for the group.',
+        "Once everyone has filled theirs in I will DM whoever started the plan. To find a day that works for the group, run `/compare` in that plan's thread, any time, even before everyone is in.",
         '',
         `Want to set your availability ahead of time? Do it here any time: ${config.baseUrl}/#/availability`,
         '',
-        `Heads up: only people with the <@&${plannerRoleId}> role can start, confirm, extend, cancel or send reminders for a plan. Everyone gets a DM when one of those happens.`,
+        `Heads up: only people with the <@&${plannerRoleId}> role can start, confirm, change the dates, cancel or send reminders for a plan. Everyone gets a DM when one of those happens.`,
         'When a plan is confirmed or cancelled its thread stays put until someone deletes it by hand, and deleting a plan thread clears the plan for good.'
     ].join('\n');
 }

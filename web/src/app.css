@@ -653,9 +653,16 @@ code {
 
 .extend-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: center;
     margin-top: 6px;
+}
+
+/* The Start / End labels sit inline in the range row, no stacked margins */
+.extend-row .lbl {
+    display: inline;
+    margin: 0;
 }
 
 .extend-row input[type='date'] {

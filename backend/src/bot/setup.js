@@ -1,23 +1,21 @@
 import {
     ActionRowBuilder,
-    ChannelSelectMenuBuilder,
     ButtonBuilder,
     ButtonStyle,
-    ChannelType,
     PermissionFlagsBits,
     MessageFlags
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
-import { findPlannerRole, createPublicThread, pinMessage, introText } from './util.js';
+import { findPlannerRole, createInfoChannel, pinMessage, introText } from './util.js';
 
 /*
     The /setup flow. It runs as a little ephemeral wizard so only the person who
     ran it sees the steps. All the state between steps is packed into the button
     ids, so there is no in memory session to keep track of.
 
-    Step 1: pick the plans channel (channel select menu)
-    Step 2: sort the planner role (adopt an existing one or make a fresh one)
-    Step 3: save config, open the planner thread, post and pin the intro, report back
+    Step 1: sort the planner role (adopt an existing one or make a fresh one)
+    Step 2: save config, make the read-only info channel, post and pin the intro,
+            report back. Plan threads spawn off that channel.
 */
 
 //Entry point when someone runs /setup
@@ -37,79 +35,66 @@ export async function startSetup(interaction) {
         return interaction.reply({ content: 'You need the Manage Server permission to set me up.', flags: MessageFlags.Ephemeral });
     }
 
-    const row = new ActionRowBuilder().addComponents(
-        new ChannelSelectMenuBuilder()
-            .setCustomId('setup|channel')
-            .setPlaceholder('Pick your plans channel')
-            .addChannelTypes(ChannelType.GuildText)
-            .setMinValues(1)
-            .setMaxValues(1)
-    );
-
-    return interaction.reply({
-        content: 'Which channel is your plans chat? I will set up a thread there with the link.',
-        components: [row],
-        flags: MessageFlags.Ephemeral
-    });
+    return askAboutRole(interaction, true);
 }
 
-//Routes every setup|* button and menu back here
+//Routes every setup|* button back here
 export async function handleSetupComponent(interaction) {
     const parts = interaction.customId.split('|');
     const step = parts[1];
 
-    if (step === 'channel') {
-        const channelId = interaction.values[0];
-        return askAboutRole(interaction, channelId);
-    }
-
     if (step === 'role') {
         const mode = parts[2];
-        const channelId = parts[3];
-        const roleId = parts[4];
+        const roleId = parts[3];
         //Acknowledge first, since making or adopting a role is a slow call
         await interaction.update({ content: 'Setting things up...', components: [] });
         const role = await resolveRole(interaction.guild, { mode, roleId });
-        return finalize(interaction, channelId, role.id);
+        return finalize(interaction, role.id);
     }
 }
 
-//Step 2: either there is already a planner role to adopt, or we just make one
-async function askAboutRole(interaction, channelId) {
+/*
+    Step 1: either there is already a planner role to adopt, or we just make one.
+    fresh is true when this comes straight off the slash command, so we reply
+    instead of editing a component message that does not exist yet.
+*/
+async function askAboutRole(interaction, fresh) {
     await interaction.guild.roles.fetch();
     const existing = findPlannerRole(interaction.guild);
 
     if (!existing) {
-        //Acknowledge first, since making the role is a slow call
-        await interaction.update({ content: 'Setting things up...', components: [] });
+        //Acknowledge first, since making the role and the channel are slow calls
+        const ack = { content: 'Setting things up...', components: [] };
+        if (fresh) await interaction.reply({ ...ack, flags: MessageFlags.Ephemeral });
+        else await interaction.update(ack);
         const role = await resolveRole(interaction.guild, { mode: 'new' });
-        return finalize(interaction, channelId, role.id);
+        return finalize(interaction, role.id);
     }
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`setup|role|adopt|${channelId}|${existing.id}`)
+            .setCustomId(`setup|role|adopt|${existing.id}`)
             .setLabel(`Use existing ${existing.name}`)
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-            .setCustomId(`setup|role|new|${channelId}`)
+            .setCustomId('setup|role|new')
             .setLabel('Make a fresh role')
             .setStyle(ButtonStyle.Secondary)
     );
 
-    return interaction.update({
+    const payload = {
         content: `There is already a role called "${existing.name}". Want me to use it, or make a separate role just for planning?`,
         components: [row]
-    });
+    };
+    if (fresh) return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+    return interaction.update(payload);
 }
 
-//Step 3: open the thread, post the intro, save config, report back
-async function finalize(interaction, channelId, plannerRoleId) {
+//Step 2: make the info channel, post the intro, save config, report back
+async function finalize(interaction, plannerRoleId) {
     const guild = interaction.guild;
 
     try {
-        const channel = await guild.channels.fetch(channelId);
-
         //Hand the planner role to whoever ran setup so they can plan right away
         const setupMember = await guild.members.fetch(interaction.user.id).catch(() => null);
         if (setupMember && !setupMember.roles.cache.has(plannerRoleId)) {
@@ -118,19 +103,18 @@ async function finalize(interaction, channelId, plannerRoleId) {
 
         //Clear out anything a previous setup left behind so we do not pile up
         const prev = await getGuildConfig(guild.id);
-        if (prev?.introThreadId) {
+        if (prev?.infoChannelId) {
+            const oldChannel = await guild.channels.fetch(prev.infoChannelId).catch(() => null);
+            if (oldChannel) await oldChannel.delete().catch(() => {});
+        } else if (prev?.introThreadId) {
+            //An older setup kept the intro in a thread, tidy that up
             const oldThread = await guild.channels.fetch(prev.introThreadId).catch(() => null);
             if (oldThread) await oldThread.delete().catch(() => {});
-        } else if (prev?.introMessageId && prev.plansChannelId) {
-            //An older setup posted the intro straight into the channel, tidy that up
-            const oldChannel = await guild.channels.fetch(prev.plansChannelId).catch(() => null);
-            const oldMsg = oldChannel ? await oldChannel.messages.fetch(prev.introMessageId).catch(() => null) : null;
-            if (oldMsg) await oldMsg.delete().catch(() => {});
         }
 
-        //The bot lives in a thread so the plans channel stays clear for people
-        const thread = await createPublicThread(channel, 'planner');
-        const intro = await thread.send({
+        //The bot makes its own read-only channel: the intro lives here and plan threads spawn off it
+        const channel = await createInfoChannel(guild);
+        const intro = await channel.send({
             content: introText(guild.id, plannerRoleId),
             //Show the role as a styled mention without actually pinging it
             allowedMentions: { parse: [] }
@@ -146,11 +130,14 @@ async function finalize(interaction, channelId, plannerRoleId) {
 
         await saveGuildConfig(guild.id, {
             guildName: guild.name,
-            plansChannelId: channelId,
+            //The info channel is also the parent every plan thread spawns from
+            plansChannelId: channel.id,
+            infoChannelId: channel.id,
             plannerRoleId,
             //Clear any trusted role a previous setup saved, the split is gone now
             trustedRoleId: null,
-            introThreadId: thread.id,
+            //No more intro thread, the intro lives in the channel itself now
+            introThreadId: null,
             introMessageId: intro.id,
             setupBy: interaction.user.id,
             setupComplete: true
@@ -158,16 +145,16 @@ async function finalize(interaction, channelId, plannerRoleId) {
 
         const pinNote = pinned
             ? ''
-            : '\n\n(Heads up: I could not pin the intro. Give me the Pin Messages permission and rerun /setup if you want it pinned.)';
+            : '\n\n(Heads up: I could not pin the intro. Give me the Manage Messages permission and rerun /setup if you want it pinned.)';
 
         return interaction.editReply({
-            content: `All set. I opened the ${thread} thread in <#${channelId}> with the link, and the planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, extend, cancel or send reminders for a plan. Each plan gets its own thread, so this channel stays free for normal chat.${pinNote}`,
+            content: `All set. I made the ${channel} channel, read only so it stays clean, with the intro and the link pinned at the top. The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${pinNote}`,
             allowedMentions: { parse: [] }
         });
     } catch (err) {
         console.error('[setup] finalize failed:', err);
         return interaction.editReply({
-            content: `That did not work: ${err.message}\n\nCheck that I have Manage Roles, and that I can create threads and post in that channel.`,
+            content: `That did not work: ${err.message}\n\nCheck that I have Manage Channels and Manage Roles, and that I can create threads and post.`,
             components: []
         });
     }

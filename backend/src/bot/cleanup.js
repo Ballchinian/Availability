@@ -1,9 +1,9 @@
 import { client } from './client.js';
-import { getGuildConfig, saveGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
+import { getGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
 import { getPlanByThread, deletePlan, deletePlansForGuild, removeUserFromGuildPlans } from '../db/plans.js';
 import { getUserById, deleteUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
-import { findWritableChannel, createPublicThread, pinMessage, introText } from './util.js';
+import { findWritableChannel } from './util.js';
 
 /*
     Keeping things tidy when bits get deleted, so the user never hits a silent
@@ -21,29 +21,9 @@ async function forgetIfOrphaned(userId) {
 }
 
 export async function onThreadDelete(thread) {
-    const cfg = await getGuildConfig(thread.guildId);
-
     //Deleting a plan thread by hand is the signal to scrap the whole plan
     const plan = await getPlanByThread(thread.id);
-    if (plan) {
-        await deletePlan(plan.planId);
-        return;
-    }
-
-    //The planner intro thread, just quietly stand it back up
-    if (cfg && cfg.introThreadId === thread.id) {
-        const guild = thread.guild || (await client.guilds.fetch(thread.guildId).catch(() => null));
-        if (guild) await remakeIntro(guild, cfg);
-    }
-}
-
-async function remakeIntro(guild, cfg) {
-    const channel = await guild.channels.fetch(cfg.plansChannelId).catch(() => null);
-    if (!channel) return;
-    const fresh = await createPublicThread(channel, 'planner');
-    const intro = await fresh.send({ content: introText(guild.id, cfg.plannerRoleId), allowedMentions: { parse: [] } });
-    await pinMessage(intro).catch(() => {});
-    await saveGuildConfig(guild.id, { introThreadId: fresh.id, introMessageId: intro.id });
+    if (plan) await deletePlan(plan.planId);
 }
 
 export async function onChannelDelete(channel) {
@@ -56,13 +36,13 @@ export async function onChannelDelete(channel) {
     const fallback = guild ? findWritableChannel(guild) : null;
     if (fallback) {
         await fallback
-            .send('Heads up, the plans channel I was using got deleted, so planning is paused. Run `/setup` to point me at a new one.')
+            .send('Heads up, the plan bot info channel I made got deleted, so planning is paused. Run `/setup` and I will make a fresh one.')
             .catch(() => {});
     }
     if (cfg.setupBy) {
         try {
             const user = await client.users.fetch(cfg.setupBy);
-            await user.send(`Your plans channel in ${guild?.name || 'your server'} was deleted, so planning is paused there. Run /setup to fix it.`);
+            await user.send(`The plan bot info channel in ${guild?.name || 'your server'} was deleted, so planning is paused there. Run /setup and I will make a fresh one.`);
         } catch {
             //DMs off, the channel message still covers it
         }

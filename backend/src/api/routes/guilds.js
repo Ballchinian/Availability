@@ -18,6 +18,56 @@ import { DAILY_LIMIT } from '../../lib/limits.js';
 
 const router = Router();
 
+/*
+    Fetching the whole member list is a gateway call (opcode 8) that Discord rate
+    limits hard, so we cannot do it on every page load. We hold the list per guild
+    for a short while, share a single in-flight fetch when several requests land at
+    once, and fall back to whatever the client already has cached if the gateway
+    says no. The member picker can live with a list that is up to a minute stale.
+*/
+const memberCache = new Map();
+const memberInFlight = new Map();
+const MEMBER_TTL_MS = 60 * 1000;
+
+function shapeMembers(collection) {
+    return collection
+        .filter((m) => !m.user.bot)
+        .map((m) => ({
+            id: m.id,
+            username: m.user.username,
+            displayName: m.displayName,
+            avatarUrl: m.displayAvatarURL({ size: 64 })
+        }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+async function listMembers(guild) {
+    const cached = memberCache.get(guild.id);
+    if (cached && Date.now() - cached.at < MEMBER_TTL_MS) return cached.list;
+    if (memberInFlight.has(guild.id)) return memberInFlight.get(guild.id);
+
+    const work = (async () => {
+        let collection;
+        try {
+            collection = await guild.members.fetch();
+        } catch (err) {
+            //Rate limited or otherwise, lean on what the client already knows
+            if (guild.members.cache.size > 1) collection = guild.members.cache;
+            else throw err;
+        }
+        const list = shapeMembers(collection);
+        memberCache.set(guild.id, { at: Date.now(), list });
+        return list;
+    })();
+
+    memberInFlight.set(guild.id, work);
+    try {
+        return await work;
+    } finally {
+        memberInFlight.delete(guild.id);
+    }
+}
+
 //Looks up the requester inside the guild and works out what they are allowed to do
 async function loadContext(guildId, userId) {
     const guild = await client.guilds.fetch(guildId).catch(() => null);
@@ -51,16 +101,7 @@ router.get('/:guildId/members', requireUser, async (req, res) => {
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to do that.' });
 
     try {
-        const members = await ctx.guild.members.fetch();
-        const list = members
-            .filter((m) => !m.user.bot)
-            .map((m) => ({
-                id: m.id,
-                username: m.user.username,
-                displayName: m.displayName,
-                avatarUrl: m.displayAvatarURL({ size: 64 })
-            }))
-            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+        const list = await listMembers(ctx.guild);
         res.json({ members: list });
     } catch (err) {
         console.error('[members] failed:', err);

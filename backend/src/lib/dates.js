@@ -27,6 +27,10 @@ export function formatTime(t) {
     return m === 0 ? `${base}${period}` : `${base}:${String(m).padStart(2, '0')}${period}`;
 }
 
+export function today() {
+    return isoDate(new Date());
+}
+
 export function tomorrow() {
     const d = new Date();
     d.setDate(d.getDate() + 1);

@@ -9,7 +9,7 @@ import { config } from '../config.js';
 export const commands = [
     new SlashCommandBuilder()
         .setName('setup')
-        .setDescription('Point the bot at your plans channel and planner role')
+        .setDescription('Set up the bot: makes a read-only info channel and sorts the planner role')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .toJSON(),
     new SlashCommandBuilder()

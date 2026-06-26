@@ -10,10 +10,10 @@ threads and links, all kept apart by the server they belong to.
 
 ## How a plan goes
 
-1. Someone with Manage Server runs `/setup` and points the bot at a channel. The
-   bot makes a planner role (or adopts one you already have), asks if there is a
-   role you trust to organise more freely, and posts the link in a `planner` thread
-   so it does not clutter the channel.
+1. Someone with Manage Server runs `/setup`. The bot makes a planner role (or
+   adopts one you already have) and creates a read-only `plan-bot-info` channel,
+   with the link and a short intro pinned at the top. Every plan thread spawns off
+   that channel, so it stays the one tidy home for planning.
 2. A person with the planner role opens the site, sets a date range (anywhere from
    tomorrow up to two years out) and picks who is coming, with search and
    drag-and-drop to sort people.
@@ -25,12 +25,13 @@ threads and links, all kept apart by the server they belong to.
    their timetable, so the next plan starts already filled in.
 5. As people confirm, the thread keeps a running count ("waiting on 4/8"). No one
    gets DM spam about other people checking in.
-6. When enough are in, a planner opens the compare view. Days are coloured by how
-   many people are free, with a slider for how many you are willing to miss. Pick a
-   day and the bot announces it.
+6. Once everyone is in, the planner who made the plan gets a DM to go and compare.
+   They open the compare view (or run `/compare` in the thread). Days are coloured
+   by how many people are free, with a slider for how many you are willing to miss.
+   Pick a day and the bot announces it.
 
 So a group cannot be blasted, the noisy actions that ping people (starting a plan,
-extending the range, locking a date in) are capped at twice a day per person in a
+changing the range, locking a date in) are capped at twice a day per person in a
 server. Anyone in the trusted role gets ten a day instead, and is the only one who
 can choose to DM people on top of the thread ping.
 
@@ -79,8 +80,8 @@ appear right away instead of taking up to an hour to register globally.
 
 ## Commands
 
-- `/setup` picks the plans channel and sorts out the planner role. Manage Server
-  only.
+- `/setup` makes the read-only `plan-bot-info` channel and sorts out the planner
+  role. Manage Server only.
 - `/compare`, run inside a plan's thread, hands the planner that plan's compare
   link. Planner role only.
 

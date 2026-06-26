@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getPlansCoveredBy, confirmParticipant } from '../../db/plans.js';
+import { notifyCreatorIfAllIn } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 
 /*
@@ -42,8 +43,14 @@ router.post('/', requireUser, async (req, res) => {
             const me = plan.participants.find((p) => p.userId === req.user.id);
             if (me && !me.confirmed) {
                 //Quiet confirm, no thread post, the planner sees it on the compare page
-                await confirmParticipant(plan.planId, req.user.id);
+                const updated = await confirmParticipant(plan.planId, req.user.id);
                 confirmedPlans.push(plan.name);
+                //If this filled the last slot, nudge the creator to go and compare
+                try {
+                    await notifyCreatorIfAllIn(updated);
+                } catch (err) {
+                    console.error('[availability] all-in notify failed:', err);
+                }
             }
         }
     }

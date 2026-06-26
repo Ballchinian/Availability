@@ -21,6 +21,7 @@ export async function createPlan({ guildId, name, description, createdBy, dateRa
         threadId: null,
         status: 'collecting',
         chosenDate: null,
+        allInNotifiedAt: null,
         createdAt: now
     };
     await col(collections.plans).insertOne(doc);
@@ -94,18 +95,31 @@ export async function setReminded(planId) {
 }
 
 /*
-    Push the end date out and reopen the plan. Everyone's confirmed flag is reset
-    so they all take another look at the new days, but their saved availability is
-    left alone, so anyone whose timetable already reaches the new dates just needs
-    a quick glance.
+    Set a fresh start and end on the plan and reopen it. Everyone's confirmed flag
+    is reset so they all take another look at the new window, but their saved
+    availability is left alone, so anyone whose timetable already reaches the new
+    dates just needs a quick glance. Any date that had been picked is cleared too,
+    since the window moved out from under it.
 */
-export async function extendPlan(planId, newEnd) {
+export async function setPlanRange(planId, start, end) {
     const plan = await getPlan(planId);
     const participants = plan.participants.map((p) => ({ ...p, confirmed: false, confirmedAt: null }));
     await col(collections.plans).updateOne(
         { planId },
-        //Clear the remind cooldown too, it is a fresh round of dates to chase up
-        { $set: { 'dateRange.end': newEnd, status: 'collecting', chosenDate: null, participants, lastRemindedAt: null } }
+        {
+            $set: {
+                'dateRange.start': start,
+                'dateRange.end': end,
+                status: 'collecting',
+                chosenDate: null,
+                chosenTime: null,
+                chosenNote: null,
+                participants,
+                //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
+                lastRemindedAt: null,
+                allInNotifiedAt: null
+            }
+        }
     );
     return getPlan(planId);
 }
@@ -140,7 +154,11 @@ export async function removeParticipant(planId, userId) {
 export async function addParticipant(planId, userId) {
     await col(collections.plans).updateOne(
         { planId },
-        { $push: { participants: { userId, confirmed: false, confirmedAt: null } } }
+        {
+            $push: { participants: { userId, confirmed: false, confirmedAt: null } },
+            //A new face means not everyone is in yet, so let the all-in nudge fire again later
+            $set: { allInNotifiedAt: null }
+        }
     );
     return getPlan(planId);
 }
@@ -152,4 +170,9 @@ export async function confirmParticipant(planId, userId) {
         { $set: { 'participants.$.confirmed': true, 'participants.$.confirmedAt': new Date() } }
     );
     return getPlan(planId);
+}
+
+//Note that we have told the creator everyone is in, so that nudge only goes once a round
+export async function markAllInNotified(planId) {
+    await col(collections.plans).updateOne({ planId }, { $set: { allInNotifiedAt: new Date() } });
 }
