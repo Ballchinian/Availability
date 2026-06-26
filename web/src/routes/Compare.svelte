@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate } from '../lib/format.js';
+    import { formatDate, formatTime } from '../lib/format.js';
     import { formatHours } from '../lib/hours.js';
     import { evaluateDay } from '../lib/overlap.js';
     import UserBadge from '../lib/UserBadge.svelte';
@@ -18,8 +18,10 @@
 
     let missAllowed = $state(0);
     let selectedDate = $state<string | null>(null);
-    let pingAttending = $state(true);
-    let pingAllInvited = $state(false);
+    //Either/or in the thread: ping the people who can make it, everyone, or no one
+    let pingMode = $state('attending');
+    let chosenTime = $state('');
+    let chosenNote = $state('');
 
     let submitting = $state(false);
     let chosen = $state<any>(null);
@@ -28,7 +30,13 @@
     let reminding = $state(false);
     let remindMsg = $state('');
 
+    let voidArmed = $state(false);
+    let voidReason = $state('');
+    let voiding = $state(false);
+    let voidMsg = $state('');
+
     let newEnd = $state('');
+    let extendNote = $state('');
     let extending = $state(false);
     let extendMsg = $state('');
 
@@ -66,8 +74,13 @@
         return { free, ev, keptSet: new Set(ev.keptIds) };
     });
 
-    //Whether the picked day is already the one the plan is set for
-    const isCurrent = $derived(Boolean(chosen && selectedDate === chosen.chosenDate));
+    //Whether the picked day, time and note all already match what the plan is set for
+    const isCurrent = $derived(Boolean(
+        chosen &&
+        selectedDate === chosen.chosenDate &&
+        (chosenTime || '') === (chosen.chosenTime || '') &&
+        (chosenNote.trim() || '') === (chosen.chosenNote || '')
+    ));
 
     async function load() {
         loading = true;
@@ -76,8 +89,10 @@
             //A cancelled plan is read only, the banner stands in for the controls
             if (data.plan.status === 'cancelled') cancelled = true;
             if (data.plan.chosenDate) {
-                chosen = { chosenDate: data.plan.chosenDate };
+                chosen = { chosenDate: data.plan.chosenDate, chosenTime: data.plan.chosenTime, chosenNote: data.plan.chosenNote };
                 selectedDate = data.plan.chosenDate;
+                chosenTime = data.plan.chosenTime || '';
+                chosenNote = data.plan.chosenNote || '';
             }
             newEnd = '';
         } catch (err) {
@@ -103,8 +118,10 @@
                 method: 'POST',
                 body: JSON.stringify({
                     date: selectedDate,
-                    pingAttending,
-                    pingAllInvited,
+                    time: chosenTime || null,
+                    note: chosenNote.trim() || null,
+                    pingAttending: pingMode === 'attending',
+                    pingAllInvited: pingMode === 'all',
                     attendingIds: sel?.ev.keptIds || []
                 })
             });
@@ -112,6 +129,26 @@
             chooseError = errorText(err);
         }
         submitting = false;
+    }
+
+    async function doVoid() {
+        voidMsg = '';
+        voiding = true;
+        try {
+            await api(`/plans/${params.planId}/void`, {
+                method: 'POST',
+                body: JSON.stringify({ reason: voidReason.trim() || null })
+            });
+            chosen = null;
+            selectedDate = null;
+            voidArmed = false;
+            voidReason = '';
+            await load();
+            voidMsg = 'Date undone and everyone has been DMed. Pick a new one whenever you are ready.';
+        } catch (err) {
+            voidMsg = errorText(err);
+        }
+        voiding = false;
     }
 
     async function remind() {
@@ -187,9 +224,10 @@
         try {
             const res = await api(`/plans/${params.planId}/extend`, {
                 method: 'POST',
-                body: JSON.stringify({ newEnd })
+                body: JSON.stringify({ newEnd, note: extendNote.trim() || null })
             });
             extendMsg = `Extended to ${formatDate(res.end)} and everyone has been pinged and DM'd.`;
+            extendNote = '';
             chosen = null;
             selectedDate = null;
             await load();
@@ -273,9 +311,26 @@
 
         {#if chosen}
             <p class="prompt good">
-                <strong>{data.plan.name}</strong> is set for {formatDate(chosen.chosenDate)}. Pick another day below to move it, and everyone gets told.
+                <strong>{data.plan.name}</strong> is set for {formatDate(chosen.chosenDate)}{chosen.chosenTime ? ` at ${formatTime(chosen.chosenTime)}` : ''}.
+                {#if chosen.chosenNote}<br />{chosen.chosenNote}{/if}
+                <br />Pick another day below to move it, and everyone gets told.
             </p>
+            <div class="void">
+                {#if !voidArmed}
+                    <button class="ghost danger-btn" onclick={() => (voidArmed = true)}>Undo this date / reschedule</button>
+                {:else}
+                    <p class="muted small">This clears the set date and DMs everyone that you are rescheduling. Their saved dates stay, no thread message goes out.</p>
+                    <input type="text" bind:value={voidReason} placeholder="Optional reason (e.g. the venue fell through)" maxlength="200" />
+                    <div class="void-row">
+                        <button class="ghost danger-btn" onclick={doVoid} disabled={voiding}>
+                            {voiding ? 'Undoing...' : 'Yes, undo the date'}
+                        </button>
+                        <button class="ghost" onclick={() => (voidArmed = false)}>No</button>
+                    </div>
+                {/if}
+            </div>
         {/if}
+        {#if voidMsg}<p class="status small">{voidMsg}</p>{/if}
 
         {#if sel && selectedDate}
             <div class="pick-panel">
@@ -290,12 +345,20 @@
                     {/each}
                 </ul>
 
-                <label class="check"><input type="checkbox" bind:checked={pingAttending} /> Ping the people who can make it</label>
-                <label class="check"><input type="checkbox" bind:checked={pingAllInvited} /> Ping everyone invited (even those who cannot)</label>
+                <label class="lbl" for="when">Time (optional)</label>
+                <input id="when" type="time" bind:value={chosenTime} />
+
+                <label class="lbl" for="cnote">Note (optional)</label>
+                <input id="cnote" type="text" bind:value={chosenNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
+
+                <p class="muted small">Who should I ping in the thread?</p>
+                <label class="check"><input type="radio" name="pingmode" value="attending" bind:group={pingMode} /> The people who can make it</label>
+                <label class="check"><input type="radio" name="pingmode" value="all" bind:group={pingMode} /> Everyone invited (even those who cannot)</label>
+                <label class="check"><input type="radio" name="pingmode" value="none" bind:group={pingMode} /> No one in the thread</label>
                 <p class="muted small">Everyone invited gets a DM with the date either way.</p>
                 {#if chooseError}<p class="status error">{chooseError}</p>{/if}
                 <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>
-                    {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
+                    {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if chosen && selectedDate === chosen.chosenDate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
                 </button>
             </div>
         {/if}
@@ -331,6 +394,7 @@
                     {extending ? 'Extending...' : 'Extend the range'}
                 </button>
             </div>
+            <input type="text" bind:value={extendNote} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
             {#if extendMsg}<p class="status small">{extendMsg}</p>{/if}
         </div>
 

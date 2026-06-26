@@ -81,7 +81,7 @@ export async function pinMessage(message) {
 //Dropped in the first channel when the bot joins a new server
 export function welcomeText() {
     return [
-        'Thanks for adding me. I help a group work out when everyone is actually free.',
+        "Trying to help the self-torment of organising when you're an adult",
         '',
         'To get going, someone with Manage Server runs `/setup` and tells me which channel is your plans chat.',
         'After that I will set up a thread with the link, and anyone with the planner role can start a plan.'
@@ -96,7 +96,7 @@ export function introText(guildId, plannerRoleId) {
         `Start a plan here: ${createUrl(guildId)}`,
         '',
         'Pick a date range, say what the plan is about, and choose who is coming. I will open a thread for it and nudge everyone to drop the dates they are free.',
-        'Once people have filled theirs in we compare and land on a day that works for the group.',
+        'Once people have filled theirs in we compare and find a day that works for the group.',
         '',
         `Want to set your availability ahead of time? Do it here any time: ${config.baseUrl}/#/availability`,
         '',

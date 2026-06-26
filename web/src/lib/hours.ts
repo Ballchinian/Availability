@@ -21,7 +21,7 @@ export function hoursOf(hours?: number[]): number[] {
 
 //Groups a set of hours into readable runs, e.g. "8am to 11am, 1pm to 3pm"
 export function formatHours(hours?: number[]): string {
-    if (!hours || !hours.length || hours.length === HOUR_COUNT) return 'all evening';
+    if (!hours || !hours.length || hours.length === HOUR_COUNT) return 'all day';
 
     //Sort the picked hours into the canonical evening order so runs read left to right
     const sorted = [...hours]

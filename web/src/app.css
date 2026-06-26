@@ -593,6 +593,43 @@ code {
     text-decoration: none;
 }
 
+/* Inline label inside a panel, smaller than a .field label */
+.lbl {
+    display: block;
+    margin: 10px 0 2px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* Free text and time inputs that live inside panels, not the .field wrapper */
+.pick-panel input[type='text'],
+.pick-panel input[type='time'],
+.void input[type='text'],
+.extend input[type='text'] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    max-width: 360px;
+    margin: 2px 0 6px;
+}
+
+/* Undo the confirmed date block */
+.void {
+    margin: 8px 0 4px;
+}
+
+.void-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 6px;
+}
+
 /* Add people block */
 .add {
     margin-top: 22px;

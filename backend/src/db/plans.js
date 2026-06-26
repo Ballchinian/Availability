@@ -60,9 +60,21 @@ export async function getPlansCoveredBy(userId, start, end) {
         .toArray();
 }
 
-//Lock in the winning date and close the plan off
-export async function setPlanChosen(planId, date) {
-    await col(collections.plans).updateOne({ planId }, { $set: { chosenDate: date, status: 'closed' } });
+//Lock in the winning date (with an optional time and note) and close the plan off
+export async function setPlanChosen(planId, date, time = null, note = null) {
+    await col(collections.plans).updateOne(
+        { planId },
+        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed' } }
+    );
+    return getPlan(planId);
+}
+
+//Undo a confirmed date and reopen the plan so a fresh day can be picked
+export async function voidPlanChoice(planId) {
+    await col(collections.plans).updateOne(
+        { planId },
+        { $set: { chosenDate: null, chosenTime: null, chosenNote: null, status: 'collecting' } }
+    );
     return getPlan(planId);
 }
 

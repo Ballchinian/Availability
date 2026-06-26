@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, setReminded, extendPlan, addParticipant } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, extendPlan, addParticipant } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { announceOutcome, remindStragglers, announceExtension, cancelPlan, leavePlan, announceAddition } from '../../bot/plans.js';
+import { announceOutcome, remindStragglers, announceExtension, cancelPlan, leavePlan, announceAddition, announceVoid } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
@@ -131,7 +131,9 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             start: plan.dateRange.start,
             end: plan.dateRange.end,
             status: plan.status,
-            chosenDate: plan.chosenDate
+            chosenDate: plan.chosenDate,
+            chosenTime: plan.chosenTime || null,
+            chosenNote: plan.chosenNote || null
         },
         participants,
         confirmedCount: confirmed.length,
@@ -149,10 +151,14 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { date, pingAttending, pingAllInvited, attendingIds } = req.body || {};
+    const { date, time, note, pingAttending, pingAllInvited, attendingIds } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
+
+    //Time and note are both optional, the time only sticks if it looks like HH:MM
+    const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
+    const cleanNote = String(note || '').trim().slice(0, 200) || null;
 
     //A high daily backstop on locking in or moving a date, since it pings and DMs everyone
     const rl = await takeAction(req.user.id, plan.guildId, 'choose', DAILY_LIMIT);
@@ -162,7 +168,7 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
 
     //If a date was already set and this is a different one, it is a reorganise
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
-    const updated = await setPlanChosen(plan.planId, date);
+    const updated = await setPlanChosen(plan.planId, date, cleanTime, cleanNote);
 
     try {
         await announceOutcome(updated, ctx.cfg, {
@@ -176,7 +182,29 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
         console.error('[plans] outcome post failed:', err);
     }
 
-    res.json({ ok: true, chosenDate: date, changed });
+    res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed });
+});
+
+//Undo a confirmed date and reschedule. DMs everyone (no thread post), planner only.
+router.post('/:planId/void', requireUser, async (req, res) => {
+    const plan = await getPlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+
+    const ctx = await plannerContext(plan, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    if (!plan.chosenDate) return res.status(400).json({ error: 'There is no set date to undo.' });
+
+    const reason = String(req.body?.reason || '').trim().slice(0, 200) || null;
+    const updated = await voidPlanChoice(plan.planId);
+
+    try {
+        await announceVoid(updated, ctx.cfg, ctx.member.displayName, reason);
+    } catch (err) {
+        console.error('[plans] void announce failed:', err);
+    }
+
+    res.json({ ok: true });
 });
 
 //Nudge the people who have not confirmed, capped at once a day so it cannot be spammed
@@ -210,12 +238,14 @@ router.post('/:planId/extend', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { newEnd } = req.body || {};
+    const { newEnd, note } = req.body || {};
     if (typeof newEnd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(newEnd)) {
         return res.status(400).json({ error: 'Pick a valid new end date.' });
     }
     if (newEnd <= plan.dateRange.end) return res.status(400).json({ error: 'The new end has to be later than the current one.' });
     if (newEnd > maxEnd()) return res.status(400).json({ error: 'That is more than two years out.' });
+
+    const cleanNote = String(note || '').trim().slice(0, 200) || null;
 
     //A high daily backstop on pushing the range out, since each one pings and DMs everyone
     const rl = await takeAction(req.user.id, plan.guildId, 'extend', DAILY_LIMIT);
@@ -226,7 +256,7 @@ router.post('/:planId/extend', requireUser, async (req, res) => {
     const updated = await extendPlan(plan.planId, newEnd);
 
     try {
-        await announceExtension(updated, ctx.cfg, { actorName: ctx.member.displayName });
+        await announceExtension(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote });
     } catch (err) {
         console.error('[plans] extension post failed:', err);
     }

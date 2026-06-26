@@ -5,7 +5,7 @@
     /*
         Narrow a free day down to certain hours, anywhere from 8am to 2am. Tap an
         hour, or press and drag across a run of them. With none selected the day
-        counts as free the whole evening, which is the common case and the default.
+        counts as free all day, which is the common case and the default.
     */
     let { date = '', hours = $bindable([]), onclose }: {
         date?: string;
@@ -62,7 +62,7 @@
         </header>
 
         <p class="muted small">
-            {hours.length === 0 ? 'Free all evening. Tap or drag to narrow it down.' : `Free ${formatHours(hours)}.`}
+            {hours.length === 0 ? 'Free all day. Tap or drag to narrow it down.' : `Free ${formatHours(hours)}.`}
         </p>
 
         <div class="hours" class:painting>
@@ -76,6 +76,6 @@
             {/each}
         </div>
 
-        <button class="link-btn" onclick={allDay}>Reset to all evening</button>
+        <button class="link-btn" onclick={allDay}>Reset to all day</button>
     </div>
 </div>

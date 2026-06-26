@@ -5,7 +5,7 @@ import { setPlanThread, getPlan, getPlanByThread, getOpenPlansForUser, markPlanC
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange } from '../db/availability.js';
 import { refundAction } from '../db/ratelimits.js';
-import { formatDate } from '../lib/dates.js';
+import { formatDate, formatTime } from '../lib/dates.js';
 import { config } from '../config.js';
 
 /*
@@ -59,7 +59,7 @@ export async function announcePlan(plan, cfg, actorName) {
             `${mentions}\n\n` +
             `New plan: **${plan.name}** (${range}).\n` +
             `What it is about: ${plan.description}\n` +
-            `Drop the dates you are free here: ${url}\n` +
+            `Choose the dates you are free here: ${url}\n` +
             `A planner can run \`/compare\` any time to see where things stand, even before everyone is in.`,
         allowedMentions: { users: ids }
     });
@@ -70,7 +70,7 @@ export async function announcePlan(plan, cfg, actorName) {
         `What it is about: ${plan.description}\n` +
         `Add the dates you are free here: ${url}\n` +
         `${jump}\n\n` +
-        `Not coming? Hit "Drop out" below and I will take you off it.`,
+        `Hit "Drop out" below to leave the plan`,
         [dropRow(plan.planId)]);
 
     return thread;
@@ -105,7 +105,7 @@ export async function announceAddition(plan, newIds, actorName) {
         `${actorName} invited you to the plan "${plan.name}" in ${guild.name} (${range}).\n` +
         `What it is about: ${plan.description}\n` +
         `Add the dates you are free here: ${url}${jump}\n\n` +
-        `Not coming? Hit "Drop out" below and I will take you off it.`,
+        `Hit "Drop out" below to leave the plan`,
         [dropRow(plan.planId)]);
 }
 
@@ -117,7 +117,9 @@ export async function announceAddition(plan, newIds, actorName) {
 */
 export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited, attendingIds, changed, actorName }) {
     const ids = plan.participants.map((p) => p.userId);
-    const when = formatDate(plan.chosenDate);
+    const time = formatTime(plan.chosenTime);
+    const when = formatDate(plan.chosenDate) + (time ? ` at ${time}` : '');
+    const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
 
     //Fall back to anyone free that day if the site did not send the attending set
     let attending = Array.isArray(attendingIds) ? attendingIds.filter((id) => ids.includes(id)) : null;
@@ -140,15 +142,15 @@ export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited
             await reviveThread(thread);
             const lead = pingList.length ? `${pingList.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
             const headline = changed
-                ? `${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.`
-                : `${lead}${actorName} set **${plan.name}** for ${when}.`;
+                ? `${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.${note}`
+                : `${lead}${actorName} set **${plan.name}** for ${when}.${note}`;
             await thread.send({ content: headline, allowedMentions: { users: pingList } });
         }
     }
 
-    await dmEach(ids, changed
+    await dmEach(ids, (changed
         ? `${actorName} moved the plan "${plan.name}" in ${cfg.guildName} to ${when}.`
-        : `${actorName} set the plan "${plan.name}" in ${cfg.guildName} for ${when}.`);
+        : `${actorName} set the plan "${plan.name}" in ${cfg.guildName} for ${when}.`) + note);
 }
 
 /*
@@ -156,24 +158,43 @@ export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited
     the thread and DMs everyone, with the drop out button since the plan is still
     collecting. actorName is whoever extended it.
 */
-export async function announceExtension(plan, cfg, { actorName }) {
+export async function announceExtension(plan, cfg, { actorName, note }) {
     const ids = plan.participants.map((p) => p.userId);
     const url = planUrl(plan.planId);
     const when = formatDate(plan.dateRange.end);
+    const extra = note ? `\n${note}` : '';
 
     if (plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             await thread.send({
-                content: `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} extended **${plan.name}** to ${when}. Add the new days here: ${url}`,
+                content: `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} extended **${plan.name}** to ${when}. Add the new days here: ${url}${extra}`,
                 allowedMentions: { users: ids }
             });
         }
     }
 
     await dmEach(ids,
-        `${actorName} extended the plan "${plan.name}" in ${cfg.guildName} to ${when}. Add the new days here: ${url}`,
+        `${actorName} extended the plan "${plan.name}" in ${cfg.guildName} to ${when}. Add the new days here: ${url}${extra}`,
+        [dropRow(plan.planId)]);
+}
+
+/*
+    The planner has called off a date that was set and is rescheduling. This one
+    is DM only, no thread post, with an optional reason. Everyone's saved dates
+    stay put so they can just tweak them for the new pick. actorName is whoever
+    voided it.
+*/
+export async function announceVoid(plan, cfg, actorName, reason) {
+    const ids = plan.participants.map((p) => p.userId);
+    const url = planUrl(plan.planId);
+    const why = reason ? `\nReason: ${reason}` : '';
+
+    await dmEach(ids,
+        `${actorName} called off the date for "${plan.name}" in ${cfg.guildName} and is sorting out a new one. ` +
+        `Nothing is locked in for now.${why}\n` +
+        `Your dates are still saved, tweak them here if you need to: ${url}`,
         [dropRow(plan.planId)]);
 }
 
