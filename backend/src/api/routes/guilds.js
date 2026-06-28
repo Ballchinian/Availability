@@ -140,14 +140,14 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, announce, date, time, note, post, dm } = req.body || {};
+    const { name, description, start, end, participantIds, announce, date, time, note, dm, probe } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
     if (cleanName.length > 90) return res.status(400).json({ error: 'That name is a bit long, keep it under 90 characters.' });
 
+    //The description is optional, just capped if they do write one
     const cleanDescription = String(description || '').trim();
-    if (!cleanDescription) return res.status(400).json({ error: 'Say a little about what the plan is.' });
     if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
 
     if (!Array.isArray(participantIds) || participantIds.length === 0) {
@@ -204,10 +204,11 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
         const dropped = participantIds.length - validIds.length;
 
         if (setMode) {
-            //Record the date straight away, then announce it as decided. Flags default to on.
+            //Record the date straight away, then announce it as decided. DM defaults on,
+            //the confirmation probe is opt in.
             plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, chosen.note);
             try {
-                await announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { post: post !== false, dm: dm !== false });
+                await announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true });
             } catch (err) {
                 console.error('[plans] set-plan announce failed:', err);
             }

@@ -31,8 +31,9 @@
     let setDate = $state('');
     let setTime = $state('');
     let setNote = $state('');
-    let announcePost = $state(true);
     let announceDm = $state(true);
+    //Opt in to asking everyone to confirm they can make the date with yes/no buttons
+    let announceProbe = $state(false);
 
     const todayIso = isoFromNow(0, 'day');
     const minStart = isoFromNow(1, 'day');
@@ -65,7 +66,6 @@
         formError = '';
         result = null;
         if (!planName.trim()) return (formError = 'Give the plan a name.');
-        if (!planDescription.trim()) return (formError = 'Say a little about what the plan is.');
 
         if (mode === 'announce') {
             if (!setDate) return (formError = 'Pick the date the plan is on.');
@@ -87,8 +87,8 @@
                           time: setTime || null,
                           note: setNote.trim() || null,
                           participantIds: selectedIds,
-                          post: announcePost,
-                          dm: announceDm
+                          dm: announceDm,
+                          probe: announceProbe
                       }
                     : {
                           name: planName.trim(),
@@ -139,7 +139,7 @@
     {:else if result}
         <div class="result">
             {#if result.set}
-                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}.</p>
+                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}{announceProbe ? ' with a yes/no to confirm they can make it' : ''}.</p>
             {:else}
                 <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{collectDm ? " and DM'd them" : ''}.</p>
             {/if}
@@ -158,7 +158,7 @@
         </div>
 
         <div class="field">
-            <label for="planDescription">What is it about?</label>
+            <label for="planDescription">What is it about? (optional)</label>
             <textarea id="planDescription" bind:value={planDescription} placeholder="A line or two so people know what they are signing up for." maxlength="280" rows="2"></textarea>
         </div>
 
@@ -205,9 +205,9 @@
             <label class="check"><input type="checkbox" bind:checked={collectDm} /> Also DM everyone the link</label>
             <p class="muted small">Everyone you pick gets pinged in a new thread either way. {collectDm ? 'They also get a DM with the link, so they can fill in their dates or drop out from wherever they are.' : 'No DMs go out, they just see the thread.'}</p>
         {:else}
-            <label class="check"><input type="checkbox" bind:checked={announcePost} /> Ping everyone in the thread</label>
             <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
-            <p class="muted small">A thread always opens so the plan can be managed later. Tick whether to ping everyone in it and whether to DM them.</p>
+            <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone to confirm they're coming</label>
+            <p class="muted small">A thread always opens and adding people to it pings them. {announceProbe ? 'Everyone gets yes/no buttons to confirm they can make it, in the thread' + (announceDm ? ' and in their DMs' : '') + ", and I'll DM you when everyone is in or if someone can't make it." : 'Tick the box above to ask everyone to confirm with yes/no buttons.'}</p>
         {/if}
 
         {#if formError}

@@ -1,7 +1,7 @@
 import { MessageFlags } from 'discord.js';
 import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
-import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop } from './plans.js';
+import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
@@ -65,11 +65,23 @@ export function attachEvents(client) {
             if (interaction.isChatInputCommand() && interaction.commandName === 'cancel') {
                 return await handleCancel(interaction);
             }
+            if (interaction.isModalSubmit() && interaction.customId.startsWith('votemodal|')) {
+                return await handleVoteModal(interaction);
+            }
+            if (interaction.isModalSubmit() && interaction.customId.startsWith('dropmodal|')) {
+                return await handleDropModal(interaction);
+            }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('setup|')) {
                 return await handleSetupComponent(interaction);
             }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('cancel|')) {
                 return await handlePlanComponent(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('vote|')) {
+                return await handleVote(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('undrop|')) {
+                return await handleUndrop(interaction);
             }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('drop|')) {
                 return await handleDrop(interaction);

@@ -8,6 +8,29 @@ import { shortId } from '../lib/ids.js';
     separate from the actual availability data they save.
 */
 
+/*
+    The shape of a brand new participant: not confirmed for availability, and not yet
+    voted on whether they can make a set date. Shared by createPlan and addParticipant
+    so a late joiner looks exactly like one who was there from the start.
+*/
+function freshParticipant(userId) {
+    return { userId, confirmed: false, confirmedAt: null, vote: null, voteReason: null, votedAt: null };
+}
+
+/*
+    The fields that clear a confirmation round: everyone's vote is wiped and the probe
+    is taken down. Pulled out so picking a new date, voiding a date or moving the range
+    all start the next round from a clean slate.
+*/
+function clearedProbeFields(participants) {
+    return {
+        participants: participants.map((p) => ({ ...p, vote: null, voteReason: null, votedAt: null })),
+        probeActive: false,
+        probeThreadMessageId: null,
+        probeAllYesNotifiedAt: null
+    };
+}
+
 export async function createPlan({ guildId, name, description, createdBy, dateRange, participantIds }) {
     const now = new Date();
     const doc = {
@@ -17,12 +40,16 @@ export async function createPlan({ guildId, name, description, createdBy, dateRa
         description,
         createdBy,
         dateRange,
-        participants: participantIds.map((userId) => ({ userId, confirmed: false, confirmedAt: null })),
+        participants: participantIds.map((userId) => freshParticipant(userId)),
         threadId: null,
         openerMessageId: null,
         status: 'collecting',
         chosenDate: null,
         allInNotifiedAt: null,
+        //The confirmation probe: off until a planner asks people to confirm a set date
+        probeActive: false,
+        probeThreadMessageId: null,
+        probeAllYesNotifiedAt: null,
         createdAt: now
     };
     await col(collections.plans).insertOne(doc);
@@ -62,20 +89,27 @@ export async function getPlansCoveredBy(userId, start, end) {
         .toArray();
 }
 
-//Lock in the winning date (with an optional time and note) and close the plan off
+/*
+    Lock in the winning date (with an optional time and note) and close the plan off.
+    A new date means a fresh confirmation round, so any votes from a previous date are
+    wiped and the probe is reset, ready for a planner to ask people again.
+*/
 export async function setPlanChosen(planId, date, time = null, note = null) {
+    const plan = await getPlan(planId);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed' } }
+        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...clearedProbeFields(plan.participants) } }
     );
     return getPlan(planId);
 }
 
-//Undo a confirmed date and reopen the plan so a fresh day can be picked
+//Undo a confirmed date and reopen the plan so a fresh day can be picked. The date is
+//gone, so any confirmation votes for it go with it.
 export async function voidPlanChoice(planId) {
+    const plan = await getPlan(planId);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: null, chosenTime: null, chosenNote: null, status: 'collecting' } }
+        { $set: { chosenDate: null, chosenTime: null, chosenNote: null, status: 'collecting', ...clearedProbeFields(plan.participants) } }
     );
     return getPlan(planId);
 }
@@ -105,6 +139,8 @@ export async function setReminded(planId) {
 export async function setPlanRange(planId, start, end) {
     const plan = await getPlan(planId);
     const participants = plan.participants.map((p) => ({ ...p, confirmed: false, confirmedAt: null }));
+    //The window moved, so any date and its votes are gone too, start the round clean
+    const cleared = clearedProbeFields(participants);
     await col(collections.plans).updateOne(
         { planId },
         {
@@ -115,7 +151,7 @@ export async function setPlanRange(planId, start, end) {
                 chosenDate: null,
                 chosenTime: null,
                 chosenNote: null,
-                participants,
+                ...cleared,
                 //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
                 lastRemindedAt: null,
                 allInNotifiedAt: null
@@ -167,7 +203,7 @@ export async function addParticipant(planId, userId) {
     await col(collections.plans).updateOne(
         { planId },
         {
-            $push: { participants: { userId, confirmed: false, confirmedAt: null } },
+            $push: { participants: freshParticipant(userId) },
             //A new face means not everyone is in yet, so let the all-in nudge fire again later
             $set: { allInNotifiedAt: null }
         }
@@ -187,4 +223,38 @@ export async function confirmParticipant(planId, userId) {
 //Note that we have told the creator everyone is in, so that nudge only goes once a round
 export async function markAllInNotified(planId) {
     await col(collections.plans).updateOne({ planId }, { $set: { allInNotifiedAt: new Date() } });
+}
+
+/*
+    Record one person's answer to the confirmation probe: whether they can make the set
+    date, with an optional reason when they cannot. A yes drops any old reason, since a
+    reason only makes sense alongside a no.
+*/
+export async function recordVote(planId, userId, vote, reason = null) {
+    await col(collections.plans).updateOne(
+        { planId, 'participants.userId': userId },
+        {
+            $set: {
+                'participants.$.vote': vote,
+                'participants.$.voteReason': vote === 'no' ? reason : null,
+                'participants.$.votedAt': new Date()
+            }
+        }
+    );
+    return getPlan(planId);
+}
+
+//Turn the probe on or off and remember which thread message carries its buttons, so the
+//running tally on it can be rewritten as votes land
+export async function setProbe(planId, { active, threadMessageId = null }) {
+    await col(collections.plans).updateOne(
+        { planId },
+        { $set: { probeActive: active, probeThreadMessageId: threadMessageId } }
+    );
+    return getPlan(planId);
+}
+
+//Note that the creator has been told everyone confirmed, so that good-to-go DM only goes once
+export async function markProbeAllYes(planId) {
+    await col(collections.plans).updateOne({ planId }, { $set: { probeAllYesNotifiedAt: new Date() } });
 }

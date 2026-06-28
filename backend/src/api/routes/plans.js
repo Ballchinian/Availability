@@ -112,7 +112,10 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             userId: p.userId,
             displayName: m?.displayName || 'Someone who left',
             avatarUrl: m?.displayAvatarURL({ size: 64 }) || '',
-            confirmed: p.confirmed
+            confirmed: p.confirmed,
+            //The confirmation vote, so the planner can watch who is in without leaning on DMs
+            vote: p.vote || null,
+            voteReason: p.voteReason || null
         });
     }
 
@@ -139,7 +142,8 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             status: plan.status,
             chosenDate: plan.chosenDate,
             chosenTime: plan.chosenTime || null,
-            chosenNote: plan.chosenNote || null
+            chosenNote: plan.chosenNote || null,
+            probeActive: Boolean(plan.probeActive)
         },
         participants,
         confirmedCount: confirmed.length,
@@ -157,7 +161,7 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { date, time, note, pingAttending, pingAllInvited, attendingIds, post, dm } = req.body || {};
+    const { date, time, note, pingAttending, pingAllInvited, attendingIds, post, dm, probe } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -184,7 +188,8 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
             changed,
             actorName: ctx.member.displayName,
             post: post !== false,
-            dm: dm !== false
+            dm: dm !== false,
+            probe: probe === true
         });
     } catch (err) {
         console.error('[plans] outcome post failed:', err);
@@ -288,16 +293,15 @@ router.post('/:planId/details', requireUser, async (req, res) => {
 
     const { name, description } = req.body || {};
 
-    //Same shape as creating a plan: a name and a description, both required and capped
+    //Same shape as creating a plan: a name (required) and a description (optional), both capped
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
     if (cleanName.length > 90) return res.status(400).json({ error: 'That name is a bit long, keep it under 90 characters.' });
 
     const cleanDescription = String(description || '').trim();
-    if (!cleanDescription) return res.status(400).json({ error: 'Say a little about what the plan is.' });
     if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
 
-    if (cleanName === plan.name && cleanDescription === plan.description) {
+    if (cleanName === plan.name && cleanDescription === (plan.description || '')) {
         return res.status(400).json({ error: 'Nothing changed there. Edit the title or the description to update it.' });
     }
 

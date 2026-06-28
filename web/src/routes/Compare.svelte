@@ -24,6 +24,8 @@
     let chosenNote = $state('');
     let choosePost = $state(true);
     let chooseDm = $state(true);
+    //Opt in to asking everyone to confirm they can make the date with yes/no buttons
+    let chooseProbe = $state(false);
 
     let submitting = $state(false);
     let chosen = $state<any>(null);
@@ -141,7 +143,8 @@
                     pingAllInvited: pingMode === 'all',
                     attendingIds: sel?.ev.keptIds || [],
                     post: choosePost,
-                    dm: chooseDm
+                    dm: chooseDm,
+                    probe: chooseProbe
                 })
             });
         } catch (err) {
@@ -252,10 +255,6 @@
         editMsg = '';
         if (!editName.trim()) {
             editMsg = 'Give the plan a name.';
-            return;
-        }
-        if (!editDescription.trim()) {
-            editMsg = 'Say a little about what the plan is.';
             return;
         }
         if (editName.trim() === data.plan.name && editDescription.trim() === (data.plan.description || '')) {
@@ -399,6 +398,20 @@
         {/if}
         {#if voidMsg}<p class="status small">{voidMsg}</p>{/if}
 
+        {#if data.plan.probeActive}
+            <div class="votes">
+                <p class="muted small">Who can make the set date:</p>
+                <ul class="who">
+                    {#each data.participants as p (p.userId)}
+                        <li class:dropped={p.vote === 'no'}>
+                            {p.displayName}: {p.vote === 'yes' ? 'coming' : p.vote === 'no' ? "can't make it" : 'waiting to answer'}
+                            {#if p.vote === 'no' && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
+                        </li>
+                    {/each}
+                </ul>
+            </div>
+        {/if}
+
         {#if sel && selectedDate}
             <div class="pick-panel">
                 {#if sel.ev.viable}
@@ -430,6 +443,10 @@
                     <label class="check"><input type="radio" name="pingmode" value="none" bind:group={pingMode} /> No one in the thread</label>
                 {/if}
                 <label class="check"><input type="checkbox" bind:checked={chooseDm} /> DM everyone the date</label>
+                <label class="check"><input type="checkbox" bind:checked={chooseProbe} /> Ask everyone to confirm they're coming (yes/no)</label>
+                {#if chooseProbe}
+                    <p class="muted small">Whoever you post to or DM gets yes/no buttons to confirm. I'll DM you when everyone is in, or if someone can't make it. Their votes show up below.</p>
+                {/if}
                 {#if chooseError}<p class="status error">{chooseError}</p>{/if}
                 <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>
                     {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if chosen && selectedDate === chosen.chosenDate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
@@ -444,7 +461,7 @@
                 <p class="muted small">Change the plan's title or description. The thread gets renamed and its pinned post updated. Nobody is pinged or DMed.</p>
                 <label class="lbl" for="ename">Title</label>
                 <input id="ename" type="text" bind:value={editName} maxlength="90" />
-                <label class="lbl" for="edesc">Description</label>
+                <label class="lbl" for="edesc">Description (optional)</label>
                 <textarea id="edesc" bind:value={editDescription} maxlength="280" rows="2"></textarea>
                 <div class="edit-row">
                     <button class="primary" onclick={saveEdit} disabled={editing}>
