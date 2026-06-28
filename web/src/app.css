@@ -618,7 +618,18 @@ code {
     margin: 2px 0 6px;
 }
 
-/* The five minute time dropdown, styled to match the panel inputs */
+/* The hour and minute dropdowns, sitting side by side like a clock face */
+.time-fields {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.time-colon {
+    color: var(--muted);
+}
+
+/* The dropdowns themselves, styled to match the panel inputs */
 .time-select {
     background: var(--bg);
     border: 1px solid var(--border);
