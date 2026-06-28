@@ -618,6 +618,17 @@ code {
     margin: 2px 0 6px;
 }
 
+/* The five minute time dropdown, styled to match the panel inputs */
+.time-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
 /* Undo the confirmed date block */
 .void {
     margin: 8px 0 4px;

@@ -8,6 +8,7 @@
     import UserBadge from '../lib/UserBadge.svelte';
     import CompareGrid from '../lib/CompareGrid.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
+    import TimeSelect from '../lib/TimeSelect.svelte';
     import type { Member } from '../lib/types.js';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -417,7 +418,7 @@
                 </ul>
 
                 <label class="lbl" for="when">Time (optional)</label>
-                <input id="when" type="time" step="300" bind:value={chosenTime} />
+                <TimeSelect id="when" bind:value={chosenTime} />
 
                 <label class="lbl" for="cnote">Note (optional)</label>
                 <input id="cnote" type="text" bind:value={chosenNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
