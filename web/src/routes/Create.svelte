@@ -6,7 +6,6 @@
     import type { Member } from '../lib/types.js';
     import UserBadge from '../lib/UserBadge.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
-    import TimeSelect from '../lib/TimeSelect.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -188,7 +187,7 @@
                 </div>
                 <div>
                     <label for="settime">Time (optional)</label>
-                    <TimeSelect id="settime" bind:value={setTime} />
+                    <input id="settime" type="time" bind:value={setTime} />
                 </div>
             </div>
             <div class="field">
