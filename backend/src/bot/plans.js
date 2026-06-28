@@ -131,9 +131,10 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
 
 /*
     The announce-a-set-plan path: the planner already knows the date, so there is
-    nothing to collect. Optionally open a thread and post the set date (pinging
-    everyone if post is on), and optionally DM everyone. With both off the plan is
-    just recorded quietly. actorName is whoever set it up.
+    nothing to collect. The thread is always opened, same as a normal plan, so
+    /compare keeps working and the plan can be reached and managed later. post says
+    whether the opening post pings everyone or goes up quietly, dm says whether
+    everyone also gets a DM. actorName is whoever set it up.
 */
 export async function announceSetPlan(plan, cfg, actorName, { post = true, dm = true } = {}) {
     const ids = plan.participants.map((p) => p.userId);
@@ -141,19 +142,20 @@ export async function announceSetPlan(plan, cfg, actorName, { post = true, dm = 
     const when = formatDate(plan.chosenDate) + (time ? ` at ${time}` : '');
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
 
-    if (post) {
-        const guild = await client.guilds.fetch(plan.guildId);
-        const channel = await guild.channels.fetch(cfg.plansChannelId);
-        const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
-        await setPlanThread(plan.planId, thread.id);
-        for (const id of ids) await thread.members.add(id).catch(() => {});
+    const guild = await client.guilds.fetch(plan.guildId);
+    const channel = await guild.channels.fetch(cfg.plansChannelId);
+    const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
+    await setPlanThread(plan.planId, thread.id);
+    for (const id of ids) await thread.members.add(id).catch(() => {});
 
-        //Ping everyone, since the whole point of posting a set plan is to surface it
-        const lead = ids.length ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
-        const opener = await thread.send({ content: lead + openerText(plan), allowedMentions: { users: ids } });
-        await opener.pin().catch(() => {});
-        await setPlanOpener(plan.planId, opener.id);
-    }
+    //post @s everyone to surface it, otherwise the opener goes up without a ping
+    const lead = post && ids.length ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
+    const opener = await thread.send({
+        content: lead + openerText(plan),
+        allowedMentions: post ? { users: ids } : { parse: [] }
+    });
+    await opener.pin().catch(() => {});
+    await setPlanOpener(plan.planId, opener.id);
 
     if (dm) {
         await dmEach(ids,

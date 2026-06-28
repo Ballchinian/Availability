@@ -139,7 +139,7 @@
     {:else if result}
         <div class="result">
             {#if result.set}
-                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}.{#if announcePost || announceDm} I let the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked know.{:else} Set up quietly, nobody was messaged.{/if}</p>
+                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}.</p>
             {:else}
                 <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{collectDm ? " and DM'd them" : ''}.</p>
             {/if}
@@ -205,9 +205,9 @@
             <label class="check"><input type="checkbox" bind:checked={collectDm} /> Also DM everyone the link</label>
             <p class="muted small">Everyone you pick gets pinged in a new thread either way. {collectDm ? 'They also get a DM with the link, so they can fill in their dates or drop out from wherever they are.' : 'No DMs go out, they just see the thread.'}</p>
         {:else}
-            <label class="check"><input type="checkbox" bind:checked={announcePost} /> Open a thread and ping everyone</label>
+            <label class="check"><input type="checkbox" bind:checked={announcePost} /> Ping everyone in the thread</label>
             <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
-            <p class="muted small">Tick how you want people told, or leave both off to just set it up quietly.</p>
+            <p class="muted small">A thread always opens so the plan can be managed later. Tick whether to ping everyone in it and whether to DM them.</p>
         {/if}
 
         {#if formError}

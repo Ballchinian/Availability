@@ -116,13 +116,13 @@ Planner role only.
 * For a collect-availability plan: a start and end date
 * For a set plan: `announce` set to true, a single `date`, and an optional `time` and `note`
 * `dm` (optional, default true): whether to DM the invited people
-* `post` (optional, default true, set plans only): whether to open a thread and post the set date
+* `post` (optional, default true, set plans only): whether the thread's opening post pings everyone
 
 ### Effects
 
 * Creates the plan.
 * Collect mode: opens a private thread, pulls the invited people in, pings them, and DMs them unless `dm` is off.
-* Set mode: records the date as already decided and announces it, opening a thread and DMing everyone according to `post` and `dm`.
+* Set mode: records the date as already decided, always opens a thread so the plan can be managed, pings everyone in it unless `post` is off, and DMs everyone unless `dm` is off.
 
 ### Returns
 
