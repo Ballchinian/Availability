@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
 import { getGuildConfig } from '../../db/guilds.js';
-import { createPlan } from '../../db/plans.js';
-import { announcePlan } from '../../bot/plans.js';
-import { checkRange } from '../../lib/dates.js';
+import { createPlan, setPlanChosen } from '../../db/plans.js';
+import { announcePlan, announceSetPlan } from '../../bot/plans.js';
+import { checkRange, today, maxEnd } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
@@ -140,7 +140,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds } = req.body || {};
+    const { name, description, start, end, participantIds, announce, date, time, note, post, dm } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
@@ -150,11 +150,31 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (!cleanDescription) return res.status(400).json({ error: 'Say a little about what the plan is.' });
     if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
 
-    const rangeError = checkRange(start, end);
-    if (rangeError) return res.status(400).json({ error: rangeError });
-
     if (!Array.isArray(participantIds) || participantIds.length === 0) {
         return res.status(400).json({ error: 'Pick at least one person to invite.' });
+    }
+
+    /*
+        Two ways to start a plan. The usual one collects availability over a date
+        range. The set-plan one already knows the day, so it takes a single date
+        (plus an optional time and note) and is announced as decided, no collecting.
+    */
+    const setMode = announce === true;
+    let dateRange;
+    let chosen = null;
+    if (setMode) {
+        const shape = /^\d{4}-\d{2}-\d{2}$/;
+        if (!shape.test(date || '')) return res.status(400).json({ error: 'Pick the date the plan is on.' });
+        if (date < today()) return res.status(400).json({ error: 'That date is in the past.' });
+        if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
+        const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
+        const cleanNote = String(note || '').trim().slice(0, 200) || null;
+        dateRange = { start: date, end: date };
+        chosen = { date, time: cleanTime, note: cleanNote };
+    } else {
+        const rangeError = checkRange(start, end);
+        if (rangeError) return res.status(400).json({ error: rangeError });
+        dateRange = { start, end };
     }
 
     //Only keep ids that are real, non bot members of this server
@@ -172,23 +192,35 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     }
 
     try {
-        const plan = await createPlan({
+        let plan = await createPlan({
             guildId: req.params.guildId,
             name: cleanName,
             description: cleanDescription,
             createdBy: req.user.id,
-            dateRange: { start, end },
+            dateRange,
             participantIds: validIds
         });
 
-        //Open the thread, ping and DM everyone. If this stumbles, the plan still exists.
+        const dropped = participantIds.length - validIds.length;
+
+        if (setMode) {
+            //Record the date straight away, then announce it as decided. Flags default to on.
+            plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, chosen.note);
+            try {
+                await announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { post: post !== false, dm: dm !== false });
+            } catch (err) {
+                console.error('[plans] set-plan announce failed:', err);
+            }
+            return res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped, set: true });
+        }
+
+        //Open the thread, ping and (unless told not to) DM everyone. If this stumbles, the plan still exists.
         try {
-            await announcePlan(plan, ctx.cfg, ctx.member.displayName);
+            await announcePlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false });
         } catch (err) {
             console.error('[plans] announce failed:', err);
         }
 
-        const dropped = participantIds.length - validIds.length;
         res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped });
     } catch (err) {
         console.error('[plans] create failed:', err);

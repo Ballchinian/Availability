@@ -104,7 +104,7 @@ The full member list is a rate limited gateway call, so the result is cached per
 
 ## POST `/api/guilds/:guildId/plans` 🔒
 
-Start a plan.
+Start a plan, in one of two modes.
 
 Planner role only.
 
@@ -112,22 +112,28 @@ Planner role only.
 
 * Name
 * Description
-* Start and end date
 * The people to invite
+* For a collect-availability plan: a start and end date
+* For a set plan: `announce` set to true, a single `date`, and an optional `time` and `note`
+* `dm` (optional, default true): whether to DM the invited people
+* `post` (optional, default true, set plans only): whether to open a thread and post the set date
 
 ### Effects
 
 * Creates the plan.
-* Opens a private thread, pulls the invited people in, and pings them.
+* Collect mode: opens a private thread, pulls the invited people in, pings them, and DMs them unless `dm` is off.
+* Set mode: records the date as already decided and announces it, opening a thread and DMing everyone according to `post` and `dm`.
 
 ### Returns
 
 * Plan id and link
 * How many were invited, and how many were dropped for not being in the server
+* `set` is true for a set plan
 
 ### Notes
 
 * Invited ids are filtered down to real, non-bot members.
+* A set plan's date must be today or later and within two years.
 * Capped at a high daily backstop per person, since the planner role is the real gate.
 
 ---
@@ -196,6 +202,8 @@ Planner role only.
 * Date (must sit inside the plan range)
 * Time and note (both optional)
 * Whether to ping the people attending, or everyone invited, and who is attending
+* `post` (optional, default true): whether to post the outcome in the thread
+* `dm` (optional, default true): whether to DM everyone the outcome
 
 ### Effects
 
@@ -218,11 +226,12 @@ Planner role only.
 ### Input
 
 * Reason (optional)
+* `dm` (optional, default true): whether to DM everyone that you are rescheduling
 
 ### Effects
 
 * Clears the chosen date.
-* DMs everyone, no thread post.
+* DMs everyone unless `dm` is off, no thread post.
 
 ### Notes
 
@@ -256,6 +265,8 @@ Planner role only.
 
 * New start and end date
 * Note (optional)
+* `post` (optional, default true): whether to ping the new dates in the thread
+* `dm` (optional, default true): whether to DM everyone the new dates
 
 ### Effects
 
@@ -269,16 +280,48 @@ Planner role only.
 
 ---
 
+## POST `/api/plans/:planId/details` 🔒
+
+Change a plan's title and description.
+
+Planner role only.
+
+### Input
+
+* Name
+* Description
+
+### Effects
+
+* Updates the stored title and description.
+* Renames the thread to the new title.
+* Rewrites the pinned opening message so it shows the new title and description.
+
+### Notes
+
+* Quiet on purpose, no DM and no thread post.
+* Same rules as creating a plan: both are required, the name caps at 90 characters and the description at 280.
+* `409` if the plan was cancelled.
+* A no-op edit, where nothing actually changed, is rejected.
+* The thread rename is best effort, since Discord rate limits renames hard.
+
+---
+
 ## POST `/api/plans/:planId/cancel` 🔒
 
 Cancel a plan.
 
 Planner role only.
 
+### Input
+
+* `post` (optional, default true): whether to post the cancellation in the thread
+* `dm` (optional, default true): whether to DM everyone
+
 ### Effects
 
 * Marks the plan cancelled.
-* Pings and DMs everyone.
+* Pings the thread and DMs everyone, each according to `post` and `dm`.
 
 ### Notes
 
@@ -296,11 +339,12 @@ Planner role only.
 ### Input
 
 * The people to add
+* `dm` (optional, default true): whether to DM the new people
 
 ### Effects
 
-* Adds them to the plan.
-* Pings and DMs the new people.
+* Adds them to the plan and pulls them into the thread.
+* DMs the new people unless `dm` is off.
 
 ### Notes
 

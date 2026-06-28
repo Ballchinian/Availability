@@ -674,6 +674,35 @@ code {
     font-size: 14px;
 }
 
+/* Edit title and description block */
+.edit {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.edit-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.edit input[type='text'],
+.edit textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    max-width: 360px;
+    margin: 2px 0 6px;
+    resize: vertical;
+}
+
 /* Danger zone */
 .danger {
     margin-top: 18px;
@@ -681,6 +710,11 @@ code {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+/* Stacked confirm body (prompt, toggles, buttons) inside a flex zone like .danger */
+.confirm {
+    width: 100%;
 }
 
 .danger-btn {

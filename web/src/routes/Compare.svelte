@@ -22,6 +22,8 @@
     let pingMode = $state('attending');
     let chosenTime = $state('');
     let chosenNote = $state('');
+    let choosePost = $state(true);
+    let chooseDm = $state(true);
 
     let submitting = $state(false);
     let chosen = $state<any>(null);
@@ -34,17 +36,22 @@
     let voidReason = $state('');
     let voiding = $state(false);
     let voidMsg = $state('');
+    let voidDm = $state(true);
 
     let newStart = $state('');
     let newEnd = $state('');
     let extendNote = $state('');
     let extending = $state(false);
     let extendMsg = $state('');
+    let rangePost = $state(true);
+    let rangeDm = $state(true);
 
     let cancelArmed = $state(false);
     let cancelling = $state(false);
     let cancelled = $state(false);
     let cancelError = $state('');
+    let cancelPost = $state(true);
+    let cancelDm = $state(true);
 
     let addOpen = $state(false);
     let addMembers = $state<Member[]>([]);
@@ -52,6 +59,13 @@
     let addLoading = $state(false);
     let adding = $state(false);
     let addMsg = $state('');
+    let addDm = $state(true);
+
+    let editOpen = $state(false);
+    let editName = $state('');
+    let editDescription = $state('');
+    let editing = $state(false);
+    let editMsg = $state('');
 
     const maxMiss = $derived(data ? Math.max(0, data.confirmedCount - 1) : 0);
 
@@ -125,7 +139,9 @@
                     note: chosenNote.trim() || null,
                     pingAttending: pingMode === 'attending',
                     pingAllInvited: pingMode === 'all',
-                    attendingIds: sel?.ev.keptIds || []
+                    attendingIds: sel?.ev.keptIds || [],
+                    post: choosePost,
+                    dm: chooseDm
                 })
             });
         } catch (err) {
@@ -140,14 +156,16 @@
         try {
             await api(`/plans/${params.planId}/void`, {
                 method: 'POST',
-                body: JSON.stringify({ reason: voidReason.trim() || null })
+                body: JSON.stringify({ reason: voidReason.trim() || null, dm: voidDm })
             });
             chosen = null;
             selectedDate = null;
             voidArmed = false;
             voidReason = '';
             await load();
-            voidMsg = 'Date undone and everyone has been DMed. Pick a new one whenever you are ready.';
+            voidMsg = voidDm
+                ? 'Date undone and everyone has been DMed. Pick a new one whenever you are ready.'
+                : 'Date undone. Pick a new one whenever you are ready.';
         } catch (err) {
             voidMsg = errorText(err);
         }
@@ -170,7 +188,10 @@
         cancelError = '';
         cancelling = true;
         try {
-            await api(`/plans/${params.planId}/cancel`, { method: 'POST' });
+            await api(`/plans/${params.planId}/cancel`, {
+                method: 'POST',
+                body: JSON.stringify({ post: cancelPost, dm: cancelDm })
+            });
             cancelled = true;
         } catch (err) {
             cancelError = errorText(err);
@@ -204,9 +225,11 @@
         try {
             const res = await api(`/plans/${params.planId}/add`, {
                 method: 'POST',
-                body: JSON.stringify({ userIds: addSelectedIds })
+                body: JSON.stringify({ userIds: addSelectedIds, dm: addDm })
             });
-            addMsg = `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} and let them know.`;
+            addMsg = addDm
+                ? `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} and let them know.`
+                : `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} to the thread.`;
             addSelectedIds = [];
             addMembers = [];
             addOpen = false;
@@ -215,6 +238,42 @@
             addMsg = errorText(err);
         }
         adding = false;
+    }
+
+    //Open the edit panel prefilled with the plan's current title and description
+    function openEdit() {
+        editOpen = true;
+        editMsg = '';
+        editName = data.plan.name;
+        editDescription = data.plan.description || '';
+    }
+
+    async function saveEdit() {
+        editMsg = '';
+        if (!editName.trim()) {
+            editMsg = 'Give the plan a name.';
+            return;
+        }
+        if (!editDescription.trim()) {
+            editMsg = 'Say a little about what the plan is.';
+            return;
+        }
+        if (editName.trim() === data.plan.name && editDescription.trim() === (data.plan.description || '')) {
+            editMsg = 'Nothing changed there. Edit the title or the description to update it.';
+            return;
+        }
+        editing = true;
+        try {
+            await api(`/plans/${params.planId}/details`, {
+                method: 'POST',
+                body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() })
+            });
+            editOpen = false;
+            await load();
+        } catch (err) {
+            editMsg = errorText(err);
+        }
+        editing = false;
     }
 
     async function editRange() {
@@ -235,9 +294,10 @@
         try {
             const res = await api(`/plans/${params.planId}/range`, {
                 method: 'POST',
-                body: JSON.stringify({ start: newStart, end: newEnd, note: extendNote.trim() || null })
+                body: JSON.stringify({ start: newStart, end: newEnd, note: extendNote.trim() || null, post: rangePost, dm: rangeDm })
             });
-            extendMsg = `Range set to ${formatDate(res.start)} to ${formatDate(res.end)} and everyone has been pinged and DM'd.`;
+            const told = rangePost && rangeDm ? ' and everyone has been pinged and DM\'d' : rangePost ? ' and the thread has been pinged' : rangeDm ? " and everyone has been DM'd" : '';
+            extendMsg = `Range set to ${formatDate(res.start)} to ${formatDate(res.end)}${told}.`;
             extendNote = '';
             chosen = null;
             selectedDate = null;
@@ -325,8 +385,9 @@
                 {#if !voidArmed}
                     <button class="ghost danger-btn" onclick={() => (voidArmed = true)}>Undo this date / reschedule</button>
                 {:else}
-                    <p class="muted small">This clears the set date and DMs everyone that you are rescheduling. Their saved dates stay, no thread message goes out.</p>
+                    <p class="muted small">This clears the set date and reopens the plan so a new day can be picked. Their saved dates stay, no thread message goes out.</p>
                     <input type="text" bind:value={voidReason} placeholder="Optional reason (e.g. the venue fell through)" maxlength="200" />
+                    <label class="check"><input type="checkbox" bind:checked={voidDm} /> DM everyone that you are rescheduling</label>
                     <div class="void-row">
                         <button class="ghost danger-btn" onclick={doVoid} disabled={voiding}>
                             {voiding ? 'Undoing...' : 'Yes, undo the date'}
@@ -340,7 +401,11 @@
 
         {#if sel && selectedDate}
             <div class="pick-panel">
-                <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {data.confirmedCount}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
+                {#if sel.ev.viable}
+                    <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {data.confirmedCount}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
+                {:else}
+                    <p><strong>{formatDate(selectedDate)}</strong>: {sel.free.length} of {data.confirmedCount} marked this day free. It is outside your miss slider, but you can still set it.</p>
+                {/if}
 
                 <ul class="who">
                     {#each sel.free as f (f.userId)}
@@ -352,16 +417,19 @@
                 </ul>
 
                 <label class="lbl" for="when">Time (optional)</label>
-                <input id="when" type="time" bind:value={chosenTime} />
+                <input id="when" type="time" step="300" bind:value={chosenTime} />
 
                 <label class="lbl" for="cnote">Note (optional)</label>
                 <input id="cnote" type="text" bind:value={chosenNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
 
-                <p class="muted small">Who should I ping in the thread?</p>
-                <label class="check"><input type="radio" name="pingmode" value="attending" bind:group={pingMode} /> The people who can make it</label>
-                <label class="check"><input type="radio" name="pingmode" value="all" bind:group={pingMode} /> Everyone invited (even those who cannot)</label>
-                <label class="check"><input type="radio" name="pingmode" value="none" bind:group={pingMode} /> No one in the thread</label>
-                <p class="muted small">Everyone invited gets a DM with the date either way.</p>
+                <label class="check"><input type="checkbox" bind:checked={choosePost} /> Post the outcome in the thread</label>
+                {#if choosePost}
+                    <p class="muted small">Who should I ping in the thread?</p>
+                    <label class="check"><input type="radio" name="pingmode" value="attending" bind:group={pingMode} /> The people who can make it</label>
+                    <label class="check"><input type="radio" name="pingmode" value="all" bind:group={pingMode} /> Everyone invited (even those who cannot)</label>
+                    <label class="check"><input type="radio" name="pingmode" value="none" bind:group={pingMode} /> No one in the thread</label>
+                {/if}
+                <label class="check"><input type="checkbox" bind:checked={chooseDm} /> DM everyone the date</label>
                 {#if chooseError}<p class="status error">{chooseError}</p>{/if}
                 <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>
                     {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if chosen && selectedDate === chosen.chosenDate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
@@ -369,18 +437,38 @@
             </div>
         {/if}
 
+        <div class="edit">
+            {#if !editOpen}
+                <button class="ghost" onclick={openEdit}>Edit title or description</button>
+            {:else}
+                <p class="muted small">Change the plan's title or description. The thread gets renamed and its pinned post updated. Nobody is pinged or DMed.</p>
+                <label class="lbl" for="ename">Title</label>
+                <input id="ename" type="text" bind:value={editName} maxlength="90" />
+                <label class="lbl" for="edesc">Description</label>
+                <textarea id="edesc" bind:value={editDescription} maxlength="280" rows="2"></textarea>
+                <div class="edit-row">
+                    <button class="primary" onclick={saveEdit} disabled={editing}>
+                        {editing ? 'Saving...' : 'Save changes'}
+                    </button>
+                    <button class="ghost" onclick={() => (editOpen = false)}>Cancel</button>
+                </div>
+            {/if}
+            {#if editMsg}<p class="status small">{editMsg}</p>{/if}
+        </div>
+
         <div class="add">
             {#if !addOpen}
                 <button class="ghost" onclick={openAdd}>Add someone to this plan</button>
                 {#if addMsg}<p class="status small">{addMsg}</p>{/if}
             {:else}
-                <p class="muted small">Pick anyone in the server to pull into this plan. They get added to the thread and a DM with the link.</p>
+                <p class="muted small">Pick anyone in the server to pull into this plan. They get added to the thread, and a DM with the link if you leave the box ticked.</p>
                 {#if addLoading}
                     <p class="muted small">Loading the member list...</p>
                 {:else if addMembers.length === 0}
                     <p class="muted small">Everyone in the server is already on this plan.</p>
                 {:else}
                     <MemberPicker members={addMembers} bind:selectedIds={addSelectedIds} />
+                    <label class="check"><input type="checkbox" bind:checked={addDm} /> DM the people you add</label>
                     <div class="add-row">
                         <button class="primary" onclick={addPeople} disabled={adding}>
                             {adding ? 'Adding...' : 'Add to the plan'}
@@ -404,6 +492,8 @@
                 </button>
             </div>
             <input type="text" bind:value={extendNote} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
+            <label class="check"><input type="checkbox" bind:checked={rangePost} /> Post the new dates in the thread</label>
+            <label class="check"><input type="checkbox" bind:checked={rangeDm} /> DM everyone the new dates</label>
             {#if extendMsg}<p class="status small">{extendMsg}</p>{/if}
         </div>
 
@@ -411,11 +501,17 @@
             {#if !cancelArmed}
                 <button class="ghost danger-btn" onclick={() => (cancelArmed = true)}>Cancel this plan</button>
             {:else}
-                <span class="small">Cancel this plan? Everyone gets told. The thread stays until you delete it by hand in Discord.</span>
-                <button class="ghost danger-btn" onclick={doCancel} disabled={cancelling}>
-                    {cancelling ? 'Cancelling...' : 'Yes, cancel it'}
-                </button>
-                <button class="ghost" onclick={() => (cancelArmed = false)}>No</button>
+                <div class="confirm">
+                    <p class="small">Cancel this plan? The thread stays until you delete it by hand in Discord.</p>
+                    <label class="check"><input type="checkbox" bind:checked={cancelPost} /> Post the cancellation in the thread</label>
+                    <label class="check"><input type="checkbox" bind:checked={cancelDm} /> DM everyone</label>
+                    <div class="void-row">
+                        <button class="ghost danger-btn" onclick={doCancel} disabled={cancelling}>
+                            {cancelling ? 'Cancelling...' : 'Yes, cancel it'}
+                        </button>
+                        <button class="ghost" onclick={() => (cancelArmed = false)}>No</button>
+                    </div>
+                </div>
             {/if}
             {#if cancelError}<p class="status error">{cancelError}</p>{/if}
         </div>

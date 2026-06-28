@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, addParticipant } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, addParticipant, setPlanDetails } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { announceOutcome, remindStragglers, announceRangeChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn } from '../../bot/plans.js';
+import { announceOutcome, remindStragglers, announceRangeChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit } from '../../bot/plans.js';
 import { today, maxEnd } from '../../lib/dates.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
@@ -157,7 +157,7 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { date, time, note, pingAttending, pingAllInvited, attendingIds } = req.body || {};
+    const { date, time, note, pingAttending, pingAllInvited, attendingIds, post, dm } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -182,7 +182,9 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
             pingAllInvited: Boolean(pingAllInvited),
             attendingIds: Array.isArray(attendingIds) ? attendingIds : null,
             changed,
-            actorName: ctx.member.displayName
+            actorName: ctx.member.displayName,
+            post: post !== false,
+            dm: dm !== false
         });
     } catch (err) {
         console.error('[plans] outcome post failed:', err);
@@ -205,7 +207,7 @@ router.post('/:planId/void', requireUser, async (req, res) => {
     const updated = await voidPlanChoice(plan.planId);
 
     try {
-        await announceVoid(updated, ctx.cfg, ctx.member.displayName, reason);
+        await announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm: req.body?.dm !== false });
     } catch (err) {
         console.error('[plans] void announce failed:', err);
     }
@@ -244,7 +246,7 @@ router.post('/:planId/range', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { start, end, note } = req.body || {};
+    const { start, end, note, post, dm } = req.body || {};
     const shape = /^\d{4}-\d{2}-\d{2}$/;
     if (!shape.test(start || '') || !shape.test(end || '')) {
         return res.status(400).json({ error: 'Pick a valid start and end date.' });
@@ -267,12 +269,49 @@ router.post('/:planId/range', requireUser, async (req, res) => {
     const updated = await setPlanRange(plan.planId, start, end);
 
     try {
-        await announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote });
+        await announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post: post !== false, dm: dm !== false });
     } catch (err) {
         console.error('[plans] range post failed:', err);
     }
 
     res.json({ ok: true, start, end });
+});
+
+//Edit a plan's title and description. Renames the thread and rewrites the pinned opener, quietly.
+router.post('/:planId/details', requireUser, async (req, res) => {
+    const plan = await getPlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+
+    const ctx = await plannerContext(plan, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+
+    const { name, description } = req.body || {};
+
+    //Same shape as creating a plan: a name and a description, both required and capped
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
+    if (cleanName.length > 90) return res.status(400).json({ error: 'That name is a bit long, keep it under 90 characters.' });
+
+    const cleanDescription = String(description || '').trim();
+    if (!cleanDescription) return res.status(400).json({ error: 'Say a little about what the plan is.' });
+    if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
+
+    if (cleanName === plan.name && cleanDescription === plan.description) {
+        return res.status(400).json({ error: 'Nothing changed there. Edit the title or the description to update it.' });
+    }
+
+    //Only the title drives a thread rename, which Discord rate limits, so track it separately
+    const renamed = cleanName !== plan.name;
+    const updated = await setPlanDetails(plan.planId, cleanName, cleanDescription);
+
+    try {
+        await applyDetailsEdit(updated, renamed);
+    } catch (err) {
+        console.error('[plans] details edit failed:', err);
+    }
+
+    res.json({ ok: true, name: cleanName, description: cleanDescription });
 });
 
 //Cancel a plan: mark it cancelled, ping and DM everyone, leave the thread to be deleted by hand
@@ -286,7 +325,7 @@ router.post('/:planId/cancel', requireUser, async (req, res) => {
     if (plan.status === 'cancelled') return res.json({ ok: true });
 
     try {
-        await cancelPlan(plan, ctx.member.displayName);
+        await cancelPlan(plan, ctx.member.displayName, { post: req.body?.post !== false, dm: req.body?.dm !== false });
     } catch (err) {
         console.error('[plans] cancel failed:', err);
         return res.status(500).json({ error: 'Could not cancel the plan.' });
@@ -304,7 +343,7 @@ router.post('/:planId/add', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { userIds } = req.body || {};
+    const { userIds, dm } = req.body || {};
     if (!Array.isArray(userIds) || userIds.length === 0) {
         return res.status(400).json({ error: 'Pick at least one person to add.' });
     }
@@ -323,7 +362,7 @@ router.post('/:planId/add', requireUser, async (req, res) => {
     for (const id of toAdd) updated = await addParticipant(plan.planId, id);
 
     try {
-        await announceAddition(updated, toAdd, ctx.member.displayName);
+        await announceAddition(updated, toAdd, ctx.member.displayName, { dm: dm !== false });
     } catch (err) {
         console.error('[plans] add announce failed:', err);
     }

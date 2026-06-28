@@ -19,6 +19,7 @@ export async function createPlan({ guildId, name, description, createdBy, dateRa
         dateRange,
         participants: participantIds.map((userId) => ({ userId, confirmed: false, confirmedAt: null })),
         threadId: null,
+        openerMessageId: null,
         status: 'collecting',
         chosenDate: null,
         allInNotifiedAt: null,
@@ -126,6 +127,17 @@ export async function setPlanRange(planId, start, end) {
 
 export async function setPlanThread(planId, threadId) {
     await col(collections.plans).updateOne({ planId }, { $set: { threadId } });
+}
+
+//Remember which message opened the thread, so a later edit can rewrite that pinned post
+export async function setPlanOpener(planId, messageId) {
+    await col(collections.plans).updateOne({ planId }, { $set: { openerMessageId: messageId } });
+}
+
+//Change a plan's title and description, leaving everything else (dates, guests) alone
+export async function setPlanDetails(planId, name, description) {
+    await col(collections.plans).updateOne({ planId }, { $set: { name, description } });
+    return getPlan(planId);
 }
 
 export async function deletePlan(planId) {
