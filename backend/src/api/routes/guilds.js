@@ -4,7 +4,7 @@ import { requireUser } from '../../lib/session.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
 import { announcePlan, announceSetPlan } from '../../bot/plans.js';
-import { checkRange, today, maxEnd } from '../../lib/dates.js';
+import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
@@ -140,7 +140,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, announce, date, time, note, dm, probe } = req.body || {};
+    const { name, description, start, end, participantIds, announce, date, time, note, dm, probe, allowedWeekdays } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
@@ -162,6 +162,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     const setMode = announce === true;
     let dateRange;
     let chosen = null;
+    //Only a collect-availability plan can be pinned to certain weekdays, a set plan is one day
+    let weekdays = null;
     if (setMode) {
         const shape = /^\d{4}-\d{2}-\d{2}$/;
         if (!shape.test(date || '')) return res.status(400).json({ error: 'Pick the date the plan is on.' });
@@ -175,6 +177,11 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
         const rangeError = checkRange(start, end);
         if (rangeError) return res.status(400).json({ error: rangeError });
         dateRange = { start, end };
+        weekdays = cleanWeekdays(allowedWeekdays);
+        //A restriction that leaves no day inside the picked range would ask for nothing
+        if (weekdays && !allowedDaysInRange(start, end, weekdays).length) {
+            return res.status(400).json({ error: 'None of the days you allowed fall inside that date range.' });
+        }
     }
 
     //Only keep ids that are real, non bot members of this server
@@ -198,7 +205,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             description: cleanDescription,
             createdBy: req.user.id,
             dateRange,
-            participantIds: validIds
+            participantIds: validIds,
+            allowedWeekdays: weekdays
         });
 
         const dropped = participantIds.length - validIds.length;

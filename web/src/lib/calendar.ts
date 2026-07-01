@@ -31,6 +31,20 @@ function iso(y: number, m: number, d: number): string {
     return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+//The weekday of a YYYY-MM-DD date, 0 (Sunday) through 6 (Saturday), lining up with WEEKDAYS
+export function weekdayOf(date: string): number {
+    return new Date(`${date}T00:00:00`).getDay();
+}
+
+/*
+    Whether a plan lets people mark this date. A plan can be pinned to certain
+    weekdays, like weekends only. No list (null or empty) means every day counts.
+*/
+export function isWeekdayAllowed(date: string, allowedWeekdays?: number[] | null): boolean {
+    if (!allowedWeekdays || allowedWeekdays.length === 0) return true;
+    return allowedWeekdays.includes(weekdayOf(date));
+}
+
 export function buildMonths(start: string, end: string): Month[] {
     if (!start || !end) return [];
     const out: Month[] = [];

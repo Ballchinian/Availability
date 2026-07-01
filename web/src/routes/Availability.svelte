@@ -2,7 +2,8 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate } from '../lib/format.js';
+    import { formatDate, describeWeekdays } from '../lib/format.js';
+    import { isWeekdayAllowed } from '../lib/calendar.js';
     import UserBadge from '../lib/UserBadge.svelte';
     import DayGrid from '../lib/DayGrid.svelte';
 
@@ -22,8 +23,13 @@
     let left = $state(false);
     let leaveError = $state('');
 
-    const freeCount = $derived(Object.keys(selection).length);
-    const totalDays = $derived(data ? countDays(data.plan.start, data.plan.end) : 0);
+    //Which weekdays this plan asks about, null when it wants the whole range
+    const allowedWeekdays = $derived<number[] | null>(data?.plan.allowedWeekdays ?? null);
+    const weekdayLabel = $derived(describeWeekdays(allowedWeekdays));
+
+    //Only days the plan actually asks about count towards the tally and the total
+    const freeCount = $derived(Object.keys(selection).filter((d) => isWeekdayAllowed(d, allowedWeekdays)).length);
+    const totalDays = $derived(data ? countDays(data.plan.start, data.plan.end, allowedWeekdays) : 0);
 
     //The first day past the front edge of their timetable, or null if it reaches the end
     const newFrom = $derived.by(() => {
@@ -78,7 +84,10 @@
         saved = null;
         submitting = true;
         try {
-            const days = Object.entries(selection).map(([date, hours]) => ({ date, hours }));
+            //Send only the days this plan asks about, the rest are locked in the grid anyway
+            const days = Object.entries(selection)
+                .filter(([date]) => isWeekdayAllowed(date, allowedWeekdays))
+                .map(([date, hours]) => ({ date, hours }));
             saved = await api(`/plans/${params.planId}/availability`, {
                 method: 'POST',
                 body: JSON.stringify({ days })
@@ -102,10 +111,20 @@
         leaving = false;
     }
 
-    function countDays(start: string, end: string) {
+    //Days in the range, or just the ones on the allowed weekdays when the plan is pinned
+    function countDays(start: string, end: string, allowed: number[] | null) {
         const a = new Date(`${start}T00:00:00`);
         const b = new Date(`${end}T00:00:00`);
-        return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+        const span = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+        if (!allowed || allowed.length === 0) return span;
+        //Step a day at a time with setDate so daylight saving cannot drift the weekday
+        let n = 0;
+        const d = new Date(a);
+        for (let i = 0; i < span; i++) {
+            if (allowed.includes(d.getDay())) n++;
+            d.setDate(d.getDate() + 1);
+        }
+        return n;
     }
 
     function nextDay(iso: string) {
@@ -148,10 +167,14 @@
 
         <p class="prompt">{promptText}</p>
 
+        {#if weekdayLabel}
+            <p class="prompt">This plan only asks about {weekdayLabel}, so the other days are greyed out.</p>
+        {/if}
+
         <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
         <p class="muted small">Tap a day, or press and drag across several to mark them all at once.</p>
 
-        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} bind:selection />
+        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} bind:selection />
 
         {#if saveError}
             <p class="status error">{saveError}</p>

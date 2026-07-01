@@ -367,6 +367,7 @@
                 end={data.plan.end}
                 freeByDate={data.freeByDate}
                 confirmedCount={data.confirmedCount}
+                allowedWeekdays={data.plan.allowedWeekdays}
                 {missAllowed}
                 bind:selectedDate
             />

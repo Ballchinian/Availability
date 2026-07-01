@@ -5,7 +5,7 @@ import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { announceOutcome, remindStragglers, announceRangeChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit } from '../../bot/plans.js';
-import { today, maxEnd } from '../../lib/dates.js';
+import { today, maxEnd, weekdayAllowed, allowedDaysInRange } from '../../lib/dates.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
 
@@ -50,6 +50,7 @@ router.get('/:planId', requireUser, async (req, res) => {
             start: plan.dateRange.start,
             end: plan.dateRange.end,
             status: plan.status,
+            allowedWeekdays: plan.allowedWeekdays || null,
             guildName: cfg?.guildName || ''
         },
         isParticipant: Boolean(me),
@@ -74,10 +75,16 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     if (!Array.isArray(days)) return res.status(400).json({ error: 'Something was off with the dates you sent.' });
 
     const { start, end } = plan.dateRange;
-    //Keep only well formed days that sit inside this plan's range
-    const valid = days.filter((d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end);
+    const allowed = plan.allowedWeekdays || null;
+    //Keep only well formed days that sit inside this plan's range and on a day it asks about
+    const valid = days.filter(
+        (d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end && weekdayAllowed(d.date, allowed)
+    );
 
-    await replaceAvailabilityInRange(req.user.id, start, end, valid);
+    //A weekday-pinned plan only rewrites the days it asks about, so a person's saved
+    //availability on the other days (from other plans) is left untouched
+    const onlyDates = allowed ? allowedDaysInRange(start, end, allowed) : null;
+    await replaceAvailabilityInRange(req.user.id, start, end, valid, onlyDates);
     const updated = await confirmParticipant(plan.planId, req.user.id);
 
     //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
@@ -139,6 +146,7 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             guildName: ctx.cfg.guildName,
             start: plan.dateRange.start,
             end: plan.dateRange.end,
+            allowedWeekdays: plan.allowedWeekdays || null,
             status: plan.status,
             chosenDate: plan.chosenDate,
             chosenTime: plan.chosenTime || null,
@@ -164,6 +172,10 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     const { date, time, note, pingAttending, pingAllInvited, attendingIds, post, dm, probe } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
+    }
+    //A weekday-pinned plan can only land on one of the days it collected for
+    if (!weekdayAllowed(date, plan.allowedWeekdays)) {
+        return res.status(400).json({ error: 'That day is not one this plan asked about.' });
     }
 
     //Time and note are both optional, the time only sticks if it looks like HH:MM
@@ -261,6 +273,10 @@ router.post('/:planId/range', requireUser, async (req, res) => {
     if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
     if (start === plan.dateRange.start && end === plan.dateRange.end) {
         return res.status(400).json({ error: 'That is already the range. Move the start or the end to change it.' });
+    }
+    //A weekday-pinned plan needs at least one of its days to survive inside the new window
+    if (plan.allowedWeekdays && !allowedDaysInRange(start, end, plan.allowedWeekdays).length) {
+        return res.status(400).json({ error: 'None of the days this plan asks about fall inside that new range.' });
     }
 
     const cleanNote = String(note || '').trim().slice(0, 200) || null;

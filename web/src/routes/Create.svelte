@@ -2,7 +2,8 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate } from '../lib/format.js';
+    import { formatDate, describeWeekdays } from '../lib/format.js';
+    import { WEEKDAYS } from '../lib/calendar.js';
     import type { Member } from '../lib/types.js';
     import UserBadge from '../lib/UserBadge.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
@@ -26,6 +27,27 @@
 
     //Collect mode notifies through the thread always, the DM is the optional extra
     let collectDm = $state(true);
+
+    //Which weekdays a collect plan asks about, indexed Sunday (0) to Saturday (6) like the
+    //calendar header. All on means the whole range, the default and how plans always were.
+    let dayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
+    const chosenWeekdays = $derived(dayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
+    const daysHint = $derived.by(() => {
+        if (chosenWeekdays.length === 0) return 'Pick at least one day people can mark.';
+        if (chosenWeekdays.length === 7) return 'People can mark any day in the range.';
+        return `People can only mark ${describeWeekdays(chosenWeekdays)}.`;
+    });
+
+    function setWeekends() {
+        //Sunday and Saturday, the ends of the calendar row
+        dayOn = [true, false, false, false, false, false, true];
+    }
+    function setEveryDay() {
+        dayOn = [true, true, true, true, true, true, true];
+    }
+    function toggleDay(i: number) {
+        dayOn = dayOn.map((v, idx) => (idx === i ? !v : v));
+    }
 
     //Set-plan mode: a single day plus optional time and note, and how to announce it
     let setDate = $state('');
@@ -72,6 +94,7 @@
         } else {
             if (!startDate || !endDate) return (formError = 'Pick a start and end date.');
             if (endDate < startDate) return (formError = 'The end date is before the start.');
+            if (chosenWeekdays.length === 0) return (formError = 'Pick at least one day people can mark.');
         }
         if (selectedIds.length === 0) return (formError = 'Pick at least one person.');
 
@@ -96,7 +119,9 @@
                           start: startDate,
                           end: endDate,
                           participantIds: selectedIds,
-                          dm: collectDm
+                          dm: collectDm,
+                          //All seven days is no restriction, so send nothing then
+                          allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays
                       };
             result = await api(`/guilds/${params.guildId}/plans`, {
                 method: 'POST',
@@ -178,6 +203,20 @@
                     <label for="end">To</label>
                     <input id="end" type="date" bind:value={endDate} min={startDate || minStart} max={maxDate} />
                 </div>
+            </div>
+
+            <div class="field">
+                <label>Which days count?</label>
+                <div class="quick-row">
+                    <button type="button" class="quick" onclick={setWeekends}>Weekends</button>
+                    <button type="button" class="quick" onclick={setEveryDay}>Every day</button>
+                </div>
+                <div class="wdays">
+                    {#each WEEKDAYS as w, i (i)}
+                        <button type="button" class="wday" class:on={dayOn[i]} onclick={() => toggleDay(i)}>{w}</button>
+                    {/each}
+                </div>
+                <p class="muted small">{daysHint} Anything else is greyed out on their calendar.</p>
             </div>
         {:else}
             <div class="field range">

@@ -7,6 +7,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 ## Features
 
 - Date range plans, anywhere from tomorrow up to two years out
+- Pin a plan to certain days, like weekends only, so people are only asked about the days that matter
 - Or announce a plan whose day is already set, skipping the availability step
 - A member picker with search and drag and drop to sort who's invited
 - Private per plan threads that pull in only the people invited

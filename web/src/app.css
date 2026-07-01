@@ -192,6 +192,50 @@ code {
     gap: 16px;
 }
 
+/* Weekday picker on the create form, for pinning a plan to certain days */
+.quick-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.quick {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text);
+    padding: 4px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.quick:hover {
+    border-color: var(--accent);
+}
+
+.wdays {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.wday {
+    min-width: 40px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--muted);
+    padding: 6px 0;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.wday.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--text);
+}
+
 .primary {
     margin-top: 22px;
     background: var(--accent);

@@ -31,7 +31,7 @@ function clearedProbeFields(participants) {
     };
 }
 
-export async function createPlan({ guildId, name, description, createdBy, dateRange, participantIds }) {
+export async function createPlan({ guildId, name, description, createdBy, dateRange, participantIds, allowedWeekdays = null }) {
     const now = new Date();
     const doc = {
         planId: shortId(10),
@@ -40,6 +40,8 @@ export async function createPlan({ guildId, name, description, createdBy, dateRa
         description,
         createdBy,
         dateRange,
+        //Which weekdays people can mark, 0 (Sunday) to 6, or null for the whole range
+        allowedWeekdays: allowedWeekdays || null,
         participants: participantIds.map((userId) => freshParticipant(userId)),
         threadId: null,
         openerMessageId: null,

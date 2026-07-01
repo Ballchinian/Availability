@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { buildMonths, WEEKDAYS } from './calendar.js';
+    import { buildMonths, WEEKDAYS, isWeekdayAllowed } from './calendar.js';
     import { fillColor } from './heatmap.js';
     import { HOUR_COUNT } from './hours.js';
     import { evaluateDay, type FreePerson } from './overlap.js';
@@ -17,6 +17,7 @@
         freeByDate = {},
         confirmedCount = 0,
         missAllowed = 0,
+        allowedWeekdays = null,
         selectedDate = $bindable(null)
     }: {
         start: string;
@@ -24,6 +25,7 @@
         freeByDate?: Record<string, FreePerson[]>;
         confirmedCount?: number;
         missAllowed?: number;
+        allowedWeekdays?: number[] | null;
         selectedDate?: string | null;
     } = $props();
 
@@ -49,7 +51,7 @@
                 {#each month.cells as cell, i (i)}
                     {#if !cell}
                         <span class="pad"></span>
-                    {:else if !cell.inRange}
+                    {:else if !cell.inRange || !isWeekdayAllowed(cell.date, allowedWeekdays)}
                         <span class="day out">{cell.day}</span>
                     {:else}
                         {@const ev = evalOf(cell.date)}

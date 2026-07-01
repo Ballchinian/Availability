@@ -64,3 +64,39 @@ export function eachDay(start, end) {
     }
     return days;
 }
+
+//The weekday of a YYYY-MM-DD date, 0 (Sunday) through 6 (Saturday), matching JS getDay()
+export function weekdayOf(date) {
+    return new Date(`${date}T00:00:00Z`).getUTCDay();
+}
+
+/*
+    Whether a plan lets people mark this date. A plan can be pinned to certain
+    weekdays, like weekends only. No list (null or empty) means every day counts,
+    which is the default and how every plan behaved before.
+*/
+export function weekdayAllowed(date, allowedWeekdays) {
+    if (!Array.isArray(allowedWeekdays) || allowedWeekdays.length === 0) return true;
+    return allowedWeekdays.includes(weekdayOf(date));
+}
+
+//The days in a range that fall on one of the allowed weekdays, as YYYY-MM-DD strings
+export function allowedDaysInRange(start, end, allowedWeekdays) {
+    return eachDay(start, end).filter((d) => weekdayAllowed(d, allowedWeekdays));
+}
+
+/*
+    Tidy a weekday restriction coming off the wire into a sorted list of 0-6, or
+    null when there is no real restriction. An empty pick, junk, or every day
+    selected all collapse to null, so the plan just asks for the whole range.
+*/
+export function cleanWeekdays(input) {
+    if (!Array.isArray(input)) return null;
+    const set = new Set();
+    for (const v of input) {
+        const n = Number(v);
+        if (Number.isInteger(n) && n >= 0 && n <= 6) set.add(n);
+    }
+    if (set.size === 0 || set.size === 7) return null;
+    return [...set].sort((a, b) => a - b);
+}

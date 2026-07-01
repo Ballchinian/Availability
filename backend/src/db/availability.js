@@ -43,10 +43,18 @@ export async function getAvailabilitySummary(userId) {
     Replace the free days inside one date range with exactly what they just sent.
     Anything in range they left out is now not free and gets dropped. Days outside
     the range are untouched, so their wider timetable carries over to other plans.
+
+    A plan pinned to certain weekdays passes onlyDates, the exact days it asks
+    about. Then we only clear and rewrite those, so a weekends-only plan leaves the
+    person's weekday availability from other plans alone rather than wiping it.
 */
-export async function replaceAvailabilityInRange(userId, start, end, days) {
+export async function replaceAvailabilityInRange(userId, start, end, days, onlyDates = null) {
     const c = col(collections.availability);
-    await c.deleteMany({ userId, date: { $gte: start, $lte: end } });
+    if (onlyDates) {
+        await c.deleteMany({ userId, date: { $in: onlyDates } });
+    } else {
+        await c.deleteMany({ userId, date: { $gte: start, $lte: end } });
+    }
     if (days.length) {
         const now = new Date();
         await c.insertMany(

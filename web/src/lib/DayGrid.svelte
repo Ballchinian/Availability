@@ -1,6 +1,6 @@
 <script lang="ts">
     import { fillColor } from './heatmap.js';
-    import { buildMonths, WEEKDAYS, type Month } from './calendar.js';
+    import { buildMonths, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { HOUR_COUNT } from './hours.js';
     import TimePicker from './TimePicker.svelte';
 
@@ -16,11 +16,12 @@
         days free, start on a free day and it clears them. The cursor switches to a
         crosshair while you are dragging so it is obvious it is happening.
     */
-    let { start, end, selection = $bindable({}), highlightFrom = null }: {
+    let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null }: {
         start: string;
         end: string;
         selection?: Record<string, number[]>;
         highlightFrom?: string | null;
+        allowedWeekdays?: number[] | null;
     } = $props();
 
     let editingDate = $state('');
@@ -29,8 +30,13 @@
 
     const months = $derived(buildMonths(start, end));
 
+    //A day can be marked only when it is in range and on a weekday this plan asks about
+    function selectable(date: string) {
+        return isWeekdayAllowed(date, allowedWeekdays);
+    }
+
     function isFree(date: string) {
-        return date in selection;
+        return date in selection && selectable(date);
     }
 
     function markFree(date: string) {
@@ -44,11 +50,13 @@
         }
     }
     function apply(date: string) {
+        if (!selectable(date)) return;
         if (paintMode === 'add') markFree(date);
         else unmark(date);
     }
 
     function startPaint(e: PointerEvent, date: string) {
+        if (!selectable(date)) return;
         e.preventDefault();
         //Mouse has no implicit capture, but release it for pen and touch so the
         //drag can cross into neighbouring day cells
@@ -72,6 +80,11 @@
         return month.cells.filter((c) => c && c.inRange && isFree(c.date)).length;
     }
 
+    //How many days in the month this plan actually asks about, the denominator for its heat
+    function askedCount(month: Month) {
+        return month.cells.filter((c) => c && c.inRange && selectable(c.date)).length;
+    }
+
     //A free day shades green to red by how many of the sociable hours it keeps,
     //all of them (or none picked, which means all) being green
     function dayColour(date: string) {
@@ -86,7 +99,7 @@
 <div class="grid-wrap" class:painting>
     {#each months as month (month.year + '-' + month.month)}
         <section class="cal">
-            <h3 style="color: {fillColor(filledIn(month), month.inRangeCount)}">{month.label} {month.year}</h3>
+            <h3 style="color: {fillColor(filledIn(month), askedCount(month))}">{month.label} {month.year}</h3>
             <div class="weekdays">
                 {#each WEEKDAYS as w}<span>{w}</span>{/each}
             </div>
@@ -94,7 +107,7 @@
                 {#each month.cells as cell, i (i)}
                     {#if !cell}
                         <span class="pad"></span>
-                    {:else if !cell.inRange}
+                    {:else if !cell.inRange || !selectable(cell.date)}
                         <span class="day out">{cell.day}</span>
                     {:else}
                         <span class="cell">

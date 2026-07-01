@@ -114,6 +114,7 @@ Planner role only.
 * Description
 * The people to invite
 * For a collect-availability plan: a start and end date
+* `allowedWeekdays` (optional, collect plans only): the weekdays people can mark, as numbers 0 (Sunday) to 6, e.g. `[0, 6]` for weekends. Left out, or all seven, means the whole range.
 * For a set plan: `announce` set to true, a single `date`, and an optional `time` and `note`
 * `dm` (optional, default true): whether to DM the invited people
 * `post` (optional, default true, set plans only): whether the thread's opening post pings everyone
@@ -134,6 +135,7 @@ Planner role only.
 
 * Invited ids are filtered down to real, non-bot members.
 * A set plan's date must be today or later and within two years.
+* A weekday restriction has to leave at least one day inside the picked range, otherwise it is rejected.
 * Capped at a high daily backstop per person, since the planner role is the real gate.
 
 ---
@@ -146,7 +148,7 @@ Everything the availability page needs to draw the grid.
 
 ### Returns
 
-* The plan: name, description, date range, status, server name
+* The plan: name, description, date range, status, server name, and any weekday restriction
 * Whether the requester is a participant, and whether they have confirmed
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled
@@ -173,6 +175,7 @@ Participants only.
 ### Notes
 
 * No thread post, a confirmation is kept quiet.
+* On a weekday-pinned plan, days off those weekdays are ignored, and only the pinned days are rewritten so the person's saved availability on other days is left alone.
 * `409` if the plan was cancelled.
 
 ---
