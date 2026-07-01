@@ -8,6 +8,7 @@
     import UserBadge from '../lib/UserBadge.svelte';
     import CompareGrid from '../lib/CompareGrid.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
+    import WeekdayPicker from '../lib/WeekdayPicker.svelte';
     import type { Member } from '../lib/types.js';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -47,6 +48,16 @@
     let extendMsg = $state('');
     let rangePost = $state(true);
     let rangeDm = $state(true);
+
+    //Which days count, editable here so a planner can open or close days mid-plan
+    let editingDays = $state(false);
+    let daysDayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
+    let daysNote = $state('');
+    let daysPost = $state(true);
+    let daysDm = $state(true);
+    let savingDays = $state(false);
+    let daysMsg = $state('');
+    const chosenDays = $derived(daysDayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
 
     let cancelArmed = $state(false);
     let cancelling = $state(false);
@@ -307,6 +318,48 @@
         extending = false;
     }
 
+    //A seven long on/off array from a plan's stored weekdays, all on when there is no restriction
+    function dayOnFrom(allowed: number[] | null): boolean[] {
+        if (!allowed || allowed.length === 0) return [true, true, true, true, true, true, true];
+        return [0, 1, 2, 3, 4, 5, 6].map((i) => allowed.includes(i));
+    }
+
+    function openDaysEditor() {
+        editingDays = true;
+        daysMsg = '';
+        daysDayOn = dayOnFrom(data.plan.allowedWeekdays);
+    }
+
+    async function saveWeekdays() {
+        daysMsg = '';
+        if (chosenDays.length === 0) {
+            daysMsg = 'Pick at least one day people can mark.';
+            return;
+        }
+        savingDays = true;
+        try {
+            //All seven days is no restriction, so send nothing then
+            const payload = chosenDays.length === 7 ? null : chosenDays;
+            const res = await api(`/plans/${params.planId}/weekdays`, {
+                method: 'POST',
+                body: JSON.stringify({ allowedWeekdays: payload, note: daysNote.trim() || null, post: daysPost, dm: daysDm })
+            });
+            const told = daysPost && daysDm ? ' Everyone was pinged and DMed.' : daysPost ? ' The thread was pinged.' : daysDm ? ' Everyone was DMed.' : '';
+            daysNote = '';
+            chosen = null;
+            selectedDate = null;
+            editingDays = false;
+            await load();
+            //A change that opened a day resets confirmations, a pure narrowing leaves them be
+            daysMsg = (res.reopened
+                ? 'Days updated. A new day opened, so everyone was asked to look again.'
+                : 'Days narrowed. Confirmations still stand, nobody has to redo anything.') + told;
+        } catch (err) {
+            daysMsg = errorText(err);
+        }
+        savingDays = false;
+    }
+
     function isoFromNow(amount: number, unit: string) {
         const d = new Date();
         if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
@@ -513,6 +566,26 @@
             <label class="check"><input type="checkbox" bind:checked={rangePost} /> Post the new dates in the thread</label>
             <label class="check"><input type="checkbox" bind:checked={rangeDm} /> DM everyone the new dates</label>
             {#if extendMsg}<p class="status small">{extendMsg}</p>{/if}
+        </div>
+
+        <div class="days-edit">
+            {#if !editingDays}
+                <button class="ghost" onclick={openDaysEditor}>Change which days count</button>
+                {#if daysMsg}<p class="status small">{daysMsg}</p>{/if}
+            {:else}
+                <p class="muted small">Open or close days for this plan, like turning on Mondays. Everyone gets asked to look again, and their saved days stay put.</p>
+                <WeekdayPicker bind:dayOn={daysDayOn} />
+                <input type="text" bind:value={daysNote} placeholder="Optional note for the DM (e.g. Mondays are open now)" maxlength="200" />
+                <label class="check"><input type="checkbox" bind:checked={daysPost} /> Post the change in the thread</label>
+                <label class="check"><input type="checkbox" bind:checked={daysDm} /> DM everyone</label>
+                <div class="edit-row">
+                    <button class="primary" onclick={saveWeekdays} disabled={savingDays}>
+                        {savingDays ? 'Saving...' : 'Update the days'}
+                    </button>
+                    <button class="ghost" onclick={() => (editingDays = false)}>Cancel</button>
+                </div>
+                {#if daysMsg}<p class="status small">{daysMsg}</p>{/if}
+            {/if}
         </div>
 
         <div class="danger">

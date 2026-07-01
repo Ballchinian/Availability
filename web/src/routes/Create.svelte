@@ -2,11 +2,11 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate, describeWeekdays } from '../lib/format.js';
-    import { WEEKDAYS } from '../lib/calendar.js';
+    import { formatDate } from '../lib/format.js';
     import type { Member } from '../lib/types.js';
     import UserBadge from '../lib/UserBadge.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
+    import WeekdayPicker from '../lib/WeekdayPicker.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -28,26 +28,10 @@
     //Collect mode notifies through the thread always, the DM is the optional extra
     let collectDm = $state(true);
 
-    //Which weekdays a collect plan asks about, indexed Sunday (0) to Saturday (6) like the
-    //calendar header. All on means the whole range, the default and how plans always were.
+    //Which weekdays a collect plan asks about, indexed Sunday (0) to Saturday (6). All on
+    //means the whole range, the default and how plans always were.
     let dayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
     const chosenWeekdays = $derived(dayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
-    const daysHint = $derived.by(() => {
-        if (chosenWeekdays.length === 0) return 'Pick at least one day people can mark.';
-        if (chosenWeekdays.length === 7) return 'People can mark any day in the range.';
-        return `People can only mark ${describeWeekdays(chosenWeekdays)}.`;
-    });
-
-    function setWeekends() {
-        //Sunday and Saturday, the ends of the calendar row
-        dayOn = [true, false, false, false, false, false, true];
-    }
-    function setEveryDay() {
-        dayOn = [true, true, true, true, true, true, true];
-    }
-    function toggleDay(i: number) {
-        dayOn = dayOn.map((v, idx) => (idx === i ? !v : v));
-    }
 
     //Set-plan mode: a single day plus optional time and note, and how to announce it
     let setDate = $state('');
@@ -207,16 +191,7 @@
 
             <div class="field">
                 <label>Which days count?</label>
-                <div class="quick-row">
-                    <button type="button" class="quick" onclick={setWeekends}>Weekends</button>
-                    <button type="button" class="quick" onclick={setEveryDay}>Every day</button>
-                </div>
-                <div class="wdays">
-                    {#each WEEKDAYS as w, i (i)}
-                        <button type="button" class="wday" class:on={dayOn[i]} onclick={() => toggleDay(i)}>{w}</button>
-                    {/each}
-                </div>
-                <p class="muted small">{daysHint} Anything else is greyed out on their calendar.</p>
+                <WeekdayPicker bind:dayOn />
             </div>
         {:else}
             <div class="field range">

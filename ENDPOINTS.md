@@ -279,7 +279,39 @@ Planner role only.
 ### Notes
 
 * The new range has to be valid, not entirely in the past, within two years, and actually different from the current one.
+* A weekday-pinned plan needs at least one of its days to still fall inside the new range.
 * Capped at a high daily backstop per person, since each change pings and DMs everyone.
+
+---
+
+## POST `/api/plans/:planId/weekdays` 🔒
+
+Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new set.
+
+Planner role only.
+
+### Input
+
+* `allowedWeekdays`: the weekdays people can mark, as numbers 0 (Sunday) to 6, or `null`/all seven for the whole range
+* Note (optional)
+* `post` (optional, default true): whether to ping the change in the thread
+* `dm` (optional, default true): whether to DM everyone
+
+### Effects
+
+* Sets the plan's weekdays. Saved availability is always left alone.
+* If the change opens a day nobody has been asked about (a pure addition, or a swap that brings a new day in), it reopens the plan and resets everyone's confirmed flag so they take another look, and clears any picked date.
+* If the change only takes days away, confirmations stand and nobody has to redo anything. The one exception is a picked date that now lands on a dropped day: that date is cleared and the plan reopens, but the confirmations stay.
+* Pings and DMs everyone unless those are turned off. The message asks people to fill in the new day when one opened, or tells them there is nothing to do when the plan only narrowed.
+
+### Returns
+
+* `reopened`: whether a new day was opened, so confirmations were reset
+
+### Notes
+
+* The new set has to leave at least one day inside the plan's current range, and be different from what it already asks about.
+* Capped at a high daily backstop per person, since each change can ping and DM everyone.
 
 ---
 

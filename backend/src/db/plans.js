@@ -1,5 +1,6 @@
 import { col, collections } from './mongo.js';
 import { shortId } from '../lib/ids.js';
+import { weekdayAllowed } from '../lib/dates.js';
 
 /*
     A plan is one meetup someone is trying to organise: a name, a date range, the
@@ -160,6 +161,52 @@ export async function setPlanRange(planId, start, end) {
             }
         }
     );
+    return getPlan(planId);
+}
+
+/*
+    Change which weekdays a plan asks about. Saved availability is always left alone.
+
+    reopen is set when the change opens a day nobody has been asked about yet (a pure
+    addition, or a swap that brings in a new day). Then it behaves like moving the
+    range: everyone's confirmed flag is reset so they take another look, and any picked
+    date is dropped, since the shape of a good day just changed.
+
+    A pure narrowing (only taking days away) leaves confirmations standing, so nobody
+    has to redo anything. The one thing it still has to tidy is a picked date that now
+    lands on a day the plan no longer collects: that date is cleared and the plan
+    reopens so a new one can be chosen, but the confirmations stay.
+*/
+export async function setPlanWeekdays(planId, allowedWeekdays, { reopen }) {
+    const plan = await getPlan(planId);
+    const set = { allowedWeekdays: allowedWeekdays || null };
+
+    if (reopen) {
+        const participants = plan.participants.map((p) => ({ ...p, confirmed: false, confirmedAt: null }));
+        Object.assign(set, {
+            status: 'collecting',
+            chosenDate: null,
+            chosenTime: null,
+            chosenNote: null,
+            ...clearedProbeFields(participants),
+            //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
+            lastRemindedAt: null,
+            allInNotifiedAt: null
+        });
+    } else if (plan.chosenDate && !weekdayAllowed(plan.chosenDate, allowedWeekdays)) {
+        //Narrowing knocked out the day the date sat on, so drop the date and reopen, but the
+        //confirmations (and everyone's saved availability) still stand
+        Object.assign(set, {
+            status: 'collecting',
+            chosenDate: null,
+            chosenTime: null,
+            chosenNote: null,
+            ...clearedProbeFields(plan.participants),
+            allInNotifiedAt: null
+        });
+    }
+
+    await col(collections.plans).updateOne({ planId }, { $set: set });
     return getPlan(planId);
 }
 

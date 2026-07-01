@@ -85,6 +85,29 @@ export function allowedDaysInRange(start, end, allowedWeekdays) {
     return eachDay(start, end).filter((d) => weekdayAllowed(d, allowedWeekdays));
 }
 
+//Weekday names indexed by getUTCDay(), 0 (Sunday) to 6, for spelling out a plan's days
+const WEEKDAY_LONG = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+//Week reading order, Monday first, so a list of days comes out the way people say it
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+
+/*
+    A plain-English name for which days a plan asks about, matching the wording the
+    site uses. The two common shapes get their own word, otherwise the days are
+    listed Monday first. No restriction reads as every day.
+*/
+export function describeWeekdays(allowedWeekdays) {
+    if (!Array.isArray(allowedWeekdays) || allowedWeekdays.length === 0 || allowedWeekdays.length === 7) {
+        return 'every day';
+    }
+    const set = new Set(allowedWeekdays);
+    const key = [...allowedWeekdays].sort((a, b) => a - b).join(',');
+    if (key === '0,6') return 'weekends';
+    if (key === '1,2,3,4,5') return 'weekdays';
+    const names = MONDAY_FIRST.filter((d) => set.has(d)).map((d) => WEEKDAY_LONG[d]);
+    if (names.length === 1) return names[0];
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 /*
     Tidy a weekday restriction coming off the wire into a sorted list of 0-6, or
     null when there is no real restriction. An empty pick, junk, or every day

@@ -409,6 +409,40 @@ export async function announceRangeChange(plan, cfg, { actorName, note, post = t
 }
 
 /*
+    Tells everyone the plan now asks about a different set of days. When reopened is on
+    the change opened a new day, so people are asked to look again and fill it in; when
+    it is off the plan only narrowed, so their saved days still stand and there is
+    nothing to do. When post is on it pings the thread, when dm is on it DMs everyone.
+    daysLabel is the plain-English set of days, like "weekends and Mondays". actorName
+    is whoever changed it.
+*/
+export async function announceWeekdaysChange(plan, cfg, { actorName, daysLabel, reopened, note, post = true, dm = true }) {
+    const ids = plan.participants.map((p) => p.userId);
+    const url = planUrl(plan.planId);
+    const extra = note ? `\n${note}` : '';
+    //A new day opened means fill it in, a narrowing means nothing to do
+    const tail = reopened ? `Add your availability here: ${url}` : `Nothing to do, your saved days still stand.`;
+
+    if (post && plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            await thread.send({
+                content: banner('DAYS CHANGED') +
+                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} changed which days count for **${plan.name}** to ${daysLabel}. ${tail}${extra}`,
+                allowedMentions: { users: ids }
+            });
+        }
+    }
+
+    if (dm) {
+        await dmEach(ids,
+            banner('DAYS CHANGED') +
+            `${actorName} changed which days count for "${plan.name}" in ${cfg.guildName} to ${daysLabel}. ${tail}${extra}`);
+    }
+}
+
+/*
     The planner has called off a date that was set and is rescheduling. This one is
     DM only, no thread post, with an optional reason. The DM is optional too, dm off
     just clears the date quietly. Everyone's saved dates stay put so they can tweak

@@ -650,6 +650,7 @@ code {
 .pick-panel input[type='text'],
 .pick-panel input[type='time'],
 .void input[type='text'],
+.days-edit input[type='text'],
 .extend input[type='text'] {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -717,6 +718,13 @@ code {
     color: var(--text);
     padding: 7px 10px;
     font-size: 14px;
+}
+
+/* Change which days count block */
+.days-edit {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
 }
 
 /* Edit title and description block */

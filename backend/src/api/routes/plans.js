@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, addParticipant, setPlanDetails } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { announceOutcome, remindStragglers, announceRangeChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit } from '../../bot/plans.js';
-import { today, maxEnd, weekdayAllowed, allowedDaysInRange } from '../../lib/dates.js';
+import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit } from '../../bot/plans.js';
+import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
 
@@ -296,6 +296,64 @@ router.post('/:planId/range', requireUser, async (req, res) => {
     }
 
     res.json({ ok: true, start, end });
+});
+
+//Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new days
+router.post('/:planId/weekdays', requireUser, async (req, res) => {
+    const plan = await getPlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+
+    const ctx = await plannerContext(plan, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+
+    const { allowedWeekdays, note, post, dm } = req.body || {};
+    const weekdays = cleanWeekdays(allowedWeekdays);
+
+    //The new set has to leave at least one day inside the plan's current range
+    if (weekdays && !allowedDaysInRange(plan.dateRange.start, plan.dateRange.end, weekdays).length) {
+        return res.status(400).json({ error: 'None of those days fall inside the plan range.' });
+    }
+    //A null set means every day, so spell both sides out as full weekday sets to compare
+    const currentSet = new Set(plan.allowedWeekdays || [0, 1, 2, 3, 4, 5, 6]);
+    const nextSet = new Set(weekdays || [0, 1, 2, 3, 4, 5, 6]);
+
+    //Nothing to do if it lands on the same set the plan already has
+    if (currentSet.size === nextSet.size && [...nextSet].every((d) => currentSet.has(d))) {
+        return res.status(400).json({ error: 'Those are already the days this plan asks about.' });
+    }
+
+    /*
+        Only make everyone confirm again when the change opens a day they have not been
+        asked about, a pure addition or a swap that brings a new day in. Taking days away
+        never needs a fresh round, so we do not waste anyone's time on it.
+    */
+    const opensADay = [...nextSet].some((d) => !currentSet.has(d));
+
+    const cleanNote = String(note || '').trim().slice(0, 200) || null;
+
+    //A high daily backstop, since changing the days pings and DMs everyone like a range change
+    const rl = await takeAction(req.user.id, plan.guildId, 'weekdays', DAILY_LIMIT);
+    if (!rl.allowed) {
+        return res.status(429).json({ error: `You have changed the days ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    const updated = await setPlanWeekdays(plan.planId, weekdays, { reopen: opensADay });
+
+    try {
+        await announceWeekdaysChange(updated, ctx.cfg, {
+            actorName: ctx.member.displayName,
+            daysLabel: describeWeekdays(weekdays),
+            reopened: opensADay,
+            note: cleanNote,
+            post: post !== false,
+            dm: dm !== false
+        });
+    } catch (err) {
+        console.error('[plans] weekdays post failed:', err);
+    }
+
+    res.json({ ok: true, allowedWeekdays: weekdays, reopened: opensADay });
 });
 
 //Edit a plan's title and description. Renames the thread and rewrites the pinned opener, quietly.

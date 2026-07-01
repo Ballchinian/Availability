@@ -9,21 +9,23 @@ export function formatDate(iso: string): string {
     return `${d}/${m}/${y}`;
 }
 
-//Weekday names in getDay() order, 0 (Sunday) to 6, for spelling out a plan's allowed days
+//Weekday names indexed by getDay(), 0 (Sunday) to 6, for spelling out a plan's allowed days
 const WEEKDAY_LONG = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+//Week reading order, Monday first, so a list of days comes out the way people say it
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
 
 /*
     A plain-English name for which days a plan asks about. The two common shapes get
-    their own word, otherwise we just list the days out. Empty or all seven means no
-    restriction, so there is nothing to say.
+    their own word, otherwise we list the days out Monday first. Empty or all seven
+    means no restriction, so there is nothing to say.
 */
 export function describeWeekdays(allowedWeekdays?: number[] | null): string {
     if (!allowedWeekdays || allowedWeekdays.length === 0 || allowedWeekdays.length === 7) return '';
-    const set = [...allowedWeekdays].sort((a, b) => a - b);
-    const key = set.join(',');
+    const set = new Set(allowedWeekdays);
+    const key = [...allowedWeekdays].sort((a, b) => a - b).join(',');
     if (key === '0,6') return 'weekends';
     if (key === '1,2,3,4,5') return 'weekdays';
-    const names = set.map((d) => WEEKDAY_LONG[d]);
+    const names = MONDAY_FIRST.filter((d) => set.has(d)).map((d) => WEEKDAY_LONG[d]);
     if (names.length === 1) return names[0];
     return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
