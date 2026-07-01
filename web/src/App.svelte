@@ -4,6 +4,8 @@
     import Availability from './routes/Availability.svelte';
     import GenericAvailability from './routes/GenericAvailability.svelte';
     import Compare from './routes/Compare.svelte';
+    import Terms from './routes/Terms.svelte';
+    import Privacy from './routes/Privacy.svelte';
     import NotFound from './routes/NotFound.svelte';
 
     /*
@@ -17,6 +19,8 @@
         '/availability': GenericAvailability,
         '/plan/:planId': Availability,
         '/plan/:planId/compare': Compare,
+        '/terms': Terms,
+        '/privacy': Privacy,
         '*': NotFound
     };
 </script>

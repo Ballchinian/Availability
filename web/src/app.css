@@ -67,6 +67,38 @@ code {
     color: var(--muted);
 }
 
+/* Terms of Service / Privacy Policy pages */
+.legal {
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+.legal h1 {
+    margin-bottom: 4px;
+}
+
+.legal .last-updated {
+    margin: 0 0 20px;
+    font-size: 13px;
+}
+
+.legal h2 {
+    color: var(--heading);
+    font-size: 18px;
+    margin: 26px 0 8px;
+}
+
+.legal p {
+    line-height: 1.65;
+}
+
+.legal .foot {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+}
+
 .tag {
     display: inline-block;
     margin-top: 16px;
