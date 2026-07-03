@@ -1,7 +1,7 @@
 import { MessageFlags } from 'discord.js';
 import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
-import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal } from './plans.js';
+import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
@@ -85,6 +85,12 @@ export function attachEvents(client) {
             }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('drop|')) {
                 return await handleDrop(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('unblock|')) {
+                return await handleUnblockDay(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('block|')) {
+                return await handleBlockDay(interaction);
             }
         } catch (err) {
             console.error('[bot] interaction failed:', err);

@@ -3,7 +3,7 @@ import { client } from './client.js';
 import { createThread, planUrl, compareUrl, reviveThread } from './util.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
-import { getAvailabilityInRange } from '../db/availability.js';
+import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { refundAction } from '../db/ratelimits.js';
 import { formatDate, formatTime } from '../lib/dates.js';
 import { config } from '../config.js';
@@ -629,9 +629,15 @@ export async function handleVote(interaction) {
         );
     }
 
+    //Whether they were already down as coming, so a re-tap does not re-offer the day block
+    const wasYes = plan.participants.find((p) => p.userId === interaction.user.id)?.vote === 'yes';
+
     const updated = await recordVote(planId, interaction.user.id, 'yes');
     await ackVote(interaction, updated, 'yes');
     await notifyCreatorAllYes(updated).catch(() => {});
+
+    //A fresh yes from a DM: offer to clear that day out of their general availability
+    if (!interaction.inGuild() && !wasYes) await offerBlockDay(interaction, updated).catch(() => {});
 }
 
 /*
@@ -693,6 +699,108 @@ async function ackVote(interaction, plan, vote) {
         });
     }
     await updateProbeMessage(plan).catch(() => {});
+}
+
+/*
+    Hours are ints from a small fixed set, so a day's hours pack into one integer bitmask.
+    We ride that mask on the undo button so undoing a day block restores the exact hours it
+    had, a part-day and all, rather than blanket all day. An empty hours (free all day) packs
+    to 0.
+*/
+function packHours(hours) {
+    return (hours || []).reduce((mask, h) => mask | (1 << h), 0);
+}
+
+function unpackHours(mask) {
+    const hours = [];
+    for (let h = 0; h < 24; h++) if (mask & (1 << h)) hours.push(h);
+    return hours;
+}
+
+//The offer buttons: clear the locked day out of their general availability, or leave it be
+function blockOfferRow(planId) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`block|yes|${planId}`).setLabel('Yes, keep it free').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`block|no|${planId}`).setLabel('No, leave it').setStyle(ButtonStyle.Secondary)
+    );
+}
+
+//Swapped on once the day is blocked, undo restores the exact hours carried in the mask
+function blockedRow(planId, mask) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`unblock|${planId}|${mask}`).setLabel('Undo, put that day back as free').setStyle(ButtonStyle.Success)
+    );
+}
+
+//Swapped on after an undo, lets them block the day off again in one tap
+function reblockRow(planId) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`block|yes|${planId}`).setLabel('Block it off again').setStyle(ButtonStyle.Secondary)
+    );
+}
+
+/*
+    Once someone confirms they are coming to a set date, follow up in the same DM with the
+    offer to clear that day out of their general availability, so other plans stop counting
+    them free then. We only ask when they are actually free that day, since a day already
+    off the timetable has nothing to block.
+*/
+async function offerBlockDay(interaction, plan) {
+    if (!plan.chosenDate) return;
+    const free = await getAvailabilityInRange(interaction.user.id, plan.chosenDate, plan.chosenDate);
+    if (!free.length) return;
+    await interaction.followUp({
+        content: banner('KEEP THAT DAY CLEAR?') +
+            `Since you are coming to "${plan.name}" on ${whenLine(plan)}, I can mark that day unavailable in your general availability so other plans do not count you as free then.`,
+        components: [blockOfferRow(plan.planId)]
+    });
+}
+
+/*
+    A tap on the day-block offer. Yes reads the day's current hours, packs them onto the undo
+    button, then clears the day. No just leaves the timetable alone. Both are DM only, so we
+    rewrite the message in place either way.
+*/
+export async function handleBlockDay(interaction) {
+    const [, choice, planId] = interaction.customId.split('|');
+    const plan = await getPlan(planId);
+    if (!plan || !plan.chosenDate) {
+        return interaction.update({ content: 'That plan is no longer around.', components: [] });
+    }
+
+    if (choice === 'no') {
+        return interaction.update({ content: 'No problem, I left your availability as it is.', components: [] });
+    }
+
+    const [day] = await getAvailabilityInRange(interaction.user.id, plan.chosenDate, plan.chosenDate);
+    const mask = packHours(day?.hours || []);
+    await blockDay(interaction.user.id, plan.chosenDate);
+
+    return interaction.update({
+        content: banner('DAY BLOCKED OFF') +
+            `Done, I marked ${formatDate(plan.chosenDate)} as unavailable in your general availability. Other plans will not see you free that day.\n\nChanged your mind? Hit undo below.`,
+        components: [blockedRow(planId, mask)]
+    });
+}
+
+/*
+    The undo on a blocked day. The mask carried on the button says what hours the day had, so
+    we put it back exactly, then offer to block it off again in case they flip once more.
+*/
+export async function handleUnblockDay(interaction) {
+    const [, planId, mask] = interaction.customId.split('|');
+    const plan = await getPlan(planId);
+    if (!plan || !plan.chosenDate) {
+        return interaction.update({ content: 'That plan is no longer around.', components: [] });
+    }
+
+    await setDayFree(interaction.user.id, plan.chosenDate, unpackHours(Number(mask)));
+
+    return interaction.update({
+        content: banner('BACK TO FREE') +
+            `Put ${formatDate(plan.chosenDate)} back as free in your general availability.`,
+        components: [reblockRow(planId)]
+    });
 }
 
 /*

@@ -24,6 +24,28 @@ export async function deleteAllForUser(userId) {
 }
 
 /*
+    Take one day out of a person's timetable, used when they lock in a plan for that
+    day and want other plans to stop counting them free. A day with no row already
+    reads as not free, so this is just a delete of that single day.
+*/
+export async function blockDay(userId, date) {
+    await col(collections.availability).deleteOne({ userId, date });
+}
+
+/*
+    Put one day back as free, the undo for blockDay. Hours carries the exact hours the
+    day had before it was blocked, so a part-day (say 8pm to 11pm) comes back as it was
+    rather than blanket all day. An empty hours means free the whole window.
+*/
+export async function setDayFree(userId, date, hours = []) {
+    await col(collections.availability).updateOne(
+        { userId, date },
+        { $set: { hours: Array.isArray(hours) ? hours : [], updatedAt: new Date() } },
+        { upsert: true }
+    );
+}
+
+/*
     A quick read of how their timetable stands, worked out straight from the saved
     data so it is always current. lastFilled is the furthest forward day they have
     marked, the front edge of their timetable. lastUpdatedAt is the most recent
