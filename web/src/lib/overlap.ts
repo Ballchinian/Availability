@@ -88,10 +88,16 @@ export function bestWindow(free: FreePerson[], budget: number): WindowResult {
     return { keptIds: kept.map((k) => k.userId), window: [...window], droppedIds: dropped };
 }
 
-export function evaluateDay(free: FreePerson[], confirmedCount: number, missAllowed: number): DayEval {
+/*
+    unsureCount is how many confirmed people this day sits past the certainty horizon
+    of. They are neither free nor busy, just too far out to say, so they come off the
+    denominator rather than eating into the miss budget as if they were skipping it.
+*/
+export function evaluateDay(free: FreePerson[], confirmedCount: number, missAllowed: number, unsureCount = 0): DayEval {
+    const counted = confirmedCount - unsureCount;
     const freeCount = free.length;
-    const missingAuto = confirmedCount - freeCount;
-    if (confirmedCount === 0 || missingAuto > missAllowed) {
+    const missingAuto = counted - freeCount;
+    if (counted === 0 || missingAuto > missAllowed) {
         return { viable: false, freeCount, windowSize: 0, window: [], keptIds: [], droppedIds: [] };
     }
     const budget = missAllowed - missingAuto;

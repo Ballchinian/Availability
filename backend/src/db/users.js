@@ -52,3 +52,23 @@ export async function getUsersInGuild(guildId) {
 export async function deleteUser(userId) {
     await col(collections.users).deleteOne({ userId });
 }
+
+/*
+    How far ahead this person can honestly plan. Days past it read as "too far to
+    say" rather than busy, so nobody has to paint fake no's across far-off months
+    just to stop early dates slipping away. Null means no limit.
+*/
+export async function setSureUntil(userId, date) {
+    await col(collections.users).updateOne({ userId }, { $set: { sureUntil: date || null } });
+}
+
+//The certainty horizons for a set of people in one query, keyed by user id
+export async function getSureUntilMap(userIds) {
+    const rows = await col(collections.users)
+        .find({ userId: { $in: userIds } })
+        .project({ _id: 0, userId: 1, sureUntil: 1 })
+        .toArray();
+    const map = {};
+    for (const r of rows) map[r.userId] = r.sureUntil || null;
+    return map;
+}

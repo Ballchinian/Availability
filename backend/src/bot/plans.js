@@ -1,9 +1,10 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, reviveThread } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipant } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipant, getPlansCoveredBy, confirmParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
+import { getSureUntilMap } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { formatDate, formatTime } from '../lib/dates.js';
 import { config } from '../config.js';
@@ -76,24 +77,43 @@ function votedDmRow(planId, vote) {
     );
 }
 
-//A one line count of where the confirmation vote stands, shown under the probe
+/*
+    The people still on the invite list for a set date. Everyone starts invited, a
+    planner can narrow it to just the people who fit while locking a date in, and
+    voiding or moving the date puts everyone back on.
+*/
+function invitedOnly(plan) {
+    return plan.participants.filter((p) => p.invited !== false);
+}
+
+//Where someone actually stands: a planner's manual call wins over their own vote,
+//and no answer at all reads as still waiting
+function effectiveVote(p) {
+    return p.override || p.vote || null;
+}
+
+//A one line count of where the confirmation vote stands, shown under the probe.
+//Only the people still invited count, nobody waits on someone who is off the list.
 function probeTally(plan) {
-    const yes = plan.participants.filter((p) => p.vote === 'yes').length;
-    const no = plan.participants.filter((p) => p.vote === 'no').length;
-    const pending = plan.participants.length - yes - no;
+    const invited = invitedOnly(plan);
+    const yes = invited.filter((p) => effectiveVote(p) === 'yes').length;
+    const no = invited.filter((p) => effectiveVote(p) === 'no').length;
+    const pending = invited.length - yes - no;
     const bits = [`${yes} coming`, `${no} can't make it`];
     if (pending > 0) bits.push(`${pending} yet to answer`);
     return bits.join(' · ');
 }
 
 /*
-    The body of a confirmation probe: a clear heading, the date in question and the
-    running tally, so anyone reading the thread sees where the vote stands at a glance.
+    The body of a confirmation probe: a clear heading, the date in question, what the
+    plan is about and the running tally, so anyone reading the thread sees where the
+    vote stands at a glance.
 */
 function probeText(plan) {
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
     return banner('CAN YOU MAKE IT?') +
         `**${plan.name}** is set for ${whenLine(plan)}.${note}\n` +
+        aboutLine(plan) +
         `Tap below to let everyone know.\n\n` +
         probeTally(plan);
 }
@@ -103,7 +123,7 @@ function probeText(plan) {
     votes cast from a DM. A probe with no thread message (DM only) has nothing to redraw,
     so this quietly does nothing. Best effort, a deleted message is fine.
 */
-async function updateProbeMessage(plan) {
+export async function updateProbeMessage(plan) {
     if (!plan.probeThreadMessageId || !plan.threadId) return;
     const thread = await client.channels.fetch(plan.threadId).catch(() => null);
     if (!thread) return;
@@ -167,6 +187,30 @@ export async function notifyCreatorIfAllIn(plan) {
         `Everyone is in for "${plan.name}"${where}. ${count} filled their availability, so you can compare and lock in a day now.\n` +
         `Compare here: ${compareUrl(plan.planId)}\n` +
         `Or run \`/compare\` in the plan's thread.`);
+}
+
+/*
+    Confirm this person for every open plan whose whole window sits inside the range
+    they just filled, the auto-accept behind the availability pages. Quiet on the
+    thread as ever, but if someone was the last one in, the planner gets their
+    compare nudge. Returns the names of the plans it confirmed, for the saved message.
+*/
+export async function autoConfirmCoveredPlans(userId, start, end) {
+    const names = [];
+    const plans = await getPlansCoveredBy(userId, start, end);
+    for (const plan of plans) {
+        const me = plan.participants.find((p) => p.userId === userId);
+        if (me && !me.confirmed) {
+            const updated = await confirmParticipant(plan.planId, userId);
+            names.push(plan.name);
+            try {
+                await notifyCreatorIfAllIn(updated);
+            } catch (err) {
+                console.error('[plans] all-in notify failed:', err);
+            }
+        }
+    }
+    return names;
 }
 
 /*
@@ -313,68 +357,62 @@ export async function applyDetailsEdit(plan, renamed) {
 }
 
 /*
-    Once a planner locks the winning date the plan closes. When post is on the
-    outcome lands in the thread, pinging whoever the planner chose (the people who
-    can make it, or everyone invited, or both). When dm is on everyone invited gets
-    a DM. The headline and DM both name who set or moved it.
+    Once a planner locks the winning date the plan closes. The outcome always lands
+    in the thread, pinging the people still invited, and those same people always get
+    a DM, so nobody who is meant to be there can miss it. Anyone the planner left off
+    the invite list hears nothing. The headline and DM both name who set or moved it.
 */
-export async function announceOutcome(plan, cfg, { pingAttending, pingAllInvited, attendingIds, changed, actorName, post = true, dm = true, probe = false }) {
-    const ids = plan.participants.map((p) => p.userId);
+export async function announceOutcome(plan, cfg, { changed, actorName, probe = false }) {
+    const ids = invitedOnly(plan).map((p) => p.userId);
     const when = whenLine(plan);
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
+    const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
 
-    //Fall back to anyone free that day if the site did not send the attending set
-    let attending = Array.isArray(attendingIds) ? attendingIds.filter((id) => ids.includes(id)) : null;
-    if (!attending) {
-        attending = [];
-        for (const id of ids) {
-            const free = await getAvailabilityInRange(id, plan.chosenDate, plan.chosenDate);
-            if (free.length > 0) attending.push(id);
-        }
-    }
-
-    const toPing = new Set();
-    if (pingAllInvited) ids.forEach((id) => toPing.add(id));
-    if (pingAttending) attending.forEach((id) => toPing.add(id));
-    const pingList = [...toPing];
-
-    if (post && plan.threadId) {
+    if (plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
-            const lead = pingList.length ? `${pingList.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
+            const lead = ids.length ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
             if (probe) {
                 /*
                     With a probe on, the outcome post is the confirmation itself: the date
                     and the yes/no buttons in one. We remember the message so its tally
                     can be kept current as votes come in.
                 */
-                const probeMsg = await thread.send({ content: lead + probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { users: pingList } });
+                const probeMsg = await thread.send({ content: lead + probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { users: ids } });
                 plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
             } else {
                 const headline = changed
-                    ? `${banner('PLAN CHANGED')}${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.${note}`
-                    : `${banner('DATE SET')}${lead}${actorName} set **${plan.name}** for ${when}.${note}`;
-                await thread.send({ content: headline, allowedMentions: { users: pingList } });
+                    ? `${banner('PLAN CHANGED')}${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.${about}${note}`
+                    : `${banner('DATE SET')}${lead}${actorName} set **${plan.name}** for ${when}.${about}${note}`;
+                await thread.send({ content: headline, allowedMentions: { users: ids } });
             }
         }
     }
 
-    //A probe with no thread post still needs marking live so DM votes are accepted,
+    //A probe with no thread to post in still needs marking live so DM votes are accepted,
     //even though there is no thread message to tally
     if (probe && !plan.probeActive) {
         plan = await setProbe(plan.planId, { active: true, threadMessageId: null });
     }
 
-    if (dm) {
-        const lead = changed
-            ? `${actorName} moved the plan "${plan.name}" in ${cfg.guildName} to ${when}.`
-            : `${actorName} set the plan "${plan.name}" in ${cfg.guildName} for ${when}.`;
-        if (probe) {
-            await dmEach(ids, banner('CAN YOU MAKE IT?') + lead + note + `\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
-        } else {
-            await dmEach(ids, banner(changed ? 'PLAN CHANGED' : 'DATE SET') + lead + note);
-        }
+    const lead = changed
+        ? `${actorName} moved the plan "${plan.name}" in ${cfg.guildName} to ${when}.`
+        : `${actorName} set the plan "${plan.name}" in ${cfg.guildName} for ${when}.`;
+    if (probe) {
+        /*
+            Anyone whose certainty horizon sits before the chosen date never really
+            answered for this day, they just could not plan that far ahead. Their DM
+            says so, so they know to actually check rather than shrug it off.
+        */
+        const horizons = await getSureUntilMap(ids).catch(() => ({}));
+        const far = ids.filter((id) => horizons[id] && plan.chosenDate > horizons[id]);
+        const near = ids.filter((id) => !far.includes(id));
+        const base = banner('CAN YOU MAKE IT?') + lead + about + note;
+        await dmEach(near, base + `\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
+        await dmEach(far, base + `\nThis lands past the date you said you could plan up to, so it is worth a proper look.\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
+    } else {
+        await dmEach(ids, banner(changed ? 'PLAN CHANGED' : 'DATE SET') + lead + about + note);
     }
 }
 
@@ -667,7 +705,9 @@ function voteStale(plan, userId) {
     if (!plan) return 'That plan is no longer around.';
     if (plan.status === 'cancelled') return `"${plan.name}" was cancelled.`;
     if (!plan.probeActive || !plan.chosenDate) return 'That confirmation is closed now, the date may have changed. Check the thread for the latest.';
-    if (!plan.participants.some((p) => p.userId === userId)) return `You are not on "${plan.name}" anymore.`;
+    const me = plan.participants.find((p) => p.userId === userId);
+    if (!me) return `You are not on "${plan.name}" anymore.`;
+    if (me.invited === false) return `You are not on the invite list for this date. Check the thread for the latest.`;
     return null;
 }
 
@@ -810,7 +850,8 @@ export async function handleUnblockDay(interaction) {
 */
 async function notifyCreatorAllYes(plan) {
     if (!plan || !plan.probeActive) return;
-    if (!plan.participants.length || !plan.participants.every((p) => p.vote === 'yes')) return;
+    const invited = invitedOnly(plan);
+    if (!invited.length || !invited.every((p) => effectiveVote(p) === 'yes')) return;
     if (plan.probeAllYesNotifiedAt) return;
 
     //Set the flag before the DM so a slow send cannot let a second one slip through
@@ -821,6 +862,29 @@ async function notifyCreatorAllYes(plan) {
     await dmEach([plan.createdBy],
         banner('EVERYONE IS COMING') +
         `Everyone confirmed they can make "${plan.name}"${where} on ${whenLine(plan)}. You are good to go.`);
+}
+
+/*
+    The Discord side of a planner moving someone on the attendance board. The thread
+    tally gets refreshed, and the person is told by DM where they were put, with the
+    yes/no buttons when a probe is running so they can correct it themselves. Moving
+    someone back to waiting is just an undo, so that one stays quiet. A planner moving
+    themselves already knows, no DM needed.
+*/
+export async function applyAttendanceMove(plan, userId, status, actorId, actorName) {
+    await updateProbeMessage(plan).catch(() => {});
+
+    if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
+
+    if (status === 'waiting' || userId === actorId) return;
+
+    const cfg = await getGuildConfig(plan.guildId);
+    const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
+    const line = status === 'coming'
+        ? banner('YOU ARE DOWN AS COMING') + `${actorName} put you down as coming to "${plan.name}"${where} on ${whenLine(plan)}.`
+        : banner('YOU ARE DOWN AS NOT COMING') + `${actorName} put you down as unable to make "${plan.name}"${where} on ${whenLine(plan)}.`;
+    const fix = plan.probeActive ? `\n\nGot it wrong? Set it straight below.` : '';
+    await dmEach([userId], line + fix, plan.probeActive ? [probeRow(plan.planId)] : []);
 }
 
 /*

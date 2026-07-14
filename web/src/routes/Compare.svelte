@@ -19,12 +19,10 @@
 
     let missAllowed = $state(0);
     let selectedDate = $state<string | null>(null);
-    //Either/or in the thread: ping the people who can make it, everyone, or no one
-    let pingMode = $state('attending');
+    //Who stays invited once the date is set: just the people who fit, or everyone
+    let inviteMode = $state('attending');
     let chosenTime = $state('');
     let chosenNote = $state('');
-    let choosePost = $state(true);
-    let chooseDm = $state(true);
     //Opt in to asking everyone to confirm they can make the date with yes/no buttons
     let chooseProbe = $state(false);
 
@@ -94,13 +92,117 @@
 
     const unconfirmed = $derived(data ? data.participants.filter((p: any) => !p.confirmed) : []);
 
+    /*
+        How many confirmed people each day sits past the certainty horizon of. They
+        are not busy, just too far out to say, so the overlap maths leaves them out
+        of the denominator instead of counting them as missing. A day they marked
+        free anyway still counts them free, a positive answer beats the horizon.
+    */
+    const unsureByDate = $derived.by(() => {
+        const out: Record<string, number> = {};
+        if (!data) return out;
+        const horizons = data.participants.filter((p: any) => p.confirmed && p.sureUntil);
+        if (!horizons.length) return out;
+        const d = new Date(`${data.plan.start}T00:00:00`);
+        const endD = new Date(`${data.plan.end}T00:00:00`);
+        while (d <= endD) {
+            const date = isoOf(d);
+            const free = new Set((data.freeByDate[date] || []).map((f: any) => f.userId));
+            let n = 0;
+            for (const p of horizons) if (date > p.sureUntil && !free.has(p.userId)) n++;
+            if (n) out[date] = n;
+            d.setDate(d.getDate() + 1);
+        }
+        return out;
+    });
+
     //The picked day, run through the same overlap maths the grid uses
     const sel = $derived.by(() => {
         if (!data || !selectedDate) return null;
-        const free = data.freeByDate[selectedDate] || [];
-        const ev = evaluateDay(free, data.confirmedCount, missAllowed);
-        return { free, ev, keptSet: new Set(ev.keptIds) };
+        const day = selectedDate;
+        const free = data.freeByDate[day] || [];
+        const unsure = unsureByDate[day] || 0;
+        const ev = evaluateDay(free, data.confirmedCount, missAllowed, unsure);
+        const freeSet = new Set(free.map((f: any) => f.userId));
+        const unsurePeople = data.participants.filter(
+            (p: any) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
+        );
+        return { free, ev, keptSet: new Set(ev.keptIds), counted: data.confirmedCount - unsure, unsurePeople };
     });
+
+    /*
+        Who counts as able to make the picked day. On a viable day it is the kept set
+        from the miss slider, on a day outside the slider it falls back to whoever
+        marked the day free, so "just the people who can make it" always means something.
+    */
+    const attendIds = $derived.by<string[]>(() => {
+        if (!sel) return [];
+        return sel.ev.viable ? sel.ev.keptIds : sel.free.map((f: any) => f.userId);
+    });
+
+    /*
+        The attendance board for a set date. Everyone still invited lands in a column
+        by where they stand, a planner's manual call winning over their own answer.
+        The uninvited sit apart with a way back in.
+    */
+    let movePick = $state<string | null>(null);
+    let moving = $state(false);
+    let moveMsg = $state('');
+
+    const board = $derived.by(() => {
+        if (!data || !data.plan.chosenDate) return null;
+        const invited = data.participants.filter((p: any) => p.invited !== false);
+        const stand = (p: any) => p.override || p.vote || 'waiting';
+        return {
+            coming: invited.filter((p: any) => stand(p) === 'yes'),
+            waiting: invited.filter((p: any) => stand(p) === 'waiting'),
+            cant: invited.filter((p: any) => stand(p) === 'no'),
+            uninvited: data.participants.filter((p: any) => p.invited === false)
+        };
+    });
+
+    //What the person actually said, shown in brackets when a planner overrode it
+    function bracket(p: any): string {
+        if (!p.override || p.override === p.vote) return '';
+        if (p.vote === 'yes') return 'said coming';
+        if (p.vote === 'no') return "said can't make it";
+        return "hasn't answered";
+    }
+
+    //The other two columns someone can be moved to from where they stand now
+    function moveTargets(from: string) {
+        const all = [
+            { key: 'coming', label: 'Coming' },
+            { key: 'waiting', label: 'Waiting' },
+            { key: 'cant', label: "Can't make it" }
+        ];
+        return all.filter((t) => t.key !== from);
+    }
+
+    async function move(userId: string, status: string) {
+        moveMsg = '';
+        moving = true;
+        try {
+            await api(`/plans/${params.planId}/attendance`, {
+                method: 'POST',
+                body: JSON.stringify({ userId, status })
+            });
+            movePick = null;
+            await refresh();
+        } catch (err) {
+            moveMsg = errorText(err);
+        }
+        moving = false;
+    }
+
+    //A quiet refetch for small changes like a board move, no loading flash
+    async function refresh() {
+        try {
+            data = await api(`/plans/${params.planId}/compare`);
+        } catch {
+            //The next full load will sort it out
+        }
+    }
 
     //Whether the picked day, time and note all already match what the plan is set for
     const isCurrent = $derived(Boolean(
@@ -150,14 +252,13 @@
                     date: selectedDate,
                     time: chosenTime || null,
                     note: chosenNote.trim() || null,
-                    pingAttending: pingMode === 'attending',
-                    pingAllInvited: pingMode === 'all',
-                    attendingIds: sel?.ev.keptIds || [],
-                    post: choosePost,
-                    dm: chooseDm,
+                    inviteMode,
+                    attendingIds: attendIds,
                     probe: chooseProbe
                 })
             });
+            //Quiet refetch so the invite list and the board reflect what was just set
+            await refresh();
         } catch (err) {
             chooseError = errorText(err);
         }
@@ -421,6 +522,7 @@
                 freeByDate={data.freeByDate}
                 confirmedCount={data.confirmedCount}
                 allowedWeekdays={data.plan.allowedWeekdays}
+                {unsureByDate}
                 {missAllowed}
                 bind:selectedDate
             />
@@ -452,26 +554,67 @@
         {/if}
         {#if voidMsg}<p class="status small">{voidMsg}</p>{/if}
 
-        {#if data.plan.probeActive}
+        {#if board}
             <div class="votes">
-                <p class="muted small">Who can make the set date:</p>
-                <ul class="who">
-                    {#each data.participants as p (p.userId)}
-                        <li class:dropped={p.vote === 'no'}>
-                            {p.displayName}: {p.vote === 'yes' ? 'coming' : p.vote === 'no' ? "can't make it" : 'waiting to answer'}
-                            {#if p.vote === 'no' && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
-                        </li>
+                <p class="muted small">
+                    Where everyone stands for {formatDate(data.plan.chosenDate)}. Tap someone to move them yourself,
+                    their own answer stays in brackets.
+                </p>
+                <div class="board">
+                    {#each [
+                        { key: 'coming', title: 'Coming', people: board.coming },
+                        { key: 'waiting', title: 'Waiting to answer', people: board.waiting },
+                        { key: 'cant', title: "Can't make it", people: board.cant }
+                    ] as colDef (colDef.key)}
+                        <div class="bcol">
+                            <h4>{colDef.title} ({colDef.people.length})</h4>
+                            <ul>
+                                {#each colDef.people as p (p.userId)}
+                                    <li>
+                                        <button class="bchip" class:picked={movePick === p.userId} onclick={() => (movePick = movePick === p.userId ? null : p.userId)}>
+                                            {p.displayName}
+                                            {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
+                                            {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
+                                        </button>
+                                        {#if movePick === p.userId}
+                                            <div class="move-row">
+                                                {#each moveTargets(colDef.key) as t (t.key)}
+                                                    <button class="ghost" disabled={moving} onclick={() => move(p.userId, t.key)}>→ {t.label}</button>
+                                                {/each}
+                                            </div>
+                                        {/if}
+                                    </li>
+                                {/each}
+                                {#if !colDef.people.length}
+                                    <li class="bempty">Nobody here.</li>
+                                {/if}
+                            </ul>
+                        </div>
                     {/each}
-                </ul>
+                </div>
+                {#if board.uninvited.length}
+                    <div class="uninvited">
+                        <p class="muted small">Not invited to this date, so no ping and no DM. Moving or undoing the date invites everyone back.</p>
+                        <ul>
+                            {#each board.uninvited as p (p.userId)}
+                                <li>
+                                    <span>{p.displayName}</span>
+                                    <button class="ghost" disabled={moving} onclick={() => move(p.userId, 'coming')}>Let them come</button>
+                                </li>
+                            {/each}
+                        </ul>
+                    </div>
+                {/if}
+                {#if moveMsg}<p class="status error small">{moveMsg}</p>{/if}
             </div>
         {/if}
 
         {#if sel && selectedDate}
             <div class="pick-panel">
                 {#if sel.ev.viable}
-                    <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {data.confirmedCount}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
+                    <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
                 {:else}
-                    <p><strong>{formatDate(selectedDate)}</strong>: {sel.free.length} of {data.confirmedCount} marked this day free. It is outside your miss slider, but you can still set it.</p>
+                    <p><strong>{formatDate(selectedDate)}</strong>: {sel.free.length} of {sel.counted} marked this day free. It is outside your miss slider, but you can still set it.</p>
                 {/if}
 
                 <ul class="who">
@@ -483,23 +626,26 @@
                     {/each}
                 </ul>
 
+                {#if sel.unsurePeople.length}
+                    <p class="muted small">
+                        Too far ahead to say for {sel.unsurePeople.map((p: any) => p.displayName).join(', ')}.
+                        They are not counted either way, and once the date is set you can move them onto the board yourself.
+                    </p>
+                {/if}
+
                 <label class="lbl" for="when">Time (optional)</label>
                 <input id="when" type="time" bind:value={chosenTime} />
 
                 <label class="lbl" for="cnote">Note (optional)</label>
                 <input id="cnote" type="text" bind:value={chosenNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
 
-                <label class="check"><input type="checkbox" bind:checked={choosePost} /> Post the outcome in the thread</label>
-                {#if choosePost}
-                    <p class="muted small">Who should I ping in the thread?</p>
-                    <label class="check"><input type="radio" name="pingmode" value="attending" bind:group={pingMode} /> The people who can make it</label>
-                    <label class="check"><input type="radio" name="pingmode" value="all" bind:group={pingMode} /> Everyone invited (even those who cannot)</label>
-                    <label class="check"><input type="radio" name="pingmode" value="none" bind:group={pingMode} /> No one in the thread</label>
-                {/if}
-                <label class="check"><input type="checkbox" bind:checked={chooseDm} /> DM everyone the date</label>
+                <p class="muted small">Who is still invited?</p>
+                <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+                <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({data.totalParticipants})</label>
+                <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
                 <label class="check"><input type="checkbox" bind:checked={chooseProbe} /> Ask everyone to confirm they're coming (yes/no)</label>
                 {#if chooseProbe}
-                    <p class="muted small">Whoever you post to or DM gets yes/no buttons to confirm. I'll DM you when everyone is in, or if someone can't make it. Their votes show up below.</p>
+                    <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it. Their votes show up below.</p>
                 {/if}
                 {#if chooseError}<p class="status error">{chooseError}</p>{/if}
                 <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>

@@ -153,6 +153,7 @@ Everything the availability page needs to draw the grid.
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled
 * When they last filled their timetable
+* Their sure-up-to date, if they set one
 
 ---
 
@@ -165,12 +166,21 @@ Participants only.
 ### Input
 
 * The days they are free, optionally narrowed to certain hours
+* `autoConfirm` (optional): whether to auto-accept any other plan these dates now fully cover, same as the general page
+* `sureUntil` (optional): how far ahead they can honestly plan, or `null` for no limit. Days past it read as "too far to say" rather than busy.
 
 ### Effects
 
 * Replaces their saved days inside the plan range.
 * Marks them confirmed for the plan.
+* Saves their sure-up-to date when one rides along.
+* With auto-accept on, quietly confirms them for any other plan the range covers.
 * If that was the last person, DMs the planner to go and compare.
+
+### Returns
+
+* The running confirmed count out of the total
+* The names of any other plans this auto-confirmed them for
 
 ### Notes
 
@@ -189,7 +199,7 @@ Planner role only.
 ### Returns
 
 * The plan, including any date already locked in
-* Everyone invited, with names, avatars, and whether they confirmed
+* Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and their sure-up-to date
 * For each day, who is free and the hours they gave, so the page can work out the overlap
 
 ---
@@ -204,19 +214,46 @@ Planner role only.
 
 * Date (must sit inside the plan range)
 * Time and note (both optional)
-* Whether to ping the people attending, or everyone invited, and who is attending
-* `post` (optional, default true): whether to post the outcome in the thread
-* `dm` (optional, default true): whether to DM everyone the outcome
+* `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list.
+* `attendingIds`: who can make the day, worked out by the compare page
+* `probe` (optional): whether to ask everyone to confirm they are coming with yes/no buttons
 
 ### Effects
 
 * Sets the chosen date.
-* Pings and DMs the relevant people. Setting a different date counts as a reorganise.
+* Narrows the invite list when asked. Anyone left off is not pinged, not DMed, and does not count in the confirmation tally. Moving or undoing the date invites everyone back.
+* Always posts the outcome in the thread, pinging the people still invited, and always DMs them. Setting a different date counts as a reorganise.
+* With the probe on, the outcome carries yes/no buttons in the thread and the DMs, and the thread tally keeps itself current as votes land. Anyone whose sure-up-to date sits before the chosen day gets an extra line in their DM saying this landed past what they could plan for.
 
 ### Notes
 
 * `409` if the plan was cancelled.
 * Capped at a high daily backstop per person, since it pings and DMs everyone.
+
+---
+
+## POST `/api/plans/:planId/attendance` 🔒
+
+A planner's manual call on someone's attendance for the set date, the moves on the compare page's board.
+
+Planner role only.
+
+### Input
+
+* The person to move
+* `status`: `coming`, `cant`, or `waiting`
+
+### Effects
+
+* `coming` and `cant` lay an override over whatever the person answered. `waiting` clears it, so their own answer stands again.
+* Moving someone to coming also puts them back on the invite list if they were left off when the date was locked, which is how you let in someone who never filled their availability.
+* The thread tally is refreshed, and the person is told by DM where they were put, with the yes/no buttons when a probe is running so they can set it straight themselves. Their own answer always beats the override.
+
+### Notes
+
+* `400` if no date is set yet, or the person is not on the plan.
+* Moving someone back to waiting is quiet, no DM.
+* `409` if the plan was cancelled.
 
 ---
 
@@ -411,6 +448,7 @@ The requester's saved days inside a window they choose.
 
 * Their saved days in that window
 * When they last filled their timetable
+* Their sure-up-to date, if they set one
 
 ---
 
@@ -423,10 +461,12 @@ Save the requester's general timetable for a window.
 * Start and end date
 * The days they are free, optionally narrowed to certain hours
 * Whether to auto-accept any plan the new window now fully covers
+* `sureUntil` (optional): how far ahead they can honestly plan, or `null` for no limit. Days past it read as "too far to say" rather than busy, so nobody has to paint fake no's across far-off months.
 
 ### Effects
 
 * Replaces their saved days inside the window.
+* Saves their sure-up-to date when one rides along.
 * With auto-accept on, quietly confirms them for any plan the window covers, and DMs the planner if that filled the last slot.
 
 ### Returns

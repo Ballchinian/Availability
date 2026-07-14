@@ -15,17 +15,26 @@ import { weekdayAllowed } from '../lib/dates.js';
     so a late joiner looks exactly like one who was there from the start.
 */
 function freshParticipant(userId) {
-    return { userId, confirmed: false, confirmedAt: null, vote: null, voteReason: null, votedAt: null };
+    return { userId, confirmed: false, confirmedAt: null, vote: null, voteReason: null, votedAt: null, invited: true, override: null };
 }
 
 /*
     The fields that clear a confirmation round: everyone's vote is wiped and the probe
     is taken down. Pulled out so picking a new date, voiding a date or moving the range
-    all start the next round from a clean slate.
+    all start the next round from a clean slate. invitedIds narrows who is still on the
+    invite list for the new round; leaving it out invites everyone back.
 */
-function clearedProbeFields(participants) {
+function clearedProbeFields(participants, invitedIds = null) {
+    const invitedSet = invitedIds ? new Set(invitedIds) : null;
     return {
-        participants: participants.map((p) => ({ ...p, vote: null, voteReason: null, votedAt: null })),
+        participants: participants.map((p) => ({
+            ...p,
+            vote: null,
+            voteReason: null,
+            votedAt: null,
+            invited: invitedSet ? invitedSet.has(p.userId) : true,
+            override: null
+        })),
         probeActive: false,
         probeThreadMessageId: null,
         probeAllYesNotifiedAt: null
@@ -95,13 +104,14 @@ export async function getPlansCoveredBy(userId, start, end) {
 /*
     Lock in the winning date (with an optional time and note) and close the plan off.
     A new date means a fresh confirmation round, so any votes from a previous date are
-    wiped and the probe is reset, ready for a planner to ask people again.
+    wiped and the probe is reset, ready for a planner to ask people again. invitedIds
+    is who stays invited for this date, null keeps everyone on the list.
 */
-export async function setPlanChosen(planId, date, time = null, note = null) {
+export async function setPlanChosen(planId, date, time = null, note = null, invitedIds = null) {
     const plan = await getPlan(planId);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...clearedProbeFields(plan.participants) } }
+        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...clearedProbeFields(plan.participants, invitedIds) } }
     );
     return getPlan(planId);
 }
@@ -277,7 +287,8 @@ export async function markAllInNotified(planId) {
 /*
     Record one person's answer to the confirmation probe: whether they can make the set
     date, with an optional reason when they cannot. A yes drops any old reason, since a
-    reason only makes sense alongside a no.
+    reason only makes sense alongside a no. Their own answer also clears any manual
+    call a planner made on them, since the horse's mouth beats a guess.
 */
 export async function recordVote(planId, userId, vote, reason = null) {
     await col(collections.plans).updateOne(
@@ -286,9 +297,27 @@ export async function recordVote(planId, userId, vote, reason = null) {
             $set: {
                 'participants.$.vote': vote,
                 'participants.$.voteReason': vote === 'no' ? reason : null,
-                'participants.$.votedAt': new Date()
+                'participants.$.votedAt': new Date(),
+                'participants.$.override': null
             }
         }
+    );
+    return getPlan(planId);
+}
+
+/*
+    A planner's manual call on whether someone is coming, laid over their real vote.
+    "yes" and "no" override whatever the person answered (or did not answer), null
+    clears it and lets their own answer stand again. reinvite puts them back on the
+    invite list at the same time, which is how a planner lets in someone who was
+    left off when the date was locked.
+*/
+export async function setAttendanceOverride(planId, userId, override, { reinvite = false } = {}) {
+    const set = { 'participants.$.override': override };
+    if (reinvite) set['participants.$.invited'] = true;
+    await col(collections.plans).updateOne(
+        { planId, 'participants.userId': userId },
+        { $set: set }
     );
     return getPlan(planId);
 }

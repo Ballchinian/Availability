@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getPlansCoveredBy, confirmParticipant } from '../../db/plans.js';
-import { notifyCreatorIfAllIn } from '../../bot/plans.js';
+import { getUserById, setSureUntil } from '../../db/users.js';
+import { autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 
 /*
@@ -22,36 +22,37 @@ router.get('/', requireUser, async (req, res) => {
         ? await getAvailabilityInRange(req.user.id, start, end)
         : [];
     const summary = await getAvailabilitySummary(req.user.id);
-    res.json({ availability, lastFilled: summary.lastFilled, lastUpdatedAt: summary.lastUpdatedAt });
+    const userDoc = await getUserById(req.user.id);
+    res.json({
+        availability,
+        lastFilled: summary.lastFilled,
+        lastUpdatedAt: summary.lastUpdatedAt,
+        sureUntil: userDoc?.sureUntil || null
+    });
 });
 
 router.post('/', requireUser, async (req, res) => {
-    const { start, end, days, autoConfirm } = req.body || {};
+    const { start, end, days, autoConfirm, sureUntil } = req.body || {};
     if (!SHAPE.test(start || '') || !SHAPE.test(end || '') || start > end) {
         return res.status(400).json({ error: 'Pick a valid range.' });
     }
     if (end > maxEnd()) return res.status(400).json({ error: 'That is more than two years out.' });
 
+    //Their certainty horizon rides along with the save, empty meaning no limit
+    if (sureUntil === null || SHAPE.test(sureUntil || '')) {
+        await setSureUntil(req.user.id, sureUntil || null);
+    }
+
     const valid = Array.isArray(days) ? days.filter((d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end) : [];
     await replaceAvailabilityInRange(req.user.id, start, end, valid);
 
     //Accept any plan the new window fully covers, if they asked us to
-    const confirmedPlans = [];
+    let confirmedPlans = [];
     if (autoConfirm) {
-        const plans = await getPlansCoveredBy(req.user.id, start, end);
-        for (const plan of plans) {
-            const me = plan.participants.find((p) => p.userId === req.user.id);
-            if (me && !me.confirmed) {
-                //Quiet confirm, no thread post, the planner sees it on the compare page
-                const updated = await confirmParticipant(plan.planId, req.user.id);
-                confirmedPlans.push(plan.name);
-                //If this filled the last slot, nudge the creator to go and compare
-                try {
-                    await notifyCreatorIfAllIn(updated);
-                } catch (err) {
-                    console.error('[availability] all-in notify failed:', err);
-                }
-            }
+        try {
+            confirmedPlans = await autoConfirmCoveredPlans(req.user.id, start, end);
+        } catch (err) {
+            console.error('[availability] auto-confirm failed:', err);
         }
     }
 

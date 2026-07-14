@@ -18,6 +18,7 @@
         confirmedCount = 0,
         missAllowed = 0,
         allowedWeekdays = null,
+        unsureByDate = {},
         selectedDate = $bindable(null)
     }: {
         start: string;
@@ -26,13 +27,19 @@
         confirmedCount?: number;
         missAllowed?: number;
         allowedWeekdays?: number[] | null;
+        unsureByDate?: Record<string, number>;
         selectedDate?: string | null;
     } = $props();
 
     const months = $derived(buildMonths(start, end));
 
     function evalOf(date: string) {
-        return evaluateDay(freeByDate[date] || [], confirmedCount, missAllowed);
+        return evaluateDay(freeByDate[date] || [], confirmedCount, missAllowed, unsureByDate[date] || 0);
+    }
+
+    //The day's honest denominator: the confirmed people who can actually say
+    function countedOn(date: string) {
+        return confirmedCount - (unsureByDate[date] || 0);
     }
 
     function pick(date: string) {
@@ -61,7 +68,7 @@
                             class:chosen={selectedDate === cell.date}
                             style={ev.viable ? `background:${fillColor(ev.windowSize, HOUR_COUNT)}` : ''}
                             onclick={() => pick(cell.date)}
-                            title={`${ev.freeCount} of ${confirmedCount} free, ${ev.windowSize}h common`}
+                            title={`${ev.freeCount} of ${countedOn(cell.date)} free, ${ev.windowSize}h common${unsureByDate[cell.date] ? `, ${unsureByDate[cell.date]} too far out to say` : ''}`}
                         >
                             <span class="num">{cell.day}</span>
                             <span class="count">{ev.freeCount || ''}</span>

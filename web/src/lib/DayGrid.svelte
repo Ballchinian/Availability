@@ -16,12 +16,13 @@
         days free, start on a free day and it clears them. The cursor switches to a
         crosshair while you are dragging so it is obvious it is happening.
     */
-    let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null }: {
+    let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, sureUntil = null }: {
         start: string;
         end: string;
         selection?: Record<string, number[]>;
         highlightFrom?: string | null;
         allowedWeekdays?: number[] | null;
+        sureUntil?: string | null;
     } = $props();
 
     let editingDate = $state('');
@@ -115,9 +116,11 @@
                                 class="day"
                                 class:free={isFree(cell.date)}
                                 class:is-new={highlightFrom && cell.date >= highlightFrom}
+                                class:far={sureUntil && cell.date > sureUntil && !isFree(cell.date)}
                                 style={isFree(cell.date) ? `background:${dayColour(cell.date)}` : ''}
                                 onpointerdown={(e) => startPaint(e, cell.date)}
                                 onpointerenter={() => enterPaint(cell.date)}
+                                title={sureUntil && cell.date > sureUntil && !isFree(cell.date) ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
                             >
                                 {cell.day}
                             </button>

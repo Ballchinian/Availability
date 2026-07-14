@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails, setAttendanceOverride } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit } from '../../bot/plans.js';
+import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
+import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
@@ -41,6 +42,7 @@ router.get('/:planId', requireUser, async (req, res) => {
     const cfg = await getGuildConfig(plan.guildId);
     const availability = await getAvailabilityInRange(req.user.id, plan.dateRange.start, plan.dateRange.end);
     const summary = await getAvailabilitySummary(req.user.id);
+    const userDoc = await getUserById(req.user.id);
 
     res.json({
         plan: {
@@ -59,7 +61,8 @@ router.get('/:planId', requireUser, async (req, res) => {
         totalParticipants: plan.participants.length,
         availability,
         lastFilled: summary.lastFilled,
-        lastUpdatedAt: summary.lastUpdatedAt
+        lastUpdatedAt: summary.lastUpdatedAt,
+        sureUntil: userDoc?.sureUntil || null
     });
 });
 
@@ -71,8 +74,13 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { days } = req.body || {};
+    const { days, autoConfirm, sureUntil } = req.body || {};
     if (!Array.isArray(days)) return res.status(400).json({ error: 'Something was off with the dates you sent.' });
+
+    //Their certainty horizon rides along with the save, empty meaning no limit
+    if (sureUntil === null || /^\d{4}-\d{2}-\d{2}$/.test(sureUntil || '')) {
+        await setSureUntil(req.user.id, sureUntil || null);
+    }
 
     const { start, end } = plan.dateRange;
     const allowed = plan.allowedWeekdays || null;
@@ -95,11 +103,22 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
         console.error('[plans] all-in notify failed:', err);
     }
 
+    //The same auto-accept the general page has: confirm any other plan this window covers
+    let confirmedPlans = [];
+    if (autoConfirm) {
+        try {
+            confirmedPlans = await autoConfirmCoveredPlans(req.user.id, start, end);
+        } catch (err) {
+            console.error('[plans] auto-confirm failed:', err);
+        }
+    }
+
     res.json({
         ok: true,
         confirmedCount: updated.participants.filter((p) => p.confirmed).length,
         totalParticipants: updated.participants.length,
-        savedDays: valid.length
+        savedDays: valid.length,
+        confirmedPlans
     });
 });
 
@@ -111,7 +130,8 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
     const ctx = await plannerContext(plan, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
 
-    //Names and avatars for everyone invited
+    //Names and avatars for everyone invited, plus their certainty horizons in one query
+    const sureMap = await getSureUntilMap(plan.participants.map((p) => p.userId));
     const participants = [];
     for (const p of plan.participants) {
         const m = await ctx.guild.members.fetch(p.userId).catch(() => null);
@@ -122,7 +142,13 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             confirmed: p.confirmed,
             //The confirmation vote, so the planner can watch who is in without leaning on DMs
             vote: p.vote || null,
-            voteReason: p.voteReason || null
+            voteReason: p.voteReason || null,
+            //A planner's manual call on them, sitting over whatever they answered
+            override: p.override || null,
+            //Whether they are still on the invite list for the set date
+            invited: p.invited !== false,
+            //How far ahead they said they could plan, days past it read as unsure not busy
+            sureUntil: sureMap[p.userId] || null
         });
     }
 
@@ -169,7 +195,7 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { date, time, note, pingAttending, pingAllInvited, attendingIds, post, dm, probe } = req.body || {};
+    const { date, time, note, inviteMode, attendingIds, probe } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -188,19 +214,27 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
         return res.status(429).json({ error: `You have set a date ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
+    /*
+        Who is still invited once the date is set. "attending" narrows the plan to
+        the people the site worked out can make the day, so only they get pinged,
+        DMed and counted in the confirmation tally. Anything else keeps everyone on
+        the list, and voiding or moving the date invites everyone back too.
+    */
+    let invitedIds = null;
+    if (inviteMode === 'attending' && Array.isArray(attendingIds)) {
+        const here = new Set(plan.participants.map((p) => p.userId));
+        const kept = attendingIds.filter((id) => here.has(id));
+        if (kept.length) invitedIds = kept;
+    }
+
     //If a date was already set and this is a different one, it is a reorganise
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
-    const updated = await setPlanChosen(plan.planId, date, cleanTime, cleanNote);
+    const updated = await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
 
     try {
         await announceOutcome(updated, ctx.cfg, {
-            pingAttending: Boolean(pingAttending),
-            pingAllInvited: Boolean(pingAllInvited),
-            attendingIds: Array.isArray(attendingIds) ? attendingIds : null,
             changed,
             actorName: ctx.member.displayName,
-            post: post !== false,
-            dm: dm !== false,
             probe: probe === true
         });
     } catch (err) {
@@ -208,6 +242,42 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     }
 
     res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed });
+});
+
+/*
+    A planner's manual call on someone's attendance for the set date, the moves on
+    the compare page's board. "coming" and "cant" lay an override over whatever the
+    person answered, "waiting" clears it and their own answer stands again. Moving
+    someone to coming also puts them back on the invite list if they were left off,
+    which is how you let in someone who never filled their availability.
+*/
+router.post('/:planId/attendance', requireUser, async (req, res) => {
+    const plan = await getPlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+
+    const ctx = await plannerContext(plan, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then sort out who is coming.' });
+
+    const { userId, status } = req.body || {};
+    if (!['coming', 'cant', 'waiting'].includes(status)) {
+        return res.status(400).json({ error: 'Something was off with that move.' });
+    }
+    const person = plan.participants.find((p) => p.userId === userId);
+    if (!person) return res.status(400).json({ error: 'That person is not on this plan.' });
+
+    const override = status === 'coming' ? 'yes' : status === 'cant' ? 'no' : null;
+    const reinvite = status === 'coming' && person.invited === false;
+    const updated = await setAttendanceOverride(plan.planId, userId, override, { reinvite });
+
+    try {
+        await applyAttendanceMove(updated, userId, status, req.user.id, ctx.member.displayName);
+    } catch (err) {
+        console.error('[plans] attendance move failed:', err);
+    }
+
+    res.json({ ok: true });
 });
 
 //Undo a confirmed date and reschedule. DMs everyone (no thread post), planner only.

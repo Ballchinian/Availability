@@ -18,6 +18,11 @@
     let saved = $state<any>(null);
     let saveError = $state('');
 
+    //Auto-accept any other plan this save fully covers, same as the general page
+    let autoConfirm = $state(true);
+    //How far ahead they can honestly plan, empty for no limit
+    let sureUntil = $state('');
+
     let leaveArmed = $state(false);
     let leaving = $state(false);
     let left = $state(false);
@@ -73,6 +78,7 @@
             const obj: Record<string, number[]> = {};
             for (const a of data.availability) obj[a.date] = a.hours || [];
             selection = obj;
+            sureUntil = data.sureUntil || '';
         } catch (err) {
             loadError = errorText(err);
         }
@@ -90,7 +96,7 @@
                 .map(([date, hours]) => ({ date, hours }));
             saved = await api(`/plans/${params.planId}/availability`, {
                 method: 'POST',
-                body: JSON.stringify({ days })
+                body: JSON.stringify({ days, autoConfirm, sureUntil: sureUntil || null })
             });
             data.confirmed = true;
         } catch (err) {
@@ -174,14 +180,37 @@
         <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
         <p class="muted small">Tap a day, or press and drag across several to mark them all at once.</p>
 
-        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} bind:selection />
+        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} sureUntil={sureUntil || null} bind:selection />
+
+        <div class="horizon">
+            <div class="horizon-row">
+                <label class="lbl" for="sure">Sure up to (optional)</label>
+                <input id="sure" type="date" bind:value={sureUntil} min={data.plan.start} />
+                {#if sureUntil}<button class="link-btn" onclick={() => (sureUntil = '')}>clear</button>{/if}
+            </div>
+            <p class="muted small">
+                Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,
+                so you don't have to mark no on months you just can't call yet.
+            </p>
+        </div>
+
+        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm me for any other plan these dates fully cover</label>
+
+        <p class="muted small">
+            Heads up: this saves to your availability everywhere, not just this plan, so other plans see it too.
+            Free outside {formatDate(data.plan.start)} to {formatDate(data.plan.end)}?
+            <a href="#/availability">Set your general availability</a> for the dates beyond this plan's range.
+        </p>
 
         {#if saveError}
             <p class="status error">{saveError}</p>
         {/if}
 
         {#if saved}
-            <p class="prompt good">Confirmed. You are {saved.confirmedCount}/{saved.totalParticipants} of the group now.</p>
+            <p class="prompt good">
+                Confirmed. You are {saved.confirmedCount}/{saved.totalParticipants} of the group now.
+                {#if saved.confirmedPlans?.length}Also auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
+            </p>
         {/if}
 
         <button class="primary" onclick={confirm} disabled={submitting}>

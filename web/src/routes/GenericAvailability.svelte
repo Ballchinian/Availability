@@ -24,6 +24,8 @@
 
     let selection = $state<Record<string, number[]>>({});
     let autoConfirm = $state(true);
+    //How far ahead they can honestly plan, empty for no limit
+    let sureUntil = $state('');
     let saving = $state(false);
     let saved = $state<any>(null);
     let saveError = $state('');
@@ -49,6 +51,7 @@
             selection = obj;
             lastFilled = res.lastFilled;
             lastUpdatedAt = res.lastUpdatedAt;
+            sureUntil = res.sureUntil || '';
         } catch (err) {
             loadError = errorText(err);
         }
@@ -69,7 +72,7 @@
                 .map(([date, hours]) => ({ date, hours }));
             saved = await api('/availability', {
                 method: 'POST',
-                body: JSON.stringify({ start: displayStart, end: displayEnd, days, autoConfirm })
+                body: JSON.stringify({ start: displayStart, end: displayEnd, days, autoConfirm, sureUntil: sureUntil || null })
             });
             lastFilled = days.length ? days.map((d) => d.date).sort().at(-1) ?? lastFilled : lastFilled;
             lastUpdatedAt = new Date().toISOString();
@@ -131,14 +134,26 @@
 
         <p class="muted small">Tap a day, or press and drag across several. The clock on a free day narrows it to certain hours.</p>
 
-        <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} bind:selection />
+        <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} sureUntil={sureUntil || null} bind:selection />
+
+        <div class="horizon">
+            <div class="horizon-row">
+                <label class="lbl" for="sure">Sure up to (optional)</label>
+                <input id="sure" type="date" bind:value={sureUntil} min={minStart} max={maxDate} />
+                {#if sureUntil}<button class="link-btn" onclick={() => (sureUntil = '')}>clear</button>{/if}
+            </div>
+            <p class="muted small">
+                Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,
+                so you don't have to mark no on months you just can't call yet.
+            </p>
+        </div>
 
         <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm any plan this window fully covers</label>
 
         {#if saveError}<p class="status error">{saveError}</p>{/if}
         {#if saved}
             <p class="prompt good">
-                Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}.
+                Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.
                 {#if saved.confirmedPlans.length}Auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
             </p>
         {/if}
