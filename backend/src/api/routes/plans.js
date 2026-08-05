@@ -479,7 +479,7 @@ router.post('/:planId/cancel', requireUser, async (req, res) => {
     //Marked cancelled here rather than inside the announcement, so a reload sees it gone straight away
     try {
         await markPlanCancelled(plan.planId);
-        await refundAction(plan.createdBy, plan.guildId, 'create');
+        await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
     } catch (err) {
         console.error('[plans] cancel failed:', err);
         return res.status(500).json({ error: 'Could not cancel the plan.' });

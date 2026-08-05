@@ -55,13 +55,32 @@ export async function takeAction(userId, guildId, action, limit) {
 
 /*
     Give one slot back, used when a plan is cancelled so starting and scrapping a
-    plan to try things out does not eat into the day's allowance. Drops the newest
-    hit, since that is the one being undone.
+    plan to try things out does not eat into the day's allowance.
+
+    at is when the action being undone happened, a plan's createdAt. takeAction
+    stamps its hit within milliseconds of that, so the closest hit is the one it
+    recorded. Without it the oldest goes, which still frees a slot but not the one
+    asked for: cancelling the first of two plans would otherwise drop the second
+    plan's hit and free its slot a day early.
 */
-export async function refundAction(userId, guildId, action) {
+export async function refundAction(userId, guildId, action, at = null) {
     const key = { userId, guildId, action };
     const doc = await col(collections.ratelimits).findOne(key);
     if (!doc?.hits?.length) return;
-    const hits = doc.hits.slice(0, -1);
+
+    let drop = 0;
+    if (at) {
+        const target = new Date(at).getTime();
+        let closest = Infinity;
+        doc.hits.forEach((t, i) => {
+            const gap = Math.abs(new Date(t).getTime() - target);
+            if (gap < closest) {
+                closest = gap;
+                drop = i;
+            }
+        });
+    }
+
+    const hits = doc.hits.filter((_, i) => i !== drop);
     await col(collections.ratelimits).updateOne(key, { $set: { hits } });
 }

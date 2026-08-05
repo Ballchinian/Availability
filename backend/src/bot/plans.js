@@ -508,7 +508,7 @@ export async function announceVoid(plan, cfg, actorName, reason, { dm = true } =
 */
 export async function cancelPlan(plan, actorName, { post = true, dm = true } = {}) {
     await markPlanCancelled(plan.planId);
-    await refundAction(plan.createdBy, plan.guildId, 'create');
+    await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
     await announceCancel(plan, actorName, { post, dm });
 }
 
