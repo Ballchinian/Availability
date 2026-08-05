@@ -76,7 +76,7 @@
         <section class="cal">
             <h3>{month.label} {month.year}</h3>
             <div class="weekdays">
-                {#each WEEKDAYS as w}<span>{w}</span>{/each}
+                {#each WEEKDAYS as w (w)}<span>{w}</span>{/each}
             </div>
             <div class="days">
                 {#each month.cells as cell, i (i)}

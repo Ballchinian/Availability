@@ -2,7 +2,6 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate } from '../lib/format.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
     /*

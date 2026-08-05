@@ -57,7 +57,7 @@ function windowOf(people: Counted[]): Set<number> {
 }
 
 export function bestWindow(free: FreePerson[], budget: number): WindowResult {
-    let kept: Counted[] = free.map((f) => ({ userId: f.userId, set: setOf(f.hours) }));
+    const kept: Counted[] = free.map((f) => ({ userId: f.userId, set: setOf(f.hours) }));
     let window = windowOf(kept);
     const dropped: string[] = [];
     let b = budget;

@@ -160,7 +160,7 @@
                 {month.label} {month.year} <span class="tally">{filled}/{asked}</span>
             </h3>
             <div class="weekdays">
-                {#each WEEKDAYS as w}<span>{w}</span>{/each}
+                {#each WEEKDAYS as w (w)}<span>{w}</span>{/each}
             </div>
             <div class="days">
                 {#each month.cells as cell, i (i)}
