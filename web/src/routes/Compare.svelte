@@ -2,95 +2,46 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
+    import { isoOf } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
-    import { formatHours } from '../lib/hours.js';
-    import { evaluateDay } from '../lib/overlap.js';
     import UserBadge from '../lib/UserBadge.svelte';
     import CompareGrid from '../lib/CompareGrid.svelte';
-    import MemberPicker from '../lib/MemberPicker.svelte';
-    import WeekdayPicker from '../lib/WeekdayPicker.svelte';
-    import type { Member } from '../lib/types.js';
+    import AddPeople from '../lib/compare/AddPeople.svelte';
+    import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
+    import CancelPanel from '../lib/compare/CancelPanel.svelte';
+    import DaysEditor from '../lib/compare/DaysEditor.svelte';
+    import EditDetails from '../lib/compare/EditDetails.svelte';
+    import PickPanel from '../lib/compare/PickPanel.svelte';
+    import RangeEditor from '../lib/compare/RangeEditor.svelte';
+    import RemindPanel from '../lib/compare/RemindPanel.svelte';
+    import VoidPanel from '../lib/compare/VoidPanel.svelte';
 
+    /*
+        The planner's screen: the heatmap of everyone's days, and the panels that
+        act on the plan. Each panel in lib/compare owns its own form and its own
+        message and asks for a reload when it changes something, so all this holds
+        is the plan itself and what is picked on the grid.
+    */
     let { params = {} }: { params?: Record<string, string> } = $props();
 
     let loading = $state(true);
     let data = $state<any>(null);
     let loadError = $state('');
+    let cancelled = $state(false);
 
     let missAllowed = $state(0);
     let selectedDate = $state<string | null>(null);
-    //Who stays invited once the date is set: just the people who fit, or everyone
-    let inviteMode = $state('attending');
-    let chosenTime = $state('');
-    let chosenNote = $state('');
-    //Opt in to asking everyone to confirm they can make the date with yes/no buttons
-    let chooseProbe = $state(false);
-
-    let submitting = $state(false);
-    let chosen = $state<any>(null);
-    let chooseError = $state('');
-
-    let reminding = $state(false);
-    let remindMsg = $state('');
-
-    let voidArmed = $state(false);
-    let voidReason = $state('');
-    let voiding = $state(false);
-    let voidMsg = $state('');
-    let voidDm = $state(true);
-
-    let newStart = $state('');
-    let newEnd = $state('');
-    let extendNote = $state('');
-    let extending = $state(false);
-    let extendMsg = $state('');
-    let rangePost = $state(true);
-    let rangeDm = $state(true);
-
-    //Which days count, editable here so a planner can open or close days mid-plan
-    let editingDays = $state(false);
-    let daysDayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
-    let daysNote = $state('');
-    let daysPost = $state(true);
-    let daysDm = $state(true);
-    let savingDays = $state(false);
-    let daysMsg = $state('');
-    const chosenDays = $derived(daysDayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
-
-    let cancelArmed = $state(false);
-    let cancelling = $state(false);
-    let cancelled = $state(false);
-    let cancelError = $state('');
-    let cancelPost = $state(true);
-    let cancelDm = $state(true);
-
-    let addOpen = $state(false);
-    let addMembers = $state<Member[]>([]);
-    let addSelectedIds = $state<string[]>([]);
-    let addLoading = $state(false);
-    let adding = $state(false);
-    let addMsg = $state('');
-    let addDm = $state(true);
-
-    let editOpen = $state(false);
-    let editName = $state('');
-    let editDescription = $state('');
-    let editing = $state(false);
-    let editMsg = $state('');
 
     const maxMiss = $derived(data ? Math.max(0, data.confirmedCount - 1) : 0);
 
-    //A range edit can run from today out to the two year cap, with start no later than end
-    const todayIso = isoOf(new Date());
-    const rangeMax = isoFromNow(2, 'year');
-
-    const byId = $derived.by(() => {
-        const m: Record<string, any> = {};
-        if (data) for (const p of data.participants) m[p.userId] = p;
-        return m;
-    });
-
     const unconfirmed = $derived(data ? data.participants.filter((p: any) => !p.confirmed) : []);
+
+    //What the plan is set for right now, null while it is still open
+    const chosen = $derived(
+        data?.plan?.chosenDate
+            ? { date: data.plan.chosenDate, time: data.plan.chosenTime || '', note: data.plan.chosenNote || '' }
+            : null
+    );
 
     /*
         How many confirmed people each day sits past the certainty horizon of. They
@@ -140,83 +91,17 @@
         return out;
     });
 
-    //The picked day, run through the same overlap maths the grid uses
-    const sel = $derived.by(() => {
-        if (!data || !selectedDate) return null;
-        const day = selectedDate;
-        const free = data.freeByDate[day] || [];
-        const unsure = unsureByDate[day] || 0;
-        const ev = evaluateDay(free, data.confirmedCount, missAllowed, unsure);
-        const freeSet = new Set(free.map((f: any) => f.userId));
-        const unsurePeople = data.participants.filter(
-            (p: any) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
-        );
-        return { free, ev, keptSet: new Set(ev.keptIds), counted: data.confirmedCount - unsure, unsurePeople };
-    });
-
-    /*
-        Who counts as able to make the picked day. On a viable day it is the kept set
-        from the miss slider, on a day outside the slider it falls back to whoever
-        marked the day free, so "just the people who can make it" always means something.
-    */
-    const attendIds = $derived.by<string[]>(() => {
-        if (!sel) return [];
-        return sel.ev.viable ? sel.ev.keptIds : sel.free.map((f: any) => f.userId);
-    });
-
-    /*
-        The attendance board for a set date. Everyone still invited lands in a column
-        by where they stand, a planner's manual call winning over their own answer.
-        The uninvited sit apart with a way back in.
-    */
-    let movePick = $state<string | null>(null);
-    let moving = $state(false);
-    let moveMsg = $state('');
-
-    const board = $derived.by(() => {
-        if (!data || !data.plan.chosenDate) return null;
-        const invited = data.participants.filter((p: any) => p.invited !== false);
-        const stand = (p: any) => p.override || p.vote || 'waiting';
-        return {
-            coming: invited.filter((p: any) => stand(p) === 'yes'),
-            waiting: invited.filter((p: any) => stand(p) === 'waiting'),
-            cant: invited.filter((p: any) => stand(p) === 'no'),
-            uninvited: data.participants.filter((p: any) => p.invited === false)
-        };
-    });
-
-    //What the person actually said, shown in brackets when a planner overrode it
-    function bracket(p: any): string {
-        if (!p.override || p.override === p.vote) return '';
-        if (p.vote === 'yes') return 'said coming';
-        if (p.vote === 'no') return "said can't make it";
-        return "hasn't answered";
-    }
-
-    //The other two columns someone can be moved to from where they stand now
-    function moveTargets(from: string) {
-        const all = [
-            { key: 'coming', label: 'Coming' },
-            { key: 'waiting', label: 'Waiting' },
-            { key: 'cant', label: "Can't make it" }
-        ];
-        return all.filter((t) => t.key !== from);
-    }
-
-    async function move(userId: string, status: string) {
-        moveMsg = '';
-        moving = true;
+    async function load() {
+        loading = true;
         try {
-            await api(`/plans/${params.planId}/attendance`, {
-                method: 'POST',
-                body: JSON.stringify({ userId, status })
-            });
-            movePick = null;
-            await refresh();
+            data = await api(`/plans/${params.planId}/compare`);
+            //A cancelled plan is read only, the banner stands in for the controls
+            if (data.plan.status === 'cancelled') cancelled = true;
+            if (data.plan.chosenDate) selectedDate = data.plan.chosenDate;
         } catch (err) {
-            moveMsg = errorText(err);
+            loadError = errorText(err);
         }
-        moving = false;
+        loading = false;
     }
 
     //A quiet refetch for small changes like a board move, no loading flash
@@ -228,44 +113,10 @@
         }
     }
 
-    //Whether the picked day, time and note all already match what the plan is set for
-    const sameDetails = $derived(Boolean(
-        chosen &&
-        selectedDate === chosen.chosenDate &&
-        (chosenTime || '') === (chosen.chosenTime || '') &&
-        (chosenNote.trim() || '') === (chosen.chosenNote || '')
-    ));
-
-    /*
-        Asking for a confirmation round is a change in its own right. Without it in
-        the check, a date locked in without one leaves the button greyed out for
-        good and the only way to start a probe is fiddling with the time or note.
-    */
-    const probeWanted = $derived(chooseProbe && !data?.plan?.probeActive);
-
-    const isCurrent = $derived(sameDetails && !probeWanted);
-
-    async function load() {
-        loading = true;
-        try {
-            data = await api(`/plans/${params.planId}/compare`);
-            //A cancelled plan is read only, the banner stands in for the controls
-            if (data.plan.status === 'cancelled') cancelled = true;
-            if (data.plan.chosenDate) {
-                chosen = { chosenDate: data.plan.chosenDate, chosenTime: data.plan.chosenTime, chosenNote: data.plan.chosenNote };
-                selectedDate = data.plan.chosenDate;
-                chosenTime = data.plan.chosenTime || '';
-                chosenNote = data.plan.chosenNote || '';
-                //A live probe shows as ticked, so the box reads as the state the plan is in
-                chooseProbe = Boolean(data.plan.probeActive);
-            }
-            //Prefill the range editor with the window the plan is on right now
-            newStart = data.plan.start;
-            newEnd = data.plan.end;
-        } catch (err) {
-            loadError = errorText(err);
-        }
-        loading = false;
+    //Changes that make the picked day meaningless: the plan reopens with nothing set
+    async function reopen() {
+        selectedDate = null;
+        await load();
     }
 
     onMount(async () => {
@@ -276,234 +127,6 @@
         }
         await load();
     });
-
-    async function lockIn() {
-        chooseError = '';
-        submitting = true;
-        try {
-            chosen = await api(`/plans/${params.planId}/choose`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    date: selectedDate,
-                    time: chosenTime || null,
-                    note: chosenNote.trim() || null,
-                    inviteMode,
-                    attendingIds: attendIds,
-                    probe: chooseProbe
-                })
-            });
-            //Quiet refetch so the invite list and the board reflect what was just set
-            await refresh();
-        } catch (err) {
-            chooseError = errorText(err);
-        }
-        submitting = false;
-    }
-
-    async function doVoid() {
-        voidMsg = '';
-        voiding = true;
-        try {
-            await api(`/plans/${params.planId}/void`, {
-                method: 'POST',
-                body: JSON.stringify({ reason: voidReason.trim() || null, dm: voidDm })
-            });
-            chosen = null;
-            selectedDate = null;
-            voidArmed = false;
-            voidReason = '';
-            await load();
-            voidMsg = voidDm
-                ? 'Date undone and everyone has been DMed. Pick a new one whenever you are ready.'
-                : 'Date undone. Pick a new one whenever you are ready.';
-        } catch (err) {
-            voidMsg = errorText(err);
-        }
-        voiding = false;
-    }
-
-    async function remind() {
-        remindMsg = '';
-        reminding = true;
-        try {
-            const res = await api(`/plans/${params.planId}/remind`, { method: 'POST' });
-            remindMsg = res.pinged ? `Nudged ${res.pinged} ${res.pinged === 1 ? 'person' : 'people'}.` : 'Everyone has already confirmed.';
-        } catch (err) {
-            remindMsg = errorText(err);
-        }
-        reminding = false;
-    }
-
-    async function doCancel() {
-        cancelError = '';
-        cancelling = true;
-        try {
-            await api(`/plans/${params.planId}/cancel`, {
-                method: 'POST',
-                body: JSON.stringify({ post: cancelPost, dm: cancelDm })
-            });
-            cancelled = true;
-        } catch (err) {
-            cancelError = errorText(err);
-        }
-        cancelling = false;
-    }
-
-    //Open the add panel and pull in the server members who are not already on the plan
-    async function openAdd() {
-        addOpen = true;
-        addMsg = '';
-        if (addMembers.length || addLoading) return;
-        addLoading = true;
-        try {
-            const res = await api(`/guilds/${data.plan.guildId}/members`);
-            const here = new Set(data.participants.map((p: any) => p.userId));
-            addMembers = res.members.filter((m: Member) => !here.has(m.id));
-        } catch (err) {
-            addMsg = errorText(err);
-        }
-        addLoading = false;
-    }
-
-    async function addPeople() {
-        addMsg = '';
-        if (!addSelectedIds.length) {
-            addMsg = 'Pick at least one person to add.';
-            return;
-        }
-        adding = true;
-        try {
-            const res = await api(`/plans/${params.planId}/add`, {
-                method: 'POST',
-                body: JSON.stringify({ userIds: addSelectedIds, dm: addDm })
-            });
-            addMsg = addDm
-                ? `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} and let them know.`
-                : `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} to the thread.`;
-            addSelectedIds = [];
-            addMembers = [];
-            addOpen = false;
-            await load();
-        } catch (err) {
-            addMsg = errorText(err);
-        }
-        adding = false;
-    }
-
-    //Open the edit panel prefilled with the plan's current title and description
-    function openEdit() {
-        editOpen = true;
-        editMsg = '';
-        editName = data.plan.name;
-        editDescription = data.plan.description || '';
-    }
-
-    async function saveEdit() {
-        editMsg = '';
-        if (!editName.trim()) {
-            editMsg = 'Give the plan a name.';
-            return;
-        }
-        if (editName.trim() === data.plan.name && editDescription.trim() === (data.plan.description || '')) {
-            editMsg = 'Nothing changed there. Edit the title or the description to update it.';
-            return;
-        }
-        editing = true;
-        try {
-            await api(`/plans/${params.planId}/details`, {
-                method: 'POST',
-                body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() })
-            });
-            editOpen = false;
-            await load();
-        } catch (err) {
-            editMsg = errorText(err);
-        }
-        editing = false;
-    }
-
-    async function editRange() {
-        extendMsg = '';
-        if (!newStart || !newEnd) {
-            extendMsg = 'Pick a start and end date first.';
-            return;
-        }
-        if (newStart > newEnd) {
-            extendMsg = 'The start date is after the end date.';
-            return;
-        }
-        if (newStart === data.plan.start && newEnd === data.plan.end) {
-            extendMsg = 'That is already the range. Move the start or the end to change it.';
-            return;
-        }
-        extending = true;
-        try {
-            const res = await api(`/plans/${params.planId}/range`, {
-                method: 'POST',
-                body: JSON.stringify({ start: newStart, end: newEnd, note: extendNote.trim() || null, post: rangePost, dm: rangeDm })
-            });
-            const told = rangePost && rangeDm ? ' and everyone has been pinged and DM\'d' : rangePost ? ' and the thread has been pinged' : rangeDm ? " and everyone has been DM'd" : '';
-            extendMsg = `Range set to ${formatDate(res.start)} to ${formatDate(res.end)}${told}.`;
-            extendNote = '';
-            chosen = null;
-            selectedDate = null;
-            await load();
-        } catch (err) {
-            extendMsg = errorText(err);
-        }
-        extending = false;
-    }
-
-    //A seven long on/off array from a plan's stored weekdays, all on when there is no restriction
-    function dayOnFrom(allowed: number[] | null): boolean[] {
-        if (!allowed || allowed.length === 0) return [true, true, true, true, true, true, true];
-        return [0, 1, 2, 3, 4, 5, 6].map((i) => allowed.includes(i));
-    }
-
-    function openDaysEditor() {
-        editingDays = true;
-        daysMsg = '';
-        daysDayOn = dayOnFrom(data.plan.allowedWeekdays);
-    }
-
-    async function saveWeekdays() {
-        daysMsg = '';
-        if (chosenDays.length === 0) {
-            daysMsg = 'Pick at least one day people can mark.';
-            return;
-        }
-        savingDays = true;
-        try {
-            //All seven days is no restriction, so send nothing then
-            const payload = chosenDays.length === 7 ? null : chosenDays;
-            const res = await api(`/plans/${params.planId}/weekdays`, {
-                method: 'POST',
-                body: JSON.stringify({ allowedWeekdays: payload, note: daysNote.trim() || null, post: daysPost, dm: daysDm })
-            });
-            const told = daysPost && daysDm ? ' Everyone was pinged and DMed.' : daysPost ? ' The thread was pinged.' : daysDm ? ' Everyone was DMed.' : '';
-            daysNote = '';
-            chosen = null;
-            selectedDate = null;
-            editingDays = false;
-            await load();
-            //A change that opened a day resets confirmations, a pure narrowing leaves them be
-            daysMsg = (res.reopened
-                ? 'Days updated. A new day opened, so everyone was asked to look again.'
-                : 'Days narrowed. Confirmations still stand, nobody has to redo anything.') + told;
-        } catch (err) {
-            daysMsg = errorText(err);
-        }
-        savingDays = false;
-    }
-
-    function isoFromNow(amount: number, unit: string) {
-        const d = new Date();
-        if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
-        return isoOf(d);
-    }
-    function isoOf(d: Date) {
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
 </script>
 
 <section class="screen">
@@ -532,16 +155,7 @@
         <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
 
         {#if unconfirmed.length}
-            <div class="waiting">
-                <p class="muted small">
-                    You do not have to wait for everyone, pick whenever you are ready. Still out:
-                    {unconfirmed.map((p: any) => p.displayName).join(', ')}.
-                </p>
-                <button class="ghost" onclick={remind} disabled={reminding}>
-                    {reminding ? 'Nudging...' : 'Remind the stragglers'}
-                </button>
-                {#if remindMsg}<span class="status small">{remindMsg}</span>{/if}
-            </div>
+            <RemindPanel planId={params.planId} waiting={unconfirmed} />
         {/if}
 
         {#if data.confirmedCount > 0}
@@ -567,225 +181,52 @@
 
         {#if chosen}
             <p class="prompt good">
-                <strong>{data.plan.name}</strong> is set for {formatDate(chosen.chosenDate)}{chosen.chosenTime ? ` at ${formatTime(chosen.chosenTime)}` : ''}.
-                {#if chosen.chosenNote}<br />{chosen.chosenNote}{/if}
+                <strong>{data.plan.name}</strong> is set for {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
+                {#if chosen.note}<br />{chosen.note}{/if}
                 <br />Pick another day below to move it, and everyone gets told.
             </p>
-            <div class="void">
-                {#if !voidArmed}
-                    <button class="ghost danger-btn" onclick={() => (voidArmed = true)}>Undo this date / reschedule</button>
-                {:else}
-                    <p class="muted small">This clears the set date and reopens the plan so a new day can be picked. Their saved dates stay, no thread message goes out.</p>
-                    <input type="text" bind:value={voidReason} placeholder="Optional reason (e.g. the venue fell through)" maxlength="200" />
-                    <label class="check"><input type="checkbox" bind:checked={voidDm} /> DM everyone that you are rescheduling</label>
-                    <div class="void-row">
-                        <button class="ghost danger-btn" onclick={doVoid} disabled={voiding}>
-                            {voiding ? 'Undoing...' : 'Yes, undo the date'}
-                        </button>
-                        <button class="ghost" onclick={() => (voidArmed = false)}>No</button>
-                    </div>
-                {/if}
-            </div>
         {/if}
-        {#if voidMsg}<p class="status small">{voidMsg}</p>{/if}
+        <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
 
-        {#if board}
-            <div class="votes">
-                <p class="muted small">
-                    Where everyone stands for {formatDate(data.plan.chosenDate)}. Tap someone to move them yourself,
-                    their own answer stays in brackets.
-                </p>
-                <div class="board">
-                    {#each [
-                        { key: 'coming', title: 'Coming', people: board.coming },
-                        { key: 'waiting', title: 'Waiting to answer', people: board.waiting },
-                        { key: 'cant', title: "Can't make it", people: board.cant }
-                    ] as colDef (colDef.key)}
-                        <div class="bcol">
-                            <h4>{colDef.title} ({colDef.people.length})</h4>
-                            <ul>
-                                {#each colDef.people as p (p.userId)}
-                                    <li>
-                                        <button class="bchip" class:picked={movePick === p.userId} onclick={() => (movePick = movePick === p.userId ? null : p.userId)}>
-                                            {p.displayName}
-                                            {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
-                                            {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
-                                        </button>
-                                        {#if movePick === p.userId}
-                                            <div class="move-row">
-                                                {#each moveTargets(colDef.key) as t (t.key)}
-                                                    <button class="ghost" disabled={moving} onclick={() => move(p.userId, t.key)}>→ {t.label}</button>
-                                                {/each}
-                                            </div>
-                                        {/if}
-                                    </li>
-                                {/each}
-                                {#if !colDef.people.length}
-                                    <li class="bempty">Nobody here.</li>
-                                {/if}
-                            </ul>
-                        </div>
-                    {/each}
-                </div>
-                {#if board.uninvited.length}
-                    <div class="uninvited">
-                        <p class="muted small">Not invited to this date, so no ping and no DM. Moving or undoing the date invites everyone back.</p>
-                        <ul>
-                            {#each board.uninvited as p (p.userId)}
-                                <li>
-                                    <span>{p.displayName}</span>
-                                    <button class="ghost" disabled={moving} onclick={() => move(p.userId, 'coming')}>Let them come</button>
-                                </li>
-                            {/each}
-                        </ul>
-                    </div>
-                {/if}
-                {#if moveMsg}<p class="status error small">{moveMsg}</p>{/if}
-            </div>
-        {/if}
+        <AttendanceBoard
+            planId={params.planId}
+            participants={data.participants}
+            chosenDate={data.plan.chosenDate}
+            onmoved={refresh}
+        />
 
-        {#if sel && selectedDate}
-            <div class="pick-panel">
-                {#if sel.ev.viable}
-                    <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
-                {:else}
-                    <p><strong>{formatDate(selectedDate)}</strong>: {sel.free.length} of {sel.counted} marked this day free. It is outside your miss slider, but you can still set it.</p>
-                {/if}
+        <PickPanel
+            planId={params.planId}
+            {selectedDate}
+            {missAllowed}
+            {unsureByDate}
+            {chosen}
+            freeByDate={data.freeByDate}
+            participants={data.participants}
+            confirmedCount={data.confirmedCount}
+            totalParticipants={data.totalParticipants}
+            probeActive={Boolean(data.plan.probeActive)}
+            onsaved={refresh}
+        />
 
-                <ul class="who">
-                    {#each sel.free as f (f.userId)}
-                        <li class:dropped={!sel.keptSet.has(f.userId)}>
-                            {byId[f.userId]?.displayName || 'Someone'}: {formatHours(f.hours)}
-                            {#if !sel.keptSet.has(f.userId)}<span class="muted small">(not counted)</span>{/if}
-                        </li>
-                    {/each}
-                </ul>
+        <EditDetails
+            planId={params.planId}
+            name={data.plan.name}
+            description={data.plan.description}
+            onsaved={load}
+        />
 
-                {#if sel.unsurePeople.length}
-                    <p class="muted small">
-                        Too far ahead to say for {sel.unsurePeople.map((p: any) => p.displayName).join(', ')}.
-                        They are not counted either way, and once the date is set you can move them onto the board yourself.
-                    </p>
-                {/if}
+        <AddPeople
+            planId={params.planId}
+            guildId={data.plan.guildId}
+            participants={data.participants}
+            onadded={load}
+        />
 
-                <label class="lbl" for="when">Time (optional)</label>
-                <input id="when" type="time" bind:value={chosenTime} />
+        <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} onsaved={reopen} />
 
-                <label class="lbl" for="cnote">Note (optional)</label>
-                <input id="cnote" type="text" bind:value={chosenNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
+        <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
 
-                <p class="muted small">Who is still invited?</p>
-                <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
-                <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({data.totalParticipants})</label>
-                <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
-                <label class="check"><input type="checkbox" bind:checked={chooseProbe} /> Ask everyone to confirm they're coming (yes/no)</label>
-                {#if chooseProbe}
-                    <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it. Their votes show up below.</p>
-                {/if}
-                {#if chooseError}<p class="status error">{chooseError}</p>{/if}
-                <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>
-                    {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if sameDetails}Ask everyone to confirm{:else if chosen && selectedDate === chosen.chosenDate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
-                </button>
-            </div>
-        {/if}
-
-        <div class="edit">
-            {#if !editOpen}
-                <button class="ghost" onclick={openEdit}>Edit title or description</button>
-            {:else}
-                <p class="muted small">Change the plan's title or description. The thread gets renamed and its pinned post updated. Nobody is pinged or DMed.</p>
-                <label class="lbl" for="ename">Title</label>
-                <input id="ename" type="text" bind:value={editName} maxlength="90" />
-                <label class="lbl" for="edesc">Description (optional)</label>
-                <textarea id="edesc" bind:value={editDescription} maxlength="280" rows="2"></textarea>
-                <div class="edit-row">
-                    <button class="primary" onclick={saveEdit} disabled={editing}>
-                        {editing ? 'Saving...' : 'Save changes'}
-                    </button>
-                    <button class="ghost" onclick={() => (editOpen = false)}>Cancel</button>
-                </div>
-            {/if}
-            {#if editMsg}<p class="status small">{editMsg}</p>{/if}
-        </div>
-
-        <div class="add">
-            {#if !addOpen}
-                <button class="ghost" onclick={openAdd}>Add someone to this plan</button>
-                {#if addMsg}<p class="status small">{addMsg}</p>{/if}
-            {:else}
-                <p class="muted small">Pick anyone in the server to pull into this plan. They get added to the thread, and a DM with the link if you leave the box ticked.</p>
-                {#if addLoading}
-                    <p class="muted small">Loading the member list...</p>
-                {:else if addMembers.length === 0}
-                    <p class="muted small">Everyone in the server is already on this plan.</p>
-                {:else}
-                    <MemberPicker members={addMembers} bind:selectedIds={addSelectedIds} />
-                    <label class="check"><input type="checkbox" bind:checked={addDm} /> DM the people you add</label>
-                    <div class="add-row">
-                        <button class="primary" onclick={addPeople} disabled={adding}>
-                            {adding ? 'Adding...' : 'Add to the plan'}
-                        </button>
-                        <button class="ghost" onclick={() => (addOpen = false)}>Cancel</button>
-                    </div>
-                {/if}
-                {#if addMsg}<p class="status small">{addMsg}</p>{/if}
-            {/if}
-        </div>
-
-        <div class="extend">
-            <p class="muted small">Need different days? Set a new start or end for the range and everyone gets asked to fill in the new window.</p>
-            <div class="extend-row">
-                <label class="lbl" for="rstart">Start</label>
-                <input id="rstart" type="date" bind:value={newStart} min={todayIso} max={newEnd || rangeMax} />
-                <label class="lbl" for="rend">End</label>
-                <input id="rend" type="date" bind:value={newEnd} min={newStart || todayIso} max={rangeMax} />
-                <button class="ghost" onclick={editRange} disabled={extending}>
-                    {extending ? 'Saving...' : 'Update the date range'}
-                </button>
-            </div>
-            <input type="text" bind:value={extendNote} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
-            <label class="check"><input type="checkbox" bind:checked={rangePost} /> Post the new dates in the thread</label>
-            <label class="check"><input type="checkbox" bind:checked={rangeDm} /> DM everyone the new dates</label>
-            {#if extendMsg}<p class="status small">{extendMsg}</p>{/if}
-        </div>
-
-        <div class="days-edit">
-            {#if !editingDays}
-                <button class="ghost" onclick={openDaysEditor}>Change which days count</button>
-                {#if daysMsg}<p class="status small">{daysMsg}</p>{/if}
-            {:else}
-                <p class="muted small">Open or close days for this plan, like turning on Mondays. Everyone gets asked to look again, and their saved days stay put.</p>
-                <WeekdayPicker bind:dayOn={daysDayOn} />
-                <input type="text" bind:value={daysNote} placeholder="Optional note for the DM (e.g. Mondays are open now)" maxlength="200" />
-                <label class="check"><input type="checkbox" bind:checked={daysPost} /> Post the change in the thread</label>
-                <label class="check"><input type="checkbox" bind:checked={daysDm} /> DM everyone</label>
-                <div class="edit-row">
-                    <button class="primary" onclick={saveWeekdays} disabled={savingDays}>
-                        {savingDays ? 'Saving...' : 'Update the days'}
-                    </button>
-                    <button class="ghost" onclick={() => (editingDays = false)}>Cancel</button>
-                </div>
-                {#if daysMsg}<p class="status small">{daysMsg}</p>{/if}
-            {/if}
-        </div>
-
-        <div class="danger">
-            {#if !cancelArmed}
-                <button class="ghost danger-btn" onclick={() => (cancelArmed = true)}>Cancel this plan</button>
-            {:else}
-                <div class="confirm">
-                    <p class="small">Cancel this plan? The thread stays until you delete it by hand in Discord.</p>
-                    <label class="check"><input type="checkbox" bind:checked={cancelPost} /> Post the cancellation in the thread</label>
-                    <label class="check"><input type="checkbox" bind:checked={cancelDm} /> DM everyone</label>
-                    <div class="void-row">
-                        <button class="ghost danger-btn" onclick={doCancel} disabled={cancelling}>
-                            {cancelling ? 'Cancelling...' : 'Yes, cancel it'}
-                        </button>
-                        <button class="ghost" onclick={() => (cancelArmed = false)}>No</button>
-                    </div>
-                </div>
-            {/if}
-            {#if cancelError}<p class="status error">{cancelError}</p>{/if}
-        </div>
+        <CancelPanel planId={params.planId} oncancelled={() => (cancelled = true)} />
     {/if}
 </section>

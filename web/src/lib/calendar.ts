@@ -31,6 +31,11 @@ function iso(y: number, m: number, d: number): string {
     return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+//A Date as the YYYY-MM-DD string everything else is stored and compared in, in local time
+export function isoOf(d: Date): string {
+    return iso(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 //The weekday of a YYYY-MM-DD date, 0 (Sunday) through 6 (Saturday), lining up with WEEKDAYS
 export function weekdayOf(date: string): number {
     return new Date(`${date}T00:00:00`).getDay();

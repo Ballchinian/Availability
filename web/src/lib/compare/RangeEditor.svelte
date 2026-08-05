@@ -1,0 +1,77 @@
+<script lang="ts">
+    import { untrack } from 'svelte';
+    import { api } from '../api.js';
+    import { isoOf } from '../calendar.js';
+    import { formatDate } from '../format.js';
+    import { Panel } from './panel.svelte.js';
+
+    /*
+        Moving the window a plan asks about. Always open, since needing more days
+        is the usual reason a planner comes back to this page at all.
+    */
+    let { planId, start = '', end = '', onsaved }: {
+        planId: string;
+        start?: string;
+        end?: string;
+        onsaved: () => Promise<void>;
+    } = $props();
+
+    const panel = new Panel();
+    /*
+        The plan's window is where the form starts and nothing more: from then on
+        these are the planner's, so a reload cannot wipe what they have typed.
+    */
+    let newStart = $state(untrack(() => start));
+    let newEnd = $state(untrack(() => end));
+    let note = $state('');
+    let post = $state(true);
+    let dm = $state(true);
+
+    //A range edit can run from today out to the two year cap, with start no later than end
+    const todayIso = isoOf(new Date());
+    const cap = new Date();
+    cap.setFullYear(cap.getFullYear() + 2);
+    const rangeMax = isoOf(cap);
+
+    async function save() {
+        if (!newStart || !newEnd) {
+            panel.reject('Pick a start and end date first.');
+            return;
+        }
+        if (newStart > newEnd) {
+            panel.reject('The start date is after the end date.');
+            return;
+        }
+        if (newStart === start && newEnd === end) {
+            panel.reject('That is already the range. Move the start or the end to change it.');
+            return;
+        }
+        await panel.run(async () => {
+            const res = await api(`/plans/${planId}/range`, {
+                method: 'POST',
+                body: JSON.stringify({ start: newStart, end: newEnd, note: note.trim() || null, post, dm })
+            });
+            const told = post && dm ? ' and everyone has been pinged and DM\'d' : post ? ' and the thread has been pinged' : dm ? " and everyone has been DM'd" : '';
+            note = '';
+            await onsaved();
+            return `Range set to ${formatDate(res.start)} to ${formatDate(res.end)}${told}.`;
+        });
+    }
+</script>
+
+<div class="extend">
+    <p class="muted small">Need different days? Set a new start or end for the range and everyone gets asked to fill in the new window.</p>
+    <div class="extend-row">
+        <label class="lbl" for="rstart">Start</label>
+        <input id="rstart" type="date" bind:value={newStart} min={todayIso} max={newEnd || rangeMax} />
+        <label class="lbl" for="rend">End</label>
+        <input id="rend" type="date" bind:value={newEnd} min={newStart || todayIso} max={rangeMax} />
+        <button class="ghost" onclick={save} disabled={panel.busy}>
+            {panel.busy ? 'Saving...' : 'Update the date range'}
+        </button>
+    </div>
+    <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
+    <label class="check"><input type="checkbox" bind:checked={post} /> Post the new dates in the thread</label>
+    <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone the new dates</label>
+    {#if panel.msg}<p class="status small" class:error={panel.failed}>{panel.msg}</p>{/if}
+</div>
