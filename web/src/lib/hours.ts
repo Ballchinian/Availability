@@ -3,6 +3,9 @@
     morning, kept in display order so the picker reads left to right and the wrap
     past midnight stays in the right place. A free day with no specific hours
     means the whole window, so that is what hoursOf falls back to.
+
+    backend/src/lib/hours.js holds the same list to validate what gets saved.
+    Change the window here and change it there too.
 */
 export const SOCIABLE_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2];
 export const HOUR_COUNT = SOCIABLE_HOURS.length;

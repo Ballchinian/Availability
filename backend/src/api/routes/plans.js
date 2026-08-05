@@ -7,6 +7,7 @@ import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySumm
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
 import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
+import { validHours } from '../../lib/hours.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
 
@@ -98,6 +99,9 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     const valid = days.filter(
         (d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end && weekdayAllowed(d.date, allowed)
     );
+    if (!valid.every((d) => validHours(d.hours))) {
+        return res.status(400).json({ error: 'Something was off with the hours you sent.' });
+    }
 
     //A weekday-pinned plan only rewrites the days it asks about, so a person's saved
     //availability on the other days (from other plans) is left untouched

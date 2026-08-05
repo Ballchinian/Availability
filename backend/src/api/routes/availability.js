@@ -4,6 +4,7 @@ import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySumm
 import { getUserById, setSureUntil } from '../../db/users.js';
 import { autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
+import { validHours } from '../../lib/hours.js';
 
 /*
     The general availability page, not tied to any plan. People can fill their
@@ -44,6 +45,10 @@ router.post('/', requireUser, async (req, res) => {
     }
 
     const valid = Array.isArray(days) ? days.filter((d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end) : [];
+    if (!valid.every((d) => validHours(d.hours))) {
+        return res.status(400).json({ error: 'Something was off with the hours you sent.' });
+    }
+
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid);
 
     //Accept any plan the new window fully covers, if they asked us to
