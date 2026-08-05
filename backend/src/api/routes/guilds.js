@@ -3,7 +3,7 @@ import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
 import { announcePlan, announceSetPlan } from '../../bot/plans.js';
-import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange } from '../../lib/dates.js';
+import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange, REPEAT_WEEKS } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
@@ -125,7 +125,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, announce, date, time, note, dm, probe, allowedWeekdays } = req.body || {};
+    const { name, description, start, end, participantIds, announce, date, time, note, dm, probe, allowedWeekdays, repeatWeeks } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
@@ -172,6 +172,9 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
         }
     }
 
+    //Whether this comes round again once its day has been. Anything not on the list is a one off.
+    const repeat = REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : null;
+
     //Only keep ids that are real, non bot members of this server
     const validIds = [];
     for (const id of participantIds) {
@@ -197,7 +200,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             participantIds: validIds,
             allowedWeekdays: weekdays,
             //The clock the plan's day and time are read in, which is the server's
-            timeZone: safeZone(ctx.cfg.timeZone)
+            timeZone: safeZone(ctx.cfg.timeZone),
+            repeatWeeks: repeat
         });
 
         const dropped = participantIds.length - validIds.length;

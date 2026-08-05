@@ -10,7 +10,7 @@ import { describeWeekdays as describeDays, weekdayAllowed } from '../../../share
     this one file.
 */
 
-export { formatDate, formatTime, weekdayOf, weekdayAllowed } from '../../../shared/dates.js';
+export { formatDate, formatTime, weekdayOf, weekdayAllowed, REPEAT_WEEKS, describeRepeat } from '../../../shared/dates.js';
 
 //The bot writes the days into a sentence, so no restriction has to read as something
 export function describeWeekdays(allowedWeekdays) {
@@ -59,6 +59,11 @@ export function shiftDate(date, days) {
     const d = new Date(`${date}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString().slice(0, 10);
+}
+
+//How many days from one date to another, negative if the second is the earlier one
+export function daysBetween(from, to) {
+    return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 }
 
 //Every day from start to end, inclusive, as YYYY-MM-DD strings

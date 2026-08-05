@@ -13,6 +13,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - Private per plan threads that pull in only the people invited
 - Drag across a stretch of days to mark yourself free, and narrow any day down to certain hours
 - Time zones throughout, so a group spread across the world compares hours that actually line up
+- Repeating plans, for the thing you do every other Thursday
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
@@ -28,6 +29,14 @@ Everything lives in one place per server. `/setup` makes a planner role (or adop
 When a planner starts a plan, the bot spins up a private thread named after it, pulls in the invited people, and pings them there. Everyone also gets a DM with the link by default, though the planner can untick that to keep it to the thread. As people fill in their days the thread keeps a running count, and once everyone's in, the planner who made the plan gets a DM to go and compare.
 
 If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, cancelling, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want.
+
+### Plans that come round again
+
+A plan can be set to repeat every week, every other week or every four weeks, either when you start it or later from the compare page. Weeks rather than months on purpose: shifting a date by a multiple of seven lands on the same weekday, so "every other Thursday" stays on Thursdays and a plan pinned to weekends stays on weekends.
+
+Nothing is scheduled ahead. The next plan is only made once the current one's day has been and gone, so there is never more than one of a series live at a time, and the new one is a real plan of its own with its own thread and its own history rather than a second date bolted onto the old one. That also means cancelling a plan ends the series without any separate way of saying so, and stopping it is always a button on whichever plan is currently live.
+
+If the service is off for a while, a repeat that missed its turn comes back once on the next date still to come, not once for every date it slept through.
 
 ### Time zones
 

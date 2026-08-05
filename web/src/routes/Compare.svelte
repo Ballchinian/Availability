@@ -16,6 +16,7 @@
     import PickPanel from '../lib/compare/PickPanel.svelte';
     import RangeEditor from '../lib/compare/RangeEditor.svelte';
     import RemindPanel from '../lib/compare/RemindPanel.svelte';
+    import RepeatPanel from '../lib/compare/RepeatPanel.svelte';
     import VoidPanel from '../lib/compare/VoidPanel.svelte';
 
     /*
@@ -231,6 +232,14 @@
         {#if cancelled}
             <p class="ways"><a href="#/">Back to your plans</a></p>
         {:else}
+            <RepeatPanel
+                planId={params.planId}
+                repeatWeeks={data.plan.repeatWeeks}
+                repeatedFrom={data.plan.repeatedFrom}
+                repeatedInto={data.plan.repeatedInto}
+                onchanged={load}
+            />
+
             <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
 
             <AttendanceBoard

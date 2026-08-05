@@ -112,6 +112,15 @@ async function ensureIndexes(database) {
     await database.collection(collections.plans).createIndex({ 'participants.userId': 1, status: 1 });
     //The other half of the landing page list: the plans someone runs, whether or not they are in them
     await database.collection(collections.plans).createIndex({ createdBy: 1, status: 1 });
+    /*
+        What the repeat sweep asks for, on a timer forever. Partial rather than sparse:
+        sparse on a compound only skips a document missing every key, and these all carry
+        a chosenDate, so it would index every plan ever made to find the few that repeat.
+        The sweep's own filter is written as the same `$gt: 0` so the planner can use it.
+    */
+    await database
+        .collection(collections.plans)
+        .createIndex({ repeatWeeks: 1, repeatedInto: 1, chosenDate: 1 }, { partialFilterExpression: { repeatWeeks: { $gt: 0 } } });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
 }

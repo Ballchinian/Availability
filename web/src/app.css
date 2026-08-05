@@ -1004,6 +1004,26 @@ code {
     margin-top: 6px;
 }
 
+/* Whether the plan comes round again, on compare and on the create form */
+.repeat {
+    margin: 8px 0 4px;
+}
+
+.repeat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+/* The picked interval, matching how a chosen weekday reads on the pickers above */
+.repeat-row .ghost.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--text);
+}
+
 /* Add people block */
 .add {
     margin-top: 22px;

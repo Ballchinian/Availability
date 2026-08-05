@@ -77,3 +77,23 @@ export function describeWeekdays(allowedWeekdays, everyDay = '') {
     if (names.length === 1) return names[0];
     return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
+
+/*
+    How often a plan can be set to come round again, in whole weeks. Weeks and not months
+    because shifting a date by a multiple of seven lands on the same weekday, so "every
+    other Thursday" stays on Thursdays and a plan pinned to weekends stays on weekends,
+    with nothing to work out. Four weeks is as close to monthly as that honestly gets.
+
+    Here rather than in either lib/limits.js or the create form because both ends validate
+    against it and a list that only one side agreed to would let a plan be made that the
+    other cannot describe.
+*/
+export const REPEAT_WEEKS = [1, 2, 4];
+
+//How a repeat reads in a sentence, since nobody says "every 1 weeks"
+export function describeRepeat(weeks) {
+    if (!weeks) return '';
+    if (weeks === 1) return 'every week';
+    if (weeks === 2) return 'every other week';
+    return `every ${weeks} weeks`;
+}

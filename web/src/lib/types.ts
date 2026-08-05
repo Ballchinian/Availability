@@ -78,6 +78,11 @@ export interface ComparePlan extends Plan {
     chosenTime: string | null;
     chosenNote: string | null;
     probeActive: boolean;
+    //How often this comes round again, null for a one off
+    repeatWeeks: number | null;
+    //The plan this one came out of, and the one it went into once its day had been
+    repeatedFrom: string | null;
+    repeatedInto: string | null;
     threadUrl: string | null;
 }
 
@@ -105,6 +110,9 @@ export type PlanEvent =
     | (EventBase & { type: 'left' })
     | (EventBase & { type: 'rejoined' })
     | (EventBase & { type: 'reminded'; kind: 'availability' | 'vote'; count: number })
+    | (EventBase & { type: 'repeat'; repeatWeeks: number | null })
+    //Written by the repeat sweep rather than by a person, so its by and byName are the plan's creator and blank
+    | (EventBase & { type: 'repeated'; planId: string })
     | (EventBase & { type: 'cancelled' });
 
 //GET /plans/:planId/compare

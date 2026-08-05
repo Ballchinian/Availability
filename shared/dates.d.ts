@@ -9,3 +9,5 @@ export function formatTime(t?: string | null): string;
 export function weekdayOf(date: string): number;
 export function weekdayAllowed(date: string, allowedWeekdays?: number[] | null): boolean;
 export function describeWeekdays(allowedWeekdays?: number[] | null, everyDay?: string): string;
+export const REPEAT_WEEKS: number[];
+export function describeRepeat(weeks?: number | null): string;

@@ -3,7 +3,7 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow } from '../lib/calendar.js';
-    import { formatDate } from '../lib/format.js';
+    import { formatDate, REPEAT_WEEKS, describeRepeat } from '../lib/format.js';
     import type { CreatedPlan, GuildInfo, Member } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
@@ -40,6 +40,13 @@
     let announceDm = $state(true);
     //Opt in to asking everyone to confirm they can make the date with yes/no buttons
     let announceProbe = $state(false);
+
+    /*
+        Whether this comes round again once its day has been. Shared by both modes, since
+        a standing arrangement is a standing arrangement whether or not the day is already
+        known. Null is a one off, which is nearly every plan.
+    */
+    let repeatWeeks = $state<number | null>(null);
 
     const todayIso = isoFromNow(0, 'day');
     const minStart = isoFromNow(1, 'day');
@@ -96,7 +103,8 @@
                           note: setNote.trim() || null,
                           participantIds: selectedIds,
                           dm: announceDm,
-                          probe: announceProbe
+                          probe: announceProbe,
+                          repeatWeeks
                       }
                     : {
                           name: planName.trim(),
@@ -106,7 +114,8 @@
                           participantIds: selectedIds,
                           dm: collectDm,
                           //All seven days is no restriction, so send nothing then
-                          allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays
+                          allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays,
+                          repeatWeeks
                       };
             result = await api<CreatedPlan>(`/guilds/${params.guildId}/plans`, {
                 method: 'POST',
@@ -244,6 +253,26 @@
             <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone to confirm they're coming</label>
             <p class="muted small">A thread always opens and adding people to it pings them. {announceProbe ? 'Everyone gets yes/no buttons to confirm they can make it, in the thread' + (announceDm ? ' and in their DMs' : '') + ", and I'll DM you when everyone is in or if someone can't make it." : 'Tick the box above to ask everyone to confirm with yes/no buttons.'}</p>
         {/if}
+
+        <div class="repeat">
+            <span class="lbl">Does this come round again?</span>
+            <div class="repeat-row">
+                <button class="ghost" class:on={repeatWeeks === null} onclick={() => (repeatWeeks = null)}>one off</button>
+                {#each REPEAT_WEEKS as weeks (weeks)}
+                    <button class="ghost" class:on={repeatWeeks === weeks} onclick={() => (repeatWeeks = weeks)}>
+                        {describeRepeat(weeks)}
+                    </button>
+                {/each}
+            </div>
+            <p class="muted small">
+                {#if repeatWeeks}
+                    Once this one's day has been and gone, I'll set the next one up {describeRepeat(repeatWeeks)} on with the
+                    same people. Only ever one at a time, and you can stop it from the compare page whenever you like.
+                {:else}
+                    Leave it as a one off, or have me set the next one up automatically after this one's day has been.
+                {/if}
+            </p>
+        </div>
 
         {#if formError}
             <p class="status error">{formError}</p>

@@ -1,4 +1,4 @@
-import { formatDate, formatTime, describeWeekdays } from './format.js';
+import { formatDate, formatTime, describeWeekdays, describeRepeat } from './format.js';
 import { isoOf } from './calendar.js';
 import type { PlanEvent } from './types.js';
 
@@ -18,6 +18,15 @@ function whenOf(date: string, time: string | null): string {
 
 function plural(count: number, one: string, many: string): string {
     return `${count} ${count === 1 ? one : many}`;
+}
+
+/*
+    Whether a name belongs in front of this line. Everything on a plan is done by
+    somebody except coming round again, which the repeat sweep does on a timer with no
+    one asking, so that line is written as a sentence of its own instead.
+*/
+export function hasActor(event: PlanEvent): boolean {
+    return event.type !== 'repeated';
 }
 
 export function describeEvent(event: PlanEvent): string {
@@ -49,6 +58,11 @@ export function describeEvent(event: PlanEvent): string {
             return event.kind === 'vote'
                 ? `nudged ${plural(event.count, 'person', 'people')} who had not answered`
                 : `nudged ${plural(event.count, 'person', 'people')} for their dates`;
+        case 'repeat':
+            return event.repeatWeeks ? `set this to come round ${describeRepeat(event.repeatWeeks)}` : 'stopped this coming round again';
+        //Reads as a whole sentence because hasActor keeps a name from being put in front of it
+        case 'repeated':
+            return 'This one came round again as a new plan';
         case 'cancelled':
             return 'cancelled the plan';
     }

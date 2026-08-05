@@ -176,16 +176,18 @@ async function memberName(guildId, userId) {
     opener states it instead of asking people to fill in availability.
 */
 function openerText(plan) {
+    //A plan the sweep made says so itself, so nothing has to be passed down to every caller
+    const again = Boolean(plan.repeatedFrom);
     if (plan.status === 'closed' && plan.chosenDate) {
         const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
         const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
-        return banner('PLAN SET') +
+        return banner(again ? 'ROUND AGAIN' : 'PLAN SET') +
             `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}\n` +
             calendarLines(plan);
     }
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
-    return banner('EVENT CREATED') +
-        `New plan: **${plan.name}** (${range}).\n` +
+    return banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
+        (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
         aboutLine(plan) +
         `Choose the dates you are free here: ${planUrl(plan.planId)}\n` +
         `A planner can run \`/compare\` any time to see where things stand, even before everyone is in.`;
@@ -272,9 +274,13 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
 
     if (dm) {
         const jump = thread.url ? `Jump straight to the thread: ${thread.url}` : `Look for the thread in #${channel.name}.`;
+        //A repeat has no actor: nobody did this, it just came round, so it says that instead
+        const lead = plan.repeatedFrom
+            ? `"${plan.name}" is back round again in ${guild.name} (${range}).\n`
+            : `${actorName} added you to the plan "${plan.name}" in ${guild.name} (${range}).\n`;
         await dmEach(ids,
-            banner('INVITED TO A PLAN') +
-            `${actorName} added you to the plan "${plan.name}" in ${guild.name} (${range}).\n` +
+            banner(plan.repeatedFrom ? 'ROUND AGAIN' : 'INVITED TO A PLAN') +
+            lead +
             aboutLine(plan) +
             `Add the dates you are free here: ${url}\n` +
             `${jump}\n\n` +
@@ -322,9 +328,12 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
     if (dm) {
         const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
         const tail = probe ? `\n\nCan you make it? Tap below.` : '';
+        const lead = plan.repeatedFrom
+            ? `"${plan.name}" is back round again in ${cfg.guildName}, set for ${when}.${about}${note}\n`
+            : `${actorName} set up the plan "${plan.name}" in ${cfg.guildName} for ${when}.${about}${note}\n`;
         await dmEach(ids,
-            banner('PLAN SET') +
-            `${actorName} set up the plan "${plan.name}" in ${cfg.guildName} for ${when}.${about}${note}\n` +
+            banner(plan.repeatedFrom ? 'ROUND AGAIN' : 'PLAN SET') +
+            lead +
             calendarLines(plan) + tail,
             probe ? [probeRow(plan.planId)] : []);
     }

@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, addPlanEvent } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
 import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
-import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange } from '../../lib/dates.js';
+import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
 import { DAY_HOURS, validHours } from '../../lib/hours.js';
 import { safeZone, retimeDay } from '../../lib/zones.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
@@ -256,6 +256,10 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             chosenTime: plan.chosenTime || null,
             chosenNote: plan.chosenNote || null,
             probeActive: Boolean(plan.probeActive),
+            //Whether this comes round again once its day has been, and where the chain has got to
+            repeatWeeks: plan.repeatWeeks || null,
+            repeatedFrom: plan.repeatedFrom || null,
+            repeatedInto: plan.repeatedInto || null,
             //The way back to where the plan is actually being talked about
             threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null
         },
@@ -389,6 +393,34 @@ router.post('/:planId/void', requireUser, async (req, res) => {
     announceAfter('void announce', () => announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm: req.body?.dm !== false }));
 
     res.json({ ok: true });
+});
+
+/*
+    Turn repeating on or off. Nothing is scheduled by saying yes: the next plan is only
+    made once this one's day has been and gone, so this is a standing instruction on the
+    live plan rather than a calendar of its own, and turning it off is just as immediate.
+
+    Deliberately allowed on a plan with no date yet. Setting it up front is the point,
+    since somebody who knows this is their fortnightly thing should not have to come back
+    and say so after the day is picked.
+*/
+router.post('/:planId/repeat', requireUser, async (req, res) => {
+    const plan = await getPlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+
+    const ctx = await plannerContext(plan, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+
+    const { repeatWeeks } = req.body || {};
+    const wanted = repeatWeeks === null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
+    if (wanted === false) return res.status(400).json({ error: 'That is not a repeat I can do.' });
+    if (wanted === (plan.repeatWeeks || null)) return res.json({ ok: true, repeatWeeks: wanted });
+
+    await setPlanRepeat(plan.planId, wanted);
+    await addPlanEvent(plan.planId, { type: 'repeat', by: req.user.id, byName: ctx.member.displayName, repeatWeeks: wanted });
+
+    res.json({ ok: true, repeatWeeks: wanted });
 });
 
 /*

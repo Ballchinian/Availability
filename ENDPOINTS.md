@@ -199,6 +199,7 @@ Planner role only.
 * For a set plan: `announce` set to true, a single `date`, and an optional `time` and `note`
 * `dm` (optional, default true): whether to DM the invited people
 * `post` (optional, default true, set plans only): whether the thread's opening post pings everyone
+* `repeatWeeks` (optional): `1`, `2` or `4` to have this come round again that many weeks after its day has been. Anything else, including left out, is a one off.
 
 ### Effects
 
@@ -299,7 +300,7 @@ Planner role only.
 
 ### Returns
 
-* The plan, including any date already locked in, the clock the server runs on, and a link to its thread in Discord
+* The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and their sure-up-to date
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap
@@ -311,7 +312,8 @@ Planner role only.
 * An empty hours list still means free all day, and survives as one from anybody whose clock matches the server's, which on most servers is everybody.
 
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
-* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Every line but one was done by a person. Coming round again is written by the repeat sweep on a timer, so it carries no name and reads as a sentence of its own.
 * Capped at the most recent 100, and it is the only place history is exposed, so it never leaves the planner's screen.
 
 ---
@@ -365,6 +367,30 @@ Planner role only.
 
 * `400` if no date is set yet, or the person is not on the plan.
 * Moving someone back to waiting is quiet, no DM.
+* `409` if the plan was cancelled.
+
+---
+
+## POST `/api/plans/:planId/repeat` 🔒
+
+Whether this plan comes round again once its day has been and gone.
+
+Planner role only.
+
+### Input
+
+* `repeatWeeks`: `1`, `2` or `4`, or `null` to make it a one off. Anything else is a `400`.
+
+### Effects
+
+* Saves it on the plan, and records the change in the plan's history.
+* Nothing is scheduled. The next plan is only made after this one's day has passed.
+
+### Notes
+
+* Allowed on a plan with no date yet, on purpose: somebody who knows this is their fortnightly thing should not have to come back and say so once the day is picked.
+* Nothing happens to plans the series has already made. Repeating is a standing instruction on whichever plan is currently live.
+* Cancelling a plan ends the series too, since only a plan with a day that has passed is ever picked up.
 * `409` if the plan was cancelled.
 
 ---

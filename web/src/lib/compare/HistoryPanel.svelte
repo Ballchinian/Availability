@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { describeEvent, timeAgo } from '../history.js';
+    import { describeEvent, hasActor, timeAgo } from '../history.js';
     import type { PlanEvent } from '../types.js';
 
     /*
@@ -28,7 +28,7 @@
             <ol>
                 {#each latestFirst as event (event.at + event.type + event.by)}
                     <li>
-                        <span class="who">{event.byName || 'Someone'}</span>
+                        {#if hasActor(event)}<span class="who">{event.byName || 'Someone'}</span>{/if}
                         {describeEvent(event)}
                         <time datetime={event.at} title={new Date(event.at).toLocaleString()}>{timeAgo(event.at)}</time>
                     </li>

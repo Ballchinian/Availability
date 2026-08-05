@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeEvent, timeAgo } from '../../src/lib/history.js';
+import { describeEvent, hasActor, timeAgo } from '../../src/lib/history.js';
 import type { PlanEvent } from '../../src/lib/types.js';
 
 const base = { at: '2026-08-05T18:00:00.000Z', by: '1', byName: 'Ethan' };
@@ -82,21 +82,43 @@ describe('describeEvent', () => {
         expect(describeEvent({ ...base, type: 'cancelled' })).toBe('cancelled the plan');
     });
 
+    it('reads a repeat being set and being stopped', () => {
+        expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 2 })).toBe('set this to come round every other week');
+        expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 1 })).toBe('set this to come round every week');
+        expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: null })).toBe('stopped this coming round again');
+    });
+
     //Every branch returns, so a new event type is a build error rather than a blank line
     it('says something for every type there is', () => {
         const types: PlanEvent['type'][] = [
             'created', 'chosen', 'moved', 'voided', 'range', 'weekdays',
-            'details', 'added', 'left', 'rejoined', 'reminded', 'cancelled'
+            'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'cancelled'
         ];
         for (const type of types) {
             const event = {
                 ...base, type,
                 date: '2026-08-12', time: null, probe: false, from: '2026-08-01',
                 start: '2026-08-01', end: '2026-08-31', allowedWeekdays: null,
-                renamed: false, count: 1, kind: 'vote'
+                renamed: false, count: 1, kind: 'vote', repeatWeeks: 2, planId: 'ab12cd34ef'
             } as PlanEvent;
             expect(describeEvent(event)).toBeTruthy();
         }
+    });
+});
+
+describe('hasActor', () => {
+    /*
+        Coming round again is the one thing on a plan nobody did, so the panel leaves the
+        name off and the sentence carries its own subject instead.
+    */
+    it('leaves the name off the line the sweep wrote', () => {
+        expect(hasActor({ ...base, type: 'repeated', planId: 'ab12cd34ef' })).toBe(false);
+        expect(describeEvent({ ...base, type: 'repeated', planId: 'ab12cd34ef' })).toBe('This one came round again as a new plan');
+    });
+
+    it('keeps it on everything a person did', () => {
+        expect(hasActor({ ...base, type: 'created' })).toBe(true);
+        expect(hasActor({ ...base, type: 'repeat', repeatWeeks: 2 })).toBe(true);
     });
 });
 

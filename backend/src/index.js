@@ -1,6 +1,7 @@
 import { config, missingConfig, fatalConfig } from './config.js';
 import { connectMongo, closeMongo, retryMongo } from './db/mongo.js';
 import { client, startBot } from './bot/client.js';
+import { startRepeats, stopRepeats } from './bot/repeat.js';
 import { buildApp } from './api/server.js';
 
 /*
@@ -41,6 +42,9 @@ async function main() {
         console.log(`[boot] web server on ${config.baseUrl} (port ${config.port})`);
     });
 
+    //The one thing here that happens on a timer rather than because somebody asked
+    startRepeats();
+
     //Tidy shutdown so the gateway and mongo do not dangle
     let stopping = false;
     const stop = async () => {
@@ -49,6 +53,7 @@ async function main() {
         stopping = true;
         console.log('\n[boot] shutting down');
 
+        stopRepeats();
         await new Promise((resolve) => {
             server.close(resolve);
             //Idle keep-alive sockets would otherwise hold the close open until they time out
