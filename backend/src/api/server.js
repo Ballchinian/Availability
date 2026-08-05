@@ -55,5 +55,22 @@ export function buildApp() {
         });
     }
 
+    //An api path that matches nothing gets json too, since the spa fallback deliberately skips /api
+    app.use('/api', (req, res) => {
+        res.status(404).json({ error: 'No such endpoint.' });
+    });
+
+    /*
+        Last in the chain, and the four arguments are what mark it as the error
+        handler. Express 5 forwards a rejected async handler here; without it the
+        default handler replies with an html stack page, the site's api() sees a
+        non-json body and shows a bare "Internal Server Error" instead.
+    */
+    app.use((err, req, res, next) => {
+        console.error(`[api] ${req.method} ${req.originalUrl} threw:`, err);
+        if (res.headersSent) return next(err);
+        res.status(err.status || 500).json({ error: 'Something went wrong at our end. Try that again in a moment.' });
+    });
+
     return app;
 }
