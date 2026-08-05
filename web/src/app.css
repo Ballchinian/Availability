@@ -69,6 +69,12 @@ code {
     padding: 28px;
 }
 
+.screen h2 {
+    color: var(--heading);
+    font-size: 18px;
+    margin: 26px 0 8px;
+}
+
 .muted {
     color: var(--muted);
 }
@@ -86,12 +92,6 @@ code {
 .legal .last-updated {
     margin: 0 0 20px;
     font-size: 13px;
-}
-
-.legal h2 {
-    color: var(--heading);
-    font-size: 18px;
-    margin: 26px 0 8px;
 }
 
 .legal p {
@@ -164,6 +164,63 @@ code {
     font-size: 13px;
     padding: 0;
     text-decoration: underline;
+}
+
+/* Landing page: one card per server you share with the bot */
+.cards {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.card .icon {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+/* Servers with no icon of their own, so the row still lines up with the ones that have one */
+.card .icon.blank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 18px;
+    text-transform: uppercase;
+}
+
+.card .body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.card .name {
+    display: block;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+
+/* The line under a card's title, and any link that follows it */
+.card .note,
+.card .action {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
 }
 
 .member-preview {

@@ -10,6 +10,13 @@ export async function getGuildConfig(guildId) {
     return col(collections.guilds).findOne({ guildId });
 }
 
+//Several servers in one query, for the landing page listing everything someone is in
+export async function getGuildConfigs(guildIds) {
+    return col(collections.guilds)
+        .find({ guildId: { $in: guildIds } })
+        .toArray();
+}
+
 export async function saveGuildConfig(guildId, patch) {
     const now = new Date();
     await col(collections.guilds).updateOne(

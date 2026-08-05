@@ -67,6 +67,29 @@ Return the logged-in person, or `null` if nobody is.
 
 ---
 
+# You
+
+What the landing page runs on. Everywhere else the link says which server or plan it is about, so these are the only routes that answer from the session alone.
+
+## GET `/api/me/guilds` 🔒
+
+The servers the requester shares with the bot.
+
+### Returns
+
+Each server, sorted by name, with:
+
+* Server id and name, and its icon if it has one
+* Whether it has run `/setup`
+* Whether the requester has the planner role there
+
+### Notes
+
+* Read from the list stored on the user, which is written at login and kept current as people join and leave servers. A user saved without one has it worked out and stored on the first request.
+* A server the bot has since been removed from, or that the requester has left, is dropped from the list rather than returned.
+
+---
+
 # Servers
 
 ## GET `/api/guilds/:guildId` 🔒

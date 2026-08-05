@@ -7,6 +7,7 @@ import { existsSync } from 'fs';
 import { config } from '../config.js';
 import { isMongoReady } from '../db/mongo.js';
 import authRouter from './routes/auth.js';
+import meRouter from './routes/me.js';
 import guildsRouter from './routes/guilds.js';
 import plansRouter from './routes/plans.js';
 import availabilityRouter from './routes/availability.js';
@@ -34,6 +35,7 @@ export function buildApp() {
     });
 
     app.use('/api/auth', authRouter);
+    app.use('/api/me', meRouter);
     app.use('/api/guilds', guildsRouter);
     app.use('/api/plans', plansRouter);
     app.use('/api/availability', availabilityRouter);

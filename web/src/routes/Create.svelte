@@ -138,7 +138,7 @@
     {:else if !auth.user}
         <p class="muted">Log in above to start a plan.</p>
     {:else if !params.guildId}
-        <p class="muted">Open this from your server's planner thread so I know which server you mean.</p>
+        <p class="muted">I need to know which server this plan is for. <a href="#/">Pick one from your servers</a>.</p>
     {:else if loadError}
         <p class="status">Could not load this server: {loadError}</p>
     {:else if !guildInfo?.isMember}

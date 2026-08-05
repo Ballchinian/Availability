@@ -1,5 +1,6 @@
 <script lang="ts">
     import Router from 'svelte-spa-router';
+    import Home from './routes/Home.svelte';
     import Create from './routes/Create.svelte';
     import Availability from './routes/Availability.svelte';
     import GenericAvailability from './routes/GenericAvailability.svelte';
@@ -14,7 +15,7 @@
         path to the screen that handles it.
     */
     const routes = {
-        '/': Create,
+        '/': Home,
         '/g/:guildId': Create,
         '/availability': GenericAvailability,
         '/plan/:planId': Availability,
