@@ -8,3 +8,11 @@
 */
 
 export const DAILY_LIMIT = 30;
+
+/*
+    How many people one request may name at once, when starting a plan or adding
+    to one. Every id that is not already cached costs a REST call to Discord, so
+    without a cap ten thousand ids means ten thousand round trips. Far above any
+    real plan, low enough that the worst case is a few hundred lookups.
+*/
+export const MAX_PARTICIPANTS = 200;

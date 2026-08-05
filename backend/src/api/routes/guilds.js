@@ -7,7 +7,7 @@ import { announcePlan, announceSetPlan } from '../../bot/plans.js';
 import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
-import { DAILY_LIMIT } from '../../lib/limits.js';
+import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
 
 /*
     Server scoped routes: who the logged in person is in this server, the member
@@ -152,6 +152,9 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
 
     if (!Array.isArray(participantIds) || participantIds.length === 0) {
         return res.status(400).json({ error: 'Pick at least one person to invite.' });
+    }
+    if (participantIds.length > MAX_PARTICIPANTS) {
+        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people, which is more than a plan can hold.` });
     }
 
     /*

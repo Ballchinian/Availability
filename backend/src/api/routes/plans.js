@@ -9,7 +9,7 @@ import { announceOutcome, remindStragglers, announceRangeChange, announceWeekday
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
-import { DAILY_LIMIT } from '../../lib/limits.js';
+import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
 
 /*
     The availability side of a plan. GET hands the page everything it needs to
@@ -504,6 +504,9 @@ router.post('/:planId/add', requireUser, async (req, res) => {
     const { userIds, dm } = req.body || {};
     if (!Array.isArray(userIds) || userIds.length === 0) {
         return res.status(400).json({ error: 'Pick at least one person to add.' });
+    }
+    if (userIds.length > MAX_PARTICIPANTS) {
+        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people to add at once.` });
     }
 
     //Skip anyone already in, and keep only real non bot members of this server
