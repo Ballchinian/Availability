@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText } from '../lib/api.js';
+    import { api, errorText, icsHref } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
     import type { UserGuild, UserPlan } from '../lib/types.js';
@@ -125,6 +125,9 @@
                             <span class="muted note">{planNote(p)}</span>
                             {#if p.mine && p.inIt}
                                 <a class="action" href="#/plan/{p.planId}/compare">Compare everyone's dates</a>
+                            {/if}
+                            {#if p.status === 'closed' && p.chosenDate}
+                                <a class="action" href={icsHref(p.planId)}>Add to your calendar</a>
                             {/if}
                         </div>
                     </li>

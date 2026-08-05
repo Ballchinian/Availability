@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText } from '../lib/api.js';
+    import { api, errorText, icsHref } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoOf, nextDay } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
@@ -214,7 +214,10 @@
                 <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
                 {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
                 {#if chosen.note}<br />{chosen.note}{/if}
-                {#if !cancelled}<br />Pick another day below to move it, and everyone gets told.{/if}
+                {#if !cancelled}
+                    <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>
+                    <br />Pick another day below to move it, and everyone gets told.
+                {/if}
             </p>
         {/if}
 

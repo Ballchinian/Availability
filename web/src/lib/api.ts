@@ -30,3 +30,12 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 export function errorText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
+
+/*
+    The one api path the site links to rather than fetches: a calendar file comes back as
+    a download, so it belongs in an href and never goes through api() above. Here so the
+    /api prefix is still only written in this file.
+*/
+export function icsHref(planId: string): string {
+    return `/api/plans/${planId}/calendar.ics`;
+}

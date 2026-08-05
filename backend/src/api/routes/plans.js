@@ -6,7 +6,8 @@ import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
 import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
-import { threadUrl } from '../../bot/util.js';
+import { threadUrl, planUrl } from '../../bot/util.js';
+import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
@@ -130,6 +131,27 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
         savedDays,
         confirmedPlans
     });
+});
+
+/*
+    The set date as a calendar file, so it goes into a calendar rather than being copied
+    across by hand. Same gate as the plan itself: the guest list, plus whoever is running
+    it, since nothing makes a planner invite themselves to their own plan.
+*/
+router.get('/:planId/calendar.ics', requireUser, async (req, res) => {
+    const plan = await getPlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+
+    const onIt = plan.participants.some((p) => p.userId === req.user.id) || plan.createdBy === req.user.id;
+    if (!onIt) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    if (!plan.chosenDate) return res.status(400).json({ error: 'No day has been set for this plan yet.' });
+
+    const cfg = await getGuildConfig(plan.guildId);
+
+    res.type('text/calendar');
+    res.set('Content-Disposition', `attachment; filename="${icsFileName(plan)}"`);
+    res.send(buildIcs(plan, { guildName: cfg?.guildName || '', url: planUrl(plan.planId) }));
 });
 
 //Everything the compare page needs: who is in, and how many are free each day

@@ -1,6 +1,7 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, reviveThread } from './util.js';
+import { createThread, planUrl, compareUrl, icsUrl, reviveThread } from './util.js';
+import { googleCalendarUrl } from '../lib/ics.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
@@ -46,6 +47,17 @@ function whenLine(plan) {
 //The "what it is about" line, dropped entirely when a plan has no description
 function aboutLine(plan) {
     return plan.description ? `What it is about: ${plan.description}\n` : '';
+}
+
+/*
+    The two ways into a calendar with the day already filled in, added wherever a set
+    date is announced. Both, because they fail in opposite places: the download is the
+    one every calendar takes but it asks for a login, and the Google link asks for
+    nothing at all, which is what someone reading a DM on their phone actually has.
+*/
+function calendarLines(plan) {
+    if (!plan.chosenDate) return '';
+    return `\nAdd it to your calendar: ${googleCalendarUrl(plan)}\nOr download it: ${icsUrl(plan.planId)}`;
 }
 
 /*
@@ -154,7 +166,8 @@ function openerText(plan) {
         const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
         const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
         return banner('PLAN SET') +
-            `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}`;
+            `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}\n` +
+            calendarLines(plan);
     }
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     return banner('EVENT CREATED') +
@@ -297,7 +310,8 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
         const tail = probe ? `\n\nCan you make it? Tap below.` : '';
         await dmEach(ids,
             banner('PLAN SET') +
-            `${actorName} set up the plan "${plan.name}" in ${cfg.guildName} for ${when}.${about}${note}${tail}`,
+            `${actorName} set up the plan "${plan.name}" in ${cfg.guildName} for ${when}.${about}${note}\n` +
+            calendarLines(plan) + tail,
             probe ? [probeRow(plan.planId)] : []);
     }
 }
@@ -385,7 +399,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
                 const headline = changed
                     ? `${banner('PLAN CHANGED')}${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.${about}${note}`
                     : `${banner('DATE SET')}${lead}${actorName} set **${plan.name}** for ${when}.${about}${note}`;
-                await thread.send({ content: headline, allowedMentions: { users: ids } });
+                await thread.send({ content: `${headline}\n${calendarLines(plan)}`, allowedMentions: { users: ids } });
             }
         }
     }
@@ -412,7 +426,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
         await dmEach(near, base + `\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
         await dmEach(far, base + `\nThis lands past the date you said you could plan up to, so it is worth a proper look.\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
     } else {
-        await dmEach(ids, banner(changed ? 'PLAN CHANGED' : 'DATE SET') + lead + about + note);
+        await dmEach(ids, banner(changed ? 'PLAN CHANGED' : 'DATE SET') + lead + about + note + '\n' + calendarLines(plan));
     }
 }
 
@@ -733,11 +747,15 @@ async function respondStale(interaction, message) {
 */
 async function ackVote(interaction, plan, vote) {
     const line = vote === 'yes' ? "You're down as coming." : "You're down as not coming.";
+    //Only worth offering to someone who has just said they are coming, which is also the
+    //first moment the day is really theirs rather than a question they have been asked
+    const calendar = vote === 'yes' ? `\n${calendarLines(plan)}` : '';
+
     if (interaction.inGuild()) {
-        await interaction.reply({ content: `${line} Tap the buttons again any time to change it.`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `${line} Tap the buttons again any time to change it.${calendar}`, flags: MessageFlags.Ephemeral });
     } else {
         await interaction.update({
-            content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.`,
+            content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.${calendar}`,
             components: [votedDmRow(plan.planId, vote)]
         });
     }

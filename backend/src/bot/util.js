@@ -26,6 +26,12 @@ export function threadUrl(guildId, threadId) {
     return `https://discord.com/channels/${guildId}/${threadId}`;
 }
 
+//The set day as a calendar file. An api path rather than a site one, since what comes
+//back is a download and not a page.
+export function icsUrl(planId) {
+    return `${config.baseUrl}/api/plans/${planId}/calendar.ics`;
+}
+
 //Bring a thread back from archived so a post lands and reopens it
 export async function reviveThread(thread) {
     if (thread.archived) await thread.setArchived(false).catch(() => {});

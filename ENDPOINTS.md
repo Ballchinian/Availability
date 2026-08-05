@@ -243,6 +243,25 @@ Participants only.
 
 ---
 
+## GET `/api/plans/:planId/calendar.ics` 🔒
+
+The plan's set day as a calendar file, so it can go straight into a calendar.
+
+Participants only, plus whoever started the plan.
+
+### Returns
+
+An iCalendar (`text/calendar`) download, named after the plan, holding one event: the day, the time if one was set, and the description, note, server and plan link gathered into the event's own description.
+
+### Notes
+
+* `400` if no day has been set for the plan yet, `409` if it was cancelled.
+* A plan with no time is a whole-day event. A plan with one runs two hours from it, since no end time is ever stored.
+* Times are written floating, with no zone attached, which reads as "7pm wherever you are". That is what the rest of the app assumes, since hours are stored as bare integers with no zone anywhere. This is what changes when time zones land.
+* The DMs that announce a set day carry this link alongside a Google Calendar link, which needs no login at all.
+
+---
+
 ## GET `/api/plans/:planId/compare` 🔒
 
 Everything the compare page needs.
