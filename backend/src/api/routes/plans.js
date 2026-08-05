@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails, setAttendanceOverride } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
-import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, cancelPlan, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
-import { takeAction } from '../../db/ratelimits.js';
+import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
 
 /*
@@ -32,6 +32,16 @@ async function plannerContext(plan, userId) {
     if (!member.roles.cache.has(cfg.plannerRoleId)) return { error: 403, message: 'You need the planner role to do that.' };
 
     return { cfg, guild, member };
+}
+
+/*
+    Announcements run after the response, never inside it. The write they follow
+    is already committed, and dmEach sends one at a time, so a plan of twenty
+    would otherwise leave the planner on "Saving..." for twenty round trips and
+    a slow Discord would turn that into a timeout. Failure stays non-fatal.
+*/
+function announceAfter(label, run) {
+    Promise.resolve().then(run).catch((err) => console.error(`[plans] ${label} failed:`, err));
 }
 
 router.get('/:planId', requireUser, async (req, res) => {
@@ -231,15 +241,13 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
     const updated = await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
 
-    try {
-        await announceOutcome(updated, ctx.cfg, {
+    announceAfter('outcome post', () =>
+        announceOutcome(updated, ctx.cfg, {
             changed,
             actorName: ctx.member.displayName,
             probe: probe === true
-        });
-    } catch (err) {
-        console.error('[plans] outcome post failed:', err);
-    }
+        })
+    );
 
     res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed });
 });
@@ -293,11 +301,7 @@ router.post('/:planId/void', requireUser, async (req, res) => {
     const reason = String(req.body?.reason || '').trim().slice(0, 200) || null;
     const updated = await voidPlanChoice(plan.planId);
 
-    try {
-        await announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm: req.body?.dm !== false });
-    } catch (err) {
-        console.error('[plans] void announce failed:', err);
-    }
+    announceAfter('void announce', () => announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm: req.body?.dm !== false }));
 
     res.json({ ok: true });
 });
@@ -359,11 +363,9 @@ router.post('/:planId/range', requireUser, async (req, res) => {
 
     const updated = await setPlanRange(plan.planId, start, end);
 
-    try {
-        await announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post: post !== false, dm: dm !== false });
-    } catch (err) {
-        console.error('[plans] range post failed:', err);
-    }
+    announceAfter('range post', () =>
+        announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post: post !== false, dm: dm !== false })
+    );
 
     res.json({ ok: true, start, end });
 });
@@ -410,18 +412,16 @@ router.post('/:planId/weekdays', requireUser, async (req, res) => {
 
     const updated = await setPlanWeekdays(plan.planId, weekdays, { reopen: opensADay });
 
-    try {
-        await announceWeekdaysChange(updated, ctx.cfg, {
+    announceAfter('weekdays post', () =>
+        announceWeekdaysChange(updated, ctx.cfg, {
             actorName: ctx.member.displayName,
             daysLabel: describeWeekdays(weekdays),
             reopened: opensADay,
             note: cleanNote,
             post: post !== false,
             dm: dm !== false
-        });
-    } catch (err) {
-        console.error('[plans] weekdays post failed:', err);
-    }
+        })
+    );
 
     res.json({ ok: true, allowedWeekdays: weekdays, reopened: opensADay });
 });
@@ -472,12 +472,18 @@ router.post('/:planId/cancel', requireUser, async (req, res) => {
     //Already cancelled, do not tell everyone twice
     if (plan.status === 'cancelled') return res.json({ ok: true });
 
+    //Marked cancelled here rather than inside the announcement, so a reload sees it gone straight away
     try {
-        await cancelPlan(plan, ctx.member.displayName, { post: req.body?.post !== false, dm: req.body?.dm !== false });
+        await markPlanCancelled(plan.planId);
+        await refundAction(plan.createdBy, plan.guildId, 'create');
     } catch (err) {
         console.error('[plans] cancel failed:', err);
         return res.status(500).json({ error: 'Could not cancel the plan.' });
     }
+
+    announceAfter('cancel announce', () =>
+        announceCancel(plan, ctx.member.displayName, { post: req.body?.post !== false, dm: req.body?.dm !== false })
+    );
 
     res.json({ ok: true });
 });
@@ -509,11 +515,7 @@ router.post('/:planId/add', requireUser, async (req, res) => {
     let updated = plan;
     for (const id of toAdd) updated = await addParticipant(plan.planId, id);
 
-    try {
-        await announceAddition(updated, toAdd, ctx.member.displayName, { dm: dm !== false });
-    } catch (err) {
-        console.error('[plans] add announce failed:', err);
-    }
+    announceAfter('add announce', () => announceAddition(updated, toAdd, ctx.member.displayName, { dm: dm !== false }));
 
     res.json({ ok: true, added: toAdd.length });
 });

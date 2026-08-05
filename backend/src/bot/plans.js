@@ -508,7 +508,12 @@ export async function announceVoid(plan, cfg, actorName, reason, { dm = true } =
 */
 export async function cancelPlan(plan, actorName, { post = true, dm = true } = {}) {
     await markPlanCancelled(plan.planId);
+    await refundAction(plan.createdBy, plan.guildId, 'create');
+    await announceCancel(plan, actorName, { post, dm });
+}
 
+//The telling-everyone half, split off so the site can send it after it has responded
+export async function announceCancel(plan, actorName, { post = true, dm = true } = {}) {
     const ids = plan.participants.map((p) => p.userId);
 
     if (post && plan.threadId) {
@@ -527,8 +532,6 @@ export async function cancelPlan(plan, actorName, { post = true, dm = true } = {
     }
 
     if (dm) await dmEach(ids, banner('PLAN CANCELLED') + `${actorName} cancelled the plan "${plan.name}".`);
-
-    await refundAction(plan.createdBy, plan.guildId, 'create');
 }
 
 /*
