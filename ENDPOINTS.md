@@ -8,7 +8,7 @@ Everything lives under `/api`. The same Node service serves these routes and han
 
 Endpoints marked with 🔒 require a logged-in session.
 
-A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in through Discord. Nothing is kept server side, the cookie carries who they are and is signed so it cannot be faked.
+A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in through Discord. The cookie carries who they are and is signed so it cannot be faked. The only thing held this end is a version counter on the user record: the token carries the version it was signed under, every guarded request compares the two, and logout bumps it so an old cookie stops working.
 
 Most actions also need a role inside the server they touch:
 
