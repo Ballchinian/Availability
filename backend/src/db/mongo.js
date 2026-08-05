@@ -110,6 +110,8 @@ async function ensureIndexes(database) {
     await database.collection(collections.plans).createIndex({ threadId: 1 });
     //Backs getPlansCoveredBy and getOpenPlansForUser, which guildId alone does not cover
     await database.collection(collections.plans).createIndex({ 'participants.userId': 1, status: 1 });
+    //The other half of the landing page list: the plans someone runs, whether or not they are in them
+    await database.collection(collections.plans).createIndex({ createdBy: 1, status: 1 });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
 }

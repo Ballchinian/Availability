@@ -90,6 +90,27 @@ Each server, sorted by name, with:
 
 ---
 
+## GET `/api/me/plans` 🔒
+
+Everything the requester still has on, across every server they share with the bot.
+
+### Returns
+
+Each plan with:
+
+* Plan id, name, and the server it belongs to
+* Its status and date range, plus the day and time if one has been set
+* Whether the requester is on the guest list, and whether they have filled their dates in
+* Whether they started it, which is what earns the plan a compare link
+
+### Notes
+
+* Covers plans still collecting dates and set plans whose day has not passed. Cancelled plans and days gone by are left out.
+* Plans the requester started count as well as plans they are in, since nothing makes a planner invite themselves to their own plan.
+* A set plan the requester was left off the invite list for is left out too.
+
+---
+
 # Servers
 
 ## GET `/api/guilds/:guildId` 🔒

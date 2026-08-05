@@ -3,7 +3,9 @@ import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
 import { getUserById, setUserGuilds } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
+import { getActivePlansForUser } from '../../db/plans.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
+import { today } from '../../lib/dates.js';
 
 /*
     What the landing page runs on. Every other screen arrives from a link the bot
@@ -57,6 +59,39 @@ router.get('/guilds', requireUser, async (req, res) => {
 
     const guilds = rows.filter(Boolean).sort((a, b) => a.guildName.localeCompare(b.guildName));
     res.json({ guilds });
+});
+
+router.get('/plans', requireUser, async (req, res) => {
+    const plans = await getActivePlansForUser(req.user.id, today());
+    const configs = await getGuildConfigs([...new Set(plans.map((plan) => plan.guildId))]);
+    const names = new Map(configs.map((cfg) => [cfg.guildId, cfg.guildName]));
+
+    const rows = [];
+    for (const plan of plans) {
+        const me = plan.participants.find((p) => p.userId === req.user.id);
+        const running = plan.createdBy === req.user.id;
+        //Left off the invite list when the date was locked, so there is nothing to come to, unless they run it
+        if (plan.status === 'closed' && me?.invited === false && !running) continue;
+
+        rows.push({
+            planId: plan.planId,
+            name: plan.name,
+            guildName: names.get(plan.guildId) || '',
+            status: plan.status,
+            start: plan.dateRange.start,
+            end: plan.dateRange.end,
+            chosenDate: plan.chosenDate || null,
+            chosenTime: plan.chosenTime || null,
+            //A planner who did not invite themselves is running this one without being in it
+            inIt: Boolean(me),
+            //Whether they still owe this plan their dates, which is the whole reason for the list
+            filledIn: Boolean(me?.confirmed),
+            //Their own plans carry the compare link, since nobody else could open it anyway
+            mine: running
+        });
+    }
+
+    res.json({ plans: rows });
 });
 
 export default router;

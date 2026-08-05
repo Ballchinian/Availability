@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
+    import { formatDate, formatTime } from '../lib/format.js';
     import UserBadge from '../lib/UserBadge.svelte';
 
     /*
@@ -13,6 +14,15 @@
     let loading = $state(true);
     let loadError = $state('');
     let guilds = $state<any[]>([]);
+    let plans = $state<any[]>([]);
+
+    /*
+        Anything still waiting on them first, then the rest of the open ones, then
+        the days already set, soonest first. Whatever needs doing is at the top.
+    */
+    const sortedPlans = $derived(
+        [...plans].sort((a, b) => rank(a) - rank(b) || (a.chosenDate || a.start).localeCompare(b.chosenDate || b.start))
+    );
 
     onMount(async () => {
         await loadMe();
@@ -21,8 +31,9 @@
             return;
         }
         try {
-            const res = await api('/me/guilds');
-            guilds = res.guilds;
+            const [g, p] = await Promise.all([api('/me/guilds'), api('/me/plans')]);
+            guilds = g.guilds;
+            plans = p.plans;
         } catch (err) {
             loadError = errorText(err);
         }
@@ -34,6 +45,22 @@
         if (!g.setupComplete) return 'Nobody has run /setup here yet, so planning is not switched on.';
         if (!g.isPlanner) return 'You need the planner role here to start a plan. Ask an admin for it.';
         return '';
+    }
+
+    function rank(p: any) {
+        if (p.status !== 'collecting') return 2;
+        return p.inIt && !p.filledIn ? 0 : 1;
+    }
+
+    //What this plan is waiting on, said from where this person stands in it
+    function planNote(p: any) {
+        const where = p.guildName ? `${p.guildName} · ` : '';
+        if (p.status !== 'collecting') {
+            return `${where}set for ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}` : ''}`;
+        }
+        if (!p.inIt) return `${where}yours to run · ${formatDate(p.start)} to ${formatDate(p.end)}`;
+        const state = p.filledIn ? 'your dates are in' : 'waiting on your dates';
+        return `${where}${state} · ${formatDate(p.start)} to ${formatDate(p.end)}`;
     }
 </script>
 
@@ -75,6 +102,27 @@
                                 <span class="muted note">{serverNote(g)}</span>
                             {:else}
                                 <a class="action" href="#/g/{g.guildId}">Start a plan</a>
+                            {/if}
+                        </div>
+                    </li>
+                {/each}
+            </ul>
+        {/if}
+
+        <h2>Your plans</h2>
+        {#if plans.length === 0}
+            <p class="muted">
+                Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
+            </p>
+        {:else}
+            <ul class="cards">
+                {#each sortedPlans as p (p.planId)}
+                    <li class="card">
+                        <div class="body">
+                            <a class="name" href={p.inIt ? `#/plan/${p.planId}` : `#/plan/${p.planId}/compare`}>{p.name}</a>
+                            <span class="muted note">{planNote(p)}</span>
+                            {#if p.mine && p.inIt}
+                                <a class="action" href="#/plan/{p.planId}/compare">Compare everyone's dates</a>
                             {/if}
                         </div>
                     </li>

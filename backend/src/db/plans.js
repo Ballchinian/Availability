@@ -86,6 +86,28 @@ export async function getOpenPlansForUser(guildId, userId) {
 }
 
 /*
+    Everything this person still has on, across every server: plans still collecting
+    dates, plus set ones whose day has not come round yet. Backs the landing page
+    list, which is the only way back into a plan for someone who lost the DM.
+    Cancelled plans and days gone by fall out on their own.
+
+    Plans they are running count as well as plans they are in, since nothing makes a
+    planner invite themselves and the guest list alone would hide a plan from the one
+    person organising it.
+*/
+export async function getActivePlansForUser(userId, fromDate) {
+    return col(collections.plans)
+        .find({
+            $and: [
+                { $or: [{ 'participants.userId': userId }, { createdBy: userId }] },
+                { $or: [{ status: 'collecting' }, { status: 'closed', chosenDate: { $gte: fromDate } }] }
+            ]
+        })
+        .sort({ createdAt: -1 })
+        .toArray();
+}
+
+/*
     Open plans the person is in whose whole range sits inside the dates they just
     filled. Used by the general availability page to auto-accept any plan they
     have now fully covered, across every server.
