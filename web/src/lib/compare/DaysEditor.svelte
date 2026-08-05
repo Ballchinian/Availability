@@ -42,7 +42,7 @@
         await panel.run(async () => {
             //All seven days is no restriction, so send nothing then
             const payload = chosenDays.length === 7 ? null : chosenDays;
-            const res = await api(`/plans/${planId}/weekdays`, {
+            const res = await api<{ reopened: boolean }>(`/plans/${planId}/weekdays`, {
                 method: 'POST',
                 body: JSON.stringify({ allowedWeekdays: payload, note: note.trim() || null, post, dm })
             });

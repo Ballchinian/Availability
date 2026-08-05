@@ -4,17 +4,18 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, describeWeekdays } from '../lib/format.js';
     import { countDays, daysSince, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
+    import type { PlanScreen, SavedForPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
     let loading = $state(true);
-    let data = $state<any>(null);
+    let data = $state<PlanScreen | null>(null);
     let loadError = $state('');
 
     let selection = $state<Record<string, number[]>>({});
     let submitting = $state(false);
-    let saved = $state<any>(null);
+    let saved = $state<SavedForPlan | null>(null);
     let saveError = $state('');
 
     //Auto-accept any other plan this save fully covers, same as the general page
@@ -73,7 +74,7 @@
             return;
         }
         try {
-            data = await api(`/plans/${params.planId}`);
+            data = await api<PlanScreen>(`/plans/${params.planId}`);
             const obj: Record<string, number[]> = {};
             for (const a of data.availability) obj[a.date] = a.hours || [];
             selection = obj;
@@ -93,11 +94,11 @@
             const days = Object.entries(selection)
                 .filter(([date]) => isWeekdayAllowed(date, allowedWeekdays))
                 .map(([date, hours]) => ({ date, hours }));
-            saved = await api(`/plans/${params.planId}/availability`, {
+            saved = await api<SavedForPlan>(`/plans/${params.planId}/availability`, {
                 method: 'POST',
                 body: JSON.stringify({ days, autoConfirm, sureUntil: sureUntil || null })
             });
-            data.confirmed = true;
+            if (data) data.confirmed = true;
         } catch (err) {
             saveError = errorText(err);
         }
@@ -124,8 +125,8 @@
         <p class="muted">Loading...</p>
     {:else if !auth.user}
         <p class="muted">Log in above to fill in your dates.</p>
-    {:else if loadError}
-        <p class="status error">{loadError}</p>
+    {:else if loadError || !data}
+        <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else if left}
         <p class="prompt good">You have dropped out of <strong>{data.plan.name}</strong>. The group has been told, and you will not get any more nudges about it.</p>
     {:else if data.plan.status === 'cancelled'}

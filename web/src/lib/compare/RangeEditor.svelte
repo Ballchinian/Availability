@@ -45,7 +45,7 @@
             return;
         }
         await panel.run(async () => {
-            const res = await api(`/plans/${planId}/range`, {
+            const res = await api<{ start: string; end: string }>(`/plans/${planId}/range`, {
                 method: 'POST',
                 body: JSON.stringify({ start: newStart, end: newEnd, note: note.trim() || null, post, dm })
             });

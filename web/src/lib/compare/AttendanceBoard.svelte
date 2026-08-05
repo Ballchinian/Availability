@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api } from '../api.js';
     import { formatDate } from '../format.js';
+    import type { Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -10,7 +11,7 @@
     */
     let { planId, participants = [], chosenDate = null, onmoved }: {
         planId: string;
-        participants?: any[];
+        participants?: Participant[];
         chosenDate?: string | null;
         onmoved: () => Promise<void>;
     } = $props();
@@ -20,18 +21,18 @@
 
     const board = $derived.by(() => {
         if (!chosenDate) return null;
-        const invited = participants.filter((p: any) => p.invited !== false);
-        const stand = (p: any) => p.override || p.vote || 'waiting';
+        const invited = participants.filter((p) => p.invited !== false);
+        const stand = (p: Participant) => p.override || p.vote || 'waiting';
         return {
-            coming: invited.filter((p: any) => stand(p) === 'yes'),
-            waiting: invited.filter((p: any) => stand(p) === 'waiting'),
-            cant: invited.filter((p: any) => stand(p) === 'no'),
-            uninvited: participants.filter((p: any) => p.invited === false)
+            coming: invited.filter((p) => stand(p) === 'yes'),
+            waiting: invited.filter((p) => stand(p) === 'waiting'),
+            cant: invited.filter((p) => stand(p) === 'no'),
+            uninvited: participants.filter((p) => p.invited === false)
         };
     });
 
     //What the person actually said, shown in brackets when a planner overrode it
-    function bracket(p: any): string {
+    function bracket(p: Participant): string {
         if (!p.override || p.override === p.vote) return '';
         if (p.vote === 'yes') return 'said coming';
         if (p.vote === 'no') return "said can't make it";

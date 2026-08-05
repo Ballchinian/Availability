@@ -4,6 +4,7 @@
     import { formatDate } from '../format.js';
     import { formatHours } from '../hours.js';
     import { evaluateDay, type FreePerson } from '../overlap.js';
+    import type { Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -29,7 +30,7 @@
         missAllowed?: number;
         freeByDate?: Record<string, FreePerson[]>;
         unsureByDate?: Record<string, number>;
-        participants?: any[];
+        participants?: Participant[];
         confirmedCount?: number;
         totalParticipants?: number;
         probeActive?: boolean;
@@ -52,7 +53,7 @@
     let inviteMode = $state('attending');
 
     const byId = $derived.by(() => {
-        const m: Record<string, any> = {};
+        const m: Record<string, Participant> = {};
         for (const p of participants) m[p.userId] = p;
         return m;
     });
@@ -66,7 +67,7 @@
         const ev = evaluateDay(free, confirmedCount, missAllowed, unsure);
         const freeSet = new Set(free.map((f) => f.userId));
         const unsurePeople = participants.filter(
-            (p: any) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
+            (p) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
         );
         return { free, ev, keptSet: new Set(ev.keptIds), counted: confirmedCount - unsure, unsurePeople };
     });
@@ -136,7 +137,7 @@
 
         {#if sel.unsurePeople.length}
             <p class="muted small">
-                Too far ahead to say for {sel.unsurePeople.map((p: any) => p.displayName).join(', ')}.
+                Too far ahead to say for {sel.unsurePeople.map((p) => p.displayName).join(', ')}.
                 They are not counted either way, and once the date is set you can move them onto the board yourself.
             </p>
         {/if}

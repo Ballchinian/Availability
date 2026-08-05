@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, errorText } from '../api.js';
     import MemberPicker from '../MemberPicker.svelte';
-    import type { Member } from '../types.js';
+    import type { Member, Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -12,7 +12,7 @@
     let { planId, guildId, participants = [], onadded }: {
         planId: string;
         guildId: string;
-        participants?: any[];
+        participants?: Participant[];
         onadded: () => Promise<void>;
     } = $props();
 
@@ -27,9 +27,9 @@
         if (members.length || listing) return;
         listing = true;
         try {
-            const res = await api(`/guilds/${guildId}/members`);
-            const here = new Set(participants.map((p: any) => p.userId));
-            members = res.members.filter((m: Member) => !here.has(m.id));
+            const res = await api<{ members: Member[] }>(`/guilds/${guildId}/members`);
+            const here = new Set(participants.map((p) => p.userId));
+            members = res.members.filter((m) => !here.has(m.id));
         } catch (err) {
             panel.reject(errorText(err));
         }
@@ -42,7 +42,7 @@
             return;
         }
         await panel.run(async () => {
-            const res = await api(`/plans/${planId}/add`, {
+            const res = await api<{ added: number }>(`/plans/${planId}/add`, {
                 method: 'POST',
                 body: JSON.stringify({ userIds: selectedIds, dm })
             });

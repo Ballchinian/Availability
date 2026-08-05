@@ -1,8 +1,13 @@
 /*
     One fetch wrapper for the whole app. Always sends the session cookie so the
     backend knows who is logged in, and unwraps json when that is what came back.
+
+    The caller names the shape it expects, from lib/types.ts or written out on the
+    spot, and gets unknown if it names nothing, which is right for the calls that
+    only care whether they threw. Nothing here checks the body really is that
+    shape: it is a claim about the route, kept honest by the endpoint docs.
 */
-export async function api(path: string, options: RequestInit = {}): Promise<any> {
+export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     const res = await fetch(`/api${path}`, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },

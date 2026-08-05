@@ -1,5 +1,6 @@
 <script lang="ts">
     import { api } from '../api.js';
+    import type { Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -9,14 +10,14 @@
     */
     let { planId, waiting = [] }: {
         planId: string;
-        waiting?: any[];
+        waiting?: Participant[];
     } = $props();
 
     const panel = new Panel();
 
     async function remind() {
         await panel.run(async () => {
-            const res = await api(`/plans/${planId}/remind`, { method: 'POST' });
+            const res = await api<{ pinged: number }>(`/plans/${planId}/remind`, { method: 'POST' });
             return res.pinged
                 ? `Nudged ${res.pinged} ${res.pinged === 1 ? 'person' : 'people'}.`
                 : 'Everyone has already confirmed.';
@@ -27,7 +28,7 @@
 <div class="waiting">
     <p class="muted small">
         You do not have to wait for everyone, pick whenever you are ready. Still out:
-        {waiting.map((p: any) => p.displayName).join(', ')}.
+        {waiting.map((p) => p.displayName).join(', ')}.
     </p>
     <button class="ghost" onclick={remind} disabled={panel.busy}>
         {panel.busy ? 'Nudging...' : 'Remind the stragglers'}

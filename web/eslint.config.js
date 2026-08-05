@@ -24,11 +24,11 @@ export default ts.config(
             eqeqeq: ['error', 'smart'],
             'prefer-const': 'error',
             /*
-                The api payloads are any on purpose until they get real interfaces,
-                which is its own job. Flagging every one of them now would leave the
-                linter permanently red and worth ignoring.
+                On since the api payloads got real interfaces in lib/types.ts and
+                nothing in src/ is any any more. A new one means a payload nobody
+                wrote the shape of, which is the thing worth catching.
             */
-            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-explicit-any': 'error',
             /*
                 Every Date and Set here is a working value inside a calculation, never
                 state anything reads back, so the reactive versions would buy nothing.

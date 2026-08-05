@@ -3,6 +3,7 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
+    import type { UserGuild, UserPlan } from '../lib/types.js';
 
     /*
         The front door. Every other screen knows which server or plan it is about
@@ -12,8 +13,8 @@
 
     let loading = $state(true);
     let loadError = $state('');
-    let guilds = $state<any[]>([]);
-    let plans = $state<any[]>([]);
+    let guilds = $state<UserGuild[]>([]);
+    let plans = $state<UserPlan[]>([]);
 
     /*
         Anything still waiting on them first, then the rest of the open ones, then
@@ -30,7 +31,10 @@
             return;
         }
         try {
-            const [g, p] = await Promise.all([api('/me/guilds'), api('/me/plans')]);
+            const [g, p] = await Promise.all([
+                api<{ guilds: UserGuild[] }>('/me/guilds'),
+                api<{ plans: UserPlan[] }>('/me/plans')
+            ]);
             guilds = g.guilds;
             plans = p.plans;
         } catch (err) {
@@ -40,19 +44,19 @@
     });
 
     //Whether a server can be planned in at all, and if so whether by this person
-    function serverNote(g: any) {
+    function serverNote(g: UserGuild) {
         if (!g.setupComplete) return 'Nobody has run /setup here yet, so planning is not switched on.';
         if (!g.isPlanner) return 'You need the planner role here to start a plan. Ask an admin for it.';
         return '';
     }
 
-    function rank(p: any) {
+    function rank(p: UserPlan) {
         if (p.status !== 'collecting') return 2;
         return p.inIt && !p.filledIn ? 0 : 1;
     }
 
     //What this plan is waiting on, said from where this person stands in it
-    function planNote(p: any) {
+    function planNote(p: UserPlan) {
         const where = p.guildName ? `${p.guildName} · ` : '';
         if (p.status !== 'collecting') {
             return `${where}set for ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}` : ''}`;

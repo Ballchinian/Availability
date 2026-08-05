@@ -27,7 +27,7 @@ export async function loadMe(): Promise<void> {
     if (!inFlight) {
         inFlight = (async () => {
             try {
-                const res = await api('/auth/me');
+                const res = await api<{ user: User | null }>('/auth/me');
                 auth.user = res.user;
             } catch {
                 auth.user = null;

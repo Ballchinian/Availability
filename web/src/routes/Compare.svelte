@@ -4,6 +4,7 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoOf, nextDay } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
+    import type { CompareScreen } from '../lib/types.js';
     import CompareGrid from '../lib/CompareGrid.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
     import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
@@ -24,7 +25,7 @@
     let { params = {} }: { params?: Record<string, string> } = $props();
 
     let loading = $state(true);
-    let data = $state<any>(null);
+    let data = $state<CompareScreen | null>(null);
     let loadError = $state('');
     let cancelled = $state(false);
 
@@ -33,7 +34,7 @@
 
     const maxMiss = $derived(data ? Math.max(0, data.confirmedCount - 1) : 0);
 
-    const unconfirmed = $derived(data ? data.participants.filter((p: any) => !p.confirmed) : []);
+    const unconfirmed = $derived(data ? data.participants.filter((p) => !p.confirmed) : []);
 
     //What the plan is set for right now, null while it is still open
     const chosen = $derived(
@@ -53,10 +54,12 @@
         if (!data) return out;
 
         //Earliest horizon first, so the walk below can take them on one at a time
-        const horizons = data.participants
-            .filter((p: any) => p.confirmed && p.sureUntil)
-            .sort((a: any, b: any) => (a.sureUntil < b.sureUntil ? -1 : 1));
+        const horizons: { userId: string; sureUntil: string }[] = [];
+        for (const p of data.participants) {
+            if (p.confirmed && p.sureUntil) horizons.push({ userId: p.userId, sureUntil: p.sureUntil });
+        }
         if (!horizons.length) return out;
+        horizons.sort((a, b) => (a.sureUntil < b.sureUntil ? -1 : 1));
 
         /*
             Every day before the earliest horizon sits inside everyone's certainty,
@@ -80,7 +83,7 @@
             if (past.size) {
                 let n = past.size;
                 //A day they marked free anyway still counts them free, a positive answer beats the horizon
-                const free = new Set<string>((data.freeByDate[date] || []).map((f: any) => f.userId));
+                const free = new Set<string>((data.freeByDate[date] || []).map((f) => f.userId));
                 for (const id of free) if (past.has(id)) n--;
                 if (n) out[date] = n;
             }
@@ -92,7 +95,7 @@
     async function load() {
         loading = true;
         try {
-            data = await api(`/plans/${params.planId}/compare`);
+            data = await api<CompareScreen>(`/plans/${params.planId}/compare`);
             //A cancelled plan is read only, the banner stands in for the controls
             if (data.plan.status === 'cancelled') cancelled = true;
             if (data.plan.chosenDate) selectedDate = data.plan.chosenDate;
@@ -105,7 +108,7 @@
     //A quiet refetch for small changes like a board move, no loading flash
     async function refresh() {
         try {
-            data = await api(`/plans/${params.planId}/compare`);
+            data = await api<CompareScreen>(`/plans/${params.planId}/compare`);
         } catch {
             //The next full load will sort it out
         }
@@ -134,8 +137,8 @@
         <p class="muted">Loading...</p>
     {:else if !auth.user}
         <p class="muted">Log in above to compare.</p>
-    {:else if loadError}
-        <p class="status error">{loadError}</p>
+    {:else if loadError || !data}
+        <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else}
         {#if cancelled}
             <p class="prompt good">

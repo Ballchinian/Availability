@@ -3,6 +3,7 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
+    import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
     /*
@@ -26,7 +27,7 @@
     //How far ahead they can honestly plan, empty for no limit
     let sureUntil = $state('');
     let saving = $state(false);
-    let saved = $state<any>(null);
+    let saved = $state<SavedTimetable | null>(null);
     let saveError = $state('');
 
     const newFrom = $derived.by(() => {
@@ -44,7 +45,7 @@
             return;
         }
         try {
-            const res = await api(`/availability?start=${minStart}&end=${maxDate}`);
+            const res = await api<TimetableScreen>(`/availability?start=${minStart}&end=${maxDate}`);
             const obj: Record<string, number[]> = {};
             for (const a of res.availability) obj[a.date] = a.hours || [];
             selection = obj;
@@ -69,7 +70,7 @@
             const days = Object.entries(selection)
                 .filter(([date]) => date >= displayStart && date <= displayEnd)
                 .map(([date, hours]) => ({ date, hours }));
-            saved = await api('/availability', {
+            saved = await api<SavedTimetable>('/availability', {
                 method: 'POST',
                 body: JSON.stringify({ start: displayStart, end: displayEnd, days, autoConfirm, sureUntil: sureUntil || null })
             });

@@ -4,14 +4,14 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow } from '../lib/calendar.js';
     import { formatDate } from '../lib/format.js';
-    import type { Member } from '../lib/types.js';
+    import type { CreatedPlan, GuildInfo, Member } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
     import WeekdayPicker from '../lib/WeekdayPicker.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
     let loading = $state(true);
-    let guildInfo = $state<any>(null);
+    let guildInfo = $state<GuildInfo | null>(null);
     let members = $state<Member[]>([]);
     let loadError = $state('');
 
@@ -47,7 +47,7 @@
 
     let submitting = $state(false);
     let formError = $state('');
-    let result = $state<any>(null);
+    let result = $state<CreatedPlan | null>(null);
     let copied = $state(false);
 
     onMount(async () => {
@@ -57,9 +57,9 @@
             return;
         }
         try {
-            guildInfo = await api(`/guilds/${params.guildId}`);
+            guildInfo = await api<GuildInfo>(`/guilds/${params.guildId}`);
             if (guildInfo.isPlanner) {
-                const res = await api(`/guilds/${params.guildId}/members`);
+                const res = await api<{ members: Member[] }>(`/guilds/${params.guildId}/members`);
                 members = res.members;
             }
         } catch (err) {
@@ -108,7 +108,7 @@
                           //All seven days is no restriction, so send nothing then
                           allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays
                       };
-            result = await api(`/guilds/${params.guildId}/plans`, {
+            result = await api<CreatedPlan>(`/guilds/${params.guildId}/plans`, {
                 method: 'POST',
                 body: JSON.stringify(body)
             });
@@ -119,6 +119,7 @@
     }
 
     async function copyLink() {
+        if (!result) return;
         try {
             await navigator.clipboard.writeText(result.url);
             copied = true;
