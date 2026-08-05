@@ -36,6 +36,18 @@
 
     const unconfirmed = $derived(data ? data.participants.filter((p) => !p.confirmed) : []);
 
+    /*
+        Who a running confirmation probe is still waiting on: on the invite list, and
+        with no answer of their own and no call from a planner standing in for one.
+        Only ever populated while a probe is live, so the nudge cannot offer to chase
+        people about a date nobody has been asked to confirm.
+    */
+    const pendingVoters = $derived(
+        data && data.plan.probeActive && data.plan.chosenDate
+            ? data.participants.filter((p) => p.invited && !p.override && !p.vote)
+            : []
+    );
+
     //What the plan is set for right now, null while it is still open
     const chosen = $derived(
         data?.plan?.chosenDate
@@ -168,7 +180,9 @@
 
         <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
 
-        {#if unconfirmed.length && !cancelled}
+        <!--Chasing dates only makes sense while they are still being collected, a plan with
+            a day already locked in is waiting on answers instead-->
+        {#if unconfirmed.length && !cancelled && data.plan.status === 'collecting'}
             <RemindPanel planId={params.planId} waiting={unconfirmed} />
         {/if}
 
@@ -215,6 +229,10 @@
                 chosenDate={data.plan.chosenDate}
                 onmoved={refresh}
             />
+
+            {#if pendingVoters.length}
+                <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
+            {/if}
 
             <PickPanel
                 planId={params.planId}

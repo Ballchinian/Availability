@@ -1042,3 +1042,26 @@ export async function remindStragglers(plan, actorName) {
 
     return pending.length;
 }
+
+/*
+    The same nudge for a running confirmation probe: the people who have not said
+    whether they are coming, chased by DM with the probe's own buttons riding along so
+    they can answer without going and finding the thread.
+
+    Only the people still on the invite list, and only where the answer is genuinely
+    missing. A planner who has already made the call on someone counts as an answer, so
+    the board they just filled in is not undone by a DM asking them again.
+*/
+export async function remindVoters(plan, actorName) {
+    const pending = invitedOnly(plan).filter((p) => !effectiveVote(p)).map((p) => p.userId);
+    if (!pending.length) return 0;
+
+    await dmEach(pending,
+        banner('CAN YOU MAKE IT?') +
+        `${actorName} is still waiting to hear whether you can make "${plan.name}" on ${whenLine(plan)}.\n` +
+        aboutLine(plan) +
+        `\nTap below to let everyone know.`,
+        [probeRow(plan.planId)]);
+
+    return pending.length;
+}

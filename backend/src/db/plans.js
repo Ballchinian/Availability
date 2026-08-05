@@ -37,7 +37,9 @@ function clearedProbeFields(participants, invitedIds = null) {
         })),
         probeActive: false,
         probeThreadMessageId: null,
-        probeAllYesNotifiedAt: null
+        probeAllYesNotifiedAt: null,
+        //A fresh round of votes to chase, so the nudge cooldown starts over with it
+        lastVoteRemindedAt: null
     };
 }
 
@@ -162,6 +164,12 @@ export async function markPlanCancelled(planId) {
 //Note when the stragglers were last nudged, so /remind cannot be spammed
 export async function setReminded(planId) {
     await col(collections.plans).updateOne({ planId }, { $set: { lastRemindedAt: new Date() } });
+}
+
+//The same for the confirmation nudge, kept on its own field so a probe starting does not
+//arrive already inside the availability nudge's cooldown
+export async function setVoteReminded(planId) {
+    await col(collections.plans).updateOne({ planId }, { $set: { lastVoteRemindedAt: new Date() } });
 }
 
 /*

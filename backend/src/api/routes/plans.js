@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
-import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -323,7 +323,17 @@ router.post('/:planId/void', requireUser, async (req, res) => {
     res.json({ ok: true });
 });
 
-//Nudge the people who have not confirmed, capped at once a day so it cannot be spammed
+/*
+    Nudge whoever the plan is actually waiting on, capped at once a day so it cannot be
+    spammed. Which people that is depends on where the plan stands: before a date is set
+    it is the ones who have not filled their availability, and once a date is locked with
+    a probe running it is the ones who have not said whether they are coming, which is
+    the point a planner most wants to chase.
+
+    The two carry their own cooldowns. Sharing one would mean a planner who nudged for
+    dates this morning, then set a date and started a probe, could not chase a single
+    answer until tomorrow.
+*/
 router.post('/:planId/remind', requireUser, async (req, res) => {
     const plan = await getPlan(req.params.planId);
     if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
@@ -332,17 +342,23 @@ router.post('/:planId/remind', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const last = plan.lastRemindedAt ? new Date(plan.lastRemindedAt).getTime() : 0;
+    const chasingVotes = Boolean(plan.probeActive && plan.chosenDate);
+    const lastAt = chasingVotes ? plan.lastVoteRemindedAt : plan.lastRemindedAt;
+    const last = lastAt ? new Date(lastAt).getTime() : 0;
     const hoursSince = (Date.now() - last) / 3600000;
     if (hoursSince < 24) {
         return res.status(429).json({ error: `Already nudged recently. You can remind again in ${Math.ceil(24 - hoursSince)} hours.` });
     }
 
-    const pinged = await remindStragglers(plan, ctx.member.displayName);
-    if (pinged === 0) return res.json({ ok: true, pinged: 0 });
+    const kind = chasingVotes ? 'vote' : 'availability';
+    const pinged = chasingVotes
+        ? await remindVoters(plan, ctx.member.displayName)
+        : await remindStragglers(plan, ctx.member.displayName);
+    if (pinged === 0) return res.json({ ok: true, pinged: 0, kind });
 
-    await setReminded(plan.planId);
-    res.json({ ok: true, pinged });
+    if (chasingVotes) await setVoteReminded(plan.planId);
+    else await setReminded(plan.planId);
+    res.json({ ok: true, pinged, kind });
 });
 
 //Set a fresh start and end on the range, reopen, and tell everyone to refill the new window

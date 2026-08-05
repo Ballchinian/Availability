@@ -335,17 +335,25 @@ Planner role only.
 
 ## POST `/api/plans/:planId/remind` 🔒
 
-Nudge the people who have not confirmed yet.
+Nudge whoever the plan is waiting on.
 
 Planner role only.
+
+### Effects
+
+* While the plan is still collecting, DMs the people who have not filled their availability, with the link.
+* Once a date is locked in and a confirmation probe is running, DMs the people who have not said whether they are coming, with the probe's own yes/no buttons riding along so they can answer from the DM.
 
 ### Returns
 
 * How many people were pinged
+* `kind`: `availability` or `vote`, which of the two nudges went out
 
 ### Notes
 
-* Capped at once a day per plan, so it cannot be spammed.
+* Capped at once a day per plan, and the two nudges carry their own cooldowns, so starting a probe does not arrive already inside the availability nudge's.
+* The vote nudge skips anyone a planner has already made the call on, since that stands in for an answer, and anyone left off the invite list.
+* Setting or moving a date starts a fresh round of votes, which clears the vote cooldown with it.
 
 ---
 
