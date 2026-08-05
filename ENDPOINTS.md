@@ -242,8 +242,9 @@ Planner role only.
 
 ### Returns
 
-* The plan, including any date already locked in
+* The plan, including any date already locked in, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and their sure-up-to date
+* Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap
 
 ---

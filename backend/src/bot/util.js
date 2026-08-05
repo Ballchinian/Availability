@@ -21,6 +21,11 @@ export function compareUrl(planId) {
     return `${config.baseUrl}/#/plan/${planId}/compare`;
 }
 
+//The plan's thread back in Discord, the way out of the site and into the conversation
+export function threadUrl(guildId, threadId) {
+    return `https://discord.com/channels/${guildId}/${threadId}`;
+}
+
 //Bring a thread back from archived so a post lands and reopens it
 export async function reviveThread(thread) {
     if (thread.archived) await thread.setArchived(false).catch(() => {});

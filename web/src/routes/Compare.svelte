@@ -148,6 +148,17 @@
             <p class="muted small">{data.plan.description}</p>
         {/if}
 
+        {#if data.plan.threadUrl || data.youAreIn}
+            <p class="ways">
+                {#if data.plan.threadUrl}
+                    <a href={data.plan.threadUrl} target="_blank" rel="noopener">Open the thread in Discord</a>
+                {/if}
+                {#if data.youAreIn}
+                    <a href="#/plan/{params.planId}">Fill in your own dates</a>
+                {/if}
+            </p>
+        {/if}
+
         <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
 
         {#if unconfirmed.length}

@@ -716,6 +716,15 @@ code {
     cursor: crosshair;
 }
 
+/* The ways off the compare page: back into the thread, or over to your own dates */
+.ways {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 8px 0 0;
+    font-size: 14px;
+}
+
 /* Compare view */
 .miss {
     margin: 16px 0;

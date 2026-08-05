@@ -6,6 +6,7 @@ import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
 import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { threadUrl } from '../../bot/util.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
@@ -211,9 +212,13 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             chosenDate: plan.chosenDate,
             chosenTime: plan.chosenTime || null,
             chosenNote: plan.chosenNote || null,
-            probeActive: Boolean(plan.probeActive)
+            probeActive: Boolean(plan.probeActive),
+            //The way back to where the plan is actually being talked about
+            threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null
         },
         participants,
+        //Whether the planner is on the guest list too, so they get their own way to fill dates in
+        youAreIn: plan.participants.some((p) => p.userId === req.user.id),
         confirmedCount: confirmed.length,
         totalParticipants: plan.participants.length,
         freeByDate
