@@ -205,12 +205,21 @@
     }
 
     //Whether the picked day, time and note all already match what the plan is set for
-    const isCurrent = $derived(Boolean(
+    const sameDetails = $derived(Boolean(
         chosen &&
         selectedDate === chosen.chosenDate &&
         (chosenTime || '') === (chosen.chosenTime || '') &&
         (chosenNote.trim() || '') === (chosen.chosenNote || '')
     ));
+
+    /*
+        Asking for a confirmation round is a change in its own right. Without it in
+        the check, a date locked in without one leaves the button greyed out for
+        good and the only way to start a probe is fiddling with the time or note.
+    */
+    const probeWanted = $derived(chooseProbe && !data?.plan?.probeActive);
+
+    const isCurrent = $derived(sameDetails && !probeWanted);
 
     async function load() {
         loading = true;
@@ -223,6 +232,8 @@
                 selectedDate = data.plan.chosenDate;
                 chosenTime = data.plan.chosenTime || '';
                 chosenNote = data.plan.chosenNote || '';
+                //A live probe shows as ticked, so the box reads as the state the plan is in
+                chooseProbe = Boolean(data.plan.probeActive);
             }
             //Prefill the range editor with the window the plan is on right now
             newStart = data.plan.start;
@@ -649,7 +660,7 @@
                 {/if}
                 {#if chooseError}<p class="status error">{chooseError}</p>{/if}
                 <button class="primary" onclick={lockIn} disabled={submitting || isCurrent}>
-                    {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if chosen && selectedDate === chosen.chosenDate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
+                    {#if submitting}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if sameDetails}Ask everyone to confirm{:else if chosen && selectedDate === chosen.chosenDate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
                 </button>
             </div>
         {/if}
