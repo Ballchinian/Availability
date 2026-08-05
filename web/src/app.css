@@ -145,6 +145,23 @@ code {
     font-size: 14px;
 }
 
+/*
+    Discord's developer portal only needs the raw /#/terms and /#/privacy urls, but
+    the pages otherwise link to each other and to nothing else, so this is the only
+    way into them from inside the app.
+*/
+.site-foot {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 18px;
+    font-size: 13px;
+}
+
+.site-foot a {
+    color: var(--muted);
+}
+
 .user-badge {
     display: inline-flex;
     align-items: center;

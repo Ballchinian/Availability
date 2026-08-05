@@ -30,4 +30,9 @@
 <main>
     <SiteHeader />
     <Router {routes} />
+
+    <footer class="site-foot">
+        <a href="#/terms">Terms of Service</a>
+        <a href="#/privacy">Privacy Policy</a>
+    </footer>
 </main>
