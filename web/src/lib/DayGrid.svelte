@@ -1,7 +1,8 @@
 <script lang="ts">
     import { fillColor } from './heatmap.js';
     import { buildMonths, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
-    import { HOUR_COUNT } from './hours.js';
+    import { formatLong } from './format.js';
+    import { HOUR_COUNT, formatHours } from './hours.js';
     import TimePicker from './TimePicker.svelte';
 
     /*
@@ -93,6 +94,16 @@
         const count = h && h.length ? h.length : HOUR_COUNT;
         return fillColor(count, HOUR_COUNT);
     }
+
+    //Whether this day is past the point they said they can honestly plan to
+    function beyondHorizon(date: string) {
+        return Boolean(sureUntil && date > sureUntil && !isFree(date));
+    }
+
+    //The whole date, since the button itself only says the day number
+    function dayLabel(date: string) {
+        return beyondHorizon(date) ? `${formatLong(date)}, past your sure-up-to date` : formatLong(date);
+    }
 </script>
 
 <svelte:window onpointerup={stopPaint} />
@@ -116,11 +127,13 @@
                                 class="day"
                                 class:free={isFree(cell.date)}
                                 class:is-new={highlightFrom && cell.date >= highlightFrom}
-                                class:far={sureUntil && cell.date > sureUntil && !isFree(cell.date)}
+                                class:far={beyondHorizon(cell.date)}
                                 style={isFree(cell.date) ? `background:${dayColour(cell.date)}` : ''}
+                                aria-label={dayLabel(cell.date)}
+                                aria-pressed={isFree(cell.date)}
                                 onpointerdown={(e) => startPaint(e, cell.date)}
                                 onpointerenter={() => enterPaint(cell.date)}
-                                title={sureUntil && cell.date > sureUntil && !isFree(cell.date) ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
+                                title={beyondHorizon(cell.date) ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
                             >
                                 {cell.day}
                             </button>
@@ -128,6 +141,7 @@
                                 <button
                                     class="clock"
                                     title="Set specific hours"
+                                    aria-label={`Set hours for ${formatLong(cell.date)}, free ${formatHours(selection[cell.date])}`}
                                     onpointerdown={(e) => e.stopPropagation()}
                                     onclick={() => (editingDate = cell.date)}
                                 >{selection[cell.date].length ? selection[cell.date].length : '·'}</button>

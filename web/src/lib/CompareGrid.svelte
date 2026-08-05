@@ -1,6 +1,7 @@
 <script lang="ts">
     import { buildMonths, WEEKDAYS, isWeekdayAllowed } from './calendar.js';
     import { fillColor } from './heatmap.js';
+    import { formatLong } from './format.js';
     import { HOUR_COUNT } from './hours.js';
     import { evaluateDay, type DayEval, type FreePerson } from './overlap.js';
 
@@ -54,6 +55,16 @@
         return confirmedCount - (unsureByDate[date] || 0);
     }
 
+    /*
+        What the colour and the count mean, spelled out. Carries the date because
+        it is the accessible name too, and the cell itself only says a number.
+    */
+    function describe(date: string, ev: DayEval) {
+        const unsure = unsureByDate[date] || 0;
+        const window = ev.viable ? `${ev.windowSize}h in common` : 'no time that fits everyone counted';
+        return `${formatLong(date)}: ${ev.freeCount} of ${countedOn(date)} free, ${window}${unsure ? `, ${unsure} too far out to say` : ''}`;
+    }
+
     function pick(date: string) {
         selectedDate = date;
     }
@@ -79,8 +90,10 @@
                             class:dim={!ev.viable}
                             class:chosen={selectedDate === cell.date}
                             style={ev.viable ? `background:${fillColor(ev.windowSize, HOUR_COUNT)}` : ''}
+                            aria-label={describe(cell.date, ev)}
+                            aria-pressed={selectedDate === cell.date}
                             onclick={() => pick(cell.date)}
-                            title={`${ev.freeCount} of ${countedOn(cell.date)} free, ${ev.windowSize}h common${unsureByDate[cell.date] ? `, ${unsureByDate[cell.date]} too far out to say` : ''}`}
+                            title={describe(cell.date, ev)}
                         >
                             <span class="num">{cell.day}</span>
                             <span class="count">{ev.freeCount || ''}</span>

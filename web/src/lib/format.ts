@@ -1,3 +1,5 @@
+import { MONTHS, weekdayOf } from './calendar.js';
+
 /*
     Dates are stored as YYYY-MM-DD but shown to people as day-month-year, which
     is how everyone here reads a date. One helper so every screen formats the
@@ -7,6 +9,20 @@ export function formatDate(iso: string): string {
     if (!iso) return '';
     const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y}`;
+}
+
+//Weekday names indexed by getDay(), the singular form the long date reads out
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/*
+    A date said out loud, "Wednesday 5 August 2026". For the accessible name on a
+    calendar cell, whose visible text is a bare day number that means nothing on
+    its own.
+*/
+export function formatLong(iso: string): string {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${WEEKDAY_NAMES[weekdayOf(iso)]} ${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
 }
 
 //Weekday names indexed by getDay(), 0 (Sunday) to 6, for spelling out a plan's allowed days
