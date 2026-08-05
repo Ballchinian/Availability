@@ -195,7 +195,9 @@ code {
     margin-top: 18px;
 }
 
-.field > label {
+/* .group-label is the same thing over a set of controls, where a <label> would have nothing to point at */
+.field > label,
+.field > .group-label {
     display: block;
     margin-bottom: 6px;
     font-size: 14px;

@@ -171,8 +171,8 @@
             <textarea id="planDescription" bind:value={planDescription} placeholder="A line or two so people know what they are signing up for." maxlength="280" rows="2"></textarea>
         </div>
 
-        <div class="field">
-            <label>What kind of plan?</label>
+        <div class="field" role="radiogroup" aria-labelledby="modeLabel">
+            <span class="group-label" id="modeLabel">What kind of plan?</span>
             <label class="check"><input type="radio" name="mode" value="collect" bind:group={mode} /> Collect availability, find a day that works</label>
             <label class="check"><input type="radio" name="mode" value="announce" bind:group={mode} /> Announce a set plan, you already know the day</label>
         </div>
@@ -189,8 +189,8 @@
                 </div>
             </div>
 
-            <div class="field">
-                <label>Which days count?</label>
+            <div class="field" role="group" aria-labelledby="daysLabel">
+                <span class="group-label" id="daysLabel">Which days count?</span>
                 <WeekdayPicker bind:dayOn />
             </div>
         {:else}
@@ -210,8 +210,8 @@
             </div>
         {/if}
 
-        <div class="field">
-            <label>Who is coming?</label>
+        <div class="field" role="group" aria-labelledby="whoLabel">
+            <span class="group-label" id="whoLabel">Who is coming?</span>
             <MemberPicker {members} bind:selectedIds />
         </div>
 
