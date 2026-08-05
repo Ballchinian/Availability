@@ -1,7 +1,7 @@
 <script lang="ts">
     import { untrack } from 'svelte';
     import { api } from '../api.js';
-    import { isoOf } from '../calendar.js';
+    import { isoFromNow } from '../calendar.js';
     import { formatDate } from '../format.js';
     import { Panel } from './panel.svelte.js';
 
@@ -28,10 +28,8 @@
     let dm = $state(true);
 
     //A range edit can run from today out to the two year cap, with start no later than end
-    const todayIso = isoOf(new Date());
-    const cap = new Date();
-    cap.setFullYear(cap.getFullYear() + 2);
-    const rangeMax = isoOf(cap);
+    const todayIso = isoFromNow(0, 'day');
+    const rangeMax = isoFromNow(2, 'year');
 
     async function save() {
         if (!newStart || !newEnd) {

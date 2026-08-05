@@ -3,7 +3,7 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, describeWeekdays } from '../lib/format.js';
-    import { isWeekdayAllowed } from '../lib/calendar.js';
+    import { countDays, daysSince, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -114,32 +114,6 @@
             leaveError = errorText(err);
         }
         leaving = false;
-    }
-
-    //Days in the range, or just the ones on the allowed weekdays when the plan is pinned
-    function countDays(start: string, end: string, allowed: number[] | null) {
-        const a = new Date(`${start}T00:00:00`);
-        const b = new Date(`${end}T00:00:00`);
-        const span = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
-        if (!allowed || allowed.length === 0) return span;
-        //Step a day at a time with setDate so daylight saving cannot drift the weekday
-        let n = 0;
-        const d = new Date(a);
-        for (let i = 0; i < span; i++) {
-            if (allowed.includes(d.getDay())) n++;
-            d.setDate(d.getDate() + 1);
-        }
-        return n;
-    }
-
-    function nextDay(iso: string) {
-        const d = new Date(`${iso}T00:00:00`);
-        d.setDate(d.getDate() + 1);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
-
-    function daysSince(ts: string) {
-        return Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
     }
 </script>
 

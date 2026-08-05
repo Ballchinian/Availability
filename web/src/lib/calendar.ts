@@ -36,6 +36,31 @@ export function isoOf(d: Date): string {
     return iso(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+/*
+    A date some way off from today, for the min and max of a date input. Stepping
+    a month off the 31st lands in the month after, which is close enough for the
+    rough windows these bound.
+*/
+export function isoFromNow(amount: number, unit: 'day' | 'month' | 'year'): string {
+    const d = new Date();
+    if (unit === 'day') d.setDate(d.getDate() + amount);
+    if (unit === 'month') d.setMonth(d.getMonth() + amount);
+    if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
+    return isoOf(d);
+}
+
+//The day after a YYYY-MM-DD date. setDate carries the month and the year for us
+export function nextDay(date: string): string {
+    const d = new Date(`${date}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return isoOf(d);
+}
+
+//Whole days between a stored timestamp and now, for deciding something has gone stale
+export function daysSince(ts: string): number {
+    return Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+}
+
 //The weekday of a YYYY-MM-DD date, 0 (Sunday) through 6 (Saturday), lining up with WEEKDAYS
 export function weekdayOf(date: string): number {
     return new Date(`${date}T00:00:00`).getDay();
@@ -48,6 +73,24 @@ export function weekdayOf(date: string): number {
 export function isWeekdayAllowed(date: string, allowedWeekdays?: number[] | null): boolean {
     if (!allowedWeekdays || allowedWeekdays.length === 0) return true;
     return allowedWeekdays.includes(weekdayOf(date));
+}
+
+//Days in a range, or just the ones on the allowed weekdays when the plan is pinned
+export function countDays(start: string, end: string, allowedWeekdays?: number[] | null): number {
+    const a = new Date(`${start}T00:00:00`);
+    const b = new Date(`${end}T00:00:00`);
+    const span = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+    if (span < 1) return 0;
+    if (!allowedWeekdays || allowedWeekdays.length === 0) return span;
+
+    //Step a day at a time with setDate so daylight saving cannot drift the weekday
+    let n = 0;
+    const d = new Date(a);
+    for (let i = 0; i < span; i++) {
+        if (allowedWeekdays.includes(d.getDay())) n++;
+        d.setDate(d.getDate() + 1);
+    }
+    return n;
 }
 
 export function buildMonths(start: string, end: string): Month[] {

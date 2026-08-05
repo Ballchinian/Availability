@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
+    import { isoFromNow } from '../lib/calendar.js';
     import { formatDate } from '../lib/format.js';
     import type { Member } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
@@ -138,15 +139,6 @@
         setDate = '';
         setTime = '';
         setNote = '';
-    }
-
-    function isoFromNow(amount: number, unit: string) {
-        const d = new Date();
-        if (unit === 'day') d.setDate(d.getDate() + amount);
-        if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${d.getFullYear()}-${m}-${day}`;
     }
 </script>
 

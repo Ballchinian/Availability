@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
+    import { daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
     /*
@@ -15,10 +16,10 @@
     let lastFilled = $state<string | null>(null);
     let lastUpdatedAt = $state<string | null>(null);
 
-    let displayStart = $state(fromNow(0, 'day'));
-    let displayEnd = $state(fromNow(3, 'month'));
-    const minStart = fromNow(0, 'day');
-    const maxDate = fromNow(2, 'year');
+    let displayStart = $state(isoFromNow(0, 'day'));
+    let displayEnd = $state(isoFromNow(3, 'month'));
+    const minStart = isoFromNow(0, 'day');
+    const maxDate = isoFromNow(2, 'year');
 
     let selection = $state<Record<string, number[]>>({});
     let autoConfirm = $state(true);
@@ -78,25 +79,6 @@
             saveError = errorText(err);
         }
         saving = false;
-    }
-
-    function fromNow(amount: number, unit: string) {
-        const d = new Date();
-        if (unit === 'day') d.setDate(d.getDate() + amount);
-        if (unit === 'month') d.setMonth(d.getMonth() + amount);
-        if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
-        return iso(d);
-    }
-    function nextDay(value: string) {
-        const d = new Date(`${value}T00:00:00`);
-        d.setDate(d.getDate() + 1);
-        return iso(d);
-    }
-    function iso(d: Date) {
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
-    function daysSince(ts: string) {
-        return Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
     }
 </script>
 

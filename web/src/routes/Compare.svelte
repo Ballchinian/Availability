@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { isoOf } from '../lib/calendar.js';
+    import { isoOf, nextDay } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
     import CompareGrid from '../lib/CompareGrid.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
@@ -63,9 +63,8 @@
             so the walk starts at the first day that could be unsure. Across a two
             year range that is usually most of it skipped.
         */
-        const dayAfterFirst = new Date(`${horizons[0].sureUntil}T00:00:00`);
-        dayAfterFirst.setDate(dayAfterFirst.getDate() + 1);
-        const from = isoOf(dayAfterFirst) > data.plan.start ? isoOf(dayAfterFirst) : data.plan.start;
+        const dayAfterFirst = nextDay(horizons[0].sureUntil);
+        const from = dayAfterFirst > data.plan.start ? dayAfterFirst : data.plan.start;
         if (from > data.plan.end) return out;
 
         const d = new Date(`${from}T00:00:00`);
