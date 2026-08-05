@@ -230,6 +230,14 @@ code {
     gap: 16px;
 }
 
+/* Two date inputs side by side do not fit a phone */
+@media (max-width: 600px) {
+    .field.range {
+        flex-direction: column;
+        gap: 12px;
+    }
+}
+
 /* Weekday picker on the create form, for pinning a plan to certain days */
 .quick-row {
     display: flex;
@@ -303,6 +311,17 @@ code {
 .picker {
     display: flex;
     gap: 14px;
+}
+
+/* Names in two columns are unreadable on a phone, so the picked list drops under the pool */
+@media (max-width: 600px) {
+    .picker {
+        flex-direction: column;
+    }
+
+    .picker .list {
+        max-height: 220px;
+    }
 }
 
 .picker .col {
