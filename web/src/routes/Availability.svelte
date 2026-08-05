@@ -176,7 +176,7 @@
         {/if}
 
         <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
-        <p class="muted small">Tap a day, or press and drag across several to mark them all at once.</p>
+        <p class="muted small">Tap a day, or press and drag across several to mark them all at once. Shift-click the other end of a stretch to do the same without dragging.</p>
 
         <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} sureUntil={sureUntil || null} bind:selection />
 

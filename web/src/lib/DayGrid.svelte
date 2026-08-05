@@ -1,6 +1,6 @@
 <script lang="ts">
     import { fillTextStyle, headingColor } from './heatmap.js';
-    import { buildMonths, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
+    import { buildMonths, isoOf, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT, formatHours } from './hours.js';
     import TimePicker from './TimePicker.svelte';
@@ -15,7 +15,9 @@
         You can also press and drag across days to paint a stretch in one go. The
         first day you press sets the mode: start on an empty day and the drag marks
         days free, start on a free day and it clears them. The cursor switches to a
-        crosshair while you are dragging so it is obvious it is happening.
+        crosshair while you are dragging so it is obvious it is happening. Dragging
+        is pointer only, so shift-click paints the same stretch from the last day
+        pressed, which is all a keyboard gets.
     */
     let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, sureUntil = null }: {
         start: string;
@@ -29,6 +31,8 @@
     let editingDate = $state('');
     let painting = $state(false);
     let paintMode = $state('add');
+    //The last day pressed, the far end a shift-click paints back to
+    let anchor = $state('');
 
     const months = $derived(buildMonths(start, end));
 
@@ -57,9 +61,29 @@
         else unmark(date);
     }
 
+    /*
+        Every day from the anchor to here, painted the way the anchor ended up: an
+        anchor left free marks the stretch free, an anchor cleared clears it.
+    */
+    function extendTo(date: string) {
+        const [from, to] = anchor <= date ? [anchor, date] : [date, anchor];
+        paintMode = isFree(anchor) ? 'add' : 'remove';
+        const d = new Date(`${from}T00:00:00`);
+        const last = new Date(`${to}T00:00:00`);
+        while (d <= last) {
+            apply(isoOf(d));
+            d.setDate(d.getDate() + 1);
+        }
+    }
+
     function startPaint(e: PointerEvent, date: string) {
         if (!selectable(date)) return;
         e.preventDefault();
+        if (e.shiftKey && anchor) {
+            extendTo(date);
+            anchor = date;
+            return;
+        }
         //Mouse has no implicit capture, but release it for pen and touch so the
         //drag can cross into neighbouring day cells
         try {
@@ -70,12 +94,31 @@
         painting = true;
         paintMode = isFree(date) ? 'remove' : 'add';
         apply(date);
+        anchor = date;
     }
     function enterPaint(date: string) {
         if (painting) apply(date);
     }
     function stopPaint() {
         painting = false;
+    }
+
+    /*
+        Enter or space on a focused day, which fires no pointer events at all so
+        startPaint never sees it. A keyboard activation is the click with nothing
+        behind it: detail 0, and an empty pointerType where click carries one.
+        Both, since a real tap fails only one of them depending on the browser,
+        and letting a tap through here would undo what startPaint just did.
+    */
+    function keyToggle(e: MouseEvent, date: string) {
+        if (e.detail !== 0 || (e as PointerEvent).pointerType || !selectable(date)) return;
+        if (e.shiftKey && anchor) {
+            extendTo(date);
+        } else {
+            paintMode = isFree(date) ? 'remove' : 'add';
+            apply(date);
+        }
+        anchor = date;
     }
 
     function filledIn(month: Month) {
@@ -137,6 +180,7 @@
                                 aria-pressed={isFree(cell.date)}
                                 onpointerdown={(e) => startPaint(e, cell.date)}
                                 onpointerenter={() => enterPaint(cell.date)}
+                                onclick={(e) => keyToggle(e, cell.date)}
                                 title={beyondHorizon(cell.date) ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
                             >
                                 {cell.day}

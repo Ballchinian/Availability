@@ -132,7 +132,7 @@
             </div>
         </div>
 
-        <p class="muted small">Tap a day, or press and drag across several. The clock on a free day narrows it to certain hours.</p>
+        <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
 
         <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} sureUntil={sureUntil || null} bind:selection />
 
