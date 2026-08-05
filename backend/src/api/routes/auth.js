@@ -5,6 +5,7 @@ import { buildAuthorizeUrl, exchangeCode, fetchDiscordUser } from '../../lib/dis
 import { issueSession, clearSession, getSessionUser } from '../../lib/session.js';
 import { upsertUser, setUserGuilds } from '../../db/users.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
+import { ipLimit } from '../../lib/iplimit.js';
 
 /*
     The login routes. /login bounces the person to Discord, /callback is where
@@ -17,6 +18,17 @@ const router = Router();
 
 const STATE_COOKIE = 'oauth_state';
 const stateSecure = config.baseUrl.startsWith('https');
+
+/*
+    One allowance across both halves, since a real login spends two of it. Loose
+    enough that a whole server signing in at once never notices, tight enough that
+    nobody can sit there driving token exchanges against Discord on our client id.
+*/
+const limitLogin = ipLimit({
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+    message: 'That is a lot of login attempts from one place. Give it ten minutes and try again.'
+});
 
 //Pack the random nonce and where to land afterwards into the state value
 function makeState(returnTo) {
@@ -38,14 +50,14 @@ function safePath(p) {
     return typeof p === 'string' && p.startsWith('/') ? p : '/';
 }
 
-router.get('/login', (req, res) => {
+router.get('/login', limitLogin, (req, res) => {
     const returnTo = safePath(req.query.returnTo);
     const { nonce, state } = makeState(returnTo);
     res.cookie(STATE_COOKIE, nonce, { httpOnly: true, sameSite: 'lax', secure: stateSecure, maxAge: 10 * 60 * 1000 });
     res.redirect(buildAuthorizeUrl(state));
 });
 
-router.get('/callback', async (req, res) => {
+router.get('/callback', limitLogin, async (req, res) => {
     const { code, state } = req.query;
     const parsed = parseState(state);
     const cookieNonce = req.cookies?.[STATE_COOKIE];

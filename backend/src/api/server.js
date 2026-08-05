@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -24,6 +25,22 @@ const webDist = join(__dirname, '..', '..', '..', 'web', 'dist');
 */
 export function buildApp() {
     const app = express();
+
+    //Only meaningful behind a proxy, and what the login limiter reads req.ip through
+    app.set('trust proxy', config.trustProxy);
+
+    /*
+        Helmet's defaults, with one hole for Discord's CDN: every avatar and server
+        icon on the site is an <img> straight off it, and the default policy allows
+        images from here and data urls only.
+    */
+    app.use(
+        helmet({
+            contentSecurityPolicy: {
+                directives: { 'img-src': ["'self'", 'data:', 'https://cdn.discordapp.com'] }
+            }
+        })
+    );
 
     app.use(cors({ origin: config.corsOrigin, credentials: true }));
     app.use(express.json());

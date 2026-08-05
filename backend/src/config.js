@@ -37,7 +37,17 @@ export const config = {
     sessionSecret: process.env.SESSION_SECRET || DEFAULT_SESSION_SECRET,
 
     //Same origin in production, so this is mostly for local dev tooling
-    corsOrigin: process.env.CORS_ORIGIN || baseUrl
+    corsOrigin: process.env.CORS_ORIGIN || baseUrl,
+
+    /*
+        How many proxies sit in front of this process. Express counts back that
+        many hops through X-Forwarded-For to work out who is really calling, which
+        is what the login limiter counts against. Two is the live setup: Netlify
+        holds the domain and forwards /api to Railway, which forwards to here. Too
+        low and everyone behind the proxy shares one allowance; too high and the
+        header can be dressed up to look like a fresh caller each time.
+    */
+    trustProxy: Number(process.env.TRUST_PROXY ?? 2)
 };
 
 //Lists what is missing so the startup log is honest about it

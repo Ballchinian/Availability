@@ -42,6 +42,10 @@ Start the login. Bounces the person to Discord to approve, after stashing a shor
 
 * `returnTo` (optional): a local path to land on afterwards
 
+### Notes
+
+* Rate limited by caller address, sixty hits across `/login` and `/callback` together in ten minutes. A real login spends two of them.
+
 ---
 
 ## GET `/api/auth/callback`
@@ -52,6 +56,7 @@ Where Discord sends the person back with a code. The backend trades the code for
 
 * Checked against the state cookie from `/login`, a mismatch is rejected.
 * Only ever redirects to a local path, never an arbitrary url.
+* Shares the `/login` rate limit.
 
 ---
 
