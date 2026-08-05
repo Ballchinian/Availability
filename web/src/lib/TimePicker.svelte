@@ -1,11 +1,14 @@
 <script lang="ts">
-    import { formatDate } from './format.js';
+    import { formatDate, formatLong } from './format.js';
     import { SOCIABLE_HOURS, hourLabel, formatHours } from './hours.js';
 
     /*
         Narrow a free day down to certain hours, anywhere from 8am to 2am. Tap an
         hour, or press and drag across a run of them. With none selected the day
         counts as free all day, which is the common case and the default.
+
+        A real dialog, not a styled div: Escape, the focus trap, focus going back
+        where it came from and the backdrop all come from showModal for nothing.
     */
     let { date = '', hours = $bindable([]), onclose }: {
         date?: string;
@@ -13,10 +16,17 @@
         onclose?: () => void;
     } = $props();
 
+    let dialog: HTMLDialogElement;
+
     const set = $derived(new Set(hours));
 
     let painting = $state(false);
     let paintMode = $state('add');
+
+    //Mounted only while a day is being edited, so opening is the whole of it
+    $effect(() => {
+        dialog.showModal();
+    });
 
     function add(h: number) {
         if (!set.has(h)) hours = [...hours, h];
@@ -54,11 +64,19 @@
 
 <svelte:window onpointerup={stopPaint} />
 
-<div class="overlay" onclick={onclose} role="presentation">
-    <div class="time-card" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Pick times">
+<dialog
+    class="time-card"
+    bind:this={dialog}
+    aria-label={`Times free on ${formatLong(date)}`}
+    onclose={onclose}
+    onclick={(e) => {
+        if (e.target === dialog) dialog.close();
+    }}
+>
+    <div class="time-body">
         <header>
             <span>Times free on {formatDate(date)}</span>
-            <button class="link-btn" onclick={onclose}>Done</button>
+            <button class="link-btn" onclick={() => dialog.close()}>Done</button>
         </header>
 
         <p class="muted small">
@@ -78,4 +96,4 @@
 
         <button class="link-btn" onclick={allDay}>Reset to all day</button>
     </div>
-</div>
+</dialog>
