@@ -19,6 +19,9 @@ COPY backend/ ./
 # the backend looks for the built site at ../web/dist, so drop it there
 COPY --from=web-build /app/web/dist /app/web/dist
 
+# nothing outside backend/ and that dist folder is in the image, so a new top
+# level directory either side imports from needs its own COPY line here
+
 ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["node", "src/index.js"]
