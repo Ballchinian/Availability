@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=20"
@@ -19,5 +20,8 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.3.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
   }
 }

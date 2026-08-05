@@ -126,3 +126,19 @@ export function cleanWeekdays(input) {
     if (set.size === 0 || set.size === 7) return null;
     return [...set].sort((a, b) => a - b);
 }
+
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+/*
+    What changing a plan's weekdays from one set to another means. Both sides come
+    in as cleanWeekdays output, so null is every day and has to be spelled out
+    before they can be compared. Only a change that opens a day nobody has been
+    asked about needs a fresh round of answers: taking days away never does, so it
+    does not waste anyone's time.
+*/
+export function weekdayChange(current, next) {
+    const currentSet = new Set(current || EVERY_DAY);
+    const nextSet = new Set(next || EVERY_DAY);
+    const same = currentSet.size === nextSet.size && [...nextSet].every((d) => currentSet.has(d));
+    return { same, opensADay: [...nextSet].some((d) => !currentSet.has(d)) };
+}

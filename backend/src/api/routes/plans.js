@@ -7,7 +7,7 @@ import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabi
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
 import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
-import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
+import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
@@ -415,21 +415,12 @@ router.post('/:planId/weekdays', requireUser, async (req, res) => {
     if (weekdays && !allowedDaysInRange(plan.dateRange.start, plan.dateRange.end, weekdays).length) {
         return res.status(400).json({ error: 'None of those days fall inside the plan range.' });
     }
-    //A null set means every day, so spell both sides out as full weekday sets to compare
-    const currentSet = new Set(plan.allowedWeekdays || [0, 1, 2, 3, 4, 5, 6]);
-    const nextSet = new Set(weekdays || [0, 1, 2, 3, 4, 5, 6]);
+    const { same, opensADay } = weekdayChange(plan.allowedWeekdays, weekdays);
 
     //Nothing to do if it lands on the same set the plan already has
-    if (currentSet.size === nextSet.size && [...nextSet].every((d) => currentSet.has(d))) {
+    if (same) {
         return res.status(400).json({ error: 'Those are already the days this plan asks about.' });
     }
-
-    /*
-        Only make everyone confirm again when the change opens a day they have not been
-        asked about, a pure addition or a swap that brings a new day in. Taking days away
-        never needs a fresh round, so we do not waste anyone's time on it.
-    */
-    const opensADay = [...nextSet].some((d) => !currentSet.has(d));
 
     const cleanNote = String(note || '').trim().slice(0, 200) || null;
 

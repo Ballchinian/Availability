@@ -16,5 +16,5 @@
     /* Strict on purpose now, rather than leaking in from the Svelte tooling. */
     "strict": true
   },
-  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte"]
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts"]
 }
