@@ -1,6 +1,6 @@
 <script lang="ts">
     import { buildMonths, WEEKDAYS, isWeekdayAllowed } from './calendar.js';
-    import { fillColor } from './heatmap.js';
+    import { fillTextStyle } from './heatmap.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT } from './hours.js';
     import { evaluateDay, type DayEval, type FreePerson } from './overlap.js';
@@ -8,9 +8,10 @@
     /*
         Read only calendar for the compare view. Each in range day is coloured by
         the size of the common window once the people you are willing to miss have
-        been dropped: green means everyone shares the whole evening, redder means a
-        narrow overlap, dim means no workable day. The colours are a guide, not a
-        gate, so any in range day can be picked, even a dim one you already know works.
+        been dropped: the bright end of the ramp means everyone shares the whole
+        evening, the dark end a narrow overlap, dim means no workable day. The
+        colours are a guide, not a gate, so any in range day can be picked, even a
+        dim one you already know works.
     */
     let {
         start,
@@ -89,7 +90,7 @@
                             class="cday"
                             class:dim={!ev.viable}
                             class:chosen={selectedDate === cell.date}
-                            style={ev.viable ? `background:${fillColor(ev.windowSize, HOUR_COUNT)}` : ''}
+                            style={ev.viable ? fillTextStyle(ev.windowSize, HOUR_COUNT) : ''}
                             aria-label={describe(cell.date, ev)}
                             aria-pressed={selectedDate === cell.date}
                             onclick={() => pick(cell.date)}

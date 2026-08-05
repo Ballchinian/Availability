@@ -162,7 +162,7 @@
             <div class="miss">
                 <label for="miss">How many people are you willing to miss out? <strong>{missAllowed}</strong></label>
                 <input id="miss" type="range" min="0" max={maxMiss} bind:value={missAllowed} />
-                <p class="legend small">Greener means more hours work for everyone counted. Dim days have no time that fits.</p>
+                <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits.</p>
             </div>
 
             <CompareGrid

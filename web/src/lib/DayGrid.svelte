@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { fillColor } from './heatmap.js';
+    import { fillTextStyle, headingColor } from './heatmap.js';
     import { buildMonths, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT, formatHours } from './hours.js';
@@ -8,9 +8,9 @@
     /*
         The calendar. One block per month between the plan's start and end, each
         day a cell you tap to mark yourself free. Days outside the range are dim
-        and locked. The month heading shifts red to green as you fill it in, the
-        same idea as the original site. A free day shows a small clock you can tap
-        to set specific hours.
+        and locked. The month heading carries how full it is as a colour and as a
+        tally, so the heat is never the only thing saying it. A free day shows a
+        small clock you can tap to set specific hours.
 
         You can also press and drag across days to paint a stretch in one go. The
         first day you press sets the mode: start on an empty day and the drag marks
@@ -87,12 +87,12 @@
         return month.cells.filter((c) => c && c.inRange && selectable(c.date)).length;
     }
 
-    //A free day shades green to red by how many of the sociable hours it keeps,
-    //all of them (or none picked, which means all) being green
-    function dayColour(date: string) {
+    //A free day shades up the ramp by how many of the sociable hours it keeps,
+    //all of them (or none picked, which means all) sitting at the top
+    function dayStyle(date: string) {
         const h = selection[date];
         const count = h && h.length ? h.length : HOUR_COUNT;
-        return fillColor(count, HOUR_COUNT);
+        return fillTextStyle(count, HOUR_COUNT);
     }
 
     //Whether this day is past the point they said they can honestly plan to
@@ -110,8 +110,12 @@
 
 <div class="grid-wrap" class:painting>
     {#each months as month (month.year + '-' + month.month)}
+        {@const filled = filledIn(month)}
+        {@const asked = askedCount(month)}
         <section class="cal">
-            <h3 style="color: {fillColor(filledIn(month), askedCount(month))}">{month.label} {month.year}</h3>
+            <h3 style="color: {headingColor(filled, asked)}">
+                {month.label} {month.year} <span class="tally">{filled}/{asked}</span>
+            </h3>
             <div class="weekdays">
                 {#each WEEKDAYS as w}<span>{w}</span>{/each}
             </div>
@@ -128,7 +132,7 @@
                                 class:free={isFree(cell.date)}
                                 class:is-new={highlightFrom && cell.date >= highlightFrom}
                                 class:far={beyondHorizon(cell.date)}
-                                style={isFree(cell.date) ? `background:${dayColour(cell.date)}` : ''}
+                                style={isFree(cell.date) ? dayStyle(cell.date) : ''}
                                 aria-label={dayLabel(cell.date)}
                                 aria-pressed={isFree(cell.date)}
                                 onpointerdown={(e) => startPaint(e, cell.date)}

@@ -420,6 +420,13 @@ code {
     font-size: 18px;
 }
 
+/* How full the month is in figures, since its heading colour says the same thing in a way not everyone sees */
+.cal h3 .tally {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: normal;
+}
+
 .weekdays,
 .days {
     display: grid;
