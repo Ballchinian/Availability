@@ -9,6 +9,9 @@ import 'dotenv/config';
 
 const baseUrl = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
+//Named so the boot check can tell "they left it alone" apart from a real value
+const DEFAULT_SESSION_SECRET = 'dev-secret-change-me';
+
 export const config = {
     port: Number(process.env.PORT) || 3000,
     baseUrl,
@@ -31,7 +34,7 @@ export const config = {
     },
 
     //Signs the session cookie. Set a long random value in production.
-    sessionSecret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+    sessionSecret: process.env.SESSION_SECRET || DEFAULT_SESSION_SECRET,
 
     //Same origin in production, so this is mostly for local dev tooling
     corsOrigin: process.env.CORS_ORIGIN || baseUrl
@@ -44,6 +47,20 @@ export function missingConfig() {
     if (!config.discord.token) gaps.push('DISCORD_BOT_TOKEN');
     if (!config.discord.clientId) gaps.push('DISCORD_CLIENT_ID');
     if (!config.discord.clientSecret) gaps.push('DISCORD_CLIENT_SECRET');
-    if (config.sessionSecret === 'dev-secret-change-me') gaps.push('SESSION_SECRET (using insecure default)');
+    if (config.sessionSecret === DEFAULT_SESSION_SECRET) gaps.push('SESSION_SECRET (using insecure default)');
     return gaps;
+}
+
+/*
+    The one gap that must not reach production. Anyone can sign a session cookie
+    with a secret that is published in this file, so booting anyway and printing a
+    line about it is not a warning, it is a door left open in a log nobody reads.
+    Returns what to say, or null when there is nothing to stop for.
+*/
+export function fatalConfig() {
+    if (process.env.NODE_ENV !== 'production') return null;
+    if (config.sessionSecret === DEFAULT_SESSION_SECRET) {
+        return 'SESSION_SECRET is still the built in default, which anyone could forge a login with. Set a long random value.';
+    }
+    return null;
 }

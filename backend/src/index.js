@@ -1,4 +1,4 @@
-import { config, missingConfig } from './config.js';
+import { config, missingConfig, fatalConfig } from './config.js';
 import { connectMongo, closeMongo, retryMongo } from './db/mongo.js';
 import { client, startBot } from './bot/client.js';
 import { buildApp } from './api/server.js';
@@ -6,12 +6,20 @@ import { buildApp } from './api/server.js';
 /*
     Boot order: warn about anything missing, bring up the database, log the bot
     in, then start the web server. Each step is best effort so a half configured
-    machine still boots far enough to be useful while you fill in the .env.
+    machine still boots far enough to be useful while you fill in the .env. The
+    one exception is fatalConfig, which stops the process outright.
 */
 async function main() {
     const gaps = missingConfig();
     if (gaps.length) {
         console.warn('[boot] missing or default config:', gaps.join(', '));
+    }
+
+    //Best effort stops here: some gaps are worse in production than not running at all
+    const fatal = fatalConfig();
+    if (fatal) {
+        console.error('[boot] refusing to start:', fatal);
+        process.exit(1);
     }
 
     try {
