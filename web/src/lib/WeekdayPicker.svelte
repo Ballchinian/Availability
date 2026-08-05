@@ -1,3 +1,14 @@
+<script module lang="ts">
+    /*
+        The days a picker's on/off array stands for, as the 0-6 list the api takes.
+        Lives here so the two forms that own a picker read its state the same way
+        rather than each writing out the same map and filter.
+    */
+    export function chosenDays(dayOn: boolean[]): number[] {
+        return dayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0);
+    }
+</script>
+
 <script lang="ts">
     import { WEEKDAYS } from './calendar.js';
     import { describeWeekdays } from './format.js';
@@ -15,7 +26,7 @@
     //Button order, Monday first, while the values behind them stay 0=Sunday
     const ORDER = [1, 2, 3, 4, 5, 6, 0];
 
-    const chosen = $derived(dayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
+    const chosen = $derived(chosenDays(dayOn));
     const hint = $derived.by(() => {
         if (chosen.length === 0) return 'Pick at least one day people can mark.';
         if (chosen.length === 7) return 'People can mark any day in the range.';

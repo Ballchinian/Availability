@@ -20,8 +20,7 @@ const webDist = join(__dirname, '..', '..', '..', 'web', 'dist');
 
 /*
     Builds the express app. Same origin as the frontend in production, so cors is
-    really just here for local dev where vite runs on its own port. Routers for
-    plans and availability slot in over the next couple of phases.
+    really just here for local dev where vite runs on its own port.
 */
 export function buildApp() {
     const app = express();

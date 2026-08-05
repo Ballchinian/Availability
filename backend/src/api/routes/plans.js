@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
+import { guildContext } from '../context.js';
 import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
@@ -21,20 +21,8 @@ import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
 
 const router = Router();
 
-//Compare and choose are planner only, so this looks the requester up in the guild
-async function plannerContext(plan, userId) {
-    const cfg = await getGuildConfig(plan.guildId);
-    if (!cfg || !cfg.setupComplete) return { error: 400, message: 'That server has not run /setup yet.' };
-
-    const guild = await client.guilds.fetch(plan.guildId).catch(() => null);
-    if (!guild) return { error: 404, message: 'I am not in that server.' };
-
-    const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member) return { error: 403, message: 'You are not in that server.' };
-    if (!member.roles.cache.has(cfg.plannerRoleId)) return { error: 403, message: 'You need the planner role to do that.' };
-
-    return { cfg, guild, member };
-}
+//Every route below the availability pair is planner only, and always about the plan's own server
+const plannerContext = (plan, userId) => guildContext(plan.guildId, userId, { requirePlanner: true });
 
 /*
     Announcements run after the response, never inside it. The write they follow

@@ -3,10 +3,10 @@ import { config } from '../config.js';
 import { attachEvents } from './events.js';
 
 /*
-    the gateway client. it stays connected the whole time the service is up,
+    The gateway client. It stays connected the whole time the service is up,
     which is why we need an always-on host. GuildMembers is a privileged intent
     and powers the member picker on the site, so it has to be switched on in the
-    discord dev portal too. We only need Guilds and GuildMembers: the bot never
+    Discord dev portal too. We only need Guilds and GuildMembers: the bot never
     reads messages, and the DMs and button clicks it does handle arrive over the
     interaction gateway, which no message intent gates.
 */

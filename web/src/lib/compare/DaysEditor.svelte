@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api } from '../api.js';
-    import WeekdayPicker from '../WeekdayPicker.svelte';
+    import WeekdayPicker, { chosenDays } from '../WeekdayPicker.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -21,7 +21,7 @@
     let post = $state(true);
     let dm = $state(true);
 
-    const chosenDays = $derived(dayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
+    const chosen = $derived(chosenDays(dayOn));
 
     //A seven long on/off array from a plan's stored weekdays, all on when there is no restriction
     function dayOnFrom(allowed: number[] | null): boolean[] {
@@ -35,13 +35,13 @@
     }
 
     async function save() {
-        if (chosenDays.length === 0) {
+        if (chosen.length === 0) {
             panel.reject('Pick at least one day people can mark.');
             return;
         }
         await panel.run(async () => {
             //All seven days is no restriction, so send nothing then
-            const payload = chosenDays.length === 7 ? null : chosenDays;
+            const payload = chosen.length === 7 ? null : chosen;
             const res = await api<{ reopened: boolean }>(`/plans/${planId}/weekdays`, {
                 method: 'POST',
                 body: JSON.stringify({ allowedWeekdays: payload, note: note.trim() || null, post, dm })

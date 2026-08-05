@@ -2,9 +2,9 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { config } from '../config.js';
 
 /*
-    every slash command the bot knows lives here. setup is the only one for now,
-    locked to people who can manage the server since it wires the bot up. more
-    commands (compare, mylink) get added in later phases.
+    Every slash command the bot knows lives here. Setup is the one locked to
+    people who can manage the server, since it wires the bot up. The rest are
+    open to anyone and check the planner role themselves where it matters.
 */
 export const commands = [
     new SlashCommandBuilder()
@@ -31,8 +31,9 @@ export const commands = [
 ];
 
 /*
-    push the command list up to discord. if a dev guild is set we register there
-    for instant updates, otherwise we register globally for every server at once.
+    Push the command list up to Discord. With a dev guild set they register there
+    for instant updates, otherwise globally for every server at once, which
+    Discord can take an hour to spread around.
 */
 export async function registerCommands(client) {
     if (config.discord.devGuildId) {

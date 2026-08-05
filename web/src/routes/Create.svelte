@@ -6,7 +6,7 @@
     import { formatDate } from '../lib/format.js';
     import type { CreatedPlan, GuildInfo, Member } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
-    import WeekdayPicker from '../lib/WeekdayPicker.svelte';
+    import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -31,7 +31,7 @@
     //Which weekdays a collect plan asks about, indexed Sunday (0) to Saturday (6). All on
     //means the whole range, the default and how plans always were.
     let dayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
-    const chosenWeekdays = $derived(dayOn.map((on, i) => (on ? i : -1)).filter((i) => i >= 0));
+    const chosenWeekdays = $derived(chosenDays(dayOn));
 
     //Set-plan mode: a single day plus optional time and note, and how to announce it
     let setDate = $state('');

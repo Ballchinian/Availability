@@ -1,9 +1,9 @@
 import { col, collections } from './mongo.js';
 
 /*
-    read and write the per server config: which channel is the plans chat,
+    Read and write the per server config: which channel is the plans chat,
     which role can drive the bot, and the pinned intro message we posted.
-    one document per guild, upserted as setup runs.
+    One document per guild, upserted as setup runs.
 */
 
 export async function getGuildConfig(guildId) {

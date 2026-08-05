@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getGuildConfig } from '../../db/guilds.js';
+import { guildContext } from '../context.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
 import { announcePlan, announceSetPlan } from '../../bot/plans.js';
 import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange } from '../../lib/dates.js';
@@ -94,24 +93,9 @@ async function listMembers(guild) {
     }
 }
 
-//Looks up the requester inside the guild and works out what they are allowed to do
-async function loadContext(guildId, userId) {
-    const guild = await client.guilds.fetch(guildId).catch(() => null);
-    if (!guild) return { error: 404, message: 'I am not in that server.' };
-
-    const cfg = await getGuildConfig(guildId);
-    if (!cfg || !cfg.setupComplete) return { error: 400, message: 'That server has not run /setup yet.' };
-
-    const member = await guild.members.fetch(userId).catch(() => null);
-    const isMember = Boolean(member);
-    const isPlanner = isMember && member.roles.cache.has(cfg.plannerRoleId);
-
-    return { guild, cfg, member, isMember, isPlanner };
-}
-
 //Tells the frontend the server name and whether this person can plan here
 router.get('/:guildId', requireUser, async (req, res) => {
-    const ctx = await loadContext(req.params.guildId, req.user.id);
+    const ctx = await guildContext(req.params.guildId, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     res.json({
         guildId: ctx.cfg.guildId,
@@ -122,7 +106,7 @@ router.get('/:guildId', requireUser, async (req, res) => {
 });
 
 router.get('/:guildId/members', requireUser, async (req, res) => {
-    const ctx = await loadContext(req.params.guildId, req.user.id);
+    const ctx = await guildContext(req.params.guildId, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to do that.' });
 
@@ -136,7 +120,7 @@ router.get('/:guildId/members', requireUser, async (req, res) => {
 });
 
 router.post('/:guildId/plans', requireUser, async (req, res) => {
-    const ctx = await loadContext(req.params.guildId, req.user.id);
+    const ctx = await guildContext(req.params.guildId, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
