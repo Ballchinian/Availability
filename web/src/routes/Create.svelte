@@ -47,6 +47,7 @@
     let submitting = $state(false);
     let formError = $state('');
     let result = $state<any>(null);
+    let copied = $state(false);
 
     onMount(async () => {
         await loadMe();
@@ -116,6 +117,29 @@
         submitting = false;
     }
 
+    async function copyLink() {
+        try {
+            await navigator.clipboard.writeText(result.url);
+            copied = true;
+            setTimeout(() => (copied = false), 2000);
+        } catch {
+            //Blocked, or an old browser. The link is written out next to the button either way.
+        }
+    }
+
+    //Back to an empty form. The crowd, the range and the notify toggles stay, since a second
+    //plan is usually the same people again, and only what makes this plan itself is cleared.
+    function startAnother() {
+        result = null;
+        formError = '';
+        copied = false;
+        planName = '';
+        planDescription = '';
+        setDate = '';
+        setTime = '';
+        setNote = '';
+    }
+
     function isoFromNow(amount: number, unit: string) {
         const d = new Date();
         if (unit === 'day') d.setDate(d.getDate() + amount);
@@ -152,7 +176,15 @@
                 <p class="status">{result.dropped} {result.dropped === 1 ? 'person was' : 'people were'} no longer in the server, so I left them out.</p>
             {/if}
             <p class="muted">{result.set ? 'Plan link:' : 'Their availability link:'}</p>
-            <a class="plan-link" href={result.url}>{result.url}</a>
+            <div class="link-row">
+                <a class="plan-link" href={result.url}>{result.url}</a>
+                <button class="ghost" onclick={copyLink}>{copied ? 'Copied' : 'Copy'}</button>
+            </div>
+
+            <p class="ways">
+                <a href="#/plan/{result.planId}/compare">{result.set ? 'See who is coming' : "Compare everyone's dates"}</a>
+                <button class="link-btn" onclick={startAnother}>Start another plan</button>
+            </p>
         </div>
     {:else}
         <p class="muted">Planning for <strong>{guildInfo.guildName}</strong>.</p>

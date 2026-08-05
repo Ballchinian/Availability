@@ -398,6 +398,13 @@ code {
     word-break: break-all;
 }
 
+.result .link-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 /* Member picker */
 .picker {
     display: flex;
@@ -716,7 +723,7 @@ code {
     cursor: crosshair;
 }
 
-/* The ways off the compare page: back into the thread, or over to your own dates */
+/* A row of ways on from here: off the compare page, or off a plan you just made */
 .ways {
     display: flex;
     flex-wrap: wrap;
