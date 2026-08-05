@@ -4,7 +4,6 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoOf } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
-    import UserBadge from '../lib/UserBadge.svelte';
     import CompareGrid from '../lib/CompareGrid.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
     import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
@@ -130,10 +129,7 @@
 </script>
 
 <section class="screen">
-    <header class="screen-head">
-        <h1>Compare dates</h1>
-        <UserBadge />
-    </header>
+    <h1>Compare dates</h1>
 
     {#if loading}
         <p class="muted">Loading...</p>

@@ -3,7 +3,6 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate } from '../lib/format.js';
-    import UserBadge from '../lib/UserBadge.svelte';
     import DayGrid from '../lib/DayGrid.svelte';
 
     /*
@@ -103,10 +102,7 @@
 </script>
 
 <section class="screen">
-    <header class="screen-head">
-        <h1>Your availability</h1>
-        <UserBadge />
-    </header>
+    <h1>Your availability</h1>
 
     {#if loading}
         <p class="muted">Loading...</p>

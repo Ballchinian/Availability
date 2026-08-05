@@ -122,12 +122,27 @@ code {
     font-size: 13px;
 }
 
-.screen-head {
+/* The one bar above every screen: home, your own dates, and who you are */
+.site-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 18px;
     flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.site-head .brand {
+    color: var(--heading);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+/* Takes the slack so the badge sits at the far end however many links there are */
+.site-nav {
+    margin-right: auto;
+    display: flex;
+    gap: 14px;
+    font-size: 14px;
 }
 
 .user-badge {

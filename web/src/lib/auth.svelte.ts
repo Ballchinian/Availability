@@ -15,14 +15,27 @@ export interface User {
 
 export const auth: { user: User | null; loaded: boolean } = $state({ user: null, loaded: false });
 
+/*
+    One /auth/me for the whole page however many components ask for it. The header
+    wants it the moment it mounts and so does every screen under it, so the first
+    call does the fetch and the rest wait on that same promise.
+*/
+let inFlight: Promise<void> | null = null;
+
 export async function loadMe(): Promise<void> {
-    try {
-        const res = await api('/auth/me');
-        auth.user = res.user;
-    } catch {
-        auth.user = null;
+    if (auth.loaded) return;
+    if (!inFlight) {
+        inFlight = (async () => {
+            try {
+                const res = await api('/auth/me');
+                auth.user = res.user;
+            } catch {
+                auth.user = null;
+            }
+            auth.loaded = true;
+        })();
     }
-    auth.loaded = true;
+    await inFlight;
 }
 
 //Where "Log in with Discord" points, remembering the page they were on

@@ -4,7 +4,6 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate } from '../lib/format.js';
     import type { Member } from '../lib/types.js';
-    import UserBadge from '../lib/UserBadge.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
     import WeekdayPicker from '../lib/WeekdayPicker.svelte';
 
@@ -128,10 +127,7 @@
 </script>
 
 <section class="screen">
-    <header class="screen-head">
-        <h1>Plan a meetup</h1>
-        <UserBadge />
-    </header>
+    <h1>Plan a meetup</h1>
 
     {#if loading}
         <p class="muted">Loading...</p>

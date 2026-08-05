@@ -4,7 +4,6 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, describeWeekdays } from '../lib/format.js';
     import { isWeekdayAllowed } from '../lib/calendar.js';
-    import UserBadge from '../lib/UserBadge.svelte';
     import DayGrid from '../lib/DayGrid.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -145,10 +144,7 @@
 </script>
 
 <section class="screen">
-    <header class="screen-head">
-        <h1>Your availability</h1>
-        <UserBadge />
-    </header>
+    <h1>Your availability</h1>
 
     {#if loading}
         <p class="muted">Loading...</p>

@@ -1,5 +1,6 @@
 <script lang="ts">
     import Router from 'svelte-spa-router';
+    import SiteHeader from './lib/SiteHeader.svelte';
     import Home from './routes/Home.svelte';
     import Create from './routes/Create.svelte';
     import Availability from './routes/Availability.svelte';
@@ -27,5 +28,6 @@
 </script>
 
 <main>
+    <SiteHeader />
     <Router {routes} />
 </main>

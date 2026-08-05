@@ -3,7 +3,6 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
-    import UserBadge from '../lib/UserBadge.svelte';
 
     /*
         The front door. Every other screen knows which server or plan it is about
@@ -65,22 +64,21 @@
 </script>
 
 <section class="screen">
-    <header class="screen-head">
-        <h1>Availability</h1>
-        <UserBadge />
-    </header>
-
     {#if loading}
         <p class="muted">Loading...</p>
     {:else if !auth.user}
+        <h1>When is everyone free?</h1>
         <p>Work out when a group is actually free, without the twenty message back and forth.</p>
         <p class="muted">
             Log in above and you will see the servers you share with the bot and the plans you are part of. If you have not met
             the bot yet, someone in your server needs to invite it and run <code>/setup</code>.
         </p>
     {:else if loadError}
+        <h1>What you've got on</h1>
         <p class="status error">{loadError}</p>
     {:else}
+        <h1>What you've got on</h1>
+
         <h2>Your servers</h2>
         {#if guilds.length === 0}
             <p class="muted">
