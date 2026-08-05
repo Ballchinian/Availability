@@ -9,6 +9,11 @@
     the other's tooling to read it. dates.d.ts next door is what the typescript
     side reads, so a signature changed here has to be changed there too.
 
+    The package.json next to it holds nothing but "type": "module", and has to be
+    there: backend/package.json only covers files under backend/, so without it
+    node reads this as commonjs and the service dies on boot with an import error
+    that neither vitest nor the vite build will show you.
+
     Anything that only one side needs stays on that side: backend/src/lib/dates.js
     holds the range and validation half, web/src/lib/calendar.ts the grid layout.
 */
