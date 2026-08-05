@@ -38,7 +38,7 @@ If the day is already decided, the planner can skip all that and announce a set 
 ## Tech stack
 
 - **One Node service** running the discord.js bot, the Express API, and serving the built site, all from a single process, since the bot needs to stay connected the whole time anyway
-- **Frontend:** a Svelte site the backend hands out
+- **Frontend:** a Svelte site, served by Netlify on the live domain and by the backend itself anywhere it runs as one container
 - **Data:** MongoDB
 
 ## A typical plan
@@ -49,3 +49,15 @@ If the day is already decided, the planner can skip all that and announce a set 
 4. Everyone opens their link and marks the days they're free, down to certain hours if they want.
 5. The thread keeps a running count as people confirm.
 6. Once everyone's in, the planner opens the compare view (or runs `/compare`), reads the colours, and locks a day in.
+
+## How this is deployed
+
+Two hosts, on purpose, and `netlify.toml` is the whole of the arrangement. Netlify holds the domain and serves the built site out of `web/`, and every `/api/*` request that reaches it is proxied through to the backend on Railway, which runs the bot, the API and everything touching the database as one always-on process. The proxy is the point: the browser only ever talks to one domain, which is what keeps the login cookie first-party and so makes auth work at all.
+
+The `Dockerfile` is how Railway builds that process. It also builds the site and copies it in, so the Railway URL on its own serves a complete working copy of both halves, and so any plain container host (Fly, Render, a VPS, your own machine) can run the lot from one image with nothing else set up. That copy is a spare, not what anybody uses. The live site is the Netlify one.
+
+Which means, when you change something:
+
+- Anything under `web/` reaches people when Netlify rebuilds.
+- Anything under `backend/` reaches people when Railway redeploys.
+- Both hosts watch `main` and build on their own. CI only runs the checks, it deploys nothing.
