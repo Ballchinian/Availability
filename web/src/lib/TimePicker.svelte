@@ -1,9 +1,9 @@
 <script lang="ts">
     import { formatDate, formatLong } from './format.js';
-    import { SOCIABLE_HOURS, hourLabel, formatHours } from './hours.js';
+    import { DAY_HOURS, hourLabel, formatHours } from './hours.js';
 
     /*
-        Narrow a free day down to certain hours, anywhere from 8am to 2am. Tap an
+        Narrow a free day down to certain hours, anywhere in the day. Tap an
         hour, press and drag across a run of them, or shift-click to take the run
         from the last hour pressed, which is what a keyboard gets instead of a
         drag. With none selected the day counts as free all day, which is the
@@ -49,11 +49,11 @@
     */
     function extendTo(h: number) {
         if (anchor === null) return;
-        const a = SOCIABLE_HOURS.indexOf(anchor);
-        const b = SOCIABLE_HOURS.indexOf(h);
+        const a = DAY_HOURS.indexOf(anchor);
+        const b = DAY_HOURS.indexOf(h);
         const [from, to] = a <= b ? [a, b] : [b, a];
         paintMode = set.has(anchor) ? 'add' : 'remove';
-        for (let i = from; i <= to; i++) apply(SOCIABLE_HOURS[i]);
+        for (let i = from; i <= to; i++) apply(DAY_HOURS[i]);
     }
 
     function startPaint(e: PointerEvent, h: number) {
@@ -125,7 +125,7 @@
         </p>
 
         <div class="hours" class:painting>
-            {#each SOCIABLE_HOURS as h (h)}
+            {#each DAY_HOURS as h (h)}
                 <button
                     class="hour"
                     class:on={set.has(h)}

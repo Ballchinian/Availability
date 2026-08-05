@@ -1,16 +1,16 @@
-import { SOCIABLE_HOURS, HOUR_COUNT } from './hours.js';
+import { DAY_HOURS, HOUR_COUNT } from './hours.js';
 
 /*
     Works out the common window for a day: the hours that suit everyone we are
     counting. Someone free with no specific hours does not narrow anything, they
-    are free the whole window. If you are willing to miss a few people we drop the
+    are free the whole day. If you are willing to miss a few people we drop the
     ones whose hours most shrink the window, so one odd schedule does not spoil an
     otherwise good day.
 */
 
 export interface FreePerson {
     userId: string;
-    hours?: number[];  // empty or missing means free the whole window
+    hours?: number[];  // empty or missing means free the whole day
 }
 
 export interface WindowResult {
@@ -34,7 +34,7 @@ interface Counted {
     set: Set<number>;
 }
 
-const ALL = new Set(SOCIABLE_HOURS);
+const ALL = new Set(DAY_HOURS);
 
 function setOf(hours?: number[]): Set<number> {
     return hours && hours.length ? new Set(hours) : ALL;

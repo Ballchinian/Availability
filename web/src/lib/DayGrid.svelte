@@ -130,7 +130,7 @@
         return month.cells.filter((c) => c && c.inRange && selectable(c.date)).length;
     }
 
-    //A free day shades up the ramp by how many of the sociable hours it keeps,
+    //A free day shades up the ramp by how many hours of the day it keeps,
     //all of them (or none picked, which means all) sitting at the top
     function dayStyle(date: string) {
         const h = selection[date];
