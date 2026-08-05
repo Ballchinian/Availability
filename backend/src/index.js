@@ -1,5 +1,5 @@
 import { config, missingConfig } from './config.js';
-import { connectMongo, closeMongo } from './db/mongo.js';
+import { connectMongo, closeMongo, retryMongo } from './db/mongo.js';
 import { startBot } from './bot/client.js';
 import { buildApp } from './api/server.js';
 
@@ -18,6 +18,8 @@ async function main() {
         await connectMongo();
     } catch (err) {
         console.error('[boot] mongo failed to connect:', err.message);
+        //Keeps trying behind the boot, so a blip right now is a blip and not a dead service
+        retryMongo();
     }
 
     try {

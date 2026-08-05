@@ -9,6 +9,9 @@ import { config } from '../config.js';
 
 let client = null;
 let db = null;
+//Only ever one background reconnect loop, and it stops when the process is going down
+let retrying = false;
+let shuttingDown = false;
 
 //Collection names live here so nothing hardcodes a typo
 export const collections = {
@@ -26,12 +29,56 @@ export async function connectMongo() {
     }
     if (db) return db;
 
-    client = new MongoClient(config.mongoUri);
-    await client.connect();
-    db = client.db(config.mongoDb);
-    await ensureIndexes(db);
+    /*
+        Nothing is published until the connection and the index pass have both
+        gone through, so a half finished attempt cannot leave getDb() handing out
+        a database the queries below have never been prepared on.
+    */
+    const attempt = new MongoClient(config.mongoUri);
+    try {
+        await attempt.connect();
+        const database = attempt.db(config.mongoDb);
+        await ensureIndexes(database);
+        client = attempt;
+        db = database;
+    } catch (err) {
+        await attempt.close().catch(() => {});
+        throw err;
+    }
+
     console.log(`[mongo] connected to ${config.mongoDb}`);
     return db;
+}
+
+const RETRY_START_MS = 1000;
+const RETRY_MAX_MS = 60000;
+
+/*
+    Keep trying in the background after the first connection fails. Boot carries on
+    without a database on purpose, which is right for local dev, but without this a
+    blip in the seconds around startup leaves db null forever: every route throws
+    and nothing ever tries again until someone restarts it by hand.
+
+    Not awaited by the caller. Doubles the wait up to a minute and stays there.
+*/
+export function retryMongo() {
+    if (retrying || db || !config.mongoUri) return;
+    retrying = true;
+
+    (async () => {
+        let wait = RETRY_START_MS;
+        while (!db && !shuttingDown) {
+            await new Promise((resolve) => setTimeout(resolve, wait));
+            if (shuttingDown) break;
+            try {
+                await connectMongo();
+            } catch (err) {
+                wait = Math.min(wait * 2, RETRY_MAX_MS);
+                console.error(`[mongo] still down (${err.message}), trying again in ${Math.round(wait / 1000)}s`);
+            }
+        }
+        retrying = false;
+    })();
 }
 
 export function getDb() {
@@ -68,6 +115,7 @@ async function ensureIndexes(database) {
 }
 
 export async function closeMongo() {
+    shuttingDown = true;
     if (client) await client.close();
     client = null;
     db = null;
