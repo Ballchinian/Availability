@@ -51,10 +51,18 @@ export function isMongoReady() {
 async function ensureIndexes(database) {
     await database.collection(collections.guilds).createIndex({ guildId: 1 }, { unique: true });
     await database.collection(collections.users).createIndex({ userId: 1 }, { unique: true });
+    //Backs getUsersInGuild, which filters on the array itself
+    await database.collection(collections.users).createIndex({ guilds: 1 });
     //One availability row per user per day, upserted as people edit their schedule
     await database.collection(collections.availability).createIndex({ userId: 1, date: 1 }, { unique: true });
+    //Backs the "last updated" lookup in getAvailabilitySummary
+    await database.collection(collections.availability).createIndex({ userId: 1, updatedAt: -1 });
     await database.collection(collections.plans).createIndex({ planId: 1 }, { unique: true });
     await database.collection(collections.plans).createIndex({ guildId: 1 });
+    //Every /compare and /cancel starts by finding the plan behind the thread
+    await database.collection(collections.plans).createIndex({ threadId: 1 });
+    //Backs getPlansCoveredBy and getOpenPlansForUser, which guildId alone does not cover
+    await database.collection(collections.plans).createIndex({ 'participants.userId': 1, status: 1 });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
 }
