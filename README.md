@@ -62,4 +62,6 @@ Which means, when you change something:
 - Anything under `backend/` reaches people when Railway redeploys.
 - Both hosts watch `main` and build on their own. CI only runs the checks, it deploys nothing.
 
+Config is all environment variables, read in one place in `backend/src/config.js`. Locally they live in `backend/.env`, which is deliberately not in git, so a fresh machine starts by copying `backend/.env.example` over it and filling in the blanks. That file lists every variable with a line on what it wants and what happens if you leave it out.
+
 The setting to be careful with is `BASE_URL` on the Railway side. Every link the bot posts is built from it, and the session cookie only marks itself secure when it starts with https, so it has to be the public Netlify domain rather than the Railway URL sitting behind the proxy. Get that wrong and the bot quietly hands out links to the wrong host while the site itself carries on looking perfectly fine, which is a horrible thing to debug. Booting in production with anything other than an https `BASE_URL` now refuses outright instead of half working.
