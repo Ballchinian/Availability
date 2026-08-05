@@ -117,6 +117,9 @@ export function cleanWeekdays(input) {
     if (!Array.isArray(input)) return null;
     const set = new Set();
     for (const v of input) {
+        //Number() reads null, '' and [] as 0, which would quietly pin the plan to Sundays
+        if (typeof v !== 'number' && typeof v !== 'string') continue;
+        if (typeof v === 'string' && v.trim() === '') continue;
         const n = Number(v);
         if (Number.isInteger(n) && n >= 0 && n <= 6) set.add(n);
     }
