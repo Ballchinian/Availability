@@ -14,6 +14,19 @@ export async function getAvailabilityInRange(userId, start, end) {
         .toArray();
 }
 
+/*
+    The same read for a group of people at once, which is what the compare page
+    needs: one query instead of one per confirmed participant. Rows carry userId
+    so the caller can group them.
+*/
+export async function getAvailabilityForUsersInRange(userIds, start, end) {
+    if (!userIds.length) return [];
+    return col(collections.availability)
+        .find({ userId: { $in: userIds }, date: { $gte: start, $lte: end } })
+        .project({ _id: 0, userId: 1, date: 1, hours: 1 })
+        .toArray();
+}
+
 export async function countAvailability(userId) {
     return col(collections.availability).countDocuments({ userId });
 }

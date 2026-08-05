@@ -3,7 +3,7 @@ import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
 import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
-import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
+import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
 import { announceOutcome, remindStragglers, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays } from '../../lib/dates.js';
@@ -153,10 +153,11 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
 
     //Names and avatars for everyone invited, plus their certainty horizons in one query
     const sureMap = await getSureUntilMap(plan.participants.map((p) => p.userId));
-    const participants = [];
-    for (const p of plan.participants) {
-        const m = await ctx.guild.members.fetch(p.userId).catch(() => null);
-        participants.push({
+    //Fetched together rather than one after another, so twenty people is one wait, not twenty
+    const members = await Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null)));
+    const participants = plan.participants.map((p, i) => {
+        const m = members[i];
+        return {
             userId: p.userId,
             displayName: m?.displayName || 'Someone who left',
             avatarUrl: m?.displayAvatarURL({ size: 64 }) || '',
@@ -170,16 +171,28 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             invited: p.invited !== false,
             //How far ahead they said they could plan, days past it read as unsure not busy
             sureUntil: sureMap[p.userId] || null
-        });
-    }
+        };
+    });
 
     //Only people who have confirmed count, and we send their hours so the site
     //can work out the overlap window for each day
     const confirmed = plan.participants.filter((p) => p.confirmed);
+    const rows = await getAvailabilityForUsersInRange(
+        confirmed.map((p) => p.userId),
+        plan.dateRange.start,
+        plan.dateRange.end
+    );
+
+    const byUser = new Map();
+    for (const r of rows) {
+        if (!byUser.has(r.userId)) byUser.set(r.userId, []);
+        byUser.get(r.userId).push(r);
+    }
+
+    //Grouped in participant order, since the overlap maths breaks ties by position
     const freeByDate = {};
     for (const p of confirmed) {
-        const avail = await getAvailabilityInRange(p.userId, plan.dateRange.start, plan.dateRange.end);
-        for (const a of avail) {
+        for (const a of byUser.get(p.userId) || []) {
             (freeByDate[a.date] ||= []).push({ userId: p.userId, hours: a.hours || [] });
         }
     }
