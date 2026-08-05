@@ -6,9 +6,10 @@ import { col, collections } from './mongo.js';
     from one guild to the next. Refreshed each time they log in.
 */
 
+//Hands the record back so the login can read tokenVersion off it without a second lookup
 export async function upsertUser(user) {
     const now = new Date();
-    await col(collections.users).updateOne(
+    return col(collections.users).findOneAndUpdate(
         { userId: user.id },
         {
             $set: {
@@ -18,10 +19,29 @@ export async function upsertUser(user) {
                 avatar: user.avatar,
                 lastSeenAt: now
             },
-            $setOnInsert: { createdAt: now }
+            $setOnInsert: { createdAt: now, tokenVersion: 0 }
         },
-        { upsert: true }
+        { upsert: true, returnDocument: 'after' }
     );
+}
+
+/*
+    The whole of session revocation. A session is a signed token in the browser
+    and nothing this end, so there is no record to delete: instead the number it
+    was signed with lives here, verify compares the two, and bumping this leaves
+    every token minted before now failing that comparison.
+
+    Which means all of them, not just the browser that asked. Signing out on a
+    shared machine signing you out everywhere is the right way round.
+*/
+export async function revokeSessions(userId) {
+    await col(collections.users).updateOne({ userId }, { $inc: { tokenVersion: 1 } });
+}
+
+//What a session has to match. Absent on records written before this existed, and on nobody.
+export async function getTokenVersion(userId) {
+    const row = await col(collections.users).findOne({ userId }, { projection: { _id: 0, tokenVersion: 1 } });
+    return row ? row.tokenVersion || 0 : null;
 }
 
 export async function getUserById(userId) {

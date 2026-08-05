@@ -30,8 +30,9 @@
         can drive the bot, and the intro message the bot pinned.
         <br />
         <strong>Login session:</strong> a signed cookie that keeps you logged in for 30 days. It holds
-        your Discord ID, name and avatar and nothing more, and no matching session data is kept on our
-        side.
+        your Discord ID, name and avatar and nothing more. All we keep on our side is a number on your
+        account that changes when you log out, which is what makes logging out end the session
+        everywhere rather than only in the browser you clicked it in.
     </p>
 
     <h2>What we don't do</h2>

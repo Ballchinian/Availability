@@ -2,8 +2,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { config } from '../../config.js';
 import { buildAuthorizeUrl, exchangeCode, fetchDiscordUser } from '../../lib/discordOauth.js';
-import { issueSession, clearSession, getSessionUser } from '../../lib/session.js';
-import { upsertUser, setUserGuilds } from '../../db/users.js';
+import { issueSession, clearSession, getSessionUser, loadSessionUser } from '../../lib/session.js';
+import { upsertUser, setUserGuilds, revokeSessions } from '../../db/users.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { ipLimit } from '../../lib/iplimit.js';
 
@@ -71,15 +71,21 @@ router.get('/callback', limitLogin, async (req, res) => {
         const tokens = await exchangeCode(code);
         const user = await fetchDiscordUser(tokens.access_token);
 
-        //Cache their profile, but do not fail the login if the database hiccups
+        /*
+            Cache their profile, but do not fail the login if the database
+            hiccups. A session signed with a guessed version outlives the outage
+            only if the guess was right, which is the safe way for it to fail.
+        */
+        let tokenVersion = 0;
         try {
-            await upsertUser(user);
+            const row = await upsertUser(user);
+            tokenVersion = row?.tokenVersion || 0;
             await setUserGuilds(user.id, await computeUserGuilds(user.id));
         } catch (err) {
             console.warn('[auth] could not save user:', err.message);
         }
 
-        issueSession(res, user);
+        issueSession(res, user, tokenVersion);
         res.redirect(`${config.baseUrl}/#${safePath(parsed.r)}`);
     } catch (err) {
         console.error('[auth] callback failed:', err);
@@ -87,14 +93,25 @@ router.get('/callback', limitLogin, async (req, res) => {
     }
 });
 
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
+    const user = getSessionUser(req);
     clearSession(res);
+
+    //Clearing the cookie only asks the browser nicely, so retire the token itself as well
+    if (user) {
+        try {
+            await revokeSessions(user.id);
+        } catch (err) {
+            console.warn('[auth] could not revoke sessions:', err.message);
+        }
+    }
+
     res.json({ ok: true });
 });
 
 //Who is logged in right now, or null
-router.get('/me', (req, res) => {
-    res.json({ user: getSessionUser(req) });
+router.get('/me', async (req, res) => {
+    res.json({ user: await loadSessionUser(req) });
 });
 
 export default router;

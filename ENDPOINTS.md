@@ -62,7 +62,11 @@ Where Discord sends the person back with a code. The backend trades the code for
 
 ## POST `/api/auth/logout`
 
-Clear the session cookie.
+Clear the session cookie and retire the token behind it.
+
+### Notes
+
+* The cookie is a signed token with nothing stored this end, so it is retired by bumping a counter on the user record that every request checks against. That ends every session they have open, not only this browser.
 
 ---
 
