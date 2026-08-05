@@ -102,7 +102,7 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     //A weekday-pinned plan only rewrites the days it asks about, so a person's saved
     //availability on the other days (from other plans) is left untouched
     const onlyDates = allowed ? allowedDaysInRange(start, end, allowed) : null;
-    await replaceAvailabilityInRange(req.user.id, start, end, valid, onlyDates);
+    const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid, onlyDates);
     const updated = await confirmParticipant(plan.planId, req.user.id);
 
     //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
@@ -127,7 +127,7 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
         ok: true,
         confirmedCount: updated.participants.filter((p) => p.confirmed).length,
         totalParticipants: updated.participants.length,
-        savedDays: valid.length,
+        savedDays,
         confirmedPlans
     });
 });

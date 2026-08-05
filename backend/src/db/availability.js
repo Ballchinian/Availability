@@ -69,6 +69,8 @@ export async function getAvailabilitySummary(userId) {
     A plan pinned to certain weekdays passes onlyDates, the exact days it asks
     about. Then we only clear and rewrite those, so a weekends-only plan leaves the
     person's weekday availability from other plans alone rather than wiping it.
+
+    Returns how many days were actually written.
 */
 export async function replaceAvailabilityInRange(userId, start, end, days, onlyDates = null) {
     const c = col(collections.availability);
@@ -77,15 +79,19 @@ export async function replaceAvailabilityInRange(userId, start, end, days, onlyD
     } else {
         await c.deleteMany({ userId, date: { $gte: start, $lte: end } });
     }
-    if (days.length) {
+
+    /*
+        {userId, date} is unique, so a body naming the same day twice would fail
+        the whole insert on a duplicate key. The site cannot send one, it builds
+        from object keys, but the endpoint is open to anyone logged in. Last
+        mention of a day wins.
+    */
+    const byDate = new Map();
+    for (const d of days) byDate.set(d.date, Array.isArray(d.hours) ? d.hours : []);
+
+    if (byDate.size) {
         const now = new Date();
-        await c.insertMany(
-            days.map((d) => ({
-                userId,
-                date: d.date,
-                hours: Array.isArray(d.hours) ? d.hours : [],
-                updatedAt: now
-            }))
-        );
+        await c.insertMany([...byDate].map(([date, hours]) => ({ userId, date, hours, updatedAt: now })));
     }
+    return byDate.size;
 }

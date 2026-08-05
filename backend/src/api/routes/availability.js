@@ -44,7 +44,7 @@ router.post('/', requireUser, async (req, res) => {
     }
 
     const valid = Array.isArray(days) ? days.filter((d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end) : [];
-    await replaceAvailabilityInRange(req.user.id, start, end, valid);
+    const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid);
 
     //Accept any plan the new window fully covers, if they asked us to
     let confirmedPlans = [];
@@ -56,7 +56,7 @@ router.post('/', requireUser, async (req, res) => {
         }
     }
 
-    res.json({ ok: true, savedDays: valid.length, confirmedPlans });
+    res.json({ ok: true, savedDays, confirmedPlans });
 });
 
 export default router;
