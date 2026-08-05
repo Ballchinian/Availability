@@ -137,9 +137,14 @@
         <p class="muted">Log in above to compare.</p>
     {:else if loadError}
         <p class="status error">{loadError}</p>
-    {:else if cancelled}
-        <p class="prompt good">This plan has been cancelled and everyone has been told. Delete its thread in Discord when you are ready to clear it for good.</p>
     {:else}
+        {#if cancelled}
+            <p class="prompt good">
+                This plan has been cancelled and everyone has been told, so nothing here can be changed now. What people
+                said is below. Delete its thread in Discord when you are ready to clear it for good.
+            </p>
+        {/if}
+
         <p class="muted">
             <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''} ·
             {formatDate(data.plan.start)} to {formatDate(data.plan.end)}
@@ -161,7 +166,7 @@
 
         <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
 
-        {#if unconfirmed.length}
+        {#if unconfirmed.length && !cancelled}
             <RemindPanel planId={params.planId} waiting={unconfirmed} />
         {/if}
 
@@ -182,58 +187,66 @@
                 {missAllowed}
                 bind:selectedDate
             />
+        {:else if cancelled}
+            <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
         {:else}
             <p class="muted">No one has confirmed dates yet, so there is nothing to compare. Give it a moment, or nudge the stragglers above.</p>
         {/if}
 
         {#if chosen}
             <p class="prompt good">
-                <strong>{data.plan.name}</strong> is set for {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
+                <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
+                {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
                 {#if chosen.note}<br />{chosen.note}{/if}
-                <br />Pick another day below to move it, and everyone gets told.
+                {#if !cancelled}<br />Pick another day below to move it, and everyone gets told.{/if}
             </p>
         {/if}
-        <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
 
-        <AttendanceBoard
-            planId={params.planId}
-            participants={data.participants}
-            chosenDate={data.plan.chosenDate}
-            onmoved={refresh}
-        />
+        {#if cancelled}
+            <p class="ways"><a href="#/">Back to your plans</a></p>
+        {:else}
+            <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
 
-        <PickPanel
-            planId={params.planId}
-            {selectedDate}
-            {missAllowed}
-            {unsureByDate}
-            {chosen}
-            freeByDate={data.freeByDate}
-            participants={data.participants}
-            confirmedCount={data.confirmedCount}
-            totalParticipants={data.totalParticipants}
-            probeActive={Boolean(data.plan.probeActive)}
-            onsaved={refresh}
-        />
+            <AttendanceBoard
+                planId={params.planId}
+                participants={data.participants}
+                chosenDate={data.plan.chosenDate}
+                onmoved={refresh}
+            />
 
-        <EditDetails
-            planId={params.planId}
-            name={data.plan.name}
-            description={data.plan.description}
-            onsaved={load}
-        />
+            <PickPanel
+                planId={params.planId}
+                {selectedDate}
+                {missAllowed}
+                {unsureByDate}
+                {chosen}
+                freeByDate={data.freeByDate}
+                participants={data.participants}
+                confirmedCount={data.confirmedCount}
+                totalParticipants={data.totalParticipants}
+                probeActive={Boolean(data.plan.probeActive)}
+                onsaved={refresh}
+            />
 
-        <AddPeople
-            planId={params.planId}
-            guildId={data.plan.guildId}
-            participants={data.participants}
-            onadded={load}
-        />
+            <EditDetails
+                planId={params.planId}
+                name={data.plan.name}
+                description={data.plan.description}
+                onsaved={load}
+            />
 
-        <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} onsaved={reopen} />
+            <AddPeople
+                planId={params.planId}
+                guildId={data.plan.guildId}
+                participants={data.participants}
+                onadded={load}
+            />
 
-        <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
+            <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} onsaved={reopen} />
 
-        <CancelPanel planId={params.planId} oncancelled={() => (cancelled = true)} />
+            <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
+
+            <CancelPanel planId={params.planId} oncancelled={() => (cancelled = true)} />
+        {/if}
     {/if}
 </section>
