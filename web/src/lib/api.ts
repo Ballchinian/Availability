@@ -14,7 +14,9 @@ export async function api(path: string, options: RequestInit = {}): Promise<any>
 
     if (!res.ok) {
         const message = (body && body.error) || res.statusText;
-        throw new Error(`${path} failed: ${message}`);
+        //Screens render the thrown message straight into the UI, so the path stays in the console
+        console.error(`${path} failed: ${message}`);
+        throw new Error(message);
     }
     return body;
 }
