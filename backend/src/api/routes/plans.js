@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipant, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
@@ -539,8 +539,7 @@ router.post('/:planId/add', requireUser, async (req, res) => {
     }
     if (toAdd.length === 0) return res.status(400).json({ error: 'Nobody new to add there.' });
 
-    let updated = plan;
-    for (const id of toAdd) updated = await addParticipant(plan.planId, id);
+    const updated = await addParticipants(plan.planId, toAdd);
 
     announceAfter('add announce', () => announceAddition(updated, toAdd, ctx.member.displayName, { dm: dm !== false }));
 

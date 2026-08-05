@@ -11,7 +11,7 @@ import { weekdayAllowed } from '../lib/dates.js';
 
 /*
     The shape of a brand new participant: not confirmed for availability, and not yet
-    voted on whether they can make a set date. Shared by createPlan and addParticipant
+    voted on whether they can make a set date. Shared by createPlan and addParticipants
     so a late joiner looks exactly like one who was there from the start.
 */
 function freshParticipant(userId) {
@@ -257,12 +257,12 @@ export async function removeParticipant(planId, userId) {
     return getPlan(planId);
 }
 
-//Add one person to a plan that is already running, fresh and unconfirmed
-export async function addParticipant(planId, userId) {
+//Add people to a plan that is already running, fresh and unconfirmed. One write for the lot.
+export async function addParticipants(planId, userIds) {
     await col(collections.plans).updateOne(
         { planId },
         {
-            $push: { participants: freshParticipant(userId) },
+            $push: { participants: { $each: userIds.map((id) => freshParticipant(id)) } },
             //A new face means not everyone is in yet, so let the all-in nudge fire again later
             $set: { allInNotifiedAt: null }
         }

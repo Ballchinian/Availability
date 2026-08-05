@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, reviveThread } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipant, getPlansCoveredBy, confirmParticipant } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getSureUntilMap } from '../db/users.js';
@@ -630,7 +630,7 @@ export async function handleUndrop(interaction) {
         return interaction.update({ content: `You are already back on "${plan.name}".`, components: [dropRow(planId)] });
     }
 
-    const updated = await addParticipant(planId, interaction.user.id);
+    const updated = await addParticipants(planId, [interaction.user.id]);
     await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
 
     return interaction.update({
