@@ -49,7 +49,15 @@ router.get('/:planId', requireUser, async (req, res) => {
     const plan = await getPlan(req.params.planId);
     if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
 
+    /*
+        Checked before anything is read, so the name, description, dates and server
+        never reach someone who is not on the guest list. Plan ids are random ten
+        character strings so nobody arrives here by chance, but a link passed on
+        would otherwise hand over the details.
+    */
     const me = plan.participants.find((p) => p.userId === req.user.id);
+    if (!me) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
+
     const cfg = await getGuildConfig(plan.guildId);
     const availability = await getAvailabilityInRange(req.user.id, plan.dateRange.start, plan.dateRange.end);
     const summary = await getAvailabilitySummary(req.user.id);
@@ -66,8 +74,7 @@ router.get('/:planId', requireUser, async (req, res) => {
             allowedWeekdays: plan.allowedWeekdays || null,
             guildName: cfg?.guildName || ''
         },
-        isParticipant: Boolean(me),
-        confirmed: Boolean(me?.confirmed),
+        confirmed: Boolean(me.confirmed),
         confirmedCount: plan.participants.filter((p) => p.confirmed).length,
         totalParticipants: plan.participants.length,
         availability,

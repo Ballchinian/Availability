@@ -156,8 +156,6 @@
         <p class="muted">Log in above to fill in your dates.</p>
     {:else if loadError}
         <p class="status error">{loadError}</p>
-    {:else if !data.isParticipant}
-        <p class="muted">You are not on the guest list for this plan.</p>
     {:else if left}
         <p class="prompt good">You have dropped out of <strong>{data.plan.name}</strong>. The group has been told, and you will not get any more nudges about it.</p>
     {:else if data.plan.status === 'cancelled'}
