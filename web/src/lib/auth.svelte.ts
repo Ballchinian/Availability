@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { syncZone } from './zone.js';
 
 /*
     Shared login state for the whole app. Any component can read auth.user and
@@ -29,6 +30,8 @@ export async function loadMe(): Promise<void> {
             try {
                 const res = await api<{ user: User | null }>('/auth/me');
                 auth.user = res.user;
+                //The one place every screen already passes through, so the clock gets told here
+                if (res.user) await syncZone();
             } catch {
                 auth.user = null;
             }

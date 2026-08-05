@@ -17,6 +17,15 @@ Most actions also need a role inside the server they touch:
 
 A missing or expired session comes back as `401`. A valid session without the right role comes back as `403`.
 
+## Clocks
+
+Dates are `YYYY-MM-DD` and times are `HH:MM`, both plain readings with no zone written into them. Which clock to read one on depends on whose it is:
+
+* A person's own availability is read on **their** clock, `PUT /api/me/timezone`, taken from the browser.
+* A plan's day, its set time and the compare grid are read on **the server's**, set by `/setup` or `/timezone` in Discord.
+
+Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compare`, which reads everyone's hours onto the server's clock so they can be compared, and in the calendar file, which turns a plan's reading into a real moment.
+
 ---
 
 # Health
@@ -99,6 +108,25 @@ Each server, sorted by name, with:
 
 ---
 
+## PUT `/api/me/timezone` 🔒
+
+The clock the requester reads their own hours on.
+
+### Input
+
+* `timeZone`: an IANA name, like `Europe/London`. Anything the runtime does not recognise is a `400`.
+
+### Effects
+
+* Saves it on the user, replacing whatever was there.
+
+### Notes
+
+* Sent by the browser rather than asked for: the site reads it off the device and puts it here once a session, since a device already knows and a setting nobody can find would be wrong half the time.
+* Availability is stored exactly as it was written, so this is only ever used to line one person's hours up against another's. Moving it re-reads their whole calendar as local to the new zone, which is what "I am free Wednesday evening" has always meant.
+
+---
+
 ## GET `/api/me/plans` 🔒
 
 Everything the requester still has on, across every server they share with the bot.
@@ -108,7 +136,7 @@ Everything the requester still has on, across every server they share with the b
 Each plan with:
 
 * Plan id, name, and the server it belongs to
-* Its status and date range, plus the day and time if one has been set
+* Its status and date range, plus the day and time if one has been set, and the server clock that time is written on
 * Whether the requester is on the guest list, and whether they have filled their dates in
 * Whether they started it, which is what earns the plan a compare link
 
@@ -201,12 +229,13 @@ Everything the availability page needs to draw the grid.
 
 ### Returns
 
-* The plan: name, description, date range, status, server name, and any weekday restriction
+* The plan: name, description, date range, status, server name, any weekday restriction, and the clock the server runs on
 * Whether the requester is a participant, and whether they have confirmed
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled
 * When they last filled their timetable
 * Their sure-up-to date, if they set one
+* Their own clock, so the page can say when it is not the server's
 
 ---
 
@@ -257,7 +286,7 @@ An iCalendar (`text/calendar`) download, named after the plan, holding one event
 
 * `400` if no day has been set for the plan yet, `409` if it was cancelled.
 * A plan with no time is a whole-day event. A plan with one runs two hours from it, since no end time is ever stored.
-* Times are written floating, with no zone attached, which reads as "7pm wherever you are". That is what the rest of the app assumes, since hours are stored as bare integers with no zone anywhere. This is what changes when time zones land.
+* A timed event is written in UTC, worked out from the plan's own clock, so it lands at the right hour wherever the file is opened. Not a `TZID`, which would have to come with a `VTIMEZONE` block spelling out that zone's daylight saving rules and which a calendar can refuse without one. A whole-day event stays a bare date and picks up no clock at all.
 * The DMs that announce a set day carry this link alongside a Google Calendar link, which needs no login at all.
 
 ---
@@ -270,13 +299,16 @@ Planner role only.
 
 ### Returns
 
-* The plan, including any date already locked in, and a link to its thread in Discord
+* The plan, including any date already locked in, the clock the server runs on, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and their sure-up-to date
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap
 * The plan's history: what has happened to it, oldest first
 
 ### Notes
+
+* The days and hours come back on the server's clock, not on each person's. Everyone writes their hours where they are, and this is where they get read onto one clock so they can be compared at all: someone an hour ahead is free from 11pm the night before as far as the grid is concerned. The read reaches a day past each end of the range to catch that spill, and anything still landing outside is dropped, so the first and last day of a range can read a little short for someone far away.
+* An empty hours list still means free all day, and survives as one from anybody whose clock matches the server's, which on most servers is everybody.
 
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
 * Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
@@ -537,6 +569,7 @@ The requester's saved days inside a window they choose.
 * Their saved days in that window
 * When they last filled their timetable
 * Their sure-up-to date, if they set one
+* The clock those days and hours are read on
 
 ---
 

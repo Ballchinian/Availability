@@ -7,6 +7,8 @@ import {
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
 import { findPlannerRole, createInfoChannel, pinMessage, introText } from './util.js';
+import { readZoneOption, setupZoneLine } from './timezone.js';
+import { config } from '../config.js';
 
 /*
     The /setup flow. It runs as a little ephemeral wizard so only the person who
@@ -16,6 +18,10 @@ import { findPlannerRole, createInfoChannel, pinMessage, introText } from './uti
     Step 1: sort the planner role (adopt an existing one or make a fresh one)
     Step 2: save config, make the read-only info channel, post and pin the intro,
             report back. Plan threads spawn off that channel.
+
+    The clock they picked rides in the button ids with everything else rather than
+    being written as it is read, so abandoning the wizard halfway leaves no half
+    written config behind for /cancel to trip over.
 */
 
 //Entry point when someone runs /setup
@@ -35,7 +41,15 @@ export async function startSetup(interaction) {
         return interaction.reply({ content: 'You need the Manage Server permission to set me up.', flags: MessageFlags.Ephemeral });
     }
 
-    return askAboutRole(interaction, true);
+    const zone = readZoneOption(interaction);
+    if (zone === false) {
+        return interaction.reply({
+            content: 'I do not know that zone. Pick one from the list I offer as you type, or leave it out and I will ask again with /timezone.',
+            flags: MessageFlags.Ephemeral
+        });
+    }
+
+    return askAboutRole(interaction, true, zone || '');
 }
 
 //Routes every setup|* button back here
@@ -46,10 +60,11 @@ export async function handleSetupComponent(interaction) {
     if (step === 'role') {
         const mode = parts[2];
         const roleId = parts[3];
+        const zone = parts[4] || '';
         //Acknowledge first, since making or adopting a role is a slow call
         await interaction.update({ content: 'Setting things up...', components: [] });
         const role = await resolveRole(interaction.guild, { mode, roleId });
-        return finalize(interaction, role.id);
+        return finalize(interaction, role.id, zone);
     }
 }
 
@@ -58,7 +73,7 @@ export async function handleSetupComponent(interaction) {
     fresh is true when this comes straight off the slash command, so we reply
     instead of editing a component message that does not exist yet.
 */
-async function askAboutRole(interaction, fresh) {
+async function askAboutRole(interaction, fresh, zone) {
     await interaction.guild.roles.fetch();
     const existing = findPlannerRole(interaction.guild);
 
@@ -68,16 +83,17 @@ async function askAboutRole(interaction, fresh) {
         if (fresh) await interaction.reply({ ...ack, flags: MessageFlags.Ephemeral });
         else await interaction.update(ack);
         const role = await resolveRole(interaction.guild, { mode: 'new' });
-        return finalize(interaction, role.id);
+        return finalize(interaction, role.id, zone);
     }
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`setup|role|adopt|${existing.id}`)
+            //The empty slot is the role id the other button carries, so the zone is always last
+            .setCustomId(`setup|role|adopt|${existing.id}|${zone}`)
             .setLabel(`Use existing ${existing.name}`)
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-            .setCustomId('setup|role|new')
+            .setCustomId(`setup|role|new||${zone}`)
             .setLabel('Make a fresh role')
             .setStyle(ButtonStyle.Secondary)
     );
@@ -91,8 +107,9 @@ async function askAboutRole(interaction, fresh) {
 }
 
 //Step 2: make the info channel, post the intro, save config, report back
-async function finalize(interaction, plannerRoleId) {
+async function finalize(interaction, plannerRoleId, zone) {
     const guild = interaction.guild;
+    const timeZone = zone || config.defaultTimeZone;
 
     try {
         //Hand the planner role to whoever ran setup so they can plan right away
@@ -139,6 +156,8 @@ async function finalize(interaction, plannerRoleId) {
             //No more intro thread, the intro lives in the channel itself now
             introThreadId: null,
             introMessageId: intro.id,
+            //What "Wednesday" and "8pm" mean here, for the grid, the calendar file and every stamp
+            timeZone,
             setupBy: interaction.user.id,
             setupComplete: true
         });
@@ -148,7 +167,7 @@ async function finalize(interaction, plannerRoleId) {
             : '\n\n(Heads up: I could not pin the intro. Give me the Manage Messages permission and rerun /setup if you want it pinned.)';
 
         return interaction.editReply({
-            content: `All set. I made the ${channel} channel, read only so it stays clean, with the intro and the link pinned at the top. The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${pinNote}`,
+            content: `All set. I made the ${channel} channel, read only so it stays clean, with the intro and the link pinned at the top. The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${setupZoneLine(timeZone, Boolean(zone))}${pinNote}`,
             allowedMentions: { parse: [] }
         });
     } catch (err) {

@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getUserById, setUserGuilds } from '../../db/users.js';
+import { getUserById, setUserGuilds, setUserTimeZone } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
 import { getActivePlansForUser } from '../../db/plans.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { today } from '../../lib/dates.js';
+import { isValidZone, safeZone } from '../../lib/zones.js';
 
 /*
     What the landing page runs on. Every other screen arrives from a link the bot
@@ -61,6 +62,19 @@ router.get('/guilds', requireUser, async (req, res) => {
     res.json({ guilds });
 });
 
+/*
+    The clock this person reads their own hours in, sent by the browser rather than
+    asked for: a device already knows this and getting it wrong is worse than a
+    setting nobody can find. It follows them, so someone who fills a week in from
+    abroad has that week read as local to where they are.
+*/
+router.put('/timezone', requireUser, async (req, res) => {
+    const { timeZone } = req.body || {};
+    if (!isValidZone(timeZone)) return res.status(400).json({ error: 'That is not a time zone I know.' });
+    await setUserTimeZone(req.user.id, timeZone);
+    res.json({ ok: true, timeZone });
+});
+
 router.get('/plans', requireUser, async (req, res) => {
     const plans = await getActivePlansForUser(req.user.id, today());
     const configs = await getGuildConfigs([...new Set(plans.map((plan) => plan.guildId))]);
@@ -82,6 +96,8 @@ router.get('/plans', requireUser, async (req, res) => {
             end: plan.dateRange.end,
             chosenDate: plan.chosenDate || null,
             chosenTime: plan.chosenTime || null,
+            //The clock that time is written in, which the list only mentions when it is not theirs
+            timeZone: safeZone(plan.timeZone),
             //A planner who did not invite themselves is running this one without being in it
             inIt: Boolean(me),
             //Whether they still owe this plan their dates, which is the whole reason for the list

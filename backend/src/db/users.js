@@ -82,13 +82,28 @@ export async function setSureUntil(userId, date) {
     await col(collections.users).updateOne({ userId }, { $set: { sureUntil: date || null } });
 }
 
-//The certainty horizons for a set of people in one query, keyed by user id
-export async function getSureUntilMap(userIds) {
+/*
+    Which clock this person reads their own hours in. Taken from the browser the first
+    time they open the site and changeable there after, since a phone knows this and
+    nobody wants to be asked. Null until we have been told.
+
+    Stored rather than converted: an availability row stays the day and the hours they
+    wrote, and only turns into someone else's clock at the moment two people are
+    compared. So this moving means their calendar reads as local to wherever they are
+    now, which is what "I am free Wednesday evening" has always meant.
+*/
+export async function setUserTimeZone(userId, zone) {
+    await col(collections.users).updateOne({ userId }, { $set: { timeZone: zone || null } });
+}
+
+//The horizons and the clocks for a set of people in one query, keyed by user id
+export async function getPlanningPrefs(userIds) {
+    if (!userIds.length) return {};
     const rows = await col(collections.users)
         .find({ userId: { $in: userIds } })
-        .project({ _id: 0, userId: 1, sureUntil: 1 })
+        .project({ _id: 0, userId: 1, sureUntil: 1, timeZone: 1 })
         .toArray();
     const map = {};
-    for (const r of rows) map[r.userId] = r.sureUntil || null;
+    for (const r of rows) map[r.userId] = { sureUntil: r.sureUntil || null, timeZone: r.timeZone || null };
     return map;
 }

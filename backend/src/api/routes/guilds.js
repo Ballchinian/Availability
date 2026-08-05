@@ -7,6 +7,7 @@ import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange } from '..
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
+import { safeZone } from '../../lib/zones.js';
 
 /*
     Server scoped routes: who the logged in person is in this server, the member
@@ -194,7 +195,9 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             actorName: ctx.member.displayName,
             dateRange,
             participantIds: validIds,
-            allowedWeekdays: weekdays
+            allowedWeekdays: weekdays,
+            //The clock the plan's day and time are read in, which is the server's
+            timeZone: safeZone(ctx.cfg.timeZone)
         });
 
         const dropped = participantIds.length - validIds.length;

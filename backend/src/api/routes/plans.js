@@ -4,12 +4,13 @@ import { guildContext } from '../context.js';
 import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
+import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
 import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
-import { today, maxEnd, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange } from '../../lib/dates.js';
-import { validHours } from '../../lib/hours.js';
+import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange } from '../../lib/dates.js';
+import { DAY_HOURS, validHours } from '../../lib/hours.js';
+import { safeZone, retimeDay } from '../../lib/zones.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
 
@@ -62,6 +63,8 @@ router.get('/:planId', requireUser, async (req, res) => {
             end: plan.dateRange.end,
             status: plan.status,
             allowedWeekdays: plan.allowedWeekdays || null,
+            //The clock the plan's own days run on, which the page only mentions when it is not theirs
+            timeZone: safeZone(cfg?.timeZone),
             guildName: cfg?.guildName || ''
         },
         confirmed: Boolean(me.confirmed),
@@ -70,7 +73,9 @@ router.get('/:planId', requireUser, async (req, res) => {
         availability,
         lastFilled: summary.lastFilled,
         lastUpdatedAt: summary.lastUpdatedAt,
-        sureUntil: userDoc?.sureUntil || null
+        sureUntil: userDoc?.sureUntil || null,
+        //The clock their own hours are read in, which is whatever their browser last said
+        timeZone: safeZone(userDoc?.timeZone)
     });
 });
 
@@ -162,8 +167,8 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
     const ctx = await plannerContext(plan, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
 
-    //Names and avatars for everyone invited, plus their certainty horizons in one query
-    const sureMap = await getSureUntilMap(plan.participants.map((p) => p.userId));
+    //Names and avatars for everyone invited, plus their horizons and their clocks in one query
+    const prefs = await getPlanningPrefs(plan.participants.map((p) => p.userId));
     //Fetched together rather than one after another, so twenty people is one wait, not twenty
     const members = await Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null)));
     const participants = plan.participants.map((p, i) => {
@@ -181,17 +186,26 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             //Whether they are still on the invite list for the set date
             invited: p.invited !== false,
             //How far ahead they said they could plan, days past it read as unsure not busy
-            sureUntil: sureMap[p.userId] || null
+            sureUntil: prefs[p.userId]?.sureUntil || null
         };
     });
 
-    //Only people who have confirmed count, and we send their hours so the site
-    //can work out the overlap window for each day
+    /*
+        Only people who have confirmed count, and we send their hours so the site can
+        work out the overlap window for each day.
+
+        Everyone writes their hours in their own clock, and the plan runs on the
+        server's, so the hours are read into that before anyone is compared. Someone an
+        hour ahead of the server is free from 11pm the night before as far as this grid
+        is concerned, which is why the query reaches a day past each end: that is where
+        the spill comes from. Anything still landing outside the range is dropped.
+    */
+    const guildZone = safeZone(ctx.cfg.timeZone);
     const confirmed = plan.participants.filter((p) => p.confirmed);
     const rows = await getAvailabilityForUsersInRange(
         confirmed.map((p) => p.userId),
-        plan.dateRange.start,
-        plan.dateRange.end
+        shiftDate(plan.dateRange.start, -1),
+        shiftDate(plan.dateRange.end, 1)
     );
 
     const byUser = new Map();
@@ -200,11 +214,28 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
         byUser.get(r.userId).push(r);
     }
 
-    //Grouped in participant order, since the overlap maths breaks ties by position
+    /*
+        Grouped in participant order, since the overlap maths breaks ties by position.
+        Two of someone's days can land on one of the server's, so their hours are
+        gathered per day before anything goes out, and a full 24 goes back to the empty
+        that means all day: a server where everyone shares one clock sends exactly what
+        it always did.
+    */
     const freeByDate = {};
     for (const p of confirmed) {
+        const zone = safeZone(prefs[p.userId]?.timeZone);
+        const gathered = new Map();
         for (const a of byUser.get(p.userId) || []) {
-            (freeByDate[a.date] ||= []).push({ userId: p.userId, hours: a.hours || [] });
+            for (const day of retimeDay(zone, guildZone, a.date, a.hours || [])) {
+                if (day.date < plan.dateRange.start || day.date > plan.dateRange.end) continue;
+                if (!gathered.has(day.date)) gathered.set(day.date, new Set());
+                const set = gathered.get(day.date);
+                for (const h of day.hours.length ? day.hours : DAY_HOURS) set.add(h);
+            }
+        }
+        for (const [date, set] of gathered) {
+            const hours = set.size === DAY_HOURS.length ? [] : [...set].sort((a, b) => a - b);
+            (freeByDate[date] ||= []).push({ userId: p.userId, hours });
         }
     }
 
@@ -218,6 +249,8 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             start: plan.dateRange.start,
             end: plan.dateRange.end,
             allowedWeekdays: plan.allowedWeekdays || null,
+            //Which clock the grid, the hours and the set time are all read in
+            timeZone: guildZone,
             status: plan.status,
             chosenDate: plan.chosenDate,
             chosenTime: plan.chosenTime || null,

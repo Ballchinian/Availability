@@ -5,6 +5,7 @@ import { getUserById, setSureUntil } from '../../db/users.js';
 import { autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
+import { safeZone } from '../../lib/zones.js';
 
 /*
     The general availability page, not tied to any plan. People can fill their
@@ -28,7 +29,9 @@ router.get('/', requireUser, async (req, res) => {
         availability,
         lastFilled: summary.lastFilled,
         lastUpdatedAt: summary.lastUpdatedAt,
-        sureUntil: userDoc?.sureUntil || null
+        sureUntil: userDoc?.sureUntil || null,
+        //The clock these hours are read in when a plan lines them up against someone else's
+        timeZone: safeZone(userDoc?.timeZone)
     });
 });
 

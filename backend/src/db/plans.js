@@ -65,7 +65,7 @@ export async function addPlanEvent(planId, event) {
     );
 }
 
-export async function createPlan({ guildId, name, description, createdBy, actorName, dateRange, participantIds, allowedWeekdays = null }) {
+export async function createPlan({ guildId, name, description, createdBy, actorName, dateRange, participantIds, allowedWeekdays = null, timeZone = null }) {
     const now = new Date();
     const doc = {
         planId: shortId(10),
@@ -74,6 +74,12 @@ export async function createPlan({ guildId, name, description, createdBy, actorN
         description,
         createdBy,
         dateRange,
+        /*
+            The server's clock, copied on rather than looked up, because every line the
+            bot writes about a plan is built from the plan alone and half of them are
+            nowhere near a database call. setGuildPlansTimeZone keeps the copies honest.
+        */
+        timeZone,
         //Which weekdays people can mark, 0 (Sunday) to 6, or null for the whole range
         allowedWeekdays: allowedWeekdays || null,
         participants: participantIds.map((userId) => freshParticipant(userId)),
@@ -131,6 +137,17 @@ export async function getActivePlansForUser(userId, fromDate) {
         })
         .sort({ createdAt: -1 })
         .toArray();
+}
+
+/*
+    Move every plan in a server onto a new clock, which is what makes the server have
+    one rather than each plan carrying whichever was in force the day it was made. A
+    plan keeps the day and time it says on it and those now mean an hour elsewhere,
+    which is the right way round: the clock gets changed when it was wrong.
+*/
+export async function setGuildPlansTimeZone(guildId, timeZone) {
+    const res = await col(collections.plans).updateMany({ guildId }, { $set: { timeZone } });
+    return res.modifiedCount;
 }
 
 /*

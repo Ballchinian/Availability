@@ -12,6 +12,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - A member picker with search and drag and drop to sort who's invited
 - Private per plan threads that pull in only the people invited
 - Drag across a stretch of days to mark yourself free, and narrow any day down to certain hours
+- Time zones throughout, so a group spread across the world compares hours that actually line up
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
@@ -28,11 +29,18 @@ When a planner starts a plan, the bot spins up a private thread named after it, 
 
 If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, cancelling, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want.
 
+### Time zones
+
+Two clocks, and they do different jobs. **You** have one, taken from whatever device you open the site on, and it is what your own days and hours mean: mark 8pm and you mean 8pm where you are. **The server** has one too, picked at `/setup` or changed later with `/timezone`, and that is the clock a plan's day and its set time are written on, so "Wednesday at 8" means one thing for the whole group.
+
+Nothing is stored converted. Your availability is kept exactly as you wrote it, and everyone's is read onto the server's clock at the moment the compare view lines you all up, which is why moving abroad re-reads your calendar as local to where you are now rather than leaving it behind. On a server where everyone shares a clock none of this shows up anywhere: the pages only mention a zone when it is not the one you are on. Where a time goes out over Discord it goes with a timestamp beside it, which Discord redraws in each reader's own clock, and calendar files carry a real moment so they land at the right hour wherever they are opened.
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Manage Server only. |
+| `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Takes the server's time zone while it's there. Manage Server only. |
+| `/timezone` | Shows the clock this server's plans run on, or changes it. Planner role only to change it. |
 | `/compare` | Run inside a plan's thread, hands the planner that plan's compare link. Planner role only. |
 
 ## Tech stack

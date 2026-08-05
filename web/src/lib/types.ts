@@ -53,6 +53,8 @@ export interface Plan {
     status: PlanStatus;
     allowedWeekdays: number[] | null;
     guildName: string;
+    //The server's clock, which the plan's days and its set time are all read on
+    timeZone: string;
 }
 
 //GET /plans/:planId, everything the availability page draws
@@ -65,6 +67,8 @@ export interface PlanScreen {
     lastFilled: string | null;
     lastUpdatedAt: string | null;
     sureUntil: string | null;
+    //Their own clock, which their hours are read on. Only worth mentioning when it is not the plan's.
+    timeZone: string;
 }
 
 //The same plan with what a planner is allowed to know: the set date and the way back to Discord
@@ -131,6 +135,8 @@ export interface TimetableScreen {
     lastFilled: string | null;
     lastUpdatedAt: string | null;
     sureUntil: string | null;
+    //The clock these hours get read on when a plan lines them up against somebody else's
+    timeZone: string;
 }
 
 //POST /availability
@@ -166,6 +172,8 @@ export interface UserPlan {
     end: string;
     chosenDate: string | null;
     chosenTime: string | null;
+    //The clock that time is written on, since this list spans servers that need not share one
+    timeZone: string;
     //A planner who did not invite themselves is running this one without being in it
     inIt: boolean;
     filledIn: boolean;

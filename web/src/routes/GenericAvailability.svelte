@@ -3,6 +3,7 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
+    import { describeZone } from '../lib/zone.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
@@ -26,6 +27,8 @@
     let autoConfirm = $state(true);
     //How far ahead they can honestly plan, empty for no limit
     let sureUntil = $state('');
+    //The clock these hours are read on, which is whatever the browser last told the server
+    let timeZone = $state('');
     let saving = $state(false);
     let saved = $state<SavedTimetable | null>(null);
     let saveError = $state('');
@@ -52,6 +55,7 @@
             lastFilled = res.lastFilled;
             lastUpdatedAt = res.lastUpdatedAt;
             sureUntil = res.sureUntil || '';
+            timeZone = res.timeZone || '';
         } catch (err) {
             loadError = errorText(err);
         }
@@ -111,6 +115,12 @@
         </div>
 
         <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
+        {#if timeZone}
+            <p class="muted small">
+                Your days and hours are read on {describeZone(timeZone)}, which this device told me. Say 8pm and
+                you mean 8pm where you are: a plan works out what that comes to for everyone else.
+            </p>
+        {/if}
 
         <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} sureUntil={sureUntil || null} bind:selection />
 

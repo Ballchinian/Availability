@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { safeZone } from '../../shared/zones.js';
 
 /*
     One place to read the environment. Nothing here is secret on its own, the
@@ -47,6 +48,15 @@ export const config = {
     corsOrigin: process.env.CORS_ORIGIN || baseUrl,
 
     /*
+        The clock a server runs on before anyone picks one, and what a person's own
+        hours are read as until their browser tells us better. Only the guild half is
+        ever visible: a plan set for 8pm means 8pm here, so a server that leaves this
+        alone and is not actually in this zone puts the wrong hour in calendar files.
+        /setup asks, and /timezone changes it after the fact.
+    */
+    defaultTimeZone: safeZone(process.env.DEFAULT_TIME_ZONE, 'Europe/London'),
+
+    /*
         How many proxies sit in front of this process. Express counts back that
         many hops through X-Forwarded-For to work out who is really calling, which
         is what the login limiter counts against. Two is the live setup: Netlify
@@ -65,6 +75,10 @@ export function missingConfig() {
     if (!config.discord.clientId) gaps.push('DISCORD_CLIENT_ID');
     if (!config.discord.clientSecret) gaps.push('DISCORD_CLIENT_SECRET');
     if (config.sessionSecret === DEFAULT_SESSION_SECRET) gaps.push('SESSION_SECRET (using insecure default)');
+    //Set but unreadable, which safeZone swallows, so the log is the only place it can show up
+    if (process.env.DEFAULT_TIME_ZONE && process.env.DEFAULT_TIME_ZONE !== config.defaultTimeZone) {
+        gaps.push(`DEFAULT_TIME_ZONE (${process.env.DEFAULT_TIME_ZONE} is not a zone, using ${config.defaultTimeZone})`);
+    }
     return gaps;
 }
 

@@ -5,9 +5,10 @@ import { googleCalendarUrl } from '../lib/ics.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
-import { getSureUntilMap } from '../db/users.js';
+import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { formatDate, formatTime } from '../lib/dates.js';
+import { safeZone, planInstant, instantToWall, discordStamp } from '../lib/zones.js';
 import { config } from '../config.js';
 
 /*
@@ -38,10 +39,23 @@ function banner(title) {
     return `**${title}**\n\n`;
 }
 
-//The "set for this day" line, shared by the set-plan opener and the confirmation probe
+/*
+    The "set for this day" line, shared by the set-plan opener and the confirmation probe.
+
+    A plan with a time gets a stamp on the end, which Discord redraws in whatever clock
+    the person reading it is on. The server's own reading stays in front of it, since
+    that is the one everybody here was talking about when the day was picked, and the
+    stamp is what tells someone abroad what that comes to for them.
+
+    No stamp on a plan with no time: there is no moment to put in one, and a day drawn
+    in the wrong clock would read as the day before for half the world.
+*/
 function whenLine(plan) {
     const time = formatTime(plan.chosenTime);
-    return formatDate(plan.chosenDate) + (time ? ` at ${time}` : '');
+    if (!time) return formatDate(plan.chosenDate);
+
+    const instant = planInstant(safeZone(plan.timeZone), plan.chosenDate, plan.chosenTime);
+    return `${formatDate(plan.chosenDate)} at ${time}${instant ? ` (${discordStamp(instant, 'f')} your time)` : ''}`;
 }
 
 //The "what it is about" line, dropped entirely when a plan has no description
@@ -419,8 +433,8 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
             answered for this day, they just could not plan that far ahead. Their DM
             says so, so they know to actually check rather than shrug it off.
         */
-        const horizons = await getSureUntilMap(ids).catch(() => ({}));
-        const far = ids.filter((id) => horizons[id] && plan.chosenDate > horizons[id]);
+        const prefs = await getPlanningPrefs(ids).catch(() => ({}));
+        const far = ids.filter((id) => prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil);
         const near = ids.filter((id) => !far.includes(id));
         const base = banner('CAN YOU MAKE IT?') + lead + about + note;
         await dmEach(near, base + `\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
@@ -809,6 +823,21 @@ function reblockRow(planId) {
 }
 
 /*
+    Which of this person's own days a plan lands on. The plan's day is the server's, and a
+    clock far enough from it puts the same evening on the day either side, so the day taken
+    out of their timetable is worked back from the moment rather than copied off the plan.
+    Midday stands in for a plan with no time, since that lands inside the same day whatever
+    clock is reading it.
+*/
+async function theirDayFor(plan, userId) {
+    const planZone = safeZone(plan.timeZone);
+    const prefs = await getPlanningPrefs([userId]).catch(() => ({}));
+    const zone = safeZone(prefs[userId]?.timeZone);
+    if (zone === planZone) return plan.chosenDate;
+    return instantToWall(zone, planInstant(planZone, plan.chosenDate, plan.chosenTime || '12:00')).date;
+}
+
+/*
     Once someone confirms they are coming to a set date, follow up in the same DM with the
     offer to clear that day out of their general availability, so other plans stop counting
     them free then. We only ask when they are actually free that day, since a day already
@@ -816,7 +845,8 @@ function reblockRow(planId) {
 */
 async function offerBlockDay(interaction, plan) {
     if (!plan.chosenDate) return;
-    const free = await getAvailabilityInRange(interaction.user.id, plan.chosenDate, plan.chosenDate);
+    const theirs = await theirDayFor(plan, interaction.user.id);
+    const free = await getAvailabilityInRange(interaction.user.id, theirs, theirs);
     if (!free.length) return;
     await interaction.followUp({
         content: banner('KEEP THAT DAY CLEAR?') +
@@ -841,13 +871,14 @@ export async function handleBlockDay(interaction) {
         return interaction.update({ content: 'No problem, I left your availability as it is.', components: [] });
     }
 
-    const [day] = await getAvailabilityInRange(interaction.user.id, plan.chosenDate, plan.chosenDate);
+    const theirs = await theirDayFor(plan, interaction.user.id);
+    const [day] = await getAvailabilityInRange(interaction.user.id, theirs, theirs);
     const mask = packHours(day?.hours || []);
-    await blockDay(interaction.user.id, plan.chosenDate);
+    await blockDay(interaction.user.id, theirs);
 
     return interaction.update({
         content: banner('DAY BLOCKED OFF') +
-            `Done, I marked ${formatDate(plan.chosenDate)} as unavailable in your general availability. Other plans will not see you free that day.\n\nChanged your mind? Hit undo below.`,
+            `Done, I marked ${formatDate(theirs)} as unavailable in your general availability. Other plans will not see you free that day.\n\nChanged your mind? Hit undo below.`,
         components: [blockedRow(planId, mask)]
     });
 }
@@ -863,11 +894,13 @@ export async function handleUnblockDay(interaction) {
         return interaction.update({ content: 'That plan is no longer around.', components: [] });
     }
 
-    await setDayFree(interaction.user.id, plan.chosenDate, unpackHours(Number(mask)));
+    //Worked out the same way it was blocked, so the undo lands on the day that went missing
+    const theirs = await theirDayFor(plan, interaction.user.id);
+    await setDayFree(interaction.user.id, theirs, unpackHours(Number(mask)));
 
     return interaction.update({
         content: banner('BACK TO FREE') +
-            `Put ${formatDate(plan.chosenDate)} back as free in your general availability.`,
+            `Put ${formatDate(theirs)} back as free in your general availability.`,
         components: [reblockRow(planId)]
     });
 }

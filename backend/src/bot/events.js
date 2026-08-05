@@ -1,6 +1,7 @@
 import { MessageFlags } from 'discord.js';
 import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
+import { handleTimeZone, handleZoneAutocomplete } from './timezone.js';
 import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
@@ -50,8 +51,15 @@ export function attachEvents(client) {
 
     client.on('interactionCreate', async (interaction) => {
         try {
+            //Answered before anything else: this fires on every keystroke and has three seconds to reply
+            if (interaction.isAutocomplete()) {
+                return await handleZoneAutocomplete(interaction);
+            }
             if (interaction.isChatInputCommand() && interaction.commandName === 'setup') {
                 return await startSetup(interaction);
+            }
+            if (interaction.isChatInputCommand() && interaction.commandName === 'timezone') {
+                return await handleTimeZone(interaction);
             }
             if (interaction.isChatInputCommand() && interaction.commandName === 'compare') {
                 return await handleCompare(interaction);

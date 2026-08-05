@@ -6,6 +6,7 @@
     import { formatDate, formatTime } from '../lib/format.js';
     import type { CompareScreen } from '../lib/types.js';
     import CompareGrid from '../lib/CompareGrid.svelte';
+    import ClockNote from '../lib/ClockNote.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
     import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
     import CancelPanel from '../lib/compare/CancelPanel.svelte';
@@ -192,6 +193,8 @@
                 <label for="miss">How many people are you willing to miss out? <strong>{missAllowed}</strong></label>
                 <input id="miss" type="range" min="0" max={maxMiss} bind:value={missAllowed} />
                 <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits.</p>
+                <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->
+                <ClockNote zone={data.plan.timeZone} what="The days and hours here" />
             </div>
 
             <CompareGrid
@@ -214,6 +217,7 @@
             <p class="prompt good">
                 <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
                 {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
+                {#if chosen.time}<br /><ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
                 {#if chosen.note}<br />{chosen.note}{/if}
                 {#if !cancelled}
                     <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>

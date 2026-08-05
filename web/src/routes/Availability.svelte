@@ -4,8 +4,10 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, describeWeekdays } from '../lib/format.js';
     import { countDays, daysSince, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
+    import { clocksAgree } from '../lib/zone.js';
     import type { PlanScreen, SavedForPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
+    import ClockNote from '../lib/ClockNote.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -148,6 +150,14 @@
 
         <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
         <p class="muted small">Tap a day, or press and drag across several to mark them all at once. Shift-click the other end of a stretch to do the same without dragging.</p>
+        <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
+        {#if !clocksAgree(data.plan.timeZone, data.timeZone)}
+            <p class="muted small">
+                Mark your own days and hours as you read them. Everyone's get lined up against each other
+                when the group compares, so a night out that starts at 8 for you counts against whatever
+                that comes to for the rest of them.
+            </p>
+        {/if}
 
         <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} sureUntil={sureUntil || null} bind:selection />
 

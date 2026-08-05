@@ -1,3 +1,6 @@
+import { shiftDate } from './dates.js';
+import { safeZone, planInstant } from './zones.js';
+
 /*
     The calendar file for a plan whose date is locked in, so a date lands in someone's
     calendar instead of being copied across by hand. RFC 5545, which is fussy in three
@@ -5,10 +8,13 @@
     onto a continuation starting with a space, and text values escape backslash,
     semicolon, comma and newline.
 
-    Times are written floating: no trailing Z, no TZID. That reads as "7pm wherever you
-    are", which is exactly what the rest of this codebase assumes, since hours are bare
-    integers with no zone stored anywhere. Writing a zone here would promise more than
-    the data behind it can keep. This is the line that changes when zones land.
+    Times go out in UTC, with the trailing Z, worked out from the plan's own clock. Not
+    TZID, which would be the more literal way to say "8pm in London": a TZID has to come
+    with a VTIMEZONE block spelling out that zone's daylight saving rules, and a file
+    that names a zone without defining it is one calendars are within their rights to
+    refuse. A moment in UTC needs nothing to explain it and lands at 8pm all the same.
+
+    A whole day event stays a plain date with no zone at all, which is what a date is.
 
     The Google link lives here too rather than in bot/util.js with the other links,
     since it needs the same start and end as the file and the two must not drift.
@@ -54,39 +60,28 @@ function compact(date) {
     return date.replace(/-/g, '');
 }
 
-//The day after, for the exclusive end an all-day event carries
-function dayAfter(date) {
-    const d = new Date(`${date}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + 1);
-    return d.toISOString().slice(0, 10);
+//An instant as the 20260812T190000Z a calendar wants
+function utcStamp(instant) {
+    return instant.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
 }
 
 /*
     Where the event starts and ends, in the form both the file and the Google link use.
     A plan with no time is a whole day, which ends on the day after since that end is
-    exclusive. A plan with one runs the default length from there, worked out through
-    UTC purely to get the hour arithmetic and its midnight rollover right, never to
-    convert: what goes out is the same wall clock that came in.
+    exclusive, and stays a bare date because a date has no clock to be read on.
+
+    A plan with a time is a real moment, read off the plan's own zone. Everything past
+    that point is arithmetic on milliseconds, so the two hours a plan gets cross
+    midnight, month ends and a clock change without any of them being a special case.
 */
 export function eventTimes(plan) {
     if (!plan.chosenTime) {
-        return { allDay: true, start: compact(plan.chosenDate), end: compact(dayAfter(plan.chosenDate)) };
+        return { allDay: true, start: compact(plan.chosenDate), end: compact(shiftDate(plan.chosenDate, 1)) };
     }
 
-    const d = new Date(`${plan.chosenDate}T${plan.chosenTime}:00Z`);
-    d.setUTCHours(d.getUTCHours() + DEFAULT_EVENT_HOURS);
-    const ended = d.toISOString();
-
-    return {
-        allDay: false,
-        start: `${compact(plan.chosenDate)}T${plan.chosenTime.replace(':', '')}00`,
-        end: `${compact(ended.slice(0, 10))}T${ended.slice(11, 16).replace(':', '')}00`
-    };
-}
-
-//Now, as the stamp saying when this file was written. Always UTC, unlike the event itself.
-function utcStamp(now = new Date()) {
-    return now.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    const start = planInstant(safeZone(plan.timeZone), plan.chosenDate, plan.chosenTime);
+    const end = new Date(start.getTime() + DEFAULT_EVENT_HOURS * 3600000);
+    return { allDay: false, start: utcStamp(start), end: utcStamp(end) };
 }
 
 /*
@@ -109,6 +104,7 @@ export function buildIcs(plan, { guildName = '', url = '', now = new Date() } = 
         'METHOD:PUBLISH',
         'BEGIN:VEVENT',
         `UID:${plan.planId}@availability`,
+        //When the file was written, which is always a moment and never the event's own clock
         `DTSTAMP:${utcStamp(now)}`,
         allDay ? `DTSTART;VALUE=DATE:${start}` : `DTSTART:${start}`,
         allDay ? `DTEND;VALUE=DATE:${end}` : `DTEND:${end}`,

@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { buildIcs, eventTimes, fold, googleCalendarUrl, icsFileName } from '../../src/lib/ics.js';
 
-const timed = { planId: 'ab12cd34ef', name: 'Board games', description: 'Bring snacks', chosenDate: '2026-08-12', chosenTime: '19:00', chosenNote: null };
-const allDay = { planId: 'ab12cd34ef', name: 'Camping', description: '', chosenDate: '2026-08-12', chosenTime: null, chosenNote: null };
+/*
+    August, so the plan's own clock is an hour off UTC and every timed assertion below
+    would still pass if the conversion were dropped in January.
+*/
+const timed = { planId: 'ab12cd34ef', name: 'Board games', description: 'Bring snacks', chosenDate: '2026-08-12', chosenTime: '19:00', chosenNote: null, timeZone: 'Europe/London' };
+const allDay = { planId: 'ab12cd34ef', name: 'Camping', description: '', chosenDate: '2026-08-12', chosenTime: null, chosenNote: null, timeZone: 'Europe/London' };
 
 //Pull one property's value out of a built file, unfolding it first
 function valueOf(ics, name) {
@@ -11,17 +15,38 @@ function valueOf(ics, name) {
 }
 
 describe('eventTimes', () => {
-    it('runs a timed plan the default two hours', () => {
-        expect(eventTimes(timed)).toEqual({ allDay: false, start: '20260812T190000', end: '20260812T210000' });
+    it('runs a timed plan the default two hours, as a real moment', () => {
+        expect(eventTimes(timed)).toEqual({ allDay: false, start: '20260812T180000Z', end: '20260812T200000Z' });
+    });
+
+    it('reads the hour off the plan\'s own clock, not the machine\'s', () => {
+        expect(eventTimes({ ...timed, timeZone: 'Asia/Tokyo' }).start).toBe('20260812T100000Z');
+        expect(eventTimes({ ...timed, timeZone: 'America/New_York' }).start).toBe('20260812T230000Z');
+    });
+
+    //The same reading in the same place, six months apart, is an hour further from UTC
+    it('follows the clock changing under a zone', () => {
+        expect(eventTimes({ ...timed, chosenDate: '2026-01-12' }).start).toBe('20260112T190000Z');
+        expect(eventTimes(timed).start).toBe('20260812T180000Z');
     });
 
     it('rolls a late start over into the next day', () => {
         const late = { ...timed, chosenTime: '23:30' };
-        expect(eventTimes(late)).toEqual({ allDay: false, start: '20260812T233000', end: '20260813T013000' });
+        expect(eventTimes(late)).toEqual({ allDay: false, start: '20260812T223000Z', end: '20260813T003000Z' });
+    });
+
+    //Nothing said what clock it meant, so it falls back rather than writing a wrong moment confidently
+    it('still writes a moment for a plan saved before zones existed', () => {
+        expect(eventTimes({ ...timed, timeZone: undefined }).start).toMatch(/^20260812T\d{6}Z$/);
     });
 
     it('ends an all-day plan on the day after, since that end is exclusive', () => {
         expect(eventTimes(allDay)).toEqual({ allDay: true, start: '20260812', end: '20260813' });
+    });
+
+    //A date is a date in any zone, so a whole day plan never picks one up
+    it('leaves an all-day plan free of any clock', () => {
+        expect(eventTimes({ ...allDay, timeZone: 'Pacific/Kiritimati' })).toEqual(eventTimes(allDay));
     });
 
     it('rolls an all-day plan over a month end', () => {
@@ -72,11 +97,15 @@ describe('buildIcs', () => {
         expect(ics).not.toMatch(/[^\r]\n/);
     });
 
-    it('writes a timed start floating, with no zone on it', () => {
+    /*
+        UTC rather than a TZID, which would need a VTIMEZONE block spelling out the zone's
+        rules and which a calendar can refuse without one.
+    */
+    it('writes a timed start as a moment, with no zone named', () => {
         const ics = buildIcs(timed);
-        expect(ics).toContain('DTSTART:20260812T190000\r\n');
-        expect(ics).toContain('DTEND:20260812T210000\r\n');
-        expect(ics).not.toContain('DTSTART:20260812T190000Z');
+        expect(ics).toContain('DTSTART:20260812T180000Z\r\n');
+        expect(ics).toContain('DTEND:20260812T200000Z\r\n');
+        expect(ics).not.toContain('TZID');
     });
 
     it('marks an all-day plan as a date rather than a time', () => {
@@ -85,7 +114,7 @@ describe('buildIcs', () => {
         expect(ics).toContain('DTEND;VALUE=DATE:20260813\r\n');
     });
 
-    it('stamps in UTC, which is the one thing here that is not floating', () => {
+    it('stamps when the file was written, which is not the event\'s own clock', () => {
         const ics = buildIcs(timed, { now: new Date('2026-08-05T18:50:31.123Z') });
         expect(ics).toContain('DTSTAMP:20260805T185031Z\r\n');
     });
@@ -116,7 +145,13 @@ describe('googleCalendarUrl', () => {
         const url = new URL(googleCalendarUrl(timed));
         expect(url.searchParams.get('action')).toBe('TEMPLATE');
         expect(url.searchParams.get('text')).toBe('Board games');
-        expect(url.searchParams.get('dates')).toBe('20260812T190000/20260812T210000');
+        expect(url.searchParams.get('dates')).toBe('20260812T180000Z/20260812T200000Z');
+    });
+
+    //The link and the file are built off one eventTimes, so they cannot say different things
+    it('spans exactly what the file does', () => {
+        const { start, end } = eventTimes(timed);
+        expect(new URL(googleCalendarUrl(timed)).searchParams.get('dates')).toBe(`${start}/${end}`);
     });
 
     it('spans the whole day when no time was set', () => {

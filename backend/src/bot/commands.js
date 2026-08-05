@@ -6,11 +6,26 @@ import { config } from '../config.js';
     people who can manage the server, since it wires the bot up. The rest are
     open to anyone and check the planner role themselves where it matters.
 */
+/*
+    The server clock option, on setup so it is asked once and on /timezone so it can be
+    changed after. Autocompleted rather than listed: there are several hundred zones and
+    the runtime already knows all of them.
+*/
+function zoneOption(option) {
+    return option.setName('timezone').setDescription('The clock this server runs on, like Europe/London').setAutocomplete(true);
+}
+
 export const commands = [
     new SlashCommandBuilder()
         .setName('setup')
         .setDescription('Set up the bot: makes a read-only info channel and sorts the planner role')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+        .addStringOption(zoneOption)
+        .toJSON(),
+    new SlashCommandBuilder()
+        .setName('timezone')
+        .setDescription("Show or change the clock this server's plans run on")
+        .addStringOption(zoneOption)
         .toJSON(),
     new SlashCommandBuilder()
         .setName('compare')

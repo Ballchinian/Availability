@@ -3,6 +3,7 @@
     import { api, errorText, icsHref } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
+    import { browserZone, clocksAgree } from '../lib/zone.js';
     import type { UserGuild, UserPlan } from '../lib/types.js';
 
     /*
@@ -15,6 +16,8 @@
     let loadError = $state('');
     let guilds = $state<UserGuild[]>([]);
     let plans = $state<UserPlan[]>([]);
+
+    const mine = browserZone();
 
     /*
         Anything still waiting on them first, then the rest of the open ones, then
@@ -59,7 +62,13 @@
     function planNote(p: UserPlan) {
         const where = p.guildName ? `${p.guildName} · ` : '';
         if (p.status !== 'collecting') {
-            return `${where}set for ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}` : ''}`;
+            /*
+                This list spans servers, which need not run on one clock, so a time gets the
+                clock named after it when that is not the reader's own. A plan with no time
+                needs nothing: a day is a day.
+            */
+            const elsewhere = p.chosenTime && mine && !clocksAgree(p.timeZone, mine) ? ` ${p.timeZone}` : '';
+            return `${where}set for ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}${elsewhere}` : ''}`;
         }
         if (!p.inIt) return `${where}yours to run · ${formatDate(p.start)} to ${formatDate(p.end)}`;
         const state = p.filledIn ? 'your dates are in' : 'waiting on your dates';

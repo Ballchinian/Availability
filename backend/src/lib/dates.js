@@ -50,6 +50,17 @@ export function checkRange(start, end) {
     return null;
 }
 
+/*
+    The day a number of days either side of this one. Walked in UTC so a zone that
+    moves its clocks at midnight cannot land it on the wrong date, which is the same
+    reason weekdayOf reads that way.
+*/
+export function shiftDate(date, days) {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+}
+
 //Every day from start to end, inclusive, as YYYY-MM-DD strings
 export function eachDay(start, end) {
     const days = [];
