@@ -101,16 +101,40 @@
     const unsureByDate = $derived.by(() => {
         const out: Record<string, number> = {};
         if (!data) return out;
-        const horizons = data.participants.filter((p: any) => p.confirmed && p.sureUntil);
+
+        //Earliest horizon first, so the walk below can take them on one at a time
+        const horizons = data.participants
+            .filter((p: any) => p.confirmed && p.sureUntil)
+            .sort((a: any, b: any) => (a.sureUntil < b.sureUntil ? -1 : 1));
         if (!horizons.length) return out;
-        const d = new Date(`${data.plan.start}T00:00:00`);
+
+        /*
+            Every day before the earliest horizon sits inside everyone's certainty,
+            so the walk starts at the first day that could be unsure. Across a two
+            year range that is usually most of it skipped.
+        */
+        const dayAfterFirst = new Date(`${horizons[0].sureUntil}T00:00:00`);
+        dayAfterFirst.setDate(dayAfterFirst.getDate() + 1);
+        const from = isoOf(dayAfterFirst) > data.plan.start ? isoOf(dayAfterFirst) : data.plan.start;
+        if (from > data.plan.end) return out;
+
+        const d = new Date(`${from}T00:00:00`);
         const endD = new Date(`${data.plan.end}T00:00:00`);
+        const past = new Set<string>();
+        let next = 0;
+
         while (d <= endD) {
             const date = isoOf(d);
-            const free = new Set((data.freeByDate[date] || []).map((f: any) => f.userId));
-            let n = 0;
-            for (const p of horizons) if (date > p.sureUntil && !free.has(p.userId)) n++;
-            if (n) out[date] = n;
+            //Once a day is past someone's horizon every later day is too, so they stay in the set
+            while (next < horizons.length && horizons[next].sureUntil < date) past.add(horizons[next++].userId);
+
+            if (past.size) {
+                let n = past.size;
+                //A day they marked free anyway still counts them free, a positive answer beats the horizon
+                const free = new Set<string>((data.freeByDate[date] || []).map((f: any) => f.userId));
+                for (const id of free) if (past.has(id)) n--;
+                if (n) out[date] = n;
+            }
             d.setDate(d.getDate() + 1);
         }
         return out;
