@@ -77,6 +77,32 @@ export interface ComparePlan extends Plan {
     threadUrl: string | null;
 }
 
+/*
+    What every line of a plan's history carries. byName is who did it as they were called
+    at the time, stored with the event rather than looked up now, so the list does not
+    rewrite itself when someone changes their nickname or leaves.
+*/
+interface EventBase {
+    at: string;
+    by: string;
+    byName: string;
+}
+
+//One thing that happened to a plan. The type picks which extra fields come with it.
+export type PlanEvent =
+    | (EventBase & { type: 'created' })
+    | (EventBase & { type: 'chosen'; date: string; time: string | null; probe: boolean })
+    | (EventBase & { type: 'moved'; date: string; time: string | null; probe: boolean; from: string })
+    | (EventBase & { type: 'voided'; from: string; reason: string | null })
+    | (EventBase & { type: 'range'; start: string; end: string })
+    | (EventBase & { type: 'weekdays'; allowedWeekdays: number[] | null })
+    | (EventBase & { type: 'details'; renamed: boolean })
+    | (EventBase & { type: 'added'; count: number })
+    | (EventBase & { type: 'left' })
+    | (EventBase & { type: 'rejoined' })
+    | (EventBase & { type: 'reminded'; kind: 'availability' | 'vote'; count: number })
+    | (EventBase & { type: 'cancelled' });
+
 //GET /plans/:planId/compare
 export interface CompareScreen {
     plan: ComparePlan;
@@ -86,6 +112,8 @@ export interface CompareScreen {
     confirmedCount: number;
     totalParticipants: number;
     freeByDate: Record<string, FreePerson[]>;
+    //Oldest first, as it happened. The page turns it round to read latest first.
+    history: PlanEvent[];
 }
 
 //POST /plans/:planId/availability

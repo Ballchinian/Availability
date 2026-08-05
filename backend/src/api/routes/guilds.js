@@ -191,6 +191,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             name: cleanName,
             description: cleanDescription,
             createdBy: req.user.id,
+            actorName: ctx.member.displayName,
             dateRange,
             participantIds: validIds,
             allowedWeekdays: weekdays

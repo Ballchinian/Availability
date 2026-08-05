@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getSureUntilMap } from '../../db/users.js';
@@ -231,7 +231,13 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
         youAreIn: plan.participants.some((p) => p.userId === req.user.id),
         confirmedCount: confirmed.length,
         totalParticipants: plan.participants.length,
-        freeByDate
+        freeByDate,
+        /*
+            Oldest first, the order it happened in. The page turns it round to show the
+            latest at the top, which is a choice about reading rather than about the data.
+            Dates go over the wire as strings like every other date here.
+        */
+        history: (plan.history || []).map((e) => ({ ...e, at: new Date(e.at).toISOString() }))
     });
 });
 
@@ -279,6 +285,11 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     //If a date was already set and this is a different one, it is a reorganise
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
     const updated = await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
+
+    const event = { type: changed ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: probe === true };
+    //The day it moved off, which is the whole point of recording a move rather than a set
+    if (changed) event.from = plan.chosenDate;
+    await addPlanEvent(plan.planId, event);
 
     announceAfter('outcome post', () =>
         announceOutcome(updated, ctx.cfg, {
@@ -340,6 +351,8 @@ router.post('/:planId/void', requireUser, async (req, res) => {
     const reason = String(req.body?.reason || '').trim().slice(0, 200) || null;
     const updated = await voidPlanChoice(plan.planId);
 
+    await addPlanEvent(plan.planId, { type: 'voided', by: req.user.id, byName: ctx.member.displayName, from: plan.chosenDate, reason });
+
     announceAfter('void announce', () => announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm: req.body?.dm !== false }));
 
     res.json({ ok: true });
@@ -380,6 +393,7 @@ router.post('/:planId/remind', requireUser, async (req, res) => {
 
     if (chasingVotes) await setVoteReminded(plan.planId);
     else await setReminded(plan.planId);
+    await addPlanEvent(plan.planId, { type: 'reminded', by: req.user.id, byName: ctx.member.displayName, kind, count: pinged });
     res.json({ ok: true, pinged, kind });
 });
 
@@ -417,6 +431,8 @@ router.post('/:planId/range', requireUser, async (req, res) => {
     }
 
     const updated = await setPlanRange(plan.planId, start, end);
+
+    await addPlanEvent(plan.planId, { type: 'range', by: req.user.id, byName: ctx.member.displayName, start, end });
 
     announceAfter('range post', () =>
         announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post: post !== false, dm: dm !== false })
@@ -457,6 +473,8 @@ router.post('/:planId/weekdays', requireUser, async (req, res) => {
     }
 
     const updated = await setPlanWeekdays(plan.planId, weekdays, { reopen: opensADay });
+
+    await addPlanEvent(plan.planId, { type: 'weekdays', by: req.user.id, byName: ctx.member.displayName, allowedWeekdays: weekdays });
 
     announceAfter('weekdays post', () =>
         announceWeekdaysChange(updated, ctx.cfg, {
@@ -499,6 +517,8 @@ router.post('/:planId/details', requireUser, async (req, res) => {
     const renamed = cleanName !== plan.name;
     const updated = await setPlanDetails(plan.planId, cleanName, cleanDescription);
 
+    await addPlanEvent(plan.planId, { type: 'details', by: req.user.id, byName: ctx.member.displayName, renamed });
+
     try {
         await applyDetailsEdit(updated, renamed);
     } catch (err) {
@@ -522,6 +542,7 @@ router.post('/:planId/cancel', requireUser, async (req, res) => {
     try {
         await markPlanCancelled(plan.planId);
         await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
+        await addPlanEvent(plan.planId, { type: 'cancelled', by: req.user.id, byName: ctx.member.displayName });
     } catch (err) {
         console.error('[plans] cancel failed:', err);
         return res.status(500).json({ error: 'Could not cancel the plan.' });
@@ -563,6 +584,8 @@ router.post('/:planId/add', requireUser, async (req, res) => {
 
     const updated = await addParticipants(plan.planId, toAdd);
 
+    await addPlanEvent(plan.planId, { type: 'added', by: req.user.id, byName: ctx.member.displayName, count: toAdd.length });
+
     announceAfter('add announce', () => announceAddition(updated, toAdd, ctx.member.displayName, { dm: dm !== false }));
 
     res.json({ ok: true, added: toAdd.length });
@@ -577,7 +600,7 @@ router.post('/:planId/leave', requireUser, async (req, res) => {
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
 
     try {
-        await leavePlan(plan, req.user.id);
+        await leavePlan(plan, req.user.id, req.user.displayName);
     } catch (err) {
         console.error('[plans] leave failed:', err);
         return res.status(500).json({ error: 'Could not drop you out of the plan.' });

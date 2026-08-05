@@ -1,0 +1,82 @@
+import { formatDate, formatTime, describeWeekdays } from './format.js';
+import { isoOf } from './calendar.js';
+import type { PlanEvent } from './types.js';
+
+/*
+    A plan's history as sentences. Nothing here reads the plan itself: every line is
+    built from what the event recorded at the time, so a plan whose name or range has
+    since moved on still describes what actually happened.
+
+    The wording deliberately echoes the DM that went out for the same event, since a
+    planner reading this list is usually working out what everyone else was told.
+*/
+
+//The day and time of a set date, the half two of these lines share
+function whenOf(date: string, time: string | null): string {
+    return formatDate(date) + (time ? ` at ${formatTime(time)}` : '');
+}
+
+function plural(count: number, one: string, many: string): string {
+    return `${count} ${count === 1 ? one : many}`;
+}
+
+export function describeEvent(event: PlanEvent): string {
+    switch (event.type) {
+        case 'created':
+            return 'started the plan';
+        case 'chosen':
+            return `set the day to ${whenOf(event.date, event.time)}${event.probe ? ', and asked everyone to confirm' : ''}`;
+        case 'moved':
+            return `moved the day from ${formatDate(event.from)} to ${whenOf(event.date, event.time)}${
+                event.probe ? ', and asked everyone to confirm' : ''
+            }`;
+        case 'voided':
+            return `called off ${formatDate(event.from)}${event.reason ? `, because ${event.reason}` : ''}`;
+        case 'range':
+            return `changed the dates to ${formatDate(event.start)} to ${formatDate(event.end)}`;
+        //describeWeekdays says nothing at all for no restriction, which needs words here
+        case 'weekdays':
+            return `changed the days asked about to ${describeWeekdays(event.allowedWeekdays) || 'every day'}`;
+        case 'details':
+            return event.renamed ? 'edited the title and description' : 'edited the description';
+        case 'added':
+            return `added ${plural(event.count, 'person', 'people')}`;
+        case 'left':
+            return 'dropped out';
+        case 'rejoined':
+            return 'came back to the plan';
+        case 'reminded':
+            return event.kind === 'vote'
+                ? `nudged ${plural(event.count, 'person', 'people')} who had not answered`
+                : `nudged ${plural(event.count, 'person', 'people')} for their dates`;
+        case 'cancelled':
+            return 'cancelled the plan';
+    }
+}
+
+/*
+    How long ago, kept coarse on purpose. A history is read to work out the order things
+    happened in, not the minute, and "3 days ago" beats a timestamp nobody converts in
+    their head. The exact time goes in the title attribute for anyone who does want it.
+*/
+export function timeAgo(iso: string, now: Date = new Date()): string {
+    const then = new Date(iso).getTime();
+    if (!Number.isFinite(then)) return '';
+
+    const seconds = Math.max(0, Math.round((now.getTime() - then) / 1000));
+    if (seconds < 60) return 'just now';
+
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${plural(minutes, 'minute', 'minutes')} ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${plural(hours, 'hour', 'hours')} ago`;
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${plural(days, 'day', 'days')} ago`;
+
+    //Past a week the date itself is easier to place than a count of weeks. Read back in
+    //local time, since the stored stamp is UTC and slicing it would slip a day either side
+    //of midnight.
+    return `on ${formatDate(isoOf(new Date(then)))}`;
+}

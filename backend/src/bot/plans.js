@@ -2,7 +2,7 @@ import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, icsUrl, reviveThread } from './util.js';
 import { googleCalendarUrl } from '../lib/ics.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getSureUntilMap } from '../db/users.js';
@@ -520,9 +520,10 @@ export async function announceVoid(plan, cfg, actorName, reason, { dm = true } =
     clears the plan. When dm is on everyone gets a DM. The creator gets their daily
     plan slot back since the plan never really ran. actorName is whoever cancelled it.
 */
-export async function cancelPlan(plan, actorName, { post = true, dm = true } = {}) {
+export async function cancelPlan(plan, actorId, actorName, { post = true, dm = true } = {}) {
     await markPlanCancelled(plan.planId);
     await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
+    await addPlanEvent(plan.planId, { type: 'cancelled', by: actorId, byName: actorName }).catch(() => {});
     await announceCancel(plan, actorName, { post, dm });
 }
 
@@ -554,8 +555,9 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
     them in the thread so they can still follow along if they want. No note goes
     to the thread, a quiet exit, nobody needs telling who bowed out.
 */
-export async function leavePlan(plan, userId) {
+export async function leavePlan(plan, userId, actorName) {
     const updated = await removeParticipant(plan.planId, userId);
+    await addPlanEvent(plan.planId, { type: 'left', by: userId, byName: actorName || '' }).catch(() => {});
 
     //If that drop out leaves everyone else already in, the planner can compare now
     await notifyCreatorIfAllIn(updated).catch(() => {});
@@ -617,7 +619,8 @@ export async function handleDropModal(interaction) {
     }
     const reason = (interaction.fields.getTextInputValue('reason') || '').trim().slice(0, 200) || null;
 
-    await leavePlan(plan, interaction.user.id);
+    //A drop out is a DM, so there is no member to read a nickname off, only the account name
+    await leavePlan(plan, interaction.user.id, interaction.member?.displayName || interaction.user.username);
     await notifyCreatorDropped(plan, interaction.user.id, reason).catch(() => {});
 
     const passed = reason ? ` I passed your reason on.` : '';
@@ -645,6 +648,11 @@ export async function handleUndrop(interaction) {
     }
 
     const updated = await addParticipants(planId, [interaction.user.id]);
+    await addPlanEvent(planId, {
+        type: 'rejoined',
+        by: interaction.user.id,
+        byName: interaction.member?.displayName || interaction.user.username
+    }).catch(() => {});
     await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
 
     return interaction.update({
@@ -1039,7 +1047,7 @@ export async function handlePlanComponent(interaction) {
     const plan = await getPlan(planId);
     if (plan) {
         const actorName = interaction.member?.displayName || interaction.user.username;
-        await cancelPlan(plan, actorName);
+        await cancelPlan(plan, interaction.user.id, actorName);
     }
     return interaction.editReply({ content: 'Done, everyone has been told. Delete this thread when you are ready to clear the plan for good.' });
 }

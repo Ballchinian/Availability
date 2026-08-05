@@ -11,6 +11,7 @@
     import CancelPanel from '../lib/compare/CancelPanel.svelte';
     import DaysEditor from '../lib/compare/DaysEditor.svelte';
     import EditDetails from '../lib/compare/EditDetails.svelte';
+    import HistoryPanel from '../lib/compare/HistoryPanel.svelte';
     import PickPanel from '../lib/compare/PickPanel.svelte';
     import RangeEditor from '../lib/compare/RangeEditor.svelte';
     import RemindPanel from '../lib/compare/RemindPanel.svelte';
@@ -220,6 +221,8 @@
                 {/if}
             </p>
         {/if}
+
+        <HistoryPanel history={data.history} />
 
         {#if cancelled}
             <p class="ways"><a href="#/">Back to your plans</a></p>

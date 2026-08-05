@@ -1084,6 +1084,43 @@ code {
     resize: vertical;
 }
 
+/* What has happened to a plan, folded away under the grid */
+.history {
+    margin-top: 18px;
+}
+
+.history ol {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    border-left: 2px solid var(--border);
+}
+
+.history li {
+    padding: 6px 0 6px 12px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.history .who {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.history time {
+    /* Its own line on a phone, where a name, a sentence and a stamp will not sit together */
+    display: block;
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+@media (min-width: 600px) {
+    .history time {
+        display: inline;
+        margin-left: 6px;
+    }
+}
+
 /* Danger zone */
 .danger {
     margin-top: 18px;

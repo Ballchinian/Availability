@@ -274,6 +274,13 @@ Planner role only.
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and their sure-up-to date
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap
+* The plan's history: what has happened to it, oldest first
+
+### Notes
+
+* Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
+* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Capped at the most recent 100, and it is the only place history is exposed, so it never leaves the planner's screen.
 
 ---
 
