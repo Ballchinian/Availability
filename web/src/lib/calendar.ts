@@ -61,19 +61,12 @@ export function daysSince(ts: string): number {
     return Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
 }
 
-//The weekday of a YYYY-MM-DD date, 0 (Sunday) through 6 (Saturday), lining up with WEEKDAYS
-export function weekdayOf(date: string): number {
-    return new Date(`${date}T00:00:00`).getDay();
-}
-
 /*
-    Whether a plan lets people mark this date. A plan can be pinned to certain
-    weekdays, like weekends only. No list (null or empty) means every day counts.
+    Which weekday a date is, and whether a plan asks about it. Both come from
+    shared/dates.js so the bot and the grid pin a plan to the same days, and
+    weekdayAllowed keeps its site name here since that is what the screens read as.
 */
-export function isWeekdayAllowed(date: string, allowedWeekdays?: number[] | null): boolean {
-    if (!allowedWeekdays || allowedWeekdays.length === 0) return true;
-    return allowedWeekdays.includes(weekdayOf(date));
-}
+export { weekdayOf, weekdayAllowed as isWeekdayAllowed } from '../../../shared/dates.js';
 
 //Days in a range, or just the ones on the allowed weekdays when the plan is pinned
 export function countDays(start: string, end: string, allowedWeekdays?: number[] | null): number {

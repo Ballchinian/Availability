@@ -1,30 +1,27 @@
+import { describeWeekdays as describeDays, weekdayAllowed } from '../../../shared/dates.js';
+
 /*
     Plain calendar date helpers. Everything is a YYYY-MM-DD string so a date is
     just the day, no time zone baggage, and string compare works for ordering.
     A plan can start no earlier than tomorrow and run no more than two years out.
+
+    The half the site says out loud too lives in shared/dates.js and is passed
+    straight back through here, so every import inside backend/ still comes from
+    this one file.
 */
+
+export { formatDate, formatTime, weekdayOf, weekdayAllowed } from '../../../shared/dates.js';
+
+//The bot writes the days into a sentence, so no restriction has to read as something
+export function describeWeekdays(allowedWeekdays) {
+    return describeDays(allowedWeekdays, 'every day');
+}
 
 export function isoDate(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
-}
-
-//Turns a stored YYYY-MM-DD into the day-month-year we show people
-export function formatDate(iso) {
-    if (!iso) return '';
-    const [y, m, d] = iso.split('-');
-    return `${d}/${m}/${y}`;
-}
-
-//Turns a stored HH:MM into a friendly 7:30pm style label, blank if there is no time
-export function formatTime(t) {
-    if (!t || !/^\d{2}:\d{2}$/.test(t)) return '';
-    const [h, m] = t.split(':').map(Number);
-    const period = h < 12 ? 'am' : 'pm';
-    const base = h % 12 === 0 ? 12 : h % 12;
-    return m === 0 ? `${base}${period}` : `${base}:${String(m).padStart(2, '0')}${period}`;
 }
 
 export function today() {
@@ -65,47 +62,9 @@ export function eachDay(start, end) {
     return days;
 }
 
-//The weekday of a YYYY-MM-DD date, 0 (Sunday) through 6 (Saturday), matching JS getDay()
-export function weekdayOf(date) {
-    return new Date(`${date}T00:00:00Z`).getUTCDay();
-}
-
-/*
-    Whether a plan lets people mark this date. A plan can be pinned to certain
-    weekdays, like weekends only. No list (null or empty) means every day counts,
-    which is the default and how every plan behaved before.
-*/
-export function weekdayAllowed(date, allowedWeekdays) {
-    if (!Array.isArray(allowedWeekdays) || allowedWeekdays.length === 0) return true;
-    return allowedWeekdays.includes(weekdayOf(date));
-}
-
 //The days in a range that fall on one of the allowed weekdays, as YYYY-MM-DD strings
 export function allowedDaysInRange(start, end, allowedWeekdays) {
     return eachDay(start, end).filter((d) => weekdayAllowed(d, allowedWeekdays));
-}
-
-//Weekday names indexed by getUTCDay(), 0 (Sunday) to 6, for spelling out a plan's days
-const WEEKDAY_LONG = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
-//Week reading order, Monday first, so a list of days comes out the way people say it
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
-
-/*
-    A plain-English name for which days a plan asks about, matching the wording the
-    site uses. The two common shapes get their own word, otherwise the days are
-    listed Monday first. No restriction reads as every day.
-*/
-export function describeWeekdays(allowedWeekdays) {
-    if (!Array.isArray(allowedWeekdays) || allowedWeekdays.length === 0 || allowedWeekdays.length === 7) {
-        return 'every day';
-    }
-    const set = new Set(allowedWeekdays);
-    const key = [...allowedWeekdays].sort((a, b) => a - b).join(',');
-    if (key === '0,6') return 'weekends';
-    if (key === '1,2,3,4,5') return 'weekdays';
-    const names = MONDAY_FIRST.filter((d) => set.has(d)).map((d) => WEEKDAY_LONG[d]);
-    if (names.length === 1) return names[0];
-    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 /*

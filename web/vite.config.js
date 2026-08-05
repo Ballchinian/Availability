@@ -13,6 +13,15 @@ export default defineConfig({
         port: 5173,
         proxy: {
             '/api': 'http://localhost:3000'
+        },
+        /*
+            The dev server only serves files under its own root, which is web/,
+            and the lockfile in here stops it looking any further up on its own.
+            shared/ sits a level above, so say so or importing it 403s in dev
+            while building fine.
+        */
+        fs: {
+            allow: ['..']
         }
     }
 });

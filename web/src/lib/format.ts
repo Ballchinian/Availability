@@ -1,15 +1,11 @@
 import { MONTHS, weekdayOf } from './calendar.js';
 
 /*
-    Dates are stored as YYYY-MM-DD but shown to people as day-month-year, which
-    is how everyone here reads a date. One helper so every screen formats the
-    same way.
+    How a date reads on screen. The three the bot says out loud too come from
+    shared/dates.js, so the DM and the page cannot word the same date differently,
+    and the rest are here because only the site has anywhere to put them.
 */
-export function formatDate(iso: string): string {
-    if (!iso) return '';
-    const [y, m, d] = iso.split('-');
-    return `${d}/${m}/${y}`;
-}
+export { formatDate, formatTime, describeWeekdays } from '../../../shared/dates.js';
 
 //Weekday names indexed by getDay(), the singular form the long date reads out
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -23,34 +19,4 @@ export function formatLong(iso: string): string {
     if (!iso) return '';
     const [y, m, d] = iso.split('-');
     return `${WEEKDAY_NAMES[weekdayOf(iso)]} ${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
-}
-
-//Weekday names indexed by getDay(), 0 (Sunday) to 6, for spelling out a plan's allowed days
-const WEEKDAY_LONG = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
-//Week reading order, Monday first, so a list of days comes out the way people say it
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
-
-/*
-    A plain-English name for which days a plan asks about. The two common shapes get
-    their own word, otherwise we list the days out Monday first. Empty or all seven
-    means no restriction, so there is nothing to say.
-*/
-export function describeWeekdays(allowedWeekdays?: number[] | null): string {
-    if (!allowedWeekdays || allowedWeekdays.length === 0 || allowedWeekdays.length === 7) return '';
-    const set = new Set(allowedWeekdays);
-    const key = [...allowedWeekdays].sort((a, b) => a - b).join(',');
-    if (key === '0,6') return 'weekends';
-    if (key === '1,2,3,4,5') return 'weekdays';
-    const names = MONDAY_FIRST.filter((d) => set.has(d)).map((d) => WEEKDAY_LONG[d]);
-    if (names.length === 1) return names[0];
-    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
-//Turns a stored HH:MM into a friendly 7:30pm style label, blank if there is no time
-export function formatTime(t?: string | null): string {
-    if (!t || !/^\d{2}:\d{2}$/.test(t)) return '';
-    const [h, m] = t.split(':').map(Number);
-    const period = h < 12 ? 'am' : 'pm';
-    const base = h % 12 === 0 ? 12 : h % 12;
-    return m === 0 ? `${base}${period}` : `${base}:${String(m).padStart(2, '0')}${period}`;
 }

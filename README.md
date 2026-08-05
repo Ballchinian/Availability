@@ -60,6 +60,7 @@ Which means, when you change something:
 
 - Anything under `web/` reaches people when Netlify rebuilds.
 - Anything under `backend/` reaches people when Railway redeploys.
+- Anything under `shared/` needs both, since both sides import it. Change how a date reads and the site shows the new wording as soon as Netlify is done, while the bot's DMs keep saying it the old way until Railway catches up.
 - Both hosts watch `main` and build on their own. CI only runs the checks, it deploys nothing.
 
 Config is all environment variables, read in one place in `backend/src/config.js`. Locally they live in `backend/.env`, which is deliberately not in git, so a fresh machine starts by copying `backend/.env.example` over it and filling in the blanks. That file lists every variable with a line on what it wants and what happens if you leave it out.
