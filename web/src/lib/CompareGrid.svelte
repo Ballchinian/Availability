@@ -2,7 +2,7 @@
     import { buildMonths, WEEKDAYS, isWeekdayAllowed } from './calendar.js';
     import { fillColor } from './heatmap.js';
     import { HOUR_COUNT } from './hours.js';
-    import { evaluateDay, type FreePerson } from './overlap.js';
+    import { evaluateDay, type DayEval, type FreePerson } from './overlap.js';
 
     /*
         Read only calendar for the compare view. Each in range day is coloured by
@@ -33,9 +33,21 @@
 
     const months = $derived(buildMonths(start, end));
 
-    function evalOf(date: string) {
-        return evaluateDay(freeByDate[date] || [], confirmedCount, missAllowed, unsureByDate[date] || 0);
-    }
+    /*
+        Every day evaluated once per data change, not once per cell per render.
+        evaluateDay leans on bestWindow, which is roughly people squared times
+        hours, and dragging the miss slider rerenders the whole grid continuously.
+    */
+    const evals = $derived.by(() => {
+        const map: Record<string, DayEval> = {};
+        for (const month of months) {
+            for (const cell of month.cells) {
+                if (!cell || !cell.inRange || !isWeekdayAllowed(cell.date, allowedWeekdays)) continue;
+                map[cell.date] = evaluateDay(freeByDate[cell.date] || [], confirmedCount, missAllowed, unsureByDate[cell.date] || 0);
+            }
+        }
+        return map;
+    });
 
     //The day's honest denominator: the confirmed people who can actually say
     function countedOn(date: string) {
@@ -61,7 +73,7 @@
                     {:else if !cell.inRange || !isWeekdayAllowed(cell.date, allowedWeekdays)}
                         <span class="day out">{cell.day}</span>
                     {:else}
-                        {@const ev = evalOf(cell.date)}
+                        {@const ev = evals[cell.date]}
                         <button
                             class="cday"
                             class:dim={!ev.viable}
