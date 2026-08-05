@@ -1,6 +1,6 @@
 import { config, missingConfig } from './config.js';
 import { connectMongo, closeMongo, retryMongo } from './db/mongo.js';
-import { startBot } from './bot/client.js';
+import { client, startBot } from './bot/client.js';
 import { buildApp } from './api/server.js';
 
 /*
@@ -34,9 +34,19 @@ async function main() {
     });
 
     //Tidy shutdown so the gateway and mongo do not dangle
+    let stopping = false;
     const stop = async () => {
+        //A second ctrl-c while the first is still working would run all of this twice
+        if (stopping) return;
+        stopping = true;
         console.log('\n[boot] shutting down');
-        server.close();
+
+        await new Promise((resolve) => {
+            server.close(resolve);
+            //Idle keep-alive sockets would otherwise hold the close open until they time out
+            server.closeIdleConnections();
+        });
+        await client.destroy().catch((err) => console.error('[boot] discord client would not close:', err.message));
         await closeMongo();
         process.exit(0);
     };
