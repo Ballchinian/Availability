@@ -7,6 +7,13 @@ import 'dotenv/config';
     we just shout about what is absent.
 */
 
+/*
+    The domain people actually visit, which live is the Netlify one and not the
+    Railway service behind it. Every link the bot posts is built from this, and
+    the session cookie only sets its secure flag when it starts https, so pointing
+    it at Railway hands out links to the wrong host while everything else keeps
+    working and looking fine.
+*/
 const baseUrl = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 //Named so the boot check can tell "they left it alone" apart from a real value
@@ -62,15 +69,20 @@ export function missingConfig() {
 }
 
 /*
-    The one gap that must not reach production. Anyone can sign a session cookie
-    with a secret that is published in this file, so booting anyway and printing a
-    line about it is not a warning, it is a door left open in a log nobody reads.
-    Returns what to say, or null when there is nothing to stop for.
+    The gaps that must not reach production, both of them cases where carrying on
+    means a door left open in a log nobody reads. Anyone can sign a session cookie
+    with a secret that is published in this file, and a BASE_URL that is not https
+    means the cookie goes out without its secure flag, so the browser will send a
+    live session over plain http. Returns what to say, or null when there is
+    nothing to stop for.
 */
 export function fatalConfig() {
     if (process.env.NODE_ENV !== 'production') return null;
     if (config.sessionSecret === DEFAULT_SESSION_SECRET) {
         return 'SESSION_SECRET is still the built in default, which anyone could forge a login with. Set a long random value.';
+    }
+    if (!baseUrl.startsWith('https://')) {
+        return `BASE_URL is ${baseUrl}, which is not https, so sessions would travel unprotected and the bot would post links there. Set it to the public https domain.`;
     }
     return null;
 }
