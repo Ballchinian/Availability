@@ -105,16 +105,6 @@ code {
     font-size: 13px;
 }
 
-.tag {
-    display: inline-block;
-    margin-top: 16px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-size: 13px;
-}
-
 .status {
     margin-top: 12px;
     color: var(--muted);
@@ -253,30 +243,6 @@ code {
     display: block;
     margin-top: 2px;
     font-size: 13px;
-}
-
-.member-preview {
-    list-style: none;
-    padding: 0;
-    margin: 10px 0 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.member-preview li {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 3px 10px 3px 3px;
-    font-size: 13px;
-}
-
-.member-preview img {
-    border-radius: 50%;
 }
 
 /* Create-plan form */
