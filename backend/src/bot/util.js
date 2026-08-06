@@ -167,6 +167,7 @@ export function introText(guildId, plannerRoleId) {
         `Start a plan here: ${createUrl(guildId)}`,
         '',
         'Pick a date range, say what the plan is about, and choose who is coming. I will open a thread for it and nudge everyone to drop the dates they are free.',
+        'Not one for clicking links? Run `/free` in a plan thread and tick your days right here instead.',
         "Once everyone has filled theirs in I will DM whoever started the plan. To find a day that works for the group, run `/compare` in that plan's thread, any time, even before everyone is in.",
         '',
         `Want to set your availability ahead of time? Do it here any time: ${config.baseUrl}/#/availability`,

@@ -2,6 +2,7 @@ import { MessageFlags } from 'discord.js';
 import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
 import { handleTimeZone, handleZoneAutocomplete } from './timezone.js';
+import { handleFree, handleFreeComponent } from './availability.js';
 import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
@@ -64,6 +65,9 @@ export function attachEvents(client) {
             if (interaction.isChatInputCommand() && interaction.commandName === 'compare') {
                 return await handleCompare(interaction);
             }
+            if (interaction.isChatInputCommand() && interaction.commandName === 'free') {
+                return await handleFree(interaction);
+            }
             if (interaction.isChatInputCommand() && interaction.commandName === 'mylink') {
                 return await handleMyLink(interaction);
             }
@@ -78,6 +82,10 @@ export function attachEvents(client) {
             }
             if (interaction.isModalSubmit() && interaction.customId.startsWith('dropmodal|')) {
                 return await handleDropModal(interaction);
+            }
+            //Covers the day selects and the two buttons beside them, which all rewrite the same message
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('free|')) {
+                return await handleFreeComponent(interaction);
             }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('setup|')) {
                 return await handleSetupComponent(interaction);

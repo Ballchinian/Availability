@@ -190,6 +190,8 @@ function openerText(plan) {
         (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
         aboutLine(plan) +
         `Choose the dates you are free here: ${planUrl(plan.planId)}\n` +
+        //The link is the fuller thing, so it stays first, but a lot of people will only ever use this
+        `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
         `A planner can run \`/compare\` any time to see where things stand, even before everyone is in.`;
 }
 
@@ -1106,7 +1108,9 @@ export async function remindStragglers(plan, actorName) {
     await dmEach(pending,
         banner('REMINDER') +
         `${actorName} has asked for your availability for "${plan.name}". ` +
-        `Please fill it in when you are next free, or just confirm if you already have the dates filled in: ${url}`);
+        `Please fill it in when you are next free, or just confirm if you already have the dates filled in: ${url}\n` +
+        //The people this reaches are the ones who have not clicked the link, so the other way is worth saying
+        `Or run \`/free\` in the plan's thread and tick your days off there.`);
 
     return pending.length;
 }

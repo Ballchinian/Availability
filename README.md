@@ -14,6 +14,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - Drag across a stretch of days to mark yourself free, and narrow any day down to certain hours
 - Time zones throughout, so a group spread across the world compares hours that actually line up
 - Repeating plans, for the thing you do every other Thursday
+- `/free` to tick your days off inside Discord, for the people who never click links
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
@@ -27,6 +28,8 @@ Endpoint docs live in [ENDPOINTS.md](./ENDPOINTS.md).
 Everything lives in one place per server. `/setup` makes a planner role (or adopts one you already have) and a read only `plan-bot-info` channel, with the link and a short intro pinned at the top. Every plan thread spawns off that channel, so it stays the one tidy home for planning.
 
 When a planner starts a plan, the bot spins up a private thread named after it, pulls in the invited people, and pings them there. Everyone also gets a DM with the link by default, though the planner can untick that to keep it to the thread. As people fill in their days the thread keeps a running count, and once everyone's in, the planner who made the plan gets a DM to go and compare.
+
+Anyone who would rather not click the link can run `/free` in the plan's thread instead and tick their days off a list right there. It writes exactly what the site writes, so the two can be used on the same plan interchangeably. The one thing it can't do is narrow a day to certain hours, since a Discord list has nowhere to put that: a day ticked there is a day free all through, and the reply says where to go if that isn't true.
 
 If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, cancelling, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want.
 
@@ -50,6 +53,7 @@ Nothing is stored converted. Your availability is kept exactly as you wrote it, 
 | --- | --- |
 | `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Takes the server's time zone while it's there. Manage Server only. |
 | `/timezone` | Shows the clock this server's plans run on, or changes it. Planner role only to change it. |
+| `/free` | Tick the days you're free without leaving Discord. Run it in a plan's thread and it knows which plan you mean. |
 | `/compare` | Run inside a plan's thread, hands the planner that plan's compare link. Planner role only. |
 
 ## Tech stack

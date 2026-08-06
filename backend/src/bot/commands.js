@@ -32,6 +32,10 @@ export const commands = [
         .setDescription("Get the compare link for the plan in this thread")
         .toJSON(),
     new SlashCommandBuilder()
+        .setName('free')
+        .setDescription('Tick the days you are free, without leaving Discord')
+        .toJSON(),
+    new SlashCommandBuilder()
         .setName('mylink')
         .setDescription('List your links for the plans you are in here')
         .toJSON(),
