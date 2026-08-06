@@ -7,6 +7,7 @@ import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
+import { fanOut } from '../lib/fanout.js';
 import { formatDate, formatTime } from '../lib/dates.js';
 import { safeZone, planInstant, instantToWall, discordStamp } from '../lib/zones.js';
 import { config } from '../config.js';
@@ -17,14 +18,20 @@ import { config } from '../config.js';
     set of components rides along so a DM can carry a button, like drop out.
 */
 async function dmEach(ids, text, components = []) {
-    for (const id of ids) {
+    await fanOut(ids, async (id) => {
         try {
             const user = await client.users.fetch(id);
             await user.send(components.length ? { content: text, components } : text);
         } catch {
             //DMs off, the thread ping still reaches them
         }
-    }
+    });
+}
+
+//Pulls people into a plan's thread, best effort: someone who has left the server
+//just does not arrive, and the rest of the list still gets in
+async function addToThread(thread, ids) {
+    await fanOut(ids, (id) => thread.members.add(id).catch(() => {}));
 }
 
 //The drop out button that rides along on the DMs for a plan that is still collecting
@@ -261,9 +268,7 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     await setPlanThread(plan.planId, thread.id);
 
     const ids = plan.participants.map((p) => p.userId);
-    for (const id of ids) {
-        await thread.members.add(id).catch(() => {});
-    }
+    await addToThread(thread, ids);
 
     const url = planUrl(plan.planId);
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
@@ -311,7 +316,7 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
     const channel = await guild.channels.fetch(cfg.plansChannelId);
     const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
     await setPlanThread(plan.planId, thread.id);
-    for (const id of ids) await thread.members.add(id).catch(() => {});
+    await addToThread(thread, ids);
 
     //No @ here, adding people to the thread already pings them
     const opener = await thread.send({ content: openerText(plan), allowedMentions: { parse: [] } });
@@ -357,7 +362,7 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
     const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
-        for (const id of newIds) await thread.members.add(id).catch(() => {});
+        await addToThread(thread, newIds);
     }
 
     if (dm) {
