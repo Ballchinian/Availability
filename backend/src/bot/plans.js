@@ -1,6 +1,6 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, icsUrl, reviveThread } from './util.js';
+import { createThread, planUrl, compareUrl, icsUrl, reviveThread, pinMessage } from './util.js';
 import { googleCalendarUrl } from '../lib/ics.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
@@ -269,8 +269,9 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     //No @ here, adding people to the thread already pings them
     const opener = await thread.send({ content: openerText(plan), allowedMentions: { parse: [] } });
-    //Pin the opener so the link and the details stay at the top of the thread, best effort
-    await opener.pin().catch(() => {});
+    //Pin the opener so the link and the details stay at the top of the thread, best effort:
+    //a server that has not given the bot Manage Messages still gets its thread
+    await pinMessage(opener).catch(() => {});
     //Remember it so editing the title or description later can rewrite this same post
     await setPlanOpener(plan.planId, opener.id);
 
@@ -314,7 +315,7 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
 
     //No @ here, adding people to the thread already pings them
     const opener = await thread.send({ content: openerText(plan), allowedMentions: { parse: [] } });
-    await opener.pin().catch(() => {});
+    await pinMessage(opener).catch(() => {});
     await setPlanOpener(plan.planId, opener.id);
 
     /*
