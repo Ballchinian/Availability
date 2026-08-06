@@ -1,0 +1,242 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import express from 'express';
+import * as db from '../../src/db/plans.js';
+import plansRouter from '../../src/api/routes/plans.js';
+
+/*
+    The gate in front of every plan route: who is turned away, with what, and in
+    which order. Everything past it is mocked, so a case that comes back 200 says
+    the gate let it through and nothing about what the handler then did.
+*/
+
+//Set per case, read by the mocks below when a request comes in
+let sessionUser = null;
+let plannerAnswer = null;
+const plans = new Map();
+const lookups = [];
+
+//Hoisted with the vi.mock calls below, which run before anything else in the file
+const { stubs } = vi.hoisted(() => ({
+    stubs: (...names) => Object.fromEntries(names.map((n) => [n, vi.fn()]))
+}));
+
+vi.mock('../../src/lib/session.js', () => ({
+    requireUser: (req, res, next) => {
+        if (!sessionUser) return res.status(401).json({ error: 'You need to log in first.' });
+        req.user = sessionUser;
+        next();
+    }
+}));
+
+vi.mock('../../src/api/context.js', () => ({
+    guildContext: vi.fn(async () => plannerAnswer)
+}));
+
+vi.mock('../../src/db/plans.js', () => ({
+    getPlan: vi.fn(async (planId) => {
+        lookups.push(planId);
+        return plans.get(planId) || null;
+    }),
+    ...stubs(
+        'confirmParticipant',
+        'setPlanChosen',
+        'voidPlanChoice',
+        'setReminded',
+        'setVoteReminded',
+        'setPlanRange',
+        'setPlanWeekdays',
+        'addParticipants',
+        'setPlanDetails',
+        'setAttendanceOverride',
+        'markPlanCancelled',
+        'setPlanRepeat',
+        'addPlanEvent'
+    )
+}));
+
+vi.mock('../../src/api/announce.js', () => stubs('announceAfter'));
+vi.mock('../../src/bot/util.js', () => stubs('threadUrl', 'planUrl'));
+vi.mock('../../src/db/ratelimits.js', () => ({
+    takeAction: vi.fn(async () => ({ allowed: true })),
+    refundAction: vi.fn()
+}));
+vi.mock('../../src/db/guilds.js', () => ({
+    getGuildConfig: vi.fn(async () => ({ guildName: 'The server', timeZone: 'Europe/London' }))
+}));
+vi.mock('../../src/db/availability.js', () => ({
+    getAvailabilityInRange: vi.fn(async () => []),
+    getAvailabilityForUsersInRange: vi.fn(async () => []),
+    replaceAvailabilityInRange: vi.fn(async () => 0),
+    getAvailabilitySummary: vi.fn(async () => ({ lastFilled: null, lastUpdatedAt: null }))
+}));
+vi.mock('../../src/db/users.js', () => ({
+    getUserById: vi.fn(async () => ({ timeZone: 'Europe/London' })),
+    setSureUntil: vi.fn(),
+    getPlanningPrefs: vi.fn(async () => ({}))
+}));
+vi.mock('../../src/bot/plans.js', () =>
+    stubs(
+        'announceOutcome',
+        'remindStragglers',
+        'remindVoters',
+        'announceRangeChange',
+        'announceWeekdaysChange',
+        'announceCancel',
+        'leavePlan',
+        'announceAddition',
+        'announceVoid',
+        'notifyCreatorIfAllIn',
+        'applyDetailsEdit',
+        'applyAttendanceMove',
+        'autoConfirmCoveredPlans'
+    )
+);
+
+const planner = { id: 'planner', displayName: 'Ali' };
+const guest = { id: 'guest', displayName: 'Bo' };
+const stranger = { id: 'stranger', displayName: 'Cass' };
+
+const asPlanner = {
+    guild: { members: { fetch: async () => null } },
+    cfg: { guildId: 'g1', guildName: 'The server', timeZone: 'Europe/London' },
+    member: { displayName: 'Ali' },
+    isMember: true,
+    isPlanner: true
+};
+const notPlanner = { error: 403, message: 'You need the planner role to do that.' };
+
+const plan = (over = {}) => ({
+    planId: 'ab12cd34ef',
+    guildId: 'g1',
+    name: 'Board games',
+    description: '',
+    status: 'collecting',
+    dateRange: { start: '2026-08-01', end: '2026-08-14' },
+    participants: [{ userId: 'guest', confirmed: false }],
+    createdBy: 'planner',
+    history: [],
+    ...over
+});
+
+let server;
+let base;
+
+beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/plans', plansRouter);
+    server = app.listen(0);
+    await new Promise((resolve) => server.once('listening', resolve));
+    base = `http://127.0.0.1:${server.address().port}/api/plans`;
+});
+
+afterAll(() => new Promise((resolve) => server.close(resolve)));
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    lookups.length = 0;
+    sessionUser = planner;
+    plannerAnswer = asPlanner;
+    plans.clear();
+    plans.set('ab12cd34ef', plan());
+});
+
+const get = (path) => fetch(`${base}${path}`);
+const post = (path, body = {}) =>
+    fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+//The routes that refuse to touch a cancelled plan, which is all of them bar the three below
+const changing = ['/choose', '/attendance', '/void', '/repeat', '/remind', '/range', '/weekdays', '/details', '/add'];
+
+describe('the plan gate', () => {
+    /*
+        Express runs a param callback before the route's own middleware, so the login
+        check has to sit on the router rather than on each route or a logged out request
+        would read a plan out of the database on its way to being refused.
+    */
+    it('turns a logged out request away before anything is looked up', async () => {
+        sessionUser = null;
+        const res = await get('/ab12cd34ef');
+        expect(res.status).toBe(401);
+        expect(lookups).toEqual([]);
+    });
+
+    it('answers for a plan that is not there', async () => {
+        const res = await get('/nosuchplan');
+        expect(res.status).toBe(404);
+        expect((await res.json()).error).toMatch(/does not exist/);
+    });
+
+    it('looks the plan up once however many gates read it', async () => {
+        const res = await post('/ab12cd34ef/repeat', { repeatWeeks: null });
+        expect(res.status).toBe(200);
+        expect(lookups).toEqual(['ab12cd34ef']);
+    });
+
+    it('refuses someone without the planner role, and the route never runs', async () => {
+        plannerAnswer = notPlanner;
+        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05' });
+        expect(res.status).toBe(403);
+        expect(db.setPlanChosen).not.toHaveBeenCalled();
+    });
+
+    it('refuses a cancelled plan on every route that would change one', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled', chosenDate: '2026-08-05' }));
+        for (const path of changing) {
+            const res = await post(`/ab12cd34ef${path}`, {});
+            expect([path, res.status]).toEqual([path, 409]);
+        }
+    });
+
+    //The two planner routes that deliberately go without it
+    it('still reads a cancelled plan back on compare', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        const res = await get('/ab12cd34ef/compare');
+        expect(res.status).toBe(200);
+        expect((await res.json()).plan.status).toBe('cancelled');
+    });
+
+    it('says yes again when the plan is already cancelled', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        const res = await post('/ab12cd34ef/cancel');
+        expect(res.status).toBe(200);
+        expect(db.markPlanCancelled).not.toHaveBeenCalled();
+    });
+
+    /*
+        Saving availability checks the guest list before the cancelled status, so a
+        stranger is turned away rather than told the plan was called off.
+    */
+    it('turns a stranger away before mentioning the plan is cancelled', async () => {
+        sessionUser = stranger;
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        const res = await post('/ab12cd34ef/availability', { days: [] });
+        expect(res.status).toBe(403);
+    });
+
+    it('lets someone on the guest list read the plan without the planner role', async () => {
+        sessionUser = guest;
+        plannerAnswer = notPlanner;
+        const res = await get('/ab12cd34ef');
+        expect(res.status).toBe(200);
+        expect((await res.json()).plan.name).toBe('Board games');
+    });
+
+    it('keeps the plan from someone who is not on it', async () => {
+        sessionUser = stranger;
+        const res = await get('/ab12cd34ef');
+        expect(res.status).toBe(403);
+    });
+
+    //The one path where the id is not the last thing in it, so the param has to still be found
+    it('finds the plan behind the calendar file too', async () => {
+        sessionUser = stranger;
+        const res = await get('/ab12cd34ef/calendar.ics');
+        expect(res.status).toBe(403);
+        expect(lookups).toEqual(['ab12cd34ef']);
+    });
+});

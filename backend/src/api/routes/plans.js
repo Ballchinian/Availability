@@ -25,12 +25,47 @@ import { realMembers } from '../../lib/members.js';
 
 const router = Router();
 
-//Every route below the availability pair is planner only, and always about the plan's own server
-const plannerContext = (plan, userId) => guildContext(plan.guildId, userId, { requirePlanner: true });
+//Ahead of the lookup below on purpose: express runs a param callback before the route's own
+//middleware, so without this a logged out request would read a plan out of the database
+router.use(requireUser);
 
-router.get('/:planId', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
+/*
+    The plan the whole file is about, on req for every route under it. Answering a
+    missing one here is what lets each handler open with its own gate rather than
+    with the same four lines the one before it wrote.
+*/
+router.param('planId', async (req, res, next, planId) => {
+    const plan = await getPlan(planId);
     if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+    req.plan = plan;
+    next();
+});
+
+/*
+    Planner only, and always about the plan's own server. What it leaves on req is the
+    guild, its config and the member, which is where the routes past it get the actor's
+    name and the clock the plan runs on.
+*/
+async function requirePlanner(req, res, next) {
+    const ctx = await guildContext(req.plan.guildId, req.user.id, { requirePlanner: true });
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    req.ctx = ctx;
+    next();
+}
+
+/*
+    Nothing about a cancelled plan can be changed. The routes that go without it are the
+    ones worth noticing: compare still reads one back, cancel quietly says yes again, and
+    the two that check the guest list first keep the refusal in the handler so a stranger
+    is turned away before being told anything about the plan.
+*/
+function refuseCancelled(req, res, next) {
+    if (req.plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    next();
+}
+
+router.get('/:planId', async (req, res) => {
+    const { plan } = req;
 
     /*
         Checked before anything is read, so the name, description, dates and server
@@ -74,9 +109,8 @@ router.get('/:planId', requireUser, async (req, res) => {
     });
 });
 
-router.post('/:planId/availability', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+router.post('/:planId/availability', async (req, res) => {
+    const { plan } = req;
 
     const me = plan.participants.find((p) => p.userId === req.user.id);
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
@@ -144,9 +178,8 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     across by hand. Same gate as the plan itself: the guest list, plus whoever is running
     it, since nothing makes a planner invite themselves to their own plan.
 */
-router.get('/:planId/calendar.ics', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+router.get('/:planId/calendar.ics', async (req, res) => {
+    const { plan } = req;
 
     const onIt = plan.participants.some((p) => p.userId === req.user.id) || plan.createdBy === req.user.id;
     if (!onIt) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
@@ -161,12 +194,8 @@ router.get('/:planId/calendar.ics', requireUser, async (req, res) => {
 });
 
 //Everything the compare page needs: who is in, and how many are free each day
-router.get('/:planId/compare', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+router.get('/:planId/compare', requirePlanner, async (req, res) => {
+    const { plan, ctx } = req;
 
     /*
         Only people who have confirmed count, and we send their hours so the site can
@@ -287,13 +316,8 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
 });
 
 //Lock in the winning date, close the plan, and announce it
-router.post('/:planId/choose', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const { date, time, note, inviteMode, attendingIds, probe } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
@@ -354,13 +378,8 @@ router.post('/:planId/choose', requireUser, async (req, res) => {
     someone to coming also puts them back on the invite list if they were left off,
     which is how you let in someone who never filled their availability.
 */
-router.post('/:planId/attendance', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
     if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then sort out who is coming.' });
 
     const { userId, status } = req.body || {};
@@ -384,13 +403,8 @@ router.post('/:planId/attendance', requireUser, async (req, res) => {
 });
 
 //Undo a confirmed date and reschedule. DMs everyone (no thread post), planner only.
-router.post('/:planId/void', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/void', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
     if (!plan.chosenDate) return res.status(400).json({ error: 'There is no set date to undo.' });
 
     const reason = String(req.body?.reason || '').trim().slice(0, 200) || null;
@@ -412,13 +426,8 @@ router.post('/:planId/void', requireUser, async (req, res) => {
     since somebody who knows this is their fortnightly thing should not have to come back
     and say so after the day is picked.
 */
-router.post('/:planId/repeat', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/repeat', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const { repeatWeeks } = req.body || {};
     const wanted = repeatWeeks === null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
@@ -442,13 +451,8 @@ router.post('/:planId/repeat', requireUser, async (req, res) => {
     dates this morning, then set a date and started a probe, could not chase a single
     answer until tomorrow.
 */
-router.post('/:planId/remind', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/remind', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const chasingVotes = Boolean(plan.probeActive && plan.chosenDate);
     const lastAt = chasingVotes ? plan.lastVoteRemindedAt : plan.lastRemindedAt;
@@ -471,13 +475,8 @@ router.post('/:planId/remind', requireUser, async (req, res) => {
 });
 
 //Set a fresh start and end on the range, reopen, and tell everyone to refill the new window
-router.post('/:planId/range', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/range', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const { start, end, note, post, dm } = req.body || {};
     const shape = /^\d{4}-\d{2}-\d{2}$/;
@@ -515,13 +514,8 @@ router.post('/:planId/range', requireUser, async (req, res) => {
 });
 
 //Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new days
-router.post('/:planId/weekdays', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/weekdays', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const { allowedWeekdays, note, post, dm } = req.body || {};
     const weekdays = cleanWeekdays(allowedWeekdays);
@@ -564,13 +558,8 @@ router.post('/:planId/weekdays', requireUser, async (req, res) => {
 });
 
 //Edit a plan's title and description. Renames the thread and rewrites the pinned opener, quietly.
-router.post('/:planId/details', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const { name, description } = req.body || {};
 
@@ -602,12 +591,8 @@ router.post('/:planId/details', requireUser, async (req, res) => {
 });
 
 //Cancel a plan: mark it cancelled, ping and DM everyone, leave the thread to be deleted by hand
-router.post('/:planId/cancel', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+router.post('/:planId/cancel', requirePlanner, async (req, res) => {
+    const { plan, ctx } = req;
     //Already cancelled, do not tell everyone twice
     if (plan.status === 'cancelled') return res.json({ ok: true });
 
@@ -629,13 +614,8 @@ router.post('/:planId/cancel', requireUser, async (req, res) => {
 });
 
 //Pull extra people into a running plan. Planner only, same gate as the rest.
-router.post('/:planId/add', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
-
-    const ctx = await plannerContext(plan, req.user.id);
-    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+router.post('/:planId/add', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
 
     const { userIds, dm } = req.body || {};
     if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -660,9 +640,8 @@ router.post('/:planId/add', requireUser, async (req, res) => {
 });
 
 //Drop yourself out of a plan you were invited to, the website side of the DM button
-router.post('/:planId/leave', requireUser, async (req, res) => {
-    const plan = await getPlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+router.post('/:planId/leave', async (req, res) => {
+    const { plan } = req;
 
     const me = plan.participants.find((p) => p.userId === req.user.id);
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
