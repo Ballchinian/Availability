@@ -14,6 +14,7 @@ import { DAY_HOURS, validHours } from '../../lib/hours.js';
 import { safeZone, retimeDay } from '../../lib/zones.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
+import { realMembers } from '../../lib/members.js';
 
 /*
     The availability side of a plan. GET hands the page everything it needs to
@@ -646,12 +647,7 @@ router.post('/:planId/add', requireUser, async (req, res) => {
 
     //Skip anyone already in, and keep only real non bot members of this server
     const already = new Set(plan.participants.map((p) => p.userId));
-    const toAdd = [];
-    for (const id of userIds) {
-        if (already.has(id)) continue;
-        const m = ctx.guild.members.cache.get(id) || (await ctx.guild.members.fetch(id).catch(() => null));
-        if (m && !m.user.bot) toAdd.push(id);
-    }
+    const toAdd = await realMembers(ctx.guild, userIds.filter((id) => !already.has(id)));
     if (toAdd.length === 0) return res.status(400).json({ error: 'Nobody new to add there.' });
 
     const updated = await addParticipants(plan.planId, toAdd);

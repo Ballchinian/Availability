@@ -8,6 +8,7 @@ import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange, REPEAT_WE
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
+import { realMembers } from '../../lib/members.js';
 import { safeZone } from '../../lib/zones.js';
 
 /*
@@ -177,11 +178,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     const repeat = REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : null;
 
     //Only keep ids that are real, non bot members of this server
-    const validIds = [];
-    for (const id of participantIds) {
-        const m = ctx.guild.members.cache.get(id) || (await ctx.guild.members.fetch(id).catch(() => null));
-        if (m && !m.user.bot) validIds.push(id);
-    }
+    const validIds = await realMembers(ctx.guild, participantIds);
     if (validIds.length === 0) return res.status(400).json({ error: 'None of those people are in the server.' });
 
     //A high daily backstop, since the planner role is the real gate on who can do this
