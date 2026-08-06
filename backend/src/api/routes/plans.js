@@ -10,8 +10,9 @@ import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, a
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
-import { DAY_HOURS, validHours } from '../../lib/hours.js';
-import { safeZone, retimeDay } from '../../lib/zones.js';
+import { validHours } from '../../lib/hours.js';
+import { safeZone } from '../../lib/zones.js';
+import { gatherFreeDays } from '../../lib/freedays.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
@@ -199,13 +200,10 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
 
     /*
         Only people who have confirmed count, and we send their hours so the site can
-        work out the overlap window for each day.
-
-        Everyone writes their hours in their own clock, and the plan runs on the
-        server's, so the hours are read into that before anyone is compared. Someone an
-        hour ahead of the server is free from 11pm the night before as far as this grid
-        is concerned, which is why the query reaches a day past each end: that is where
-        the spill comes from. Anything still landing outside the range is dropped.
+        work out the overlap window for each day. The query below reaches a day past
+        each end because everyone writes their hours in their own clock and the plan
+        runs on the server's, so a day of theirs spills onto a day of ours either side.
+        gatherFreeDays does that reading and drops whatever still lands outside.
     */
     const guildZone = safeZone(ctx.cfg.timeZone);
     const confirmed = plan.participants.filter((p) => p.confirmed);
@@ -245,36 +243,13 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
         };
     });
 
-    const byUser = new Map();
-    for (const r of rows) {
-        if (!byUser.has(r.userId)) byUser.set(r.userId, []);
-        byUser.get(r.userId).push(r);
-    }
-
-    /*
-        Grouped in participant order, since the overlap maths breaks ties by position.
-        Two of someone's days can land on one of the server's, so their hours are
-        gathered per day before anything goes out, and a full 24 goes back to the empty
-        that means all day: a server where everyone shares one clock sends exactly what
-        it always did.
-    */
-    const freeByDate = {};
-    for (const p of confirmed) {
-        const zone = safeZone(prefs[p.userId]?.timeZone);
-        const gathered = new Map();
-        for (const a of byUser.get(p.userId) || []) {
-            for (const day of retimeDay(zone, guildZone, a.date, a.hours || [])) {
-                if (day.date < plan.dateRange.start || day.date > plan.dateRange.end) continue;
-                if (!gathered.has(day.date)) gathered.set(day.date, new Set());
-                const set = gathered.get(day.date);
-                for (const h of day.hours.length ? day.hours : DAY_HOURS) set.add(h);
-            }
-        }
-        for (const [date, set] of gathered) {
-            const hours = set.size === DAY_HOURS.length ? [] : [...set].sort((a, b) => a - b);
-            (freeByDate[date] ||= []).push({ userId: p.userId, hours });
-        }
-    }
+    const freeByDate = gatherFreeDays(rows, {
+        userIds: confirmed.map((p) => p.userId),
+        prefs,
+        zone: guildZone,
+        start: plan.dateRange.start,
+        end: plan.dateRange.end
+    });
 
     res.json({
         plan: {
