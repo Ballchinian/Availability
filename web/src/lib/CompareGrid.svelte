@@ -37,8 +37,8 @@
 
     /*
         Every day evaluated once per data change, not once per cell per render.
-        evaluateDay leans on bestWindow, which is roughly people squared times
-        hours, and dragging the miss slider rerenders the whole grid continuously.
+        evaluateDay leans on bestWindow, which is people times hours per person
+        dropped, and dragging the miss slider rerenders the whole grid continuously.
     */
     const evals = $derived.by(() => {
         const map: Record<string, DayEval> = {};

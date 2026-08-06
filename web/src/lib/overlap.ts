@@ -56,6 +56,35 @@ function windowOf(people: Counted[]): Set<number> {
     return w;
 }
 
+/*
+    The window each person's absence would leave, all of them in three passes.
+    Intersection is associative, so the answer for i is everyone before i met with
+    everyone after: prefix and suffix scans give both halves. Rebuilding each one
+    from scratch instead is people squared times hours per round, which a forty
+    person plan felt as a stall on every step of the miss slider.
+
+    Only sound while at least two people are kept, since the identity here is the
+    whole day and windowOf calls an empty group no window at all.
+*/
+function windowsWithoutEach(kept: Counted[]): Set<number>[] {
+    const n = kept.length;
+    const prefix: Set<number>[] = new Array(n);
+    const suffix: Set<number>[] = new Array(n);
+
+    let acc = ALL;
+    for (let i = 0; i < n; i++) {
+        prefix[i] = acc;
+        acc = intersect(acc, kept[i].set);
+    }
+    acc = ALL;
+    for (let i = n - 1; i >= 0; i--) {
+        suffix[i] = acc;
+        acc = intersect(acc, kept[i].set);
+    }
+
+    return prefix.map((p, i) => intersect(p, suffix[i]));
+}
+
 export function bestWindow(free: FreePerson[], budget: number): WindowResult {
     const kept: Counted[] = free.map((f) => ({ userId: f.userId, set: setOf(f.hours) }));
     let window = windowOf(kept);
@@ -63,12 +92,12 @@ export function bestWindow(free: FreePerson[], budget: number): WindowResult {
     let b = budget;
 
     while (b > 0 && window.size < HOUR_COUNT && kept.length > 1) {
+        const without = windowsWithoutEach(kept);
         let bestIdx = -1;
         let bestWin = window;
         let bestSize = -1;
-        for (let i = 0; i < kept.length; i++) {
-            const without = kept.filter((_, j) => j !== i);
-            const w = windowOf(without);
+        for (let i = 0; i < without.length; i++) {
+            const w = without[i];
             if (w.size > bestSize) {
                 bestSize = w.size;
                 bestIdx = i;

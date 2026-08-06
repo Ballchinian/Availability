@@ -89,6 +89,39 @@ describe('bestWindow', () => {
         expect(r.droppedIds).toHaveLength(2);
     });
 
+    /*
+        The odd one out in the middle of the list rather than at the end, so the
+        window without them is built from people on both sides of them.
+    */
+    it('drops a spoiler from the middle of the list', () => {
+        const r = bestWindow(
+            [
+                { userId: 'a', hours: [8, 9, 10] },
+                { userId: 'b', hours: [20] },
+                { userId: 'c', hours: [8, 9] }
+            ],
+            1
+        );
+        expect(r.droppedIds).toEqual(['b']);
+        expect(r.keptIds).toEqual(['a', 'c']);
+        expect(r.window).toEqual([8, 9]);
+    });
+
+    it('drops from both ends of the list across rounds', () => {
+        const r = bestWindow(
+            [
+                { userId: 'a', hours: [5] },
+                { userId: 'b', hours: [8, 9, 10] },
+                { userId: 'c', hours: [8, 9, 10, 11] },
+                { userId: 'd', hours: [0] }
+            ],
+            2
+        );
+        expect(r.droppedIds).toEqual(['a', 'd']);
+        expect(r.keptIds).toEqual(['b', 'c']);
+        expect(r.window).toEqual([8, 9, 10]);
+    });
+
     it('never drops the last person standing', () => {
         const r = bestWindow([{ userId: 'a', hours: [8] }], 5);
         expect(r.keptIds).toEqual(['a']);
