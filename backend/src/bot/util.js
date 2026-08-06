@@ -218,6 +218,28 @@ export async function placeIntro(guild, prev, body) {
 }
 
 /*
+    Says something out loud in the read-only info channel, and says whether it managed
+    to. Both commands that can change what this server runs on answer ephemerally, so
+    this is the only thing that puts a config change in front of the people it lands
+    on rather than just the person who made it.
+
+    Best effort throughout: a notice that could not be posted is not a reason to fail
+    a change that has already been written.
+*/
+export async function announceToServer(guild, channelId, content) {
+    //Not just a wasted call: channels.fetch with no id goes and fetches every channel in the server
+    if (!channelId) return false;
+    try {
+        const channel = await guild.channels.fetch(channelId);
+        await channel.send({ content, allowedMentions: { parse: [] } });
+        return true;
+    } catch (err) {
+        console.warn('[notice] could not post to the info channel:', err.message);
+        return false;
+    }
+}
+
+/*
     Pins a message. Discord moved pinning to a new endpoint in the 2025 pins
     revamp, and the library's message.pin() still calls the old one, which now
     quietly does nothing. So we hit the new route directly. Works in channels

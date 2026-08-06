@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Collection } from 'discord.js';
-import { placeIntro, plannerRoleFor, freeRoleName, buttonLabel } from '../../src/bot/util.js';
+import { placeIntro, plannerRoleFor, freeRoleName, buttonLabel, announceToServer } from '../../src/bot/util.js';
 import { chooseZone, setupChanges, rerunNotice } from '../../src/bot/setup.js';
 
 /*
@@ -304,5 +304,54 @@ describe('rerunNotice', () => {
         expect(text).toContain('<@u1>');
         expect(text).toContain('Nothing changed');
         expect(text).not.toContain('- ');
+    });
+});
+
+/*
+    Shared by /setup and /timezone rather than either one's, but the fake guild it
+    wants is the one built above, so it is tested here beside it.
+*/
+describe('announceToServer', () => {
+    it('posts to the info channel and says it managed', async () => {
+        const log = [];
+        const guild = fakeGuild({ c1: fakeChannel('c1', log) }, log);
+
+        expect(await announceToServer(guild, 'c1', 'something moved')).toBe(true);
+        expect(log).toEqual(['send:c1']);
+    });
+
+    //Nothing here may cost a change that has already been written to the database
+    it('says it did not rather than throwing when the channel is gone', async () => {
+        const log = [];
+
+        expect(await announceToServer(fakeGuild({}, log), 'c1', 'something moved')).toBe(false);
+        expect(log).toEqual([]);
+    });
+
+    it('says it did not when the bot cannot post there', async () => {
+        const log = [];
+        const mute = { ...fakeChannel('c1', log), send: async () => { throw new Error('missing permissions'); } };
+
+        expect(await announceToServer(fakeGuild({ c1: mute }, log), 'c1', 'something moved')).toBe(false);
+    });
+
+    /*
+        A config from before there was an info channel has no id to post to, and
+        channels.fetch with no id fetches every channel in the server, so this asserts
+        the lookup never happens rather than only that the answer is no.
+    */
+    it('does not go looking when there is no channel saved', async () => {
+        let looked = false;
+        const guild = {
+            channels: {
+                fetch: async () => {
+                    looked = true;
+                    throw new Error('unknown channel');
+                }
+            }
+        };
+
+        expect(await announceToServer(guild, null, 'something moved')).toBe(false);
+        expect(looked).toBe(false);
     });
 });

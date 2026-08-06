@@ -6,7 +6,7 @@ import {
     MessageFlags
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
-import { plannerRoleFor, freeRoleName, buttonLabel, placeIntro, pinMessage, introText } from './util.js';
+import { plannerRoleFor, freeRoleName, buttonLabel, placeIntro, pinMessage, introText, announceToServer } from './util.js';
 import { readZoneOption, setupZoneLine, describeZone } from './timezone.js';
 import { safeZone } from '../lib/zones.js';
 import { config } from '../config.js';
@@ -200,9 +200,7 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             should still get its setup rather than an error about a notice.
         */
         if (prev?.setupComplete) {
-            await channel
-                .send({ content: rerunNotice(interaction.user.id, setupChanges(prev, next)), allowedMentions: { parse: [] } })
-                .catch((err) => console.warn('[setup] could not post the rerun notice:', err.message));
+            await announceToServer(guild, channel.id, rerunNotice(interaction.user.id, setupChanges(prev, next)));
         }
 
         const pinNote = pinned

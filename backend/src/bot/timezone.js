@@ -2,6 +2,7 @@ import { MessageFlags } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
 import { setGuildPlansTimeZone } from '../db/plans.js';
 import { safeZone, isValidZone, zoneOffsetLabel } from '../lib/zones.js';
+import { announceToServer } from './util.js';
 
 /*
     The server's clock: what "Wednesday" and "8pm" mean for everyone here. Set at
@@ -105,17 +106,37 @@ export async function handleTimeZone(interaction) {
     const moved = await setGuildPlansTimeZone(interaction.guildId, picked);
 
     /*
-        Said out loud because a planner who moves the clock by an hour will otherwise
-        wonder which way it went, and the answer is neither: a day and a time are stored
-        as a reading, so they stay put and it is what they mean that changes.
+        Out loud in the info channel, not just back to whoever ran it. This changes what
+        every time in the server means, for everybody, and it wants no more than the
+        planner role, so an ephemeral reply was the only record it left anywhere.
     */
-    const plans = moved === 1 ? 'The one plan here' : `All ${moved} plans here`;
+    const told = await announceToServer(
+        interaction.guild,
+        cfg.infoChannelId,
+        `<@${interaction.user.id}> moved this server's clock to **${describeZone(picked)}**, from ${describeZone(current)}.${clockMovedLine(moved, picked)}`
+    );
+
     return interaction.reply({
-        content: moved
-            ? `Right, this server is on **${describeZone(picked)}** now, moved from ${describeZone(current)}. ${plans} keep the time written on them, so a plan at 8pm is still at 8pm, now 8pm ${picked}.`
-            : `Right, this server is on **${describeZone(picked)}** now, moved from ${describeZone(current)}.`,
+        content: `Right, this server is on **${describeZone(picked)}** now, moved from ${describeZone(current)}.${clockMovedLine(moved, picked)}${
+            told ? `\n\nI have said so in <#${cfg.infoChannelId}>, since it changes what times mean for everybody.` : ''
+        }`,
         flags: MessageFlags.Ephemeral
     });
+}
+
+/*
+    What a clock move means for the plans already on the books, said the same way in
+    the reply and in the notice. A planner who moves the clock an hour wonders which
+    way their plans went, and the answer is neither: a day and a time are stored as a
+    reading, so they stay put and it is what they mean that moves.
+*/
+export function clockMovedLine(moved, to) {
+    if (!moved) return '';
+    const plans =
+        moved === 1
+            ? 'The one plan here keeps the time written on it'
+            : `All ${moved} plans here keep the time written on them`;
+    return ` ${plans}, so a plan at 8pm is still at 8pm, now 8pm ${to}.`;
 }
 
 //What /setup says about the clock once it has saved one
