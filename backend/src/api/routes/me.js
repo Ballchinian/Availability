@@ -104,9 +104,11 @@ function planRow(plan, userId, names) {
 
 router.get('/plans', requireUser, async (req, res) => {
     //Neither list reads the other, and the server names below need the two of them
+    //The one date decides both lists: a day that has come round drops out of the first and into the second
+    const from = today();
     const [live, over] = await Promise.all([
-        getActivePlansForUser(req.user.id, today()),
-        getFinishedPlansForUser(req.user.id)
+        getActivePlansForUser(req.user.id, from),
+        getFinishedPlansForUser(req.user.id, from)
     ]);
     const configs = await getGuildConfigs([...new Set([...live, ...over].map((plan) => plan.guildId))]);
     const names = new Map(configs.map((cfg) => [cfg.guildId, cfg.guildName]));

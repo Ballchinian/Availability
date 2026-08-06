@@ -61,7 +61,7 @@
     }
 
     //What this plan is waiting on, said from where this person stands in it
-    function planNote(p: UserPlan) {
+    function planNote(p: UserPlan, over: boolean) {
         const where = p.guildName ? `${p.guildName} · ` : '';
         if (p.status === 'cancelled') return `${where}called off`;
         if (p.status !== 'collecting') {
@@ -71,7 +71,8 @@
                 needs nothing: a day is a day.
             */
             const elsewhere = p.chosenTime && mine && !clocksAgree(p.timeZone, mine) ? ` ${p.timeZone}` : '';
-            return `${where}set for ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}${elsewhere}` : ''}`;
+            const when = over ? 'was set for' : 'set for';
+            return `${where}${when} ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}${elsewhere}` : ''}`;
         }
         if (!p.inIt) return `${where}yours to run · ${formatDate(p.start)} to ${formatDate(p.end)}`;
         const state = p.filledIn ? 'your dates are in' : 'waiting on your dates';
@@ -80,17 +81,18 @@
 </script>
 
 <!--Both lists of plans are the same card, so the live ones and the ones that are over share it-->
-{#snippet planCards(list: UserPlan[])}
+{#snippet planCards(list: UserPlan[], over: boolean)}
     <ul class="cards">
         {#each list as p (p.planId)}
             <li class="card">
                 <div class="body">
                     <a class="name" href={p.inIt ? `#/plan/${p.planId}` : `#/plan/${p.planId}/compare`}>{p.name}</a>
-                    <span class="muted note">{planNote(p)}</span>
+                    <span class="muted note">{planNote(p, over)}</span>
                     {#if p.mine && p.inIt}
                         <a class="action" href="#/plan/{p.planId}/compare">Compare everyone's dates</a>
                     {/if}
-                    {#if p.status === 'closed' && p.chosenDate}
+                    <!--No calendar link on a day that has already been-->
+                    {#if !over && p.status === 'closed' && p.chosenDate}
                         <a class="action" href={icsHref(p.planId)}>Add to your calendar</a>
                     {/if}
                 </div>
@@ -149,17 +151,17 @@
                 Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
             </p>
         {:else}
-            {@render planCards(sortedPlans)}
+            {@render planCards(sortedPlans, false)}
         {/if}
 
         {#if past.length}
             <details class="group">
-                <summary>Called off <span class="hint">plans that were cancelled</span></summary>
+                <summary>Been and gone <span class="hint">days that have passed, and plans that were called off</span></summary>
                 <p class="muted small">
-                    Nothing here can be changed. What everyone had said is still on the compare page, until you delete
-                    the thread in Discord.
+                    Nothing here can be changed. Who said what, and everything that happened along the way, is still on
+                    the compare page until you delete the thread in Discord.
                 </p>
-                {@render planCards(past)}
+                {@render planCards(past, true)}
             </details>
         {/if}
 

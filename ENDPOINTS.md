@@ -142,8 +142,9 @@ Two lists, the live plans and the ones behind them, each plan with:
 
 ### Notes
 
-* The live list covers plans still collecting dates and set plans whose day has not passed. Days gone by are left out.
-* The second list is the cancelled ones, newest first and capped at a dozen, so the read-only compare page behind a called-off plan has a way in from the site.
+* The live list covers plans still collecting dates and set plans whose day has not passed.
+* The second list is what has finished: cancelled plans, and set ones whose day has been and gone. Newest first and capped at a dozen, so the compare page behind a finished plan, and everything it remembers, still has a way in from the site.
+* A plan set for today counts as live, so the two lists never overlap and nothing falls between them.
 * Plans the requester started count as well as plans they are in, since nothing makes a planner invite themselves to their own plan.
 * A set plan the requester was left off the invite list for is left out too.
 

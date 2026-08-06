@@ -184,18 +184,22 @@ export async function getActivePlansForUser(userId, fromDate) {
 }
 
 /*
-    The other end of that list: plans that are over. A cancelled one drops out of the
-    active query the moment it is called off, which leaves the read-only compare page
-    behind it reachable only by whoever still has the link.
+    The other end of that list: plans that are over. A cancelled one, or one whose day
+    has been and gone. Both drop out of the active query as they finish, which leaves
+    the compare page behind them, and everything it remembers about who said what,
+    reachable only by whoever still has the link.
 
     Capped, since this half only ever grows. A dozen is enough to find the one you
-    meant and short enough to sit folded under the live ones.
+    meant and short enough to sit folded under the live ones. Newest made first rather
+    than newest finished, so a plan sits where the person who made it would look.
 */
-export async function getFinishedPlansForUser(userId, limit = 12) {
+export async function getFinishedPlansForUser(userId, fromDate, limit = 12) {
     return col(collections.plans)
         .find({
-            status: 'cancelled',
-            $or: [{ 'participants.userId': userId }, { createdBy: userId }]
+            $and: [
+                { $or: [{ 'participants.userId': userId }, { createdBy: userId }] },
+                { $or: [{ status: 'cancelled' }, { status: 'closed', chosenDate: { $lt: fromDate } }] }
+            ]
         })
         .sort({ createdAt: -1 })
         .limit(limit)
