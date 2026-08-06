@@ -32,8 +32,21 @@
     let loadError = $state('');
     let cancelled = $state(false);
 
+    /*
+        The slider's own value, and the settled one everything else reads. Every step
+        of a drag rebuilds every day's evaluation, which is 200ms of work on twenty
+        people across two years, so the grid waits for the thumb to stop while the
+        label beside it keeps up.
+    */
+    let missInput = $state(0);
     let missAllowed = $state(0);
     let selectedDate = $state<string | null>(null);
+
+    $effect(() => {
+        const want = missInput;
+        const t = setTimeout(() => (missAllowed = want), 100);
+        return () => clearTimeout(t);
+    });
 
     const maxMiss = $derived(data ? Math.max(0, data.confirmedCount - 1) : 0);
 
@@ -191,8 +204,8 @@
 
         {#if data.confirmedCount > 0}
             <div class="miss">
-                <label for="miss">How many people are you willing to miss out? <strong>{missAllowed}</strong></label>
-                <input id="miss" type="range" min="0" max={maxMiss} bind:value={missAllowed} />
+                <label for="miss">How many people are you willing to miss out? <strong>{missInput}</strong></label>
+                <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
                 <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits.</p>
                 <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->
                 <ClockNote zone={data.plan.timeZone} what="The days and hours here" />
