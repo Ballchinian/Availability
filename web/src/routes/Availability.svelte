@@ -156,7 +156,6 @@
             <p class="prompt">This plan only asks about {weekdayLabel}, so the other days are greyed out.</p>
         {/if}
 
-        <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
         <p class="muted small">Tap a day, or press and drag across several to mark them all at once. Shift-click the other end of a stretch to do the same without dragging.</p>
         <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
         {#if !clocksAgree(data.plan.timeZone, data.timeZone)}
@@ -189,20 +188,22 @@
             <a href="#/availability">Set your general availability</a> for the dates beyond this plan's range.
         </p>
 
-        {#if saveError}
-            <p class="status error" aria-live="polite">{saveError}</p>
-        {/if}
-
-        {#if saved}
-            <p class="prompt good" aria-live="polite">
-                Confirmed. You are {saved.confirmedCount}/{saved.totalParticipants} of the group now.
-                {#if saved.confirmedPlans?.length}Also auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
-            </p>
-        {/if}
-
-        <button class="primary" onclick={confirm} disabled={submitting}>
-            {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Confirm my dates'}
-        </button>
+        <!--Pinned to the bottom while the grid runs on above it, so the count, the button
+            and whatever the last save said are all in reach of a two year page-->
+        <div class="actionbar">
+            <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
+            <button class="primary" onclick={confirm} disabled={submitting}>
+                {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Confirm my dates'}
+            </button>
+            {#if saveError}
+                <p class="status msg error" aria-live="polite">{saveError}</p>
+            {:else if saved}
+                <p class="status msg good" aria-live="polite">
+                    Confirmed. You are {saved.confirmedCount}/{saved.totalParticipants} of the group now.
+                    {#if saved.confirmedPlans?.length}Also auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
+                </p>
+            {/if}
+        </div>
 
         <div class="danger">
             {#if !leaveArmed}

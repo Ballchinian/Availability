@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
+    import { countDays, daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
     import { describeZone } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
@@ -43,6 +43,10 @@
     });
 
     const stale = $derived(lastUpdatedAt ? daysSince(lastUpdatedAt) >= 30 : false);
+
+    //Only the window on screen counts, since the whole timetable is loaded but only that part is saved
+    const freeCount = $derived(Object.keys(selection).filter((d) => d >= displayStart && d <= displayEnd).length);
+    const totalDays = $derived(countDays(displayStart, displayEnd));
 
     const unsaved = $derived(selectionKey(selection) !== selectionKey(savedDays));
     guardUnsaved(() => unsaved);
@@ -152,16 +156,21 @@
 
         <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm any plan this window fully covers</label>
 
-        {#if saveError}<p class="status error" aria-live="polite">{saveError}</p>{/if}
-        {#if saved}
-            <p class="prompt good" aria-live="polite">
-                Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.
-                {#if saved.confirmedPlans.length}Auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
-            </p>
-        {/if}
-
-        <button class="primary" onclick={save} disabled={saving}>
-            {saving ? 'Saving...' : 'Save availability'}
-        </button>
+        <!--Pinned to the bottom while the grid runs on above it, so the count, the button
+            and whatever the last save said are all in reach of a two year page-->
+        <div class="actionbar">
+            <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
+            <button class="primary" onclick={save} disabled={saving}>
+                {saving ? 'Saving...' : 'Save availability'}
+            </button>
+            {#if saveError}
+                <p class="status msg error" aria-live="polite">{saveError}</p>
+            {:else if saved}
+                <p class="status msg good" aria-live="polite">
+                    Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.
+                    {#if saved.confirmedPlans.length}Auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
+                </p>
+            {/if}
+        </div>
     {/if}
 </section>

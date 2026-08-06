@@ -367,6 +367,11 @@ code {
     color: #ff8080;
 }
 
+/* The other half of .error, for a status line reporting something that worked */
+.good {
+    color: #6ee7a0;
+}
+
 .result .plan-link {
     word-break: break-all;
 }
@@ -618,6 +623,40 @@ code {
     color: var(--text);
     padding: 6px 10px;
     font-size: 14px;
+}
+
+/*
+    The bar that follows an availability grid down the page. A two year range is
+    twenty-four month blocks, so the button that saves them sat under the lot and the
+    line saying it had worked sat above it, out of sight from the button. Both live
+    here now. The negative margin takes it out to the panel's edges, so no part of
+    the grid shows past its ends while it is pinned.
+*/
+.actionbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin: 18px -28px 0;
+    padding: 12px 28px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+}
+
+.actionbar .status {
+    margin: 0;
+}
+
+.actionbar .primary {
+    margin: 0 0 0 auto;
+}
+
+/* Whatever the last save said gets the width to itself, under the count and the button */
+.actionbar .msg {
+    flex: 1 1 100%;
 }
 
 .pad {
