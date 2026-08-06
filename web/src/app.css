@@ -302,6 +302,7 @@ code {
     margin-bottom: 8px;
 }
 
+/* .quick is shared with the member picker's bulk buttons, so it is not weekday specific */
 .quick {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -314,6 +315,12 @@ code {
 
 .quick:hover {
     border-color: var(--accent);
+}
+
+.quick:disabled {
+    opacity: 0.5;
+    cursor: default;
+    border-color: var(--border);
 }
 
 .wdays {
@@ -406,6 +413,11 @@ code {
     border-bottom: 1px solid var(--border);
     font-size: 13px;
     color: var(--muted);
+}
+
+.col-head .head-actions {
+    display: flex;
+    gap: 6px;
 }
 
 .col-head .search {

@@ -35,6 +35,15 @@
         selectedIds = selectedIds.filter((x) => x !== id);
     }
 
+    //Everyone the left column is currently showing, so a search doubles as a way to
+    //invite a group of people in one go
+    function addAll() {
+        selectedIds = [...selectedIds, ...pool.map((m) => m.id)];
+    }
+    function clearAll() {
+        selectedIds = [];
+    }
+
     function onDragStart(e: DragEvent, id: string) {
         if (!e.dataTransfer) return;
         e.dataTransfer.setData('text/plain', id);
@@ -83,6 +92,12 @@
     <div class="col">
         <div class="col-head">
             <span>Invited ({chosen.length})</span>
+            <span class="head-actions">
+                <button type="button" class="quick" onclick={addAll} disabled={pool.length === 0}>
+                    {search.trim() ? 'Add all shown' : 'Add all'}
+                </button>
+                <button type="button" class="quick" onclick={clearAll} disabled={chosen.length === 0}>Clear</button>
+            </span>
         </div>
         <ul
             class="list drop"
