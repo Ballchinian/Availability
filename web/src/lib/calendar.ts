@@ -37,23 +37,26 @@ export function isoOf(d: Date): string {
 }
 
 /*
-    A date some way off from today, for the min and max of a date input. Stepping
-    a month off the 31st lands in the month after, which is close enough for the
-    rough windows these bound.
+    A date some way off from another one, for the bounds of a date input and the
+    create form's quick ranges. Negative steps back. Stepping a month off the 31st
+    lands in the month after, which is close enough for the rough windows these bound.
 */
-export function isoFromNow(amount: number, unit: 'day' | 'month' | 'year'): string {
-    const d = new Date();
+export function isoPlus(date: string, amount: number, unit: 'day' | 'month' | 'year'): string {
+    const d = new Date(`${date}T00:00:00`);
     if (unit === 'day') d.setDate(d.getDate() + amount);
     if (unit === 'month') d.setMonth(d.getMonth() + amount);
     if (unit === 'year') d.setFullYear(d.getFullYear() + amount);
     return isoOf(d);
 }
 
-//The day after a YYYY-MM-DD date. setDate carries the month and the year for us
+//The same step, counted from today
+export function isoFromNow(amount: number, unit: 'day' | 'month' | 'year'): string {
+    return isoPlus(isoOf(new Date()), amount, unit);
+}
+
+//The day after a YYYY-MM-DD date
 export function nextDay(date: string): string {
-    const d = new Date(`${date}T00:00:00`);
-    d.setDate(d.getDate() + 1);
-    return isoOf(d);
+    return isoPlus(date, 1, 'day');
 }
 
 //Whole days between a stored timestamp and now, for deciding something has gone stale

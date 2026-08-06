@@ -6,6 +6,7 @@ import {
     daysSince,
     isoFromNow,
     isoOf,
+    isoPlus,
     nextDay,
     weekdayOf,
     isWeekdayAllowed
@@ -47,6 +48,36 @@ describe('isoFromNow', () => {
     it('spills a month step off a 31st into the next month', () => {
         vi.useFakeTimers().setSystemTime(new Date(2026, 7, 31, 9, 0));
         expect(isoFromNow(3, 'month')).toBe('2026-12-01');
+    });
+});
+
+describe('isoPlus', () => {
+    it('steps days, months and years off the date given, not off today', () => {
+        vi.useFakeTimers().setSystemTime(new Date(2026, 7, 5, 13, 30));
+        expect(isoPlus('2027-03-10', 13, 'day')).toBe('2027-03-23');
+        expect(isoPlus('2027-03-10', 1, 'month')).toBe('2027-04-10');
+        expect(isoPlus('2027-03-10', 2, 'year')).toBe('2029-03-10');
+    });
+
+    it('steps back on a negative amount', () => {
+        expect(isoPlus('2026-09-06', -1, 'day')).toBe('2026-09-05');
+        expect(isoPlus('2026-01-15', -2, 'month')).toBe('2025-11-15');
+    });
+
+    it('carries over the end of the month and the year', () => {
+        expect(isoPlus('2026-12-31', 1, 'day')).toBe('2027-01-01');
+        expect(isoPlus('2026-11-20', 3, 'month')).toBe('2027-02-20');
+    });
+
+    //The create form's month span: forward a month, back a day, so both ends are counted
+    it('spans a month when a month forward is walked back a day', () => {
+        expect(isoPlus(isoPlus('2026-08-06', 1, 'month'), -1, 'day')).toBe('2026-09-05');
+        expect(isoPlus(isoPlus('2026-02-01', 1, 'month'), -1, 'day')).toBe('2026-02-28');
+    });
+
+    //Same spill isoFromNow has, since it is the same setMonth underneath
+    it('spills a month step off a 31st into the month after', () => {
+        expect(isoPlus('2026-08-31', 1, 'month')).toBe('2026-10-01');
     });
 });
 

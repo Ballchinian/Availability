@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { isoFromNow } from '../lib/calendar.js';
+    import { isoFromNow, isoPlus } from '../lib/calendar.js';
     import { formatDate, REPEAT_WEEKS, describeRepeat } from '../lib/format.js';
     import type { CreatedPlan, GuildInfo, Member } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
@@ -51,6 +51,25 @@
     const todayIso = isoFromNow(0, 'day');
     const minStart = isoFromNow(1, 'day');
     const maxDate = isoFromNow(2, 'year');
+
+    /*
+        The one-click ranges. Each ends its span off whatever the start is rather than
+        off today, so a start moved out still gets the span the button names. The day
+        back off the month one keeps it a month counting both ends.
+    */
+    const SPANS = [
+        { label: 'Two weeks', endOf: (from: string) => isoPlus(from, 13, 'day') },
+        { label: 'A month', endOf: (from: string) => isoPlus(isoPlus(from, 1, 'month'), -1, 'day') },
+        { label: 'Rest of the year', endOf: (from: string) => `${from.slice(0, 4)}-12-31` }
+    ];
+
+    function setSpan(endOf: (from: string) => string) {
+        const from = startDate || minStart;
+        const end = endOf(from);
+        startDate = from;
+        //A span off a late start can reach past the two years the api takes
+        endDate = end > maxDate ? maxDate : end;
+    }
 
     let submitting = $state(false);
     let formError = $state('');
@@ -210,14 +229,22 @@
         </div>
 
         {#if mode === 'collect'}
-            <div class="field range">
-                <div>
-                    <label for="start">From</label>
-                    <input id="start" type="date" bind:value={startDate} min={minStart} max={maxDate} />
+            <div class="field" role="group" aria-labelledby="rangeLabel">
+                <span class="group-label" id="rangeLabel">Which dates should I ask about?</span>
+                <div class="quick-row">
+                    {#each SPANS as span (span.label)}
+                        <button type="button" class="quick" onclick={() => setSpan(span.endOf)}>{span.label}</button>
+                    {/each}
                 </div>
-                <div>
-                    <label for="end">To</label>
-                    <input id="end" type="date" bind:value={endDate} min={startDate || minStart} max={maxDate} />
+                <div class="range">
+                    <div>
+                        <label for="start">From</label>
+                        <input id="start" type="date" bind:value={startDate} min={minStart} max={maxDate} />
+                    </div>
+                    <div>
+                        <label for="end">To</label>
+                        <input id="end" type="date" bind:value={endDate} min={startDate || minStart} max={maxDate} />
+                    </div>
                 </div>
             </div>
 

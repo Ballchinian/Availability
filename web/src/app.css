@@ -282,14 +282,15 @@ code {
     resize: vertical;
 }
 
-.field.range {
+/* Not .field.range: the create form's range sits inside a field with the quick picks above it */
+.range {
     display: flex;
     gap: 16px;
 }
 
 /* Two date inputs side by side do not fit a phone */
 @media (max-width: 600px) {
-    .field.range {
+    .range {
         flex-direction: column;
         gap: 12px;
     }
