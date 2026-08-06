@@ -16,3 +16,19 @@ export const DAILY_LIMIT = 30;
     real plan, low enough that the worst case is a few hundred lookups.
 */
 export const MAX_PARTICIPANTS = 200;
+
+/*
+    How many times a day one person can save their availability. Nothing about this
+    is noisy, nobody is pinged, so it sits far above what filling a grid in takes: it
+    is here because one save is a delete plus up to 730 upserts, and nothing else
+    stops a logged in account looping it.
+*/
+export const SAVE_LIMIT = 200;
+
+/*
+    The guild a counter is kept under when the action is not about one. Somebody has
+    a single timetable rather than one per server, so every save they make counts
+    against the same allowance wherever it came from. A Discord id is always digits,
+    so this can never land on a real server's counter.
+*/
+export const NO_GUILD = 'global';

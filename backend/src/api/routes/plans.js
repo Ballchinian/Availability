@@ -13,7 +13,7 @@ import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeek
 import { DAY_HOURS, validHours } from '../../lib/hours.js';
 import { safeZone, retimeDay } from '../../lib/zones.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
-import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
+import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 
 /*
     The availability side of a plan. GET hands the page everything it needs to
@@ -84,11 +84,6 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     const { days, autoConfirm, sureUntil } = req.body || {};
     if (!Array.isArray(days)) return res.status(400).json({ error: 'Something was off with the dates you sent.' });
 
-    //Their certainty horizon rides along with the save, empty meaning no limit
-    if (sureUntil === null || /^\d{4}-\d{2}-\d{2}$/.test(sureUntil || '')) {
-        await setSureUntil(req.user.id, sureUntil || null);
-    }
-
     const { start, end } = plan.dateRange;
     const allowed = plan.allowedWeekdays || null;
     //Keep only well formed days that sit inside this plan's range and on a day it asks about
@@ -97,6 +92,17 @@ router.post('/:planId/availability', requireUser, async (req, res) => {
     );
     if (!valid.every((d) => validHours(d.hours))) {
         return res.status(400).json({ error: 'Something was off with the hours you sent.' });
+    }
+
+    //The same allowance the general page spends, since both write the one timetable
+    const rl = await takeAction(req.user.id, NO_GUILD, 'save', SAVE_LIMIT);
+    if (!rl.allowed) {
+        return res.status(429).json({ error: `You have saved ${SAVE_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    //Their certainty horizon rides along with the save, empty meaning no limit
+    if (sureUntil === null || /^\d{4}-\d{2}-\d{2}$/.test(sureUntil || '')) {
+        await setSureUntil(req.user.id, sureUntil || null);
     }
 
     //A weekday-pinned plan only rewrites the days it asks about, so a person's saved

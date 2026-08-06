@@ -6,6 +6,8 @@ import { autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone } from '../../lib/zones.js';
+import { takeAction } from '../../db/ratelimits.js';
+import { SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 
 /*
     The general availability page, not tied to any plan. People can fill their
@@ -42,14 +44,20 @@ router.post('/', requireUser, async (req, res) => {
     }
     if (end > maxEnd()) return res.status(400).json({ error: 'That is more than two years out.' });
 
-    //Their certainty horizon rides along with the save, empty meaning no limit
-    if (sureUntil === null || SHAPE.test(sureUntil || '')) {
-        await setSureUntil(req.user.id, sureUntil || null);
-    }
-
     const valid = Array.isArray(days) ? days.filter((d) => d && typeof d.date === 'string' && d.date >= start && d.date <= end) : [];
     if (!valid.every((d) => validHours(d.hours))) {
         return res.status(400).json({ error: 'Something was off with the hours you sent.' });
+    }
+
+    //Everything is checked before a slot is spent, and nothing is written before one is
+    const rl = await takeAction(req.user.id, NO_GUILD, 'save', SAVE_LIMIT);
+    if (!rl.allowed) {
+        return res.status(429).json({ error: `You have saved ${SAVE_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    //Their certainty horizon rides along with the save, empty meaning no limit
+    if (sureUntil === null || SHAPE.test(sureUntil || '')) {
+        await setSureUntil(req.user.id, sureUntil || null);
     }
 
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid);
