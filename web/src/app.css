@@ -711,6 +711,51 @@ code {
 }
 
 /* Compare view */
+
+/*
+    The three groups the page comes in: where the plan stands, the panels that
+    change it, the ones that end it. The last two fold away, so the cancel
+    button is never sat between a planner and the form they came for.
+*/
+.group {
+    margin-top: 26px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.group > h2,
+.group > summary {
+    color: var(--heading);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.group > summary {
+    cursor: pointer;
+    padding: 2px 0;
+}
+
+.group > summary .hint {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: normal;
+}
+
+/* The rule the first panel draws for itself would land right under the group's own */
+.group > div:first-of-type {
+    margin-top: 12px;
+    padding-top: 0;
+    border-top: none;
+}
+
+/* Repeat sits among the other plan edits now, so it takes the separator they all have */
+.group > .repeat {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
 .miss {
     margin: 16px 0;
 }

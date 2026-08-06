@@ -24,6 +24,9 @@
         act on the plan. Each panel in lib/compare owns its own form and its own
         message and asks for a reload when it changes something, so all this holds
         is the plan itself and what is picked on the grid.
+
+        The panels sit in three groups: where the plan stands, what changes it, what
+        ends it. Only the first is open on arrival, since the rest are errands.
     */
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -31,6 +34,10 @@
     let data = $state<CompareScreen | null>(null);
     let loadError = $state('');
     let cancelled = $state(false);
+
+    //Held here rather than left on the <details>, which a reload would destroy and refold
+    let changing = $state(false);
+    let ending = $state(false);
 
     /*
         The slider's own value, and the settled one everything else reads. Every step
@@ -198,116 +205,128 @@
             </p>
         {/if}
 
-        <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
+        <section class="group">
+            <h2>Where it stands</h2>
 
-        <!--Chasing dates only makes sense while they are still being collected, a plan with
-            a day already locked in is waiting on answers instead-->
-        {#if unconfirmed.length && !cancelled && data.plan.status === 'collecting'}
-            <RemindPanel planId={params.planId} waiting={unconfirmed} />
-        {/if}
+            <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
 
-        {#if data.confirmedCount > 0}
-            <div class="miss">
-                <label for="miss">How many people are you willing to miss out? <strong>{missInput}</strong></label>
-                <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
-                <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits.</p>
-                <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->
-                <ClockNote zone={data.plan.timeZone} what="The days and hours here" />
-            </div>
+            <!--Chasing dates only makes sense while they are still being collected, a plan with
+                a day already locked in is waiting on answers instead-->
+            {#if unconfirmed.length && !cancelled && data.plan.status === 'collecting'}
+                <RemindPanel planId={params.planId} waiting={unconfirmed} />
+            {/if}
 
-            <CompareGrid
-                start={data.plan.start}
-                end={data.plan.end}
-                freeByDate={data.freeByDate}
-                confirmedCount={data.confirmedCount}
-                allowedWeekdays={data.plan.allowedWeekdays}
-                {unsureByDate}
-                {missAllowed}
-                bind:selectedDate
-            />
-        {:else if cancelled}
-            <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
-        {:else}
-            <p class="muted">No one has confirmed dates yet, so there is nothing to compare. Give it a moment, or nudge the stragglers above.</p>
-        {/if}
+            {#if data.confirmedCount > 0}
+                <div class="miss">
+                    <label for="miss">How many people are you willing to miss out? <strong>{missInput}</strong></label>
+                    <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
+                    <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits.</p>
+                    <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->
+                    <ClockNote zone={data.plan.timeZone} what="The days and hours here" />
+                </div>
 
-        {#if chosen}
-            <p class="prompt good">
-                <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
-                {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
-                {#if chosen.time}<br /><ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
-                {#if chosen.note}<br />{chosen.note}{/if}
-                {#if !cancelled}
-                    <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>
-                    <br />Pick another day below to move it, and everyone gets told.
+                <CompareGrid
+                    start={data.plan.start}
+                    end={data.plan.end}
+                    freeByDate={data.freeByDate}
+                    confirmedCount={data.confirmedCount}
+                    allowedWeekdays={data.plan.allowedWeekdays}
+                    {unsureByDate}
+                    {missAllowed}
+                    bind:selectedDate
+                />
+            {:else if cancelled}
+                <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
+            {:else}
+                <p class="muted">No one has confirmed dates yet, so there is nothing to compare. Give it a moment, or nudge the stragglers above.</p>
+            {/if}
+
+            {#if chosen}
+                <p class="prompt good">
+                    <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
+                    {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
+                    {#if chosen.time}<br /><ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
+                    {#if chosen.note}<br />{chosen.note}{/if}
+                    {#if !cancelled}
+                        <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>
+                        <br />Pick another day below to move it, and everyone gets told.
+                    {/if}
+                </p>
+            {/if}
+
+            <!--Straight under the grid, because it is the answer to clicking a day: anywhere
+                further down and the response to the click is off the bottom of a phone-->
+            {#if !cancelled}
+                <PickPanel
+                    planId={params.planId}
+                    {selectedDate}
+                    {missAllowed}
+                    {unsureByDate}
+                    {chosen}
+                    freeByDate={data.freeByDate}
+                    participants={data.participants}
+                    confirmedCount={data.confirmedCount}
+                    totalParticipants={data.totalParticipants}
+                    probeActive={Boolean(data.plan.probeActive)}
+                    onsaved={refresh}
+                />
+
+                <AttendanceBoard
+                    planId={params.planId}
+                    participants={data.participants}
+                    chosenDate={data.plan.chosenDate}
+                    onmoved={refresh}
+                />
+
+                {#if pendingVoters.length}
+                    <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
                 {/if}
-            </p>
-        {/if}
+            {/if}
 
-        <!--Straight under the grid, because it is the answer to clicking a day: anywhere
-            further down and the response to the click is off the bottom of a phone-->
-        {#if !cancelled}
-            <PickPanel
-                planId={params.planId}
-                {selectedDate}
-                {missAllowed}
-                {unsureByDate}
-                {chosen}
-                freeByDate={data.freeByDate}
-                participants={data.participants}
-                confirmedCount={data.confirmedCount}
-                totalParticipants={data.totalParticipants}
-                probeActive={Boolean(data.plan.probeActive)}
-                onsaved={refresh}
-            />
-        {/if}
-
-        <HistoryPanel history={data.history} />
+            <HistoryPanel history={data.history} />
+        </section>
 
         {#if cancelled}
             <p class="ways"><a href="#/">Back to your plans</a></p>
         {:else}
-            <RepeatPanel
-                planId={params.planId}
-                repeatWeeks={data.plan.repeatWeeks}
-                repeatedFrom={data.plan.repeatedFrom}
-                repeatedInto={data.plan.repeatedInto}
-                onchanged={load}
-            />
+            <details class="group" bind:open={changing}>
+                <summary>Change the plan <span class="hint">title, people, dates, days, repeat</span></summary>
 
-            <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
+                <EditDetails
+                    planId={params.planId}
+                    name={data.plan.name}
+                    description={data.plan.description}
+                    onsaved={load}
+                />
 
-            <AttendanceBoard
-                planId={params.planId}
-                participants={data.participants}
-                chosenDate={data.plan.chosenDate}
-                onmoved={refresh}
-            />
+                <AddPeople
+                    planId={params.planId}
+                    guildId={data.plan.guildId}
+                    participants={data.participants}
+                    onadded={load}
+                />
 
-            {#if pendingVoters.length}
-                <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
-            {/if}
+                <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} onsaved={reopen} />
 
-            <EditDetails
-                planId={params.planId}
-                name={data.plan.name}
-                description={data.plan.description}
-                onsaved={load}
-            />
+                <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
 
-            <AddPeople
-                planId={params.planId}
-                guildId={data.plan.guildId}
-                participants={data.participants}
-                onadded={load}
-            />
+                <RepeatPanel
+                    planId={params.planId}
+                    repeatWeeks={data.plan.repeatWeeks}
+                    repeatedFrom={data.plan.repeatedFrom}
+                    repeatedInto={data.plan.repeatedInto}
+                    onchanged={load}
+                />
+            </details>
 
-            <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} onsaved={reopen} />
+            <details class="group" bind:open={ending}>
+                <summary>Undo or end it <span class="hint">clear the date and start again, or call the whole thing off</span></summary>
 
-            <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
+                <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
 
-            <!--A reload rather than the local flag, so status and banner cannot disagree-->
-            <CancelPanel planId={params.planId} oncancelled={load} />
+                <!--A reload rather than the local flag, so status and banner cannot disagree-->
+                <CancelPanel planId={params.planId} oncancelled={load} />
+            </details>
         {/if}
     {/if}
 </section>
