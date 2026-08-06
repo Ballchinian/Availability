@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
+import { announceAfter } from '../announce.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
 import { announcePlan, announceSetPlan } from '../../bot/plans.js';
 import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -206,24 +207,23 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
 
         const dropped = participantIds.length - validIds.length;
 
+        /*
+            The thread, the pings and the DMs all run after the response. Everything the
+            planner gets back is known the moment createPlan returns, and announcing is
+            forty odd sequential Discord calls for a plan of twenty, so waiting on it only
+            ever meant sitting on "Setting it up...". If it stumbles the plan still exists.
+        */
         if (setMode) {
             //Record the date straight away, then announce it as decided. DM defaults on,
             //the confirmation probe is opt in.
             plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, chosen.note);
-            try {
-                await announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true });
-            } catch (err) {
-                console.error('[plans] set-plan announce failed:', err);
-            }
+            announceAfter('set-plan announce', () =>
+                announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true })
+            );
             return res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped, set: true });
         }
 
-        //Open the thread, ping and (unless told not to) DM everyone. If this stumbles, the plan still exists.
-        try {
-            await announcePlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false });
-        } catch (err) {
-            console.error('[plans] announce failed:', err);
-        }
+        announceAfter('announce', () => announcePlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false }));
 
         res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped });
     } catch (err) {

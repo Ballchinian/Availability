@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
+import { announceAfter } from '../announce.js';
 import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
@@ -25,16 +26,6 @@ const router = Router();
 
 //Every route below the availability pair is planner only, and always about the plan's own server
 const plannerContext = (plan, userId) => guildContext(plan.guildId, userId, { requirePlanner: true });
-
-/*
-    Announcements run after the response, never inside it. The write they follow
-    is already committed, and dmEach sends one at a time, so a plan of twenty
-    would otherwise leave the planner on "Saving..." for twenty round trips and
-    a slow Discord would turn that into a timeout. Failure stays non-fatal.
-*/
-function announceAfter(label, run) {
-    Promise.resolve().then(run).catch((err) => console.error(`[plans] ${label} failed:`, err));
-}
 
 router.get('/:planId', requireUser, async (req, res) => {
     const plan = await getPlan(req.params.planId);
