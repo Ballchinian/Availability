@@ -306,7 +306,8 @@
 
             <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
 
-            <CancelPanel planId={params.planId} oncancelled={() => (cancelled = true)} />
+            <!--A reload rather than the local flag, so status and banner cannot disagree-->
+            <CancelPanel planId={params.planId} oncancelled={load} />
         {/if}
     {/if}
 </section>
