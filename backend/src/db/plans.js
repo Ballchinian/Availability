@@ -23,25 +23,45 @@ function freshParticipant(userId) {
     is taken down. Pulled out so picking a new date, voiding a date or moving the range
     all start the next round from a clean slate. invitedIds narrows who is still on the
     invite list for the new round; leaving it out invites everyone back.
+
+    Written in place rather than by rewriting the array, so a confirmation, a vote or a
+    whole new guest landing at the same moment survives. Comes back as a $set fragment
+    and the options that go with it.
+
+    A narrowed invite list splits the array in two rather than mixing $[] with a filter:
+    two paths reaching the same element have to be merged, two matched filters cannot.
 */
-function clearedProbeFields(participants, invitedIds = null) {
-    const invitedSet = invitedIds ? new Set(invitedIds) : null;
-    return {
-        participants: participants.map((p) => ({
-            ...p,
-            vote: null,
-            voteReason: null,
-            votedAt: null,
-            invited: invitedSet ? invitedSet.has(p.userId) : true,
-            override: null
-        })),
+function clearedProbe(invitedIds = null) {
+    const wipe = (who) => ({
+        [`participants.${who}.vote`]: null,
+        [`participants.${who}.voteReason`]: null,
+        [`participants.${who}.votedAt`]: null,
+        [`participants.${who}.override`]: null
+    });
+    const probe = {
         probeActive: false,
         probeThreadMessageId: null,
         probeAllYesNotifiedAt: null,
         //A fresh round of votes to chase, so the nudge cooldown starts over with it
         lastVoteRemindedAt: null
     };
+
+    if (!invitedIds) return { set: { ...wipe('$[]'), 'participants.$[].invited': true, ...probe }, options: {} };
+
+    return {
+        set: {
+            ...wipe('$[keep]'),
+            'participants.$[keep].invited': true,
+            ...wipe('$[drop]'),
+            'participants.$[drop].invited': false,
+            ...probe
+        },
+        options: { arrayFilters: [{ 'keep.userId': { $in: invitedIds } }, { 'drop.userId': { $nin: invitedIds } }] }
+    };
 }
+
+//Everyone takes another look. In place for the same reason clearedProbe is.
+const unconfirmAll = { 'participants.$[].confirmed': false, 'participants.$[].confirmedAt': null };
 
 /*
     A plan gathers a handful of these at most, but nothing ever prunes them, so the list
@@ -244,10 +264,11 @@ export async function getPlansCoveredBy(userId, start, end) {
     is who stays invited for this date, null keeps everyone on the list.
 */
 export async function setPlanChosen(planId, date, time = null, note = null, invitedIds = null) {
-    const plan = await getPlan(planId);
+    const { set, options } = clearedProbe(invitedIds);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...clearedProbeFields(plan.participants, invitedIds) } }
+        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set } },
+        options
     );
     return getPlan(planId);
 }
@@ -255,10 +276,10 @@ export async function setPlanChosen(planId, date, time = null, note = null, invi
 //Undo a confirmed date and reopen the plan so a fresh day can be picked. The date is
 //gone, so any confirmation votes for it go with it.
 export async function voidPlanChoice(planId) {
-    const plan = await getPlan(planId);
+    const { set } = clearedProbe();
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: null, chosenTime: null, chosenNote: null, status: 'collecting', ...clearedProbeFields(plan.participants) } }
+        { $set: { chosenDate: null, chosenTime: null, chosenNote: null, status: 'collecting', ...set } }
     );
     return getPlan(planId);
 }
@@ -292,10 +313,8 @@ export async function setVoteReminded(planId) {
     since the window moved out from under it.
 */
 export async function setPlanRange(planId, start, end) {
-    const plan = await getPlan(planId);
-    const participants = plan.participants.map((p) => ({ ...p, confirmed: false, confirmedAt: null }));
     //The window moved, so any date and its votes are gone too, start the round clean
-    const cleared = clearedProbeFields(participants);
+    const { set } = clearedProbe();
     await col(collections.plans).updateOne(
         { planId },
         {
@@ -306,7 +325,8 @@ export async function setPlanRange(planId, start, end) {
                 chosenDate: null,
                 chosenTime: null,
                 chosenNote: null,
-                ...cleared,
+                ...unconfirmAll,
+                ...set,
                 //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
                 lastRemindedAt: null,
                 allInNotifiedAt: null
@@ -330,17 +350,18 @@ export async function setPlanRange(planId, start, end) {
     reopens so a new one can be chosen, but the confirmations stay.
 */
 export async function setPlanWeekdays(planId, allowedWeekdays, { reopen }) {
-    const plan = await getPlan(planId);
     const set = { allowedWeekdays: allowedWeekdays || null };
+    //Only the narrowing case has anything to decide, and what it reads is the date, not the guest list
+    const plan = reopen ? null : await getPlan(planId);
 
     if (reopen) {
-        const participants = plan.participants.map((p) => ({ ...p, confirmed: false, confirmedAt: null }));
         Object.assign(set, {
             status: 'collecting',
             chosenDate: null,
             chosenTime: null,
             chosenNote: null,
-            ...clearedProbeFields(participants),
+            ...unconfirmAll,
+            ...clearedProbe().set,
             //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
             lastRemindedAt: null,
             allInNotifiedAt: null
@@ -353,7 +374,7 @@ export async function setPlanWeekdays(planId, allowedWeekdays, { reopen }) {
             chosenDate: null,
             chosenTime: null,
             chosenNote: null,
-            ...clearedProbeFields(plan.participants),
+            ...clearedProbe().set,
             allInNotifiedAt: null
         });
     }
