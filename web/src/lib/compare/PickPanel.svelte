@@ -3,7 +3,7 @@
     import { api } from '../api.js';
     import { formatDate } from '../format.js';
     import { formatHours } from '../hours.js';
-    import { evaluateDay, type FreePerson } from '../overlap.js';
+    import { evaluateDay, explainDay, type FreePerson } from '../overlap.js';
     import type { Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
 
@@ -69,7 +69,23 @@
         const unsurePeople = participants.filter(
             (p) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
         );
-        return { free, ev, keptSet: new Set(ev.keptIds), counted: confirmedCount - unsure, unsurePeople };
+        const unsureIds = new Set(unsurePeople.map((p) => p.userId));
+        //Confirmed, near enough to say, and did not mark the day: the half of "why is this dim" that has names
+        const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId) && !unsureIds.has(p.userId));
+        /*
+            Nobody is dropped on a day that failed. keptIds comes back empty there,
+            which read as everyone having been left out and struck the whole list through.
+        */
+        const droppedSet = new Set(ev.viable ? ev.droppedIds : []);
+        return {
+            free,
+            ev,
+            droppedSet,
+            counted: confirmedCount - unsure,
+            unsurePeople,
+            missing,
+            reason: ev.viable ? null : explainDay(free, confirmedCount, missAllowed, unsure)
+        };
     });
 
     /*
@@ -123,17 +139,37 @@
         {#if sel.ev.viable}
             <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
         {:else}
-            <p><strong>{formatDate(selectedDate)}</strong>: {sel.free.length} of {sel.counted} marked this day free. It is outside your miss slider, but you can still set it.</p>
+            <!--Says which of the two dim days this is, since the grid can only say that it is one.
+                The title attribute carried this and never showed up on a phone.-->
+            <p>
+                <strong>{formatDate(selectedDate)}</strong>
+                {#if sel.reason?.block === 'nobody'}
+                    is past everyone's sure-up-to date, so nobody is counted on it.
+                {:else if sel.reason?.block === 'missing'}
+                    is dim because {sel.missing.length} of {sel.counted} did not mark it free, and you are
+                    {missAllowed ? `only willing to miss ${missAllowed}` : 'not willing to miss anyone'}.
+                {:else}
+                    is dim because the {sel.free.length} people free on it share no hour between them.
+                {/if}
+                {#if sel.reason?.needMiss != null}
+                    Willing to miss {sel.reason.needMiss}? Then it works.
+                {/if}
+                You can still set it.
+            </p>
         {/if}
 
         <ul class="who">
             {#each sel.free as f (f.userId)}
-                <li class:dropped={!sel.keptSet.has(f.userId)}>
+                <li class:dropped={sel.droppedSet.has(f.userId)}>
                     {byId[f.userId]?.displayName || 'Someone'}: {formatHours(f.hours)}
-                    {#if !sel.keptSet.has(f.userId)}<span class="muted small">(not counted)</span>{/if}
+                    {#if sel.droppedSet.has(f.userId)}<span class="muted small">(not counted)</span>{/if}
                 </li>
             {/each}
         </ul>
+
+        {#if sel.missing.length}
+            <p class="muted small">Not free on this day: {sel.missing.map((p) => p.displayName).join(', ')}.</p>
+        {/if}
 
         {#if sel.unsurePeople.length}
             <p class="muted small">

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOUR_COUNT } from '../../src/lib/hours.js';
-import { bestWindow, evaluateDay } from '../../src/lib/overlap.js';
+import { bestWindow, evaluateDay, explainDay } from '../../src/lib/overlap.js';
 
 describe('bestWindow', () => {
     it('has no window when nobody is free', () => {
@@ -179,5 +179,49 @@ describe('evaluateDay', () => {
 
     it('is not viable when everyone confirmed is unsure', () => {
         expect(evaluateDay([], 2, 0, 2).viable).toBe(false);
+    });
+});
+
+describe('explainDay', () => {
+    it('blames the absences when too few marked the day', () => {
+        expect(explainDay([{ userId: 'a' }], 3, 0)).toEqual({ block: 'missing', needMiss: 2 });
+    });
+
+    it('blames the hours when everyone is free and nothing overlaps', () => {
+        const free = [
+            { userId: 'a', hours: [8] },
+            { userId: 'b', hours: [20] }
+        ];
+        expect(explainDay(free, 2, 0)).toEqual({ block: 'clash', needMiss: 1 });
+    });
+
+    /*
+        Two away and the two who are here clashing, so the allowance that covers the
+        absences still leaves a dim day. The whole reason this walks the allowances
+        rather than answering with the number missing.
+    */
+    it('goes past the absences when the hours clash on top of them', () => {
+        const free = [
+            { userId: 'a', hours: [8] },
+            { userId: 'b', hours: [20] }
+        ];
+        expect(explainDay(free, 4, 0)).toEqual({ block: 'missing', needMiss: 3 });
+    });
+
+    it('counts every round a clash takes to come apart', () => {
+        const free = [
+            { userId: 'a', hours: [8] },
+            { userId: 'b', hours: [20] },
+            { userId: 'c', hours: [14] }
+        ];
+        expect(explainDay(free, 3, 1)).toEqual({ block: 'clash', needMiss: 2 });
+    });
+
+    it('has no allowance to offer for a day nobody marked', () => {
+        expect(explainDay([], 3, 0)).toEqual({ block: 'missing', needMiss: null });
+    });
+
+    it('says nobody is counted when the day is past every horizon', () => {
+        expect(explainDay([], 2, 0, 2)).toEqual({ block: 'nobody', needMiss: null });
     });
 });

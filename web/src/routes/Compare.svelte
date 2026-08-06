@@ -225,7 +225,7 @@
                 <div class="miss">
                     <label for="miss">How many people are you willing to miss out? <strong>{missInput}</strong></label>
                     <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
-                    <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits.</p>
+                    <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits: tap one to see why.</p>
                     <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->
                     <ClockNote zone={data.plan.timeZone} what="The days and hours here" />
                 </div>

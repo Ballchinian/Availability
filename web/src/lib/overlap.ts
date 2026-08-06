@@ -28,6 +28,19 @@ export interface DayEval {
     droppedIds: string[];
 }
 
+/*
+    Why a day came out dim. 'missing' is too few people free for the allowance,
+    'clash' is enough of them free with no hour in common, 'nobody' is a day past
+    the certainty horizon of everyone who has confirmed.
+*/
+export type DayBlock = 'nobody' | 'missing' | 'clash';
+
+export interface DayReason {
+    block: DayBlock;
+    //The lowest miss allowance this day comes good at, null when no allowance does
+    needMiss: number | null;
+}
+
 //A counted person carries their hours as a set, ready to intersect with others
 interface Counted {
     userId: string;
@@ -139,4 +152,28 @@ export function evaluateDay(free: FreePerson[], confirmedCount: number, missAllo
         keptIds,
         droppedIds
     };
+}
+
+/*
+    What a dim day is dim about, and what the miss slider would have to say for it
+    to stop being. The two failures look identical on the grid and want opposite
+    things from a planner: chase the absent, or accept a narrower crowd.
+
+    Walks the allowances rather than solving for one, so it costs an evaluateDay a
+    step. Only ever asked about the single day a planner has picked. Over a grid
+    this would be the miss slider's whole cost again, per day.
+*/
+export function explainDay(free: FreePerson[], confirmedCount: number, missAllowed: number, unsureCount = 0): DayReason {
+    const counted = confirmedCount - unsureCount;
+    if (counted <= 0) return { block: 'nobody', needMiss: null };
+
+    const block: DayBlock = counted - free.length > missAllowed ? 'missing' : 'clash';
+    /*
+        Stops one short of the count because the last person standing is never
+        dropped, so an allowance past that buys nothing bestWindow can spend.
+    */
+    for (let m = missAllowed + 1; m < counted; m++) {
+        if (evaluateDay(free, confirmedCount, m, unsureCount).viable) return { block, needMiss: m };
+    }
+    return { block, needMiss: null };
 }
