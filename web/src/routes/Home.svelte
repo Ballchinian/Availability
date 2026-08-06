@@ -16,6 +16,7 @@
     let loadError = $state('');
     let guilds = $state<UserGuild[]>([]);
     let plans = $state<UserPlan[]>([]);
+    let past = $state<UserPlan[]>([]);
 
     const mine = browserZone();
 
@@ -36,10 +37,11 @@
         try {
             const [g, p] = await Promise.all([
                 api<{ guilds: UserGuild[] }>('/me/guilds'),
-                api<{ plans: UserPlan[] }>('/me/plans')
+                api<{ plans: UserPlan[]; past: UserPlan[] }>('/me/plans')
             ]);
             guilds = g.guilds;
             plans = p.plans;
+            past = p.past;
         } catch (err) {
             loadError = errorText(err);
         }
@@ -61,6 +63,7 @@
     //What this plan is waiting on, said from where this person stands in it
     function planNote(p: UserPlan) {
         const where = p.guildName ? `${p.guildName} · ` : '';
+        if (p.status === 'cancelled') return `${where}called off`;
         if (p.status !== 'collecting') {
             /*
                 This list spans servers, which need not run on one clock, so a time gets the
@@ -75,6 +78,26 @@
         return `${where}${state} · ${formatDate(p.start)} to ${formatDate(p.end)}`;
     }
 </script>
+
+<!--Both lists of plans are the same card, so the live ones and the ones that are over share it-->
+{#snippet planCards(list: UserPlan[])}
+    <ul class="cards">
+        {#each list as p (p.planId)}
+            <li class="card">
+                <div class="body">
+                    <a class="name" href={p.inIt ? `#/plan/${p.planId}` : `#/plan/${p.planId}/compare`}>{p.name}</a>
+                    <span class="muted note">{planNote(p)}</span>
+                    {#if p.mine && p.inIt}
+                        <a class="action" href="#/plan/{p.planId}/compare">Compare everyone's dates</a>
+                    {/if}
+                    {#if p.status === 'closed' && p.chosenDate}
+                        <a class="action" href={icsHref(p.planId)}>Add to your calendar</a>
+                    {/if}
+                </div>
+            </li>
+        {/each}
+    </ul>
+{/snippet}
 
 <section class="screen">
     {#if loading}
@@ -126,22 +149,18 @@
                 Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
             </p>
         {:else}
-            <ul class="cards">
-                {#each sortedPlans as p (p.planId)}
-                    <li class="card">
-                        <div class="body">
-                            <a class="name" href={p.inIt ? `#/plan/${p.planId}` : `#/plan/${p.planId}/compare`}>{p.name}</a>
-                            <span class="muted note">{planNote(p)}</span>
-                            {#if p.mine && p.inIt}
-                                <a class="action" href="#/plan/{p.planId}/compare">Compare everyone's dates</a>
-                            {/if}
-                            {#if p.status === 'closed' && p.chosenDate}
-                                <a class="action" href={icsHref(p.planId)}>Add to your calendar</a>
-                            {/if}
-                        </div>
-                    </li>
-                {/each}
-            </ul>
+            {@render planCards(sortedPlans)}
+        {/if}
+
+        {#if past.length}
+            <details class="group">
+                <summary>Called off <span class="hint">plans that were cancelled</span></summary>
+                <p class="muted small">
+                    Nothing here can be changed. What everyone had said is still on the compare page, until you delete
+                    the thread in Discord.
+                </p>
+                {@render planCards(past)}
+            </details>
         {/if}
 
         <h2>Your availability</h2>

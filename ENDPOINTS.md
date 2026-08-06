@@ -129,11 +129,11 @@ The clock the requester reads their own hours on.
 
 ## GET `/api/me/plans` 🔒
 
-Everything the requester still has on, across every server they share with the bot.
+Everything the requester still has on, across every server they share with the bot, and a short list of the ones that are over.
 
 ### Returns
 
-Each plan with:
+Two lists, the live plans and the ones behind them, each plan with:
 
 * Plan id, name, and the server it belongs to
 * Its status and date range, plus the day and time if one has been set, and the server clock that time is written on
@@ -142,7 +142,8 @@ Each plan with:
 
 ### Notes
 
-* Covers plans still collecting dates and set plans whose day has not passed. Cancelled plans and days gone by are left out.
+* The live list covers plans still collecting dates and set plans whose day has not passed. Days gone by are left out.
+* The second list is the cancelled ones, newest first and capped at a dozen, so the read-only compare page behind a called-off plan has a way in from the site.
 * Plans the requester started count as well as plans they are in, since nothing makes a planner invite themselves to their own plan.
 * A set plan the requester was left off the invite list for is left out too.
 

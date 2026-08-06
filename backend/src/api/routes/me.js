@@ -3,7 +3,7 @@ import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
 import { getUserById, setUserGuilds, setUserTimeZone } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
-import { getActivePlansForUser } from '../../db/plans.js';
+import { getActivePlansForUser, getFinishedPlansForUser } from '../../db/plans.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { today } from '../../lib/dates.js';
 import { isValidZone, safeZone } from '../../lib/zones.js';
@@ -75,39 +75,47 @@ router.put('/timezone', requireUser, async (req, res) => {
     res.json({ ok: true, timeZone });
 });
 
+//One plan as the landing page reads it, or null for one this person has nothing to do with
+function planRow(plan, userId, names) {
+    const me = plan.participants.find((p) => p.userId === userId);
+    const running = plan.createdBy === userId;
+    //Left off the invite list when the date was locked, so there is nothing to come to, unless they run it
+    if (plan.status === 'closed' && me?.invited === false && !running) return null;
+
+    return {
+        planId: plan.planId,
+        name: plan.name,
+        guildName: names.get(plan.guildId) || '',
+        status: plan.status,
+        start: plan.dateRange.start,
+        end: plan.dateRange.end,
+        chosenDate: plan.chosenDate || null,
+        chosenTime: plan.chosenTime || null,
+        //The clock that time is written in, which the list only mentions when it is not theirs
+        timeZone: safeZone(plan.timeZone),
+        //A planner who did not invite themselves is running this one without being in it
+        inIt: Boolean(me),
+        //Whether they still owe this plan their dates, which is the whole reason for the list
+        filledIn: Boolean(me?.confirmed),
+        //Their own plans carry the compare link, since nobody else could open it anyway
+        mine: running
+    };
+}
+
 router.get('/plans', requireUser, async (req, res) => {
-    const plans = await getActivePlansForUser(req.user.id, today());
-    const configs = await getGuildConfigs([...new Set(plans.map((plan) => plan.guildId))]);
+    //Neither list reads the other, and the server names below need the two of them
+    const [live, over] = await Promise.all([
+        getActivePlansForUser(req.user.id, today()),
+        getFinishedPlansForUser(req.user.id)
+    ]);
+    const configs = await getGuildConfigs([...new Set([...live, ...over].map((plan) => plan.guildId))]);
     const names = new Map(configs.map((cfg) => [cfg.guildId, cfg.guildName]));
 
-    const rows = [];
-    for (const plan of plans) {
-        const me = plan.participants.find((p) => p.userId === req.user.id);
-        const running = plan.createdBy === req.user.id;
-        //Left off the invite list when the date was locked, so there is nothing to come to, unless they run it
-        if (plan.status === 'closed' && me?.invited === false && !running) continue;
-
-        rows.push({
-            planId: plan.planId,
-            name: plan.name,
-            guildName: names.get(plan.guildId) || '',
-            status: plan.status,
-            start: plan.dateRange.start,
-            end: plan.dateRange.end,
-            chosenDate: plan.chosenDate || null,
-            chosenTime: plan.chosenTime || null,
-            //The clock that time is written in, which the list only mentions when it is not theirs
-            timeZone: safeZone(plan.timeZone),
-            //A planner who did not invite themselves is running this one without being in it
-            inIt: Boolean(me),
-            //Whether they still owe this plan their dates, which is the whole reason for the list
-            filledIn: Boolean(me?.confirmed),
-            //Their own plans carry the compare link, since nobody else could open it anyway
-            mine: running
-        });
-    }
-
-    res.json({ plans: rows });
+    res.json({
+        plans: live.map((plan) => planRow(plan, req.user.id, names)).filter(Boolean),
+        //The ones that are done with, kept apart so the live list stays what the page opens on
+        past: over.map((plan) => planRow(plan, req.user.id, names)).filter(Boolean)
+    });
 });
 
 export default router;

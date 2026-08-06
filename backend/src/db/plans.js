@@ -184,6 +184,25 @@ export async function getActivePlansForUser(userId, fromDate) {
 }
 
 /*
+    The other end of that list: plans that are over. A cancelled one drops out of the
+    active query the moment it is called off, which leaves the read-only compare page
+    behind it reachable only by whoever still has the link.
+
+    Capped, since this half only ever grows. A dozen is enough to find the one you
+    meant and short enough to sit folded under the live ones.
+*/
+export async function getFinishedPlansForUser(userId, limit = 12) {
+    return col(collections.plans)
+        .find({
+            status: 'cancelled',
+            $or: [{ 'participants.userId': userId }, { createdBy: userId }]
+        })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .toArray();
+}
+
+/*
     Move every plan in a server onto a new clock, which is what makes the server have
     one rather than each plan carrying whichever was in force the day it was made. A
     plan keeps the day and time it says on it and those now mean an hour elsewhere,
