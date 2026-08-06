@@ -50,4 +50,4 @@
         {/if}
     </div>
 {/if}
-{#if panel.msg}<p class="status small" class:error={panel.failed}>{panel.msg}</p>{/if}
+{#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}

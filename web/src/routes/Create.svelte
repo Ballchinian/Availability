@@ -275,7 +275,7 @@
         </div>
 
         {#if formError}
-            <p class="status error">{formError}</p>
+            <p class="status error" aria-live="polite">{formError}</p>
         {/if}
 
         <button class="primary" onclick={submit} disabled={submitting}>

@@ -112,6 +112,6 @@
                 </ul>
             </div>
         {/if}
-        {#if panel.msg}<p class="status error small">{panel.msg}</p>{/if}
+        {#if panel.msg}<p class="status error small" aria-live="polite">{panel.msg}</p>{/if}
     </div>
 {/if}

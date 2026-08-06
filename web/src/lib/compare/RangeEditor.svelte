@@ -71,5 +71,5 @@
     <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
     <label class="check"><input type="checkbox" bind:checked={post} /> Post the new dates in the thread</label>
     <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone the new dates</label>
-    {#if panel.msg}<p class="status small" class:error={panel.failed}>{panel.msg}</p>{/if}
+    {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
 </div>

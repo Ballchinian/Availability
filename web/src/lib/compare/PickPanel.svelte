@@ -156,7 +156,7 @@
         {#if probe}
             <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it. Their votes show up below.</p>
         {/if}
-        {#if panel.msg}<p class="status" class:error={panel.failed}>{panel.msg}</p>{/if}
+        {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
         <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent}>
             {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if sameDetails}Ask everyone to confirm{:else if chosen && selectedDate === chosen.date}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
         </button>

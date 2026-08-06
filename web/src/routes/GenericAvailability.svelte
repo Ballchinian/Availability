@@ -152,9 +152,9 @@
 
         <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm any plan this window fully covers</label>
 
-        {#if saveError}<p class="status error">{saveError}</p>{/if}
+        {#if saveError}<p class="status error" aria-live="polite">{saveError}</p>{/if}
         {#if saved}
-            <p class="prompt good">
+            <p class="prompt good" aria-live="polite">
                 Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.
                 {#if saved.confirmedPlans.length}Auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
             </p>

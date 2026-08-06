@@ -190,11 +190,11 @@
         </p>
 
         {#if saveError}
-            <p class="status error">{saveError}</p>
+            <p class="status error" aria-live="polite">{saveError}</p>
         {/if}
 
         {#if saved}
-            <p class="prompt good">
+            <p class="prompt good" aria-live="polite">
                 Confirmed. You are {saved.confirmedCount}/{saved.totalParticipants} of the group now.
                 {#if saved.confirmedPlans?.length}Also auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
             </p>
@@ -214,7 +214,7 @@
                 </button>
                 <button class="ghost" onclick={() => (leaveArmed = false)}>No</button>
             {/if}
-            {#if leaveError}<p class="status error">{leaveError}</p>{/if}
+            {#if leaveError}<p class="status error" aria-live="polite">{leaveError}</p>{/if}
         </div>
     {/if}
 </section>

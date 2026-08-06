@@ -50,5 +50,5 @@
             Remind the stragglers
         {/if}
     </button>
-    {#if panel.msg}<span class="status small" class:error={panel.failed}>{panel.msg}</span>{/if}
+    {#if panel.msg}<span class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</span>{/if}
 </div>
