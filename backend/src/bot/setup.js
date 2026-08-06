@@ -6,7 +6,7 @@ import {
     MessageFlags
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
-import { findPlannerRole, placeIntro, pinMessage, introText } from './util.js';
+import { plannerRoleFor, freeRoleName, buttonLabel, placeIntro, pinMessage, introText } from './util.js';
 import { readZoneOption, setupZoneLine } from './timezone.js';
 import { config } from '../config.js';
 
@@ -73,13 +73,18 @@ export async function handleSetupComponent(interaction) {
 }
 
 /*
-    Step 1: either there is already a planner role to adopt, or we just make one.
+    Step 1: either there is already a planner role to keep or adopt, or we just make
+    one. A rerun asks about the role the server is already running on rather than
+    whatever is named "planner", and warns what a fresh one would cost, since that is
+    the click that takes planning off everybody who can do it today.
+
     fresh is true when this comes straight off the slash command, so we reply
     instead of editing a component message that does not exist yet.
 */
 async function askAboutRole(interaction, fresh, zone) {
     await interaction.guild.roles.fetch();
-    const existing = findPlannerRole(interaction.guild);
+    const prev = await getGuildConfig(interaction.guild.id);
+    const { role: existing, saved } = plannerRoleFor(interaction.guild, prev);
 
     if (!existing) {
         //Acknowledge first, since making the role and the channel are slow calls
@@ -94,7 +99,7 @@ async function askAboutRole(interaction, fresh, zone) {
         new ButtonBuilder()
             //The empty slot is the role id the other button carries, so the zone is always last
             .setCustomId(`setup|role|adopt|${existing.id}|${zone}`)
-            .setLabel(`Use existing ${existing.name}`)
+            .setLabel(buttonLabel(saved ? `Keep ${existing.name}` : `Use existing ${existing.name}`))
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId(`setup|role|new||${zone}`)
@@ -103,7 +108,9 @@ async function askAboutRole(interaction, fresh, zone) {
     );
 
     const payload = {
-        content: `There is already a role called "${existing.name}". Want me to use it, or make a separate role just for planning?`,
+        content: saved
+            ? `You are already set up here, and "${existing.name}" is the role that lets people plan. Keep it, or make a fresh one? A fresh one leaves everybody who can plan today unable to, apart from you.`
+            : `There is already a role called "${existing.name}". Want me to use it, or make a separate role just for planning?`,
         components: [row]
     };
     if (fresh) return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
@@ -184,7 +191,7 @@ async function finalize(interaction, plannerRoleId, zone) {
     }
 }
 
-//Adopt the role they picked, or create one (avoiding a duplicate "planner" name)
+//Adopt the role they picked, or create one under a name nothing here has taken
 async function resolveRole(guild, roleChoice) {
     if (roleChoice.mode === 'adopt') {
         const role = await guild.roles.fetch(roleChoice.roleId);
@@ -192,6 +199,5 @@ async function resolveRole(guild, roleChoice) {
         return role;
     }
 
-    const name = findPlannerRole(guild) ? 'Plan Master' : 'planner';
-    return guild.roles.create({ name, mentionable: true, reason: 'Role that can start availability plans' });
+    return guild.roles.create({ name: freeRoleName(guild), mentionable: true, reason: 'Role that can start availability plans' });
 }

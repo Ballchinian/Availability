@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { placeIntro } from '../../src/bot/util.js';
+import { Collection } from 'discord.js';
+import { placeIntro, plannerRoleFor, freeRoleName, buttonLabel } from '../../src/bot/util.js';
 
 /*
     Setup used to delete the info channel and make a fresh one every run. Plan threads
@@ -135,5 +136,85 @@ describe('placeIntro', () => {
         await placeIntro(guild, { infoChannelId: 'c1', introMessageId: 'm1', introThreadId: 't1' }, BODY);
 
         expect(log).toEqual(['edit:m1']);
+    });
+});
+
+/*
+    The role half of the same rerun. The cache is the library's own Collection rather
+    than a Map standing in for one: these helpers reach for find() and map(), which
+    Collection adds and a Map does not have.
+*/
+function rolesOf(...roles) {
+    return { roles: { cache: new Collection(roles.map((r) => [r.id, r])) } };
+}
+
+describe('plannerRoleFor', () => {
+    //The bug: the config is the only thing that knows, since a planner role can be called anything
+    it('takes the saved role over an unrelated role named planner', () => {
+        const guild = rolesOf({ id: 'r1', name: 'Plan Master' }, { id: 'r2', name: 'planner' });
+
+        const out = plannerRoleFor(guild, { plannerRoleId: 'r1' });
+
+        expect(out.role.id).toBe('r1');
+        expect(out.saved).toBe(true);
+    });
+
+    it('takes the saved role when it is named nothing like planner at all', () => {
+        const guild = rolesOf({ id: 'r1', name: 'Organisers' });
+
+        expect(plannerRoleFor(guild, { plannerRoleId: 'r1' }).role.name).toBe('Organisers');
+    });
+
+    //A server being set up for the first time has nothing saved to go on
+    it('falls back to the name when nothing is saved', () => {
+        const guild = rolesOf({ id: 'r2', name: 'Planner' });
+
+        const out = plannerRoleFor(guild, null);
+
+        expect(out.role.id).toBe('r2');
+        expect(out.saved).toBe(false);
+    });
+
+    it('falls back when the saved role has been deleted since', () => {
+        const guild = rolesOf({ id: 'r2', name: 'planner' });
+
+        expect(plannerRoleFor(guild, { plannerRoleId: 'gone' })).toEqual({ role: guild.roles.cache.get('r2'), saved: false });
+    });
+
+    it('answers with nothing when there is neither', () => {
+        expect(plannerRoleFor(rolesOf({ id: 'r9', name: 'mods' }), null).role).toBe(null);
+    });
+});
+
+describe('freeRoleName', () => {
+    it('is planner on a server that has no such role', () => {
+        expect(freeRoleName(rolesOf({ id: 'r9', name: 'mods' }))).toBe('planner');
+    });
+
+    it('steps aside for a planner role that is already there, whatever its case', () => {
+        expect(freeRoleName(rolesOf({ id: 'r1', name: 'PLANNER' }))).toBe('Plan Master');
+    });
+
+    //What a third run used to collide on
+    it('keeps counting rather than making a second Plan Master', () => {
+        const guild = rolesOf({ id: 'r1', name: 'planner' }, { id: 'r2', name: 'Plan Master' });
+        expect(freeRoleName(guild)).toBe('Plan Master 2');
+
+        guild.roles.cache.set('r3', { id: 'r3', name: 'Plan Master 2' });
+        expect(freeRoleName(guild)).toBe('Plan Master 3');
+    });
+});
+
+describe('buttonLabel', () => {
+    it('leaves a label Discord will take', () => {
+        expect(buttonLabel('Keep planner')).toBe('Keep planner');
+        expect(buttonLabel('x'.repeat(80))).toHaveLength(80);
+    });
+
+    //A role name is allowed 100 characters and the button was going out with all of them
+    it('cuts one it will not, to exactly the limit', () => {
+        const cut = buttonLabel(`Keep ${'x'.repeat(100)}`);
+        expect(cut).toHaveLength(80);
+        expect(cut.endsWith('...')).toBe(true);
     });
 });

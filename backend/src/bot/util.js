@@ -81,6 +81,45 @@ export function findPlannerRole(guild) {
 }
 
 /*
+    Which role setup should offer to keep, and whether it is the one this server is
+    already running on.
+
+    The saved id comes first because it is the only thing that knows the answer: a
+    planner role can be named anything, findPlannerRole goes by the name alone, so on
+    a server whose role is called something else it would offer an unrelated role
+    named "planner" and quietly hand planning to whoever happens to hold it.
+
+    Falls back to the name for a server being set up for the first time, and answers
+    with nothing when the saved role has been deleted since.
+*/
+export function plannerRoleFor(guild, prev) {
+    const saved = prev?.plannerRoleId ? guild.roles.cache.get(prev.plannerRoleId) : null;
+    if (saved) return { role: saved, saved: true };
+    return { role: findPlannerRole(guild), saved: false };
+}
+
+/*
+    A name no role here has taken yet. Setup used to pick between two names and stop,
+    so a server that made a fresh role twice ended up with two roles called "Plan
+    Master" and nothing in the role list to tell them apart by.
+*/
+export function freeRoleName(guild) {
+    const taken = new Set(guild.roles.cache.map((r) => r.name.toLowerCase()));
+    if (!taken.has('planner')) return 'planner';
+    //Discord caps a server at 250 roles, so a free name is always inside that many tries
+    for (let n = 1; n <= 250; n++) {
+        const name = n === 1 ? 'Plan Master' : `Plan Master ${n}`;
+        if (!taken.has(name.toLowerCase())) return name;
+    }
+    return 'Plan Master';
+}
+
+//Discord rejects a button label past 80 characters, and a role name is allowed 100
+export function buttonLabel(text) {
+    return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+}
+
+/*
     Pulls a guild's whole member list into the cache once, so the member picker can
     read it straight from cache instead of the rate limited gateway fetch. Smaller
     servers already arrive fully cached, so this only does any work for the larger
