@@ -50,12 +50,17 @@ Nothing is stored converted. Your availability is kept exactly as you wrote it, 
 
 ## Commands
 
+Seven of them, and they sort into three lots: two for setting the server up, three anyone can run, two for whoever is running the plan. Everything the bot says back to you here is only visible to you.
+
 | Command | What it does |
 | --- | --- |
 | `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Takes the server's time zone while it's there. Manage Server only. |
 | `/timezone` | Shows the clock this server's plans run on, or changes it. Planner role only to change it. |
 | `/free` | Tick the days you're free without leaving Discord. Run it in a plan's thread and it knows which plan you mean. |
+| `/mylink` | Lists the plans you're in on this server and hands you your link for each one. Handy when the DM has scrolled away. |
+| `/myavailability` | Hands you the link to your general availability, the timetable that isn't tied to any one plan. |
 | `/compare` | Run inside a plan's thread, hands the planner that plan's compare link. Planner role only. |
+| `/cancel` | Run inside a plan's thread to call the whole thing off. Asks you to confirm first, then tells everyone. Planner role only. |
 
 ## Tech stack
 
