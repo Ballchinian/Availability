@@ -40,10 +40,13 @@ router.get('/:planId', requireUser, async (req, res) => {
     const me = plan.participants.find((p) => p.userId === req.user.id);
     if (!me) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
 
-    const cfg = await getGuildConfig(plan.guildId);
-    const availability = await getAvailabilityInRange(req.user.id, plan.dateRange.start, plan.dateRange.end);
-    const summary = await getAvailabilitySummary(req.user.id);
-    const userDoc = await getUserById(req.user.id);
+    //None of the four reads the others, so they go together: one wait rather than four
+    const [cfg, availability, summary, userDoc] = await Promise.all([
+        getGuildConfig(plan.guildId),
+        getAvailabilityInRange(req.user.id, plan.dateRange.start, plan.dateRange.end),
+        getAvailabilitySummary(req.user.id),
+        getUserById(req.user.id)
+    ]);
 
     res.json({
         plan: {
@@ -158,10 +161,35 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
     const ctx = await plannerContext(plan, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
 
-    //Names and avatars for everyone invited, plus their horizons and their clocks in one query
-    const prefs = await getPlanningPrefs(plan.participants.map((p) => p.userId));
-    //Fetched together rather than one after another, so twenty people is one wait, not twenty
-    const members = await Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null)));
+    /*
+        Only people who have confirmed count, and we send their hours so the site can
+        work out the overlap window for each day.
+
+        Everyone writes their hours in their own clock, and the plan runs on the
+        server's, so the hours are read into that before anyone is compared. Someone an
+        hour ahead of the server is free from 11pm the night before as far as this grid
+        is concerned, which is why the query reaches a day past each end: that is where
+        the spill comes from. Anything still landing outside the range is dropped.
+    */
+    const guildZone = safeZone(ctx.cfg.timeZone);
+    const confirmed = plan.participants.filter((p) => p.confirmed);
+
+    /*
+        The three reads this page needs, together: everyone's horizons and clocks, their
+        names and avatars, and the hours themselves. Who is confirmed comes off the plan
+        we already hold, so nothing here waits on anything else here. The member fetches
+        are one wait for twenty people rather than twenty on their own.
+    */
+    const [prefs, members, rows] = await Promise.all([
+        getPlanningPrefs(plan.participants.map((p) => p.userId)),
+        Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null))),
+        getAvailabilityForUsersInRange(
+            confirmed.map((p) => p.userId),
+            shiftDate(plan.dateRange.start, -1),
+            shiftDate(plan.dateRange.end, 1)
+        )
+    ]);
+
     const participants = plan.participants.map((p, i) => {
         const m = members[i];
         return {
@@ -180,24 +208,6 @@ router.get('/:planId/compare', requireUser, async (req, res) => {
             sureUntil: prefs[p.userId]?.sureUntil || null
         };
     });
-
-    /*
-        Only people who have confirmed count, and we send their hours so the site can
-        work out the overlap window for each day.
-
-        Everyone writes their hours in their own clock, and the plan runs on the
-        server's, so the hours are read into that before anyone is compared. Someone an
-        hour ahead of the server is free from 11pm the night before as far as this grid
-        is concerned, which is why the query reaches a day past each end: that is where
-        the spill comes from. Anything still landing outside the range is dropped.
-    */
-    const guildZone = safeZone(ctx.cfg.timeZone);
-    const confirmed = plan.participants.filter((p) => p.confirmed);
-    const rows = await getAvailabilityForUsersInRange(
-        confirmed.map((p) => p.userId),
-        shiftDate(plan.dateRange.start, -1),
-        shiftDate(plan.dateRange.end, 1)
-    );
 
     const byUser = new Map();
     for (const r of rows) {
