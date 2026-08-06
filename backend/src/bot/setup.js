@@ -6,7 +6,7 @@ import {
     MessageFlags
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
-import { findPlannerRole, createInfoChannel, pinMessage, introText } from './util.js';
+import { findPlannerRole, placeIntro, pinMessage, introText } from './util.js';
 import { readZoneOption, setupZoneLine } from './timezone.js';
 import { config } from '../config.js';
 
@@ -16,8 +16,12 @@ import { config } from '../config.js';
     ids, so there is no in memory session to keep track of.
 
     Step 1: sort the planner role (adopt an existing one or make a fresh one)
-    Step 2: save config, make the read-only info channel, post and pin the intro,
+    Step 2: save config, put the intro in the read-only info channel and pin it,
             report back. Plan threads spawn off that channel.
+
+    Rerunning it is safe and is the way to bring an old server's pinned intro up to
+    date. It keeps the channel it finds, since the plan threads hanging off it would
+    go with it.
 
     The clock they picked rides in the button ids with everything else rather than
     being written as it is read, so abandoning the wizard halfway leaves no half
@@ -106,7 +110,7 @@ async function askAboutRole(interaction, fresh, zone) {
     return interaction.update(payload);
 }
 
-//Step 2: make the info channel, post the intro, save config, report back
+//Step 2: place the intro, save config, report back
 async function finalize(interaction, plannerRoleId, zone) {
     const guild = interaction.guild;
     const timeZone = zone || config.defaultTimeZone;
@@ -118,31 +122,27 @@ async function finalize(interaction, plannerRoleId, zone) {
             await setupMember.roles.add(plannerRoleId).catch(() => {});
         }
 
-        //Clear out anything a previous setup left behind so we do not pile up
         const prev = await getGuildConfig(guild.id);
-        if (prev?.infoChannelId) {
-            const oldChannel = await guild.channels.fetch(prev.infoChannelId).catch(() => null);
-            if (oldChannel) await oldChannel.delete().catch(() => {});
-        } else if (prev?.introThreadId) {
-            //An older setup kept the intro in a thread, tidy that up
-            const oldThread = await guild.channels.fetch(prev.introThreadId).catch(() => null);
-            if (oldThread) await oldThread.delete().catch(() => {});
-        }
-
-        //The bot makes its own read-only channel: the intro lives here and plan threads spawn off it
-        const channel = await createInfoChannel(guild);
-        const intro = await channel.send({
+        //The read-only channel the intro lives in and every plan thread spawns off, kept across a rerun
+        const { channel, intro, madeChannel } = await placeIntro(guild, prev, {
             content: introText(guild.id, plannerRoleId),
             //Show the role as a styled mention without actually pinging it
             allowedMentions: { parse: [] }
         });
 
-        let pinned = true;
-        try {
-            await pinMessage(intro);
-        } catch (err) {
-            pinned = false;
-            console.warn('[setup] could not pin intro:', err.message);
+        /*
+            Asked of the message rather than done again, so a rerun does not re-pin what
+            is already pinned. An intro that went up unpinned for want of Manage Messages
+            still gets another go, which is what the note at the bottom promises.
+        */
+        let pinned = intro.pinned;
+        if (!pinned) {
+            try {
+                await pinMessage(intro);
+                pinned = true;
+            } catch (err) {
+                console.warn('[setup] could not pin intro:', err.message);
+            }
         }
 
         await saveGuildConfig(guild.id, {
@@ -166,8 +166,13 @@ async function finalize(interaction, plannerRoleId, zone) {
             ? ''
             : '\n\n(Heads up: I could not pin the intro. Give me the Manage Messages permission and rerun /setup if you want it pinned.)';
 
+        //A rerun has to say what it actually did, since the answer is now "nothing to the channel"
+        const opening = madeChannel
+            ? `All set. I made the ${channel} channel, read only so it stays clean, with the intro and the link pinned at the top.`
+            : `All set. ${channel} was already there, so I left it and its plan threads alone and brought the pinned intro up to date.`;
+
         return interaction.editReply({
-            content: `All set. I made the ${channel} channel, read only so it stays clean, with the intro and the link pinned at the top. The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${setupZoneLine(timeZone, Boolean(zone))}${pinNote}`,
+            content: `${opening} The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${setupZoneLine(timeZone, Boolean(zone))}${pinNote}`,
             allowedMentions: { parse: [] }
         });
     } catch (err) {

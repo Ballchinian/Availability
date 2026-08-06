@@ -54,7 +54,7 @@ Seven of them, and they sort into three lots: two for setting the server up, thr
 
 | Command | What it does |
 | --- | --- |
-| `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Takes the server's time zone while it's there. Manage Server only. |
+| `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Takes the server's time zone while it's there. Safe to run again: it keeps the channel it finds, along with the plan threads under it, and just brings the pinned intro up to date. Manage Server only. |
 | `/timezone` | Shows the clock this server's plans run on, or changes it. Planner role only to change it. |
 | `/free` | Tick the days you're free without leaving Discord. Run it in a plan's thread and it knows which plan you mean. |
 | `/mylink` | Lists the plans you're in on this server and hands you your link for each one. Handy when the DM has scrolled away. |

@@ -141,6 +141,44 @@ export async function createInfoChannel(guild) {
 }
 
 /*
+    Puts the intro where it goes on setup, and says whether the channel is new.
+
+    A server being set up a second time keeps the channel it already has. Plan
+    threads live under that channel and a deleted plan thread clears its plan for
+    good, so making a fresh one used to take every live plan on the server with it.
+    Nothing here deletes a channel: the worst case is an intro posted twice.
+
+    The intro itself is edited where it sits rather than posted again, so a rerun
+    brings the pinned message up to date instead of leaving a stale copy above a new
+    one.
+*/
+export async function placeIntro(guild, prev, body) {
+    const channel = prev?.infoChannelId ? await guild.channels.fetch(prev.infoChannelId).catch(() => null) : null;
+
+    //Only tidied when there is no channel, since an older setup kept the intro in a thread instead of one
+    if (!channel && prev?.introThreadId) {
+        const thread = await guild.channels.fetch(prev.introThreadId).catch(() => null);
+        if (thread) await thread.delete().catch(() => {});
+    }
+
+    if (!channel) {
+        const made = await createInfoChannel(guild);
+        return { channel: made, intro: await made.send(body), madeChannel: true };
+    }
+
+    if (prev?.introMessageId) {
+        const old = await channel.messages.fetch(prev.introMessageId).catch(() => null);
+        //An intro somebody deleted by hand falls through to a fresh one in the same channel
+        if (old) {
+            const edited = await old.edit(body).catch(() => null);
+            if (edited) return { channel, intro: edited, madeChannel: false };
+        }
+    }
+
+    return { channel, intro: await channel.send(body), madeChannel: false };
+}
+
+/*
     Pins a message. Discord moved pinning to a new endpoint in the 2025 pins
     revamp, and the library's message.pin() still calls the old one, which now
     quietly does nothing. So we hit the new route directly. Works in channels
