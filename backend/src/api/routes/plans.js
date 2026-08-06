@@ -290,6 +290,24 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
     });
 });
 
+/*
+    What it takes to set another plan up like this one, for the create form to open with.
+    The crowd, the name and the days carry, the dates never do: a plan run again is the
+    same shape in a different month, and the window is the part that moves.
+
+    No refuseCancelled on purpose. A plan that fell through and one that has already been
+    are the two you most want to run again, and both are read only everywhere else.
+*/
+router.get('/:planId/template', requirePlanner, (req, res) => {
+    const { plan } = req;
+    res.json({
+        name: plan.name,
+        description: plan.description || '',
+        allowedWeekdays: plan.allowedWeekdays || null,
+        participantIds: plan.participants.map((p) => p.userId)
+    });
+});
+
 //Lock in the winning date, close the plan, and announce it
 router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;

@@ -188,6 +188,17 @@ export interface UserPlan {
     mine: boolean;
 }
 
+/*
+    GET /plans/:planId/template, what "plan another like this" opens the create form with.
+    No dates in it: the range is the one thing a plan run again does not keep.
+*/
+export interface PlanTemplate {
+    name: string;
+    description: string;
+    allowedWeekdays: number[] | null;
+    participantIds: string[];
+}
+
 //POST /guilds/:guildId/plans, what comes back from the create form
 export interface CreatedPlan {
     planId: string;

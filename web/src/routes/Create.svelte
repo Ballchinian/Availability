@@ -1,10 +1,11 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { router } from 'svelte-spa-router';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow, isoPlus } from '../lib/calendar.js';
     import { formatDate, REPEAT_WEEKS, describeRepeat } from '../lib/format.js';
-    import type { CreatedPlan, GuildInfo, Member } from '../lib/types.js';
+    import type { CreatedPlan, GuildInfo, Member, PlanTemplate } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
@@ -76,6 +77,37 @@
     let result = $state<CreatedPlan | null>(null);
     let copied = $state(false);
 
+    /*
+        "Plan another like this" on the compare page arrives as ?like=<planId>, so a form
+        can be opened off a plan made weeks ago. startAnother only carries one made in
+        this sitting, which is why both exist.
+    */
+    const likeId = new URLSearchParams(router.querystring || '').get('like');
+    //Set only once the copy has landed, since it is what the note at the top of the form reads
+    let likeName = $state('');
+
+    /*
+        Everything about the shape of a plan except when it runs. The range is left at
+        its default on purpose, since a plan made again is the same crowd in a different
+        month, and the quick picks above it are one click.
+    */
+    async function prefillFrom(planId: string) {
+        let from: PlanTemplate;
+        try {
+            from = await api<PlanTemplate>(`/plans/${planId}/template`);
+        } catch {
+            //Gone, or not theirs to copy any more. An empty form is a fine answer to that.
+            return;
+        }
+        planName = from.name;
+        planDescription = from.description;
+        dayOn = dayOn.map((_, i) => !from.allowedWeekdays || from.allowedWeekdays.includes(i));
+        //Only people still in the server, so the picker's count is what actually gets invited
+        const here = new Set(members.map((m) => m.id));
+        selectedIds = from.participantIds.filter((id) => here.has(id));
+        likeName = from.name;
+    }
+
     onMount(async () => {
         await loadMe();
         if (!auth.user || !params.guildId) {
@@ -92,6 +124,8 @@
             loadError = errorText(err);
         }
         startDate = minStart;
+        //After the member list, which the crowd is filtered against
+        if (likeId && guildInfo?.isPlanner) await prefillFrom(likeId);
         loading = false;
     });
 
@@ -163,6 +197,8 @@
         result = null;
         formError = '';
         copied = false;
+        //The note about what this was copied from, which no longer describes an empty form
+        likeName = '';
         planName = '';
         planDescription = '';
         setDate = '';
@@ -211,6 +247,13 @@
         </div>
     {:else}
         <p class="muted">Planning for <strong>{guildInfo.guildName}</strong>.</p>
+
+        {#if likeName}
+            <p class="prompt">
+                Set up like <strong>{likeName}</strong>, with the same days and everyone from it who is still in the
+                server. The dates are the one thing that did not come across, so pick the new window below.
+            </p>
+        {/if}
 
         <div class="field">
             <label for="planName">Plan name</label>

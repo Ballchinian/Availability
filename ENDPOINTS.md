@@ -320,6 +320,26 @@ Planner role only.
 
 ---
 
+## GET `/api/plans/:planId/template` 🔒
+
+What it takes to set another plan up like this one, for "plan another like this" on the compare page to open the create form with.
+
+Planner role only.
+
+### Returns
+
+* The name and description
+* Which weekdays it asks about, or nothing at all if it asks about every day
+* Everyone on the guest list, by id
+
+### Notes
+
+* No dates in it, on purpose. A plan run again is the same crowd in a different month, so the range is the one thing that does not carry, and the create form leaves its own default in place.
+* Works on a cancelled plan and on one whose day has been. Those are the two most worth running again, and this only reads.
+* The ids come back as they are stored. Anyone who has since left the server is dropped by the create form, which has the member list to check against, and again by the create route.
+
+---
+
 ## POST `/api/plans/:planId/choose` 🔒
 
 Lock in the winning date and announce it.

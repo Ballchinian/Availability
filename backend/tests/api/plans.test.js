@@ -200,6 +200,13 @@ describe('the plan gate', () => {
         expect((await res.json()).plan.status).toBe('cancelled');
     });
 
+    it('still hands a cancelled plan over as a template', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        const res = await get('/ab12cd34ef/template');
+        expect(res.status).toBe(200);
+        expect((await res.json()).name).toBe('Board games');
+    });
+
     it('says yes again when the plan is already cancelled', async () => {
         plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
         const res = await post('/ab12cd34ef/cancel');
@@ -238,5 +245,49 @@ describe('the plan gate', () => {
         const res = await get('/ab12cd34ef/calendar.ics');
         expect(res.status).toBe(403);
         expect(lookups).toEqual(['ab12cd34ef']);
+    });
+});
+
+/*
+    What "plan another like this" copies. The gate above covers who can ask for one, so
+    these are about what comes back, and the dates never being in it is the point.
+*/
+describe('a plan as a template', () => {
+    it('carries the name, the description, the days and the crowd', async () => {
+        plans.set(
+            'ab12cd34ef',
+            plan({
+                description: 'Bring snacks',
+                allowedWeekdays: [0, 6],
+                participants: [{ userId: 'guest' }, { userId: 'planner' }]
+            })
+        );
+        const res = await get('/ab12cd34ef/template');
+        expect(await res.json()).toEqual({
+            name: 'Board games',
+            description: 'Bring snacks',
+            allowedWeekdays: [0, 6],
+            participantIds: ['guest', 'planner']
+        });
+    });
+
+    //A new plan wants a new window, so nothing about when this one ran comes over
+    it('carries no dates at all', async () => {
+        plans.set('ab12cd34ef', plan({ chosenDate: '2026-08-05', repeatWeeks: 2 }));
+        const body = await (await get('/ab12cd34ef/template')).json();
+        expect(Object.keys(body).sort()).toEqual(['allowedWeekdays', 'description', 'name', 'participantIds']);
+    });
+
+    //Every day, which is how a plan with no restriction is stored and what the picker wants back
+    it('says null rather than seven days when the plan asks about all of them', async () => {
+        const body = await (await get('/ab12cd34ef/template')).json();
+        expect(body.allowedWeekdays).toBe(null);
+        expect(body.description).toBe('');
+    });
+
+    it('is planner only', async () => {
+        plannerAnswer = notPlanner;
+        const res = await get('/ab12cd34ef/template');
+        expect(res.status).toBe(403);
     });
 });

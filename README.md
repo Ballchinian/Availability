@@ -14,6 +14,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - Drag across a stretch of days to mark yourself free, and narrow any day down to certain hours
 - Time zones throughout, so a group spread across the world compares hours that actually line up
 - Repeating plans, for the thing you do every other Thursday
+- Plan another like an old one, same crowd and same days, straight from its compare page
 - `/free` to tick your days off inside Discord, for the people who never click links
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
