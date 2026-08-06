@@ -80,6 +80,9 @@
     }
 </script>
 
+<!--The front door keeps the name the bot's links carry until there is somebody to name it for-->
+<svelte:head><title>{auth.user ? "What you've got on" : 'Plan a meetup'}</title></svelte:head>
+
 <!--Both lists of plans are the same card, so the live ones and the ones that are over share it-->
 {#snippet planCards(list: UserPlan[], over: boolean)}
     <ul class="cards">

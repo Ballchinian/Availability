@@ -128,6 +128,8 @@
     }
 </script>
 
+<svelte:head><title>{data ? `${data.plan.name} · your dates` : 'Your availability'}</title></svelte:head>
+
 <section class="screen">
     <h1>Your availability</h1>
 

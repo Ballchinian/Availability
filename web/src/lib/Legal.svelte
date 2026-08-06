@@ -14,6 +14,8 @@
     const LAST_UPDATED = '1 July 2026';
 </script>
 
+<svelte:head><title>{title}</title></svelte:head>
+
 <section class="screen legal">
     <h1>{title}</h1>
     <p class="muted last-updated">Last updated: {LAST_UPDATED}</p>

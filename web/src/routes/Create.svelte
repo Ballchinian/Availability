@@ -152,6 +152,8 @@
     }
 </script>
 
+<svelte:head><title>{guildInfo?.guildName ? `Plan a meetup in ${guildInfo.guildName}` : 'Plan a meetup'}</title></svelte:head>
+
 <section class="screen">
     <h1>Plan a meetup</h1>
 

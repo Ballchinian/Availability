@@ -169,6 +169,10 @@
     });
 </script>
 
+<!--The plan's name first, since two of these open at once is the whole reason for the title
+    and a tab cuts off the end-->
+<svelte:head><title>{data ? `${data.plan.name} · compare dates` : 'Compare dates'}</title></svelte:head>
+
 <section class="screen">
     <h1>Compare dates</h1>
 
