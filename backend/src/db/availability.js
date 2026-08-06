@@ -86,25 +86,32 @@ export async function getAvailabilitySummary(userId) {
     Returns how many days were actually written.
 */
 export async function replaceAvailabilityInRange(userId, start, end, days, onlyDates = null) {
-    const c = col(collections.availability);
-    if (onlyDates) {
-        await c.deleteMany({ userId, date: { $in: onlyDates } });
-    } else {
-        await c.deleteMany({ userId, date: { $gte: start, $lte: end } });
-    }
-
     /*
         {userId, date} is unique, so a body naming the same day twice would fail
-        the whole insert on a duplicate key. The site cannot send one, it builds
+        the whole write on a duplicate key. The site cannot send one, it builds
         from object keys, but the endpoint is open to anyone logged in. Last
         mention of a day wins.
     */
     const byDate = new Map();
     for (const d of days) byDate.set(d.date, Array.isArray(d.hours) ? d.hours : []);
 
-    if (byDate.size) {
-        const now = new Date();
-        await c.insertMany([...byDate].map(([date, hours]) => ({ userId, date, hours, updatedAt: now })));
-    }
+    const scope = onlyDates ? { $in: onlyDates } : { $gte: start, $lte: end };
+    const now = new Date();
+    /*
+        One write rather than a delete and an insert, and the delete leaves out
+        every day being written, so there is no window where a day is neither the
+        old value nor the new one. A save that fails part way through can lose the
+        days somebody unmarked, never the ones they marked.
+    */
+    await col(collections.availability).bulkWrite(
+        [
+            { deleteMany: { filter: { userId, date: { ...scope, $nin: [...byDate.keys()] } } } },
+            ...[...byDate].map(([date, hours]) => ({
+                updateOne: { filter: { userId, date }, update: { $set: { hours, updatedAt: now } }, upsert: true }
+            }))
+        ],
+        //The delete and the upserts never touch the same day, so the order they run in does not matter
+        { ordered: false }
+    );
     return byDate.size;
 }
