@@ -7,7 +7,8 @@ import {
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
 import { plannerRoleFor, freeRoleName, buttonLabel, placeIntro, pinMessage, introText } from './util.js';
-import { readZoneOption, setupZoneLine } from './timezone.js';
+import { readZoneOption, setupZoneLine, describeZone } from './timezone.js';
+import { safeZone } from '../lib/zones.js';
 import { config } from '../config.js';
 
 /*
@@ -132,9 +133,11 @@ async function askAboutRole(interaction, fresh, zone) {
 */
 async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
     const guild = interaction.guild;
-    const timeZone = zone || config.defaultTimeZone;
 
     try {
+        const prev = await getGuildConfig(guild.id);
+        const timeZone = chooseZone(zone, prev);
+
         /*
             Hand the planner role to whoever ran setup so somebody can plan right away.
             Not when the role was already here and holds people: a rerun would widen who
@@ -147,7 +150,6 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             }
         }
 
-        const prev = await getGuildConfig(guild.id);
         //The read-only channel the intro lives in and every plan thread spawns off, kept across a rerun
         const { channel, intro, madeChannel } = await placeIntro(guild, prev, {
             content: introText(guild.id, plannerRoleId),
@@ -170,7 +172,7 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             }
         }
 
-        await saveGuildConfig(guild.id, {
+        const next = {
             guildName: guild.name,
             //The info channel is also the parent every plan thread spawns from
             plansChannelId: channel.id,
@@ -185,7 +187,23 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             timeZone,
             setupBy: interaction.user.id,
             setupComplete: true
-        });
+        };
+        await saveGuildConfig(guild.id, next);
+
+        /*
+            Out loud, and only on a rerun: a first run is announced by the channel and
+            the intro appearing at all. The reply below is ephemeral, so without this a
+            run that moves who can plan, or what every time here means, is invisible to
+            everybody it lands on, the owner of the server included.
+
+            Best effort, since a server that has taken the bot's posting rights away
+            should still get its setup rather than an error about a notice.
+        */
+        if (prev?.setupComplete) {
+            await channel
+                .send({ content: rerunNotice(interaction.user.id, setupChanges(prev, next)), allowedMentions: { parse: [] } })
+                .catch((err) => console.warn('[setup] could not post the rerun notice:', err.message));
+        }
 
         const pinNote = pinned
             ? ''
@@ -197,7 +215,7 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             : `All set. ${channel} was already there, so I left it and its plan threads alone and brought the pinned intro up to date.`;
 
         return interaction.editReply({
-            content: `${opening} The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${setupZoneLine(timeZone, Boolean(zone))}${pinNote}`,
+            content: `${opening} The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${setupZoneLine(timeZone, Boolean(zone) || Boolean(prev?.timeZone))}${pinNote}`,
             allowedMentions: { parse: [] }
         });
     } catch (err) {
@@ -207,6 +225,44 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             components: []
         });
     }
+}
+
+/*
+    The clock to save. Leaving the option off keeps the one the server already picked,
+    which is what `readZoneOption` returning null is for: falling back to the default
+    here would move what every time in the server means, on a command people are now
+    told to run again just to refresh the intro.
+*/
+export function chooseZone(picked, prev) {
+    return picked || prev?.timeZone || config.defaultTimeZone;
+}
+
+/*
+    What a rerun actually moved, in the words the notice says it in. Only the three
+    things a run can change: nothing else in the config is setup's to touch.
+*/
+export function setupChanges(prev, next) {
+    const changes = [];
+    if (prev.plannerRoleId !== next.plannerRoleId) {
+        changes.push(`Who can plan: it is <@&${next.plannerRoleId}> now, it was <@&${prev.plannerRoleId}>.`);
+    }
+    //Read through safeZone on the old side, since a server from before the clock existed has none saved
+    if (safeZone(prev.timeZone) !== next.timeZone) {
+        changes.push(
+            `The clock: this server runs on ${describeZone(next.timeZone)} now, it was ${describeZone(safeZone(prev.timeZone))}. A plan set for 8pm means 8pm there.`
+        );
+    }
+    if (prev.infoChannelId !== next.infoChannelId) {
+        changes.push('This channel: the old one had gone, so this is a fresh one.');
+    }
+    return changes;
+}
+
+//Said in the info channel rather than back to whoever ran it, so everybody it affects can see it
+export function rerunNotice(byUserId, changes) {
+    const opening = `<@${byUserId}> ran \`/setup\` again.`;
+    if (!changes.length) return `${opening} Nothing changed, the pinned message above is just current again.`;
+    return [`${opening} What changed:`, ...changes.map((c) => `- ${c}`)].join('\n');
 }
 
 //Adopt the role they picked, or create one under a name nothing here has taken

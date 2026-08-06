@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Collection } from 'discord.js';
 import { placeIntro, plannerRoleFor, freeRoleName, buttonLabel } from '../../src/bot/util.js';
+import { chooseZone, setupChanges, rerunNotice } from '../../src/bot/setup.js';
 
 /*
     Setup used to delete the info channel and make a fresh one every run. Plan threads
@@ -216,5 +217,92 @@ describe('buttonLabel', () => {
         const cut = buttonLabel(`Keep ${'x'.repeat(100)}`);
         expect(cut).toHaveLength(80);
         expect(cut.endsWith('...')).toBe(true);
+    });
+});
+
+/*
+    The visible half. Setup's own reply is ephemeral, so a rerun that moves who can
+    plan or what the clock means used to leave nothing behind that anybody else could
+    see, the server's owner included.
+*/
+
+/*
+    The saved clock is deliberately not Europe/London, which is the deployment default
+    these run under: with the two the same, keeping the saved one and falling back to
+    the default are the same answer and the test cannot tell them apart.
+*/
+const SET_UP = { setupComplete: true, plannerRoleId: 'r1', timeZone: 'Asia/Tokyo', infoChannelId: 'c1' };
+
+describe('chooseZone', () => {
+    //The bug: a rerun with the option left off used to fall through to the deployment default
+    it('keeps the clock the server already picked when the option is left off', () => {
+        expect(chooseZone('', SET_UP)).toBe('Asia/Tokyo');
+        expect(chooseZone(null, SET_UP)).toBe('Asia/Tokyo');
+    });
+
+    it('takes the one they picked over the one that was saved', () => {
+        expect(chooseZone('America/New_York', SET_UP)).toBe('America/New_York');
+    });
+
+    it('falls back to the default only when there is nothing saved either', () => {
+        expect(chooseZone('', null)).toBe('Europe/London');
+        expect(chooseZone('', { plannerRoleId: 'r1' })).toBe('Europe/London');
+    });
+});
+
+describe('setupChanges', () => {
+    it('says nothing about a rerun that moved nothing', () => {
+        expect(setupChanges(SET_UP, { ...SET_UP })).toEqual([]);
+    });
+
+    it('names both roles when the planning role moved', () => {
+        const [line, ...rest] = setupChanges(SET_UP, { ...SET_UP, plannerRoleId: 'r2' });
+
+        expect(rest).toEqual([]);
+        expect(line).toContain('<@&r2>');
+        expect(line).toContain('<@&r1>');
+    });
+
+    it('names both clocks when the clock moved', () => {
+        const [line] = setupChanges(SET_UP, { ...SET_UP, timeZone: 'America/New_York' });
+
+        expect(line).toContain('America/New_York');
+        expect(line).toContain('Asia/Tokyo');
+    });
+
+    //A server set up before the clock was saved at all has none, and reads as the default
+    it('does not call it a change when an unset clock lands on the default', () => {
+        const old = { setupComplete: true, plannerRoleId: 'r1', infoChannelId: 'c1' };
+
+        expect(setupChanges(old, { ...old, timeZone: 'Europe/London' })).toEqual([]);
+    });
+
+    it('mentions a channel that had to be rebuilt', () => {
+        const changes = setupChanges(SET_UP, { ...SET_UP, infoChannelId: 'c2' });
+
+        expect(changes).toHaveLength(1);
+        expect(changes[0]).toContain('fresh one');
+    });
+
+    it('lists everything at once when a rerun moved the lot', () => {
+        expect(setupChanges(SET_UP, { plannerRoleId: 'r2', timeZone: 'America/New_York', infoChannelId: 'c2' })).toHaveLength(3);
+    });
+});
+
+describe('rerunNotice', () => {
+    it('names who ran it and what moved', () => {
+        const text = rerunNotice('u1', ['Who can plan: it is <@&r2> now, it was <@&r1>.']);
+
+        expect(text).toContain('<@u1>');
+        expect(text).toContain('- Who can plan:');
+    });
+
+    //Still worth saying: the fact somebody ran it is the thing being made visible
+    it('still says it happened when nothing moved', () => {
+        const text = rerunNotice('u1', []);
+
+        expect(text).toContain('<@u1>');
+        expect(text).toContain('Nothing changed');
+        expect(text).not.toContain('- ');
     });
 });
