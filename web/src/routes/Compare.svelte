@@ -4,6 +4,7 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoOf, nextDay } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
+    import { recallMiss, rememberMiss } from '../lib/remember.js';
     import type { CompareScreen } from '../lib/types.js';
     import CompareGrid from '../lib/CompareGrid.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
@@ -43,15 +44,21 @@
         The slider's own value, and the settled one everything else reads. Every step
         of a drag rebuilds every day's evaluation, which is 200ms of work on twenty
         people across two years, so the grid waits for the thumb to stop while the
-        label beside it keeps up.
+        label beside it keeps up. The settled value is also the one written down, so a
+        drag remembers itself once at the end rather than at every step.
     */
     let missInput = $state(0);
     let missAllowed = $state(0);
+    //Nothing goes back to storage until what was there has been read, or the first settle erases it
+    let recalled = false;
     let selectedDate = $state<string | null>(null);
 
     $effect(() => {
         const want = missInput;
-        const t = setTimeout(() => (missAllowed = want), 100);
+        const t = setTimeout(() => {
+            missAllowed = want;
+            if (recalled) rememberMiss(params.planId, want);
+        }, 100);
         return () => clearTimeout(t);
     });
 
@@ -166,6 +173,13 @@
             return;
         }
         await load();
+        /*
+            After the load, since how far the slider can go is how many confirmed, and
+            both values at once so the grid is not drawn at nought first and again 100ms
+            later at what was asked for.
+        */
+        missInput = missAllowed = recallMiss(params.planId, maxMiss);
+        recalled = true;
     });
 </script>
 
