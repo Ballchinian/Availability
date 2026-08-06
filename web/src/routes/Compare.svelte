@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText, icsHref } from '../lib/api.js';
+    import { api, errorText, icsHref, isAuthError } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoOf, nextDay } from '../lib/calendar.js';
     import { formatDate, formatTime } from '../lib/format.js';
@@ -133,12 +133,16 @@
         loading = false;
     }
 
-    //A quiet refetch for small changes like a board move, no loading flash
+    /*
+        A quiet refetch for small changes like a board move, no loading flash. Quiet
+        stops at a session that has gone or a role taken away: nothing forces a full
+        load, so every panel on this page would go on looking like it worked.
+    */
     async function refresh() {
         try {
             data = await api<CompareScreen>(`/plans/${params.planId}/compare`);
-        } catch {
-            //The next full load will sort it out
+        } catch (err) {
+            if (isAuthError(err)) loadError = errorText(err);
         }
     }
 

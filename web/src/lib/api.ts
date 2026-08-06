@@ -21,9 +21,28 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
         const message = (body && body.error) || res.statusText;
         //Screens render the thrown message straight into the UI, so the path stays in the console
         console.error(`${path} failed: ${message}`);
-        throw new Error(message);
+        throw new ApiError(message, res.status);
     }
     return body;
+}
+
+/*
+    The status travels with the message, since a quiet call sometimes has to tell a
+    session that has gone from a request that simply did not work: the first has to
+    be said out loud, the second is what "quiet" is for.
+*/
+export class ApiError extends Error {
+    status: number;
+
+    constructor(message: string, status: number) {
+        super(message);
+        this.status = status;
+    }
+}
+
+//Logged out, or the role this screen needs taken away. Either way the page is stale.
+export function isAuthError(err: unknown): boolean {
+    return err instanceof ApiError && (err.status === 401 || err.status === 403);
 }
 
 //Pull a readable message out of whatever was thrown, since catch values are unknown
