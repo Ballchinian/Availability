@@ -74,9 +74,12 @@ export async function handleSetupComponent(interaction) {
 
 /*
     Step 1: either there is already a planner role to keep or adopt, or we just make
-    one. A rerun asks about the role the server is already running on rather than
-    whatever is named "planner", and warns what a fresh one would cost, since that is
-    the click that takes planning off everybody who can do it today.
+    one.
+
+    A rerun on a server whose saved role is still there keeps it and asks nothing.
+    Which role it is was never the interesting question: who can plan is who holds
+    that role, which is Discord's own business, and swapping the role for a fresh one
+    only takes planning off everybody at once. So setup no longer offers to.
 
     fresh is true when this comes straight off the slash command, so we reply
     instead of editing a component message that does not exist yet.
@@ -85,6 +88,13 @@ async function askAboutRole(interaction, fresh, zone) {
     await interaction.guild.roles.fetch();
     const prev = await getGuildConfig(interaction.guild.id);
     const { role: existing, saved } = plannerRoleFor(interaction.guild, prev);
+
+    if (saved) {
+        const ack = { content: 'Setting things up...', components: [] };
+        if (fresh) await interaction.reply({ ...ack, flags: MessageFlags.Ephemeral });
+        else await interaction.update(ack);
+        return finalize(interaction, existing.id, zone, true);
+    }
 
     if (!existing) {
         //Acknowledge first, since making the role and the channel are slow calls
@@ -99,7 +109,7 @@ async function askAboutRole(interaction, fresh, zone) {
         new ButtonBuilder()
             //The empty slot is the role id the other button carries, so the zone is always last
             .setCustomId(`setup|role|adopt|${existing.id}|${zone}`)
-            .setLabel(buttonLabel(saved ? `Keep ${existing.name}` : `Use existing ${existing.name}`))
+            .setLabel(buttonLabel(`Use existing ${existing.name}`))
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId(`setup|role|new||${zone}`)
@@ -108,25 +118,33 @@ async function askAboutRole(interaction, fresh, zone) {
     );
 
     const payload = {
-        content: saved
-            ? `You are already set up here, and "${existing.name}" is the role that lets people plan. Keep it, or make a fresh one? A fresh one leaves everybody who can plan today unable to, apart from you.`
-            : `There is already a role called "${existing.name}". Want me to use it, or make a separate role just for planning?`,
+        content: `There is already a role called "${existing.name}". Want me to use it, or make a separate role just for planning?`,
         components: [row]
     };
     if (fresh) return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
     return interaction.update(payload);
 }
 
-//Step 2: place the intro, save config, report back
-async function finalize(interaction, plannerRoleId, zone) {
+/*
+    Step 2: place the intro, save config, report back. keptRole is true when the role
+    was already the server's and is being left alone, which is the one case where
+    nothing about who can plan should move.
+*/
+async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
     const guild = interaction.guild;
     const timeZone = zone || config.defaultTimeZone;
 
     try {
-        //Hand the planner role to whoever ran setup so they can plan right away
-        const setupMember = await guild.members.fetch(interaction.user.id).catch(() => null);
-        if (setupMember && !setupMember.roles.cache.has(plannerRoleId)) {
-            await setupMember.roles.add(plannerRoleId).catch(() => {});
+        /*
+            Hand the planner role to whoever ran setup so somebody can plan right away.
+            Not when the role was already here and holds people: a rerun would widen who
+            can plan by one every time, quietly, on nothing more than Manage Server.
+        */
+        if (!keptRole) {
+            const setupMember = await guild.members.fetch(interaction.user.id).catch(() => null);
+            if (setupMember && !setupMember.roles.cache.has(plannerRoleId)) {
+                await setupMember.roles.add(plannerRoleId).catch(() => {});
+            }
         }
 
         const prev = await getGuildConfig(guild.id);
