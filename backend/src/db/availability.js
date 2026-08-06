@@ -66,8 +66,19 @@ export async function setDayFree(userId, date, hours = []) {
 */
 export async function getAvailabilitySummary(userId) {
     const c = col(collections.availability);
-    const byDate = await c.find({ userId }).sort({ date: -1 }).limit(1).next();
-    const byUpdate = await c.find({ userId }).sort({ updatedAt: -1 }).limit(1).next();
+    /*
+        Together rather than one after the other, so this costs one wait instead of
+        two on a route that already has too many. Not the one aggregation it looks
+        like it wants: two $max fields cannot come off either index, so a $group
+        would read every row the person has where these two read one key each.
+
+        The projections are what make that true. Each names only the field its own
+        index already holds, so neither query fetches a document at all.
+    */
+    const [byDate, byUpdate] = await Promise.all([
+        c.find({ userId }).project({ _id: 0, date: 1 }).sort({ date: -1 }).limit(1).next(),
+        c.find({ userId }).project({ _id: 0, updatedAt: 1 }).sort({ updatedAt: -1 }).limit(1).next()
+    ]);
     return {
         lastFilled: byDate?.date || null,
         lastUpdatedAt: byUpdate?.updatedAt || null
