@@ -5,6 +5,7 @@
     import { formatDate, describeWeekdays } from '../lib/format.js';
     import { countDays, daysSince, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import { clocksAgree } from '../lib/zone.js';
+    import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { PlanScreen, SavedForPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
@@ -16,6 +17,8 @@
     let loadError = $state('');
 
     let selection = $state<Record<string, number[]>>({});
+    //The grid as it last stood on the server, so a close can tell whether anything moved
+    let savedKey = $state('');
     let submitting = $state(false);
     let saved = $state<SavedForPlan | null>(null);
     let saveError = $state('');
@@ -29,6 +32,9 @@
     let leaving = $state(false);
     let left = $state(false);
     let leaveError = $state('');
+
+    const unsaved = $derived(selectionKey(selection) !== savedKey);
+    guardUnsaved(() => unsaved);
 
     //Which weekdays this plan asks about, null when it wants the whole range
     const allowedWeekdays = $derived<number[] | null>(data?.plan.allowedWeekdays ?? null);
@@ -80,6 +86,7 @@
             const obj: Record<string, number[]> = {};
             for (const a of data.availability) obj[a.date] = a.hours || [];
             selection = obj;
+            savedKey = selectionKey(obj);
             sureUntil = data.sureUntil || '';
         } catch (err) {
             loadError = errorText(err);
@@ -100,6 +107,7 @@
                 method: 'POST',
                 body: JSON.stringify({ days, autoConfirm, sureUntil: sureUntil || null })
             });
+            savedKey = selectionKey(selection);
             if (data) data.confirmed = true;
         } catch (err) {
             saveError = errorText(err);

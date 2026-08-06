@@ -4,6 +4,7 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
     import { describeZone } from '../lib/zone.js';
+    import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
 
@@ -24,6 +25,8 @@
     const maxDate = isoFromNow(2, 'year');
 
     let selection = $state<Record<string, number[]>>({});
+    //What the server holds, mirrored so a close can tell whether anything moved
+    let savedDays = $state<Record<string, number[]>>({});
     let autoConfirm = $state(true);
     //How far ahead they can honestly plan, empty for no limit
     let sureUntil = $state('');
@@ -41,6 +44,9 @@
 
     const stale = $derived(lastUpdatedAt ? daysSince(lastUpdatedAt) >= 30 : false);
 
+    const unsaved = $derived(selectionKey(selection) !== selectionKey(savedDays));
+    guardUnsaved(() => unsaved);
+
     onMount(async () => {
         await loadMe();
         if (!auth.user) {
@@ -52,6 +58,7 @@
             const obj: Record<string, number[]> = {};
             for (const a of res.availability) obj[a.date] = a.hours || [];
             selection = obj;
+            savedDays = { ...obj };
             lastFilled = res.lastFilled;
             lastUpdatedAt = res.lastUpdatedAt;
             sureUntil = res.sureUntil || '';
@@ -78,6 +85,13 @@
                 method: 'POST',
                 body: JSON.stringify({ start: displayStart, end: displayEnd, days, autoConfirm, sureUntil: sureUntil || null })
             });
+            //Only the shown window went up, so only that part of the mirror is now vouched for
+            const mirror = { ...savedDays };
+            for (const date of Object.keys(mirror)) {
+                if (date >= displayStart && date <= displayEnd) delete mirror[date];
+            }
+            for (const d of days) mirror[d.date] = d.hours;
+            savedDays = mirror;
             lastFilled = days.length ? days.map((d) => d.date).sort().at(-1) ?? lastFilled : lastFilled;
             lastUpdatedAt = new Date().toISOString();
         } catch (err) {
