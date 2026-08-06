@@ -227,6 +227,24 @@
             </p>
         {/if}
 
+        <!--Straight under the grid, because it is the answer to clicking a day: anywhere
+            further down and the response to the click is off the bottom of a phone-->
+        {#if !cancelled}
+            <PickPanel
+                planId={params.planId}
+                {selectedDate}
+                {missAllowed}
+                {unsureByDate}
+                {chosen}
+                freeByDate={data.freeByDate}
+                participants={data.participants}
+                confirmedCount={data.confirmedCount}
+                totalParticipants={data.totalParticipants}
+                probeActive={Boolean(data.plan.probeActive)}
+                onsaved={refresh}
+            />
+        {/if}
+
         <HistoryPanel history={data.history} />
 
         {#if cancelled}
@@ -252,20 +270,6 @@
             {#if pendingVoters.length}
                 <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
             {/if}
-
-            <PickPanel
-                planId={params.planId}
-                {selectedDate}
-                {missAllowed}
-                {unsureByDate}
-                {chosen}
-                freeByDate={data.freeByDate}
-                participants={data.participants}
-                confirmedCount={data.confirmedCount}
-                totalParticipants={data.totalParticipants}
-                probeActive={Boolean(data.plan.probeActive)}
-                onsaved={refresh}
-            />
 
             <EditDetails
                 planId={params.planId}
