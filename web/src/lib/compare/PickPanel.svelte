@@ -184,9 +184,11 @@
         <label class="lbl" for="cnote">Note (optional)</label>
         <input id="cnote" type="text" bind:value={note} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
 
-        <p class="muted small">Who is still invited?</p>
-        <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
-        <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
+        <div role="radiogroup" aria-labelledby="invitelabel">
+            <span class="lbl" id="invitelabel">Who is still invited?</span>
+            <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+            <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
+        </div>
         <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
         <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone to confirm they're coming (yes/no)</label>
         {#if probe}
