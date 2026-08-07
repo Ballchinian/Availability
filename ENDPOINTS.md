@@ -6,7 +6,7 @@ Everything lives under `/api`. The same Node service serves these routes and han
 
 ## Authentication
 
-Endpoints marked with 🔒 require a logged-in session.
+Endpoints marked (session) require a logged-in session.
 
 A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in through Discord. The cookie carries who they are and is signed so it cannot be faked. The only thing held this end is a version counter on the user record: the token carries the version it was signed under, every guarded request compares the two, and logout bumps it so an old cookie stops working.
 
@@ -89,7 +89,7 @@ Return the logged-in person, or `null` if nobody is.
 
 What the landing page runs on. Everywhere else the link says which server or plan it is about, so these are the only routes that answer from the session alone.
 
-## GET `/api/me/guilds` 🔒
+## GET `/api/me/guilds` (session)
 
 The servers the requester shares with the bot.
 
@@ -108,7 +108,7 @@ Each server, sorted by name, with:
 
 ---
 
-## PUT `/api/me/timezone` 🔒
+## PUT `/api/me/timezone` (session)
 
 The clock the requester reads their own hours on.
 
@@ -127,7 +127,7 @@ The clock the requester reads their own hours on.
 
 ---
 
-## GET `/api/me/plans` 🔒
+## GET `/api/me/plans` (session)
 
 Everything the requester still has on, across every server they share with the bot, and a short list of the ones that are over.
 
@@ -152,7 +152,7 @@ Two lists, the live plans and the ones behind them, each plan with:
 
 # Servers
 
-## GET `/api/guilds/:guildId` 🔒
+## GET `/api/guilds/:guildId` (session)
 
 Tells the frontend about one server and where the requester stands in it.
 
@@ -169,7 +169,7 @@ Tells the frontend about one server and where the requester stands in it.
 
 ---
 
-## GET `/api/guilds/:guildId/members` 🔒
+## GET `/api/guilds/:guildId/members` (session)
 
 The member list for the people picker.
 
@@ -185,7 +185,7 @@ The full member list is a rate limited gateway call, so the result is cached per
 
 ---
 
-## POST `/api/guilds/:guildId/plans` 🔒
+## POST `/api/guilds/:guildId/plans` (session)
 
 Start a plan, in one of two modes.
 
@@ -226,7 +226,7 @@ Planner role only.
 
 # Plans
 
-## GET `/api/plans/:planId` 🔒
+## GET `/api/plans/:planId` (session)
 
 Everything the availability page needs to draw the grid.
 
@@ -242,7 +242,7 @@ Everything the availability page needs to draw the grid.
 
 ---
 
-## POST `/api/plans/:planId/availability` 🔒
+## POST `/api/plans/:planId/availability` (session)
 
 Save the requester's picks for this plan and mark them confirmed.
 
@@ -275,7 +275,7 @@ Participants only.
 
 ---
 
-## GET `/api/plans/:planId/calendar.ics` 🔒
+## GET `/api/plans/:planId/calendar.ics` (session)
 
 The plan's set day as a calendar file, so it can go straight into a calendar.
 
@@ -294,7 +294,7 @@ An iCalendar (`text/calendar`) download, named after the plan, holding one event
 
 ---
 
-## GET `/api/plans/:planId/compare` 🔒
+## GET `/api/plans/:planId/compare` (session)
 
 Everything the compare page needs.
 
@@ -320,7 +320,7 @@ Planner role only.
 
 ---
 
-## GET `/api/plans/:planId/template` 🔒
+## GET `/api/plans/:planId/template` (session)
 
 What it takes to set another plan up like this one, for "plan another like this" on the compare page to open the create form with.
 
@@ -340,7 +340,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/choose` 🔒
+## POST `/api/plans/:planId/choose` (session)
 
 Lock in the winning date and announce it.
 
@@ -368,7 +368,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/attendance` 🔒
+## POST `/api/plans/:planId/attendance` (session)
 
 A planner's manual call on someone's attendance for the set date, the moves on the compare page's board.
 
@@ -393,7 +393,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/repeat` 🔒
+## POST `/api/plans/:planId/repeat` (session)
 
 Whether this plan comes round again once its day has been and gone.
 
@@ -417,7 +417,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/void` 🔒
+## POST `/api/plans/:planId/void` (session)
 
 Undo a date that was already locked in, so the plan can be rescheduled.
 
@@ -439,7 +439,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/remind` 🔒
+## POST `/api/plans/:planId/remind` (session)
 
 Nudge whoever the plan is waiting on.
 
@@ -463,7 +463,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/range` 🔒
+## POST `/api/plans/:planId/range` (session)
 
 Set a fresh start and end on the plan, reopen it, and tell everyone to refill the new window.
 
@@ -489,7 +489,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/weekdays` 🔒
+## POST `/api/plans/:planId/weekdays` (session)
 
 Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new set.
 
@@ -520,7 +520,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/details` 🔒
+## POST `/api/plans/:planId/details` (session)
 
 Change a plan's title and description.
 
@@ -547,7 +547,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/cancel` 🔒
+## POST `/api/plans/:planId/cancel` (session)
 
 Cancel a plan.
 
@@ -570,7 +570,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/add` 🔒
+## POST `/api/plans/:planId/add` (session)
 
 Pull extra people into a running plan.
 
@@ -592,7 +592,7 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/leave` 🔒
+## POST `/api/plans/:planId/leave` (session)
 
 Drop yourself out of a plan you were invited to. This is the website side of the leave button in the DM.
 
@@ -604,7 +604,7 @@ Participants only.
 
 The general timetable, not tied to any plan. People can fill it ahead of time, say if they know they will be away, and their next plan starts already filled in.
 
-## GET `/api/availability` 🔒
+## GET `/api/availability` (session)
 
 The requester's saved days inside a window they choose.
 
@@ -621,7 +621,7 @@ The requester's saved days inside a window they choose.
 
 ---
 
-## POST `/api/availability` 🔒
+## POST `/api/availability` (session)
 
 Save the requester's general timetable for a window.
 
