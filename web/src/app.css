@@ -529,8 +529,9 @@ code {
     margin-top: 16px;
 }
 
+/* Seven cells plus the gaps, wide enough that a day number and its tally both sit at a readable size */
 .cal {
-    width: 230px;
+    width: 258px;
 }
 
 .cal h3 {
@@ -554,7 +555,7 @@ code {
 
 .weekdays span {
     text-align: center;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--muted);
     padding-bottom: 2px;
 }
@@ -681,16 +682,20 @@ code {
     display: block;
 }
 
+/*
+    Still under the 24px a target wants, but the day underneath it is the main
+    one and a bigger badge would swallow the cell. Do not shrink it again.
+*/
 .clock {
     position: absolute;
-    top: -4px;
-    right: -4px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 3px;
-    font-size: 10px;
-    line-height: 16px;
-    border-radius: 8px;
+    top: -5px;
+    right: -5px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 20px;
+    border-radius: 10px;
     border: none;
     background: var(--accent);
     color: #fff;
@@ -851,12 +856,15 @@ code {
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
+/* Both lines set solid, so a day number over a head count still clears a square cell */
 .cday .num {
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 1.1;
 }
 
 .cday .count {
-    font-size: 10px;
+    font-size: 12px;
+    line-height: 1.1;
 }
 
 .cday.dim {
