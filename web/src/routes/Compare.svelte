@@ -67,6 +67,21 @@
     const unconfirmed = $derived(data ? data.participants.filter((p) => !p.confirmed) : []);
 
     /*
+        A plan announced with its day already known never collects availability, so its
+        confirmed count sits at nought of everyone for good. Everything about filling
+        dates in hangs off this, or the page asks people for something it never wanted.
+    */
+    const collecting = $derived(Boolean(data && data.plan.status === 'collecting'));
+
+    /*
+        Chasing dates only makes sense while they are still being collected, a plan with
+        a day already locked in is waiting on answers instead. Held here rather than
+        written out twice, so the line under the grid cannot offer a nudge when there is
+        no panel above it to do the nudging.
+    */
+    const nudging = $derived(Boolean(collecting && unconfirmed.length && !cancelled));
+
+    /*
         Who a running confirmation probe is still waiting on: on the invite list, and
         with no answer of their own and no call from a planner standing in for one.
         Only ever populated while a probe is live, so the nudge cannot offer to chase
@@ -227,11 +242,12 @@
         <section class="group">
             <h2>Where it stands</h2>
 
-            <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
+            <!--Nought of everyone, for good, on a plan that was announced with its day already known-->
+            {#if collecting || data.confirmedCount > 0}
+                <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
+            {/if}
 
-            <!--Chasing dates only makes sense while they are still being collected, a plan with
-                a day already locked in is waiting on answers instead-->
-            {#if unconfirmed.length && !cancelled && data.plan.status === 'collecting'}
+            {#if nudging}
                 <RemindPanel planId={params.planId} waiting={unconfirmed} />
             {/if}
 
@@ -256,8 +272,8 @@
                 />
             {:else if cancelled}
                 <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
-            {:else}
-                <p class="muted">No one has confirmed dates yet, so there is nothing to compare. Give it a moment, or nudge the stragglers above.</p>
+            {:else if collecting}
+                <p class="muted">No one has confirmed dates yet, so there is nothing to compare.{nudging ? ' Give it a moment, or nudge the stragglers above.' : ''}</p>
             {/if}
 
             {#if chosen}
