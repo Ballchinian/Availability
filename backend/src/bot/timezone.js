@@ -1,4 +1,5 @@
 import { MessageFlags } from 'discord.js';
+import { config } from '../config.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
 import { setGuildPlansTimeZone } from '../db/plans.js';
 import { safeZone, isValidZone, zoneOffsetLabel } from '../lib/zones.js';
@@ -25,14 +26,49 @@ const ALL_ZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedV
 const MAX_CHOICES = 25;
 
 /*
+    What an empty box gets. The list is alphabetical and Africa alone runs well past
+    the 25 Discord shows, so the head of it was 25 African cities and the option looked
+    like it knew nowhere else. Nobody has typed yet, so the useful answer is the clock
+    this deployment already runs on, then a walk across the regions, the ones carrying
+    the most zones first, since that is where most people are.
+*/
+function openingZones() {
+    const byRegion = new Map();
+    for (const zone of ALL_ZONES) {
+        const region = zone.split('/')[0];
+        if (!byRegion.has(region)) byRegion.set(region, []);
+        byRegion.get(region).push(zone);
+    }
+
+    const regions = [...byRegion.values()].sort((a, b) => b.length - a.length);
+    //Seeded rather than pushed, so a runtime carrying no zone list still offers the one clock it knows
+    const picked = new Set([config.defaultTimeZone]);
+
+    //One from every region, then a second from every region, until Discord's 25 are full
+    for (let depth = 0; picked.size < MAX_CHOICES; depth++) {
+        let reached = false;
+        for (const zones of regions) {
+            if (depth >= zones.length) continue;
+            reached = true;
+            picked.add(zones[depth]);
+            if (picked.size >= MAX_CHOICES) break;
+        }
+        if (!reached) break;
+    }
+    return [...picked];
+}
+
+//Built once like the list itself, since the answer never changes
+const OPENING_ZONES = openingZones();
+
+/*
     The suggestion list as they type. Matching on the whole name means "lond" finds
     Europe/London and "new_y" finds America/New_York, and a starts-with match sorts
-    first so a typed continent lands where you expect. An empty box gets the top of
-    the list rather than nothing, which is what makes the option discoverable.
+    first so a typed continent lands where you expect.
 */
 export function suggestZones(typed) {
     const q = String(typed || '').trim().toLowerCase().replace(/\s+/g, '_');
-    if (!q) return ALL_ZONES.slice(0, MAX_CHOICES);
+    if (!q) return [...OPENING_ZONES];
 
     const starts = [];
     const contains = [];

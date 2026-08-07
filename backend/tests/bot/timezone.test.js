@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { config } from '../../src/config.js';
 import { clockMovedLine, suggestZones } from '../../src/bot/timezone.js';
 
 /*
@@ -35,6 +36,16 @@ describe('clockMovedLine', () => {
 describe('suggestZones', () => {
     it('offers something for an empty box, so the option is findable at all', () => {
         expect(suggestZones('').length).toBeGreaterThan(0);
+    });
+
+    //The list is alphabetical and Africa fills the first 25 on its own, so slicing the head offered nothing else
+    it('spreads an empty box across the regions rather than the head of the list', () => {
+        const regions = new Set(suggestZones('').map((zone) => zone.split('/')[0]));
+        expect(regions.size).toBeGreaterThan(5);
+    });
+
+    it('opens on the clock this deployment already runs on', () => {
+        expect(suggestZones('')[0]).toBe(config.defaultTimeZone);
     });
 
     //Discord takes 25 and silently drops the rest
