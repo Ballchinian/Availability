@@ -319,11 +319,11 @@
 
         {#if mode === 'collect'}
             <label class="check"><input type="checkbox" bind:checked={collectDm} /> Also DM everyone the link</label>
-            <p class="muted small">Everyone you pick gets pinged in a new thread either way. {collectDm ? 'They also get a DM with the link, so they can fill in their dates or drop out from wherever they are.' : 'No DMs go out, they just see the thread.'}</p>
+            <p class="muted small">Everyone you pick gets pinged in a new thread either way{collectDm ? ', and the DM carries the link so they can answer without going back to find it' : ''}.</p>
         {:else}
             <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
             <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone to confirm they're coming</label>
-            <p class="muted small">A thread always opens and adding people to it pings them. {announceProbe ? 'Everyone gets yes/no buttons to confirm they can make it, in the thread' + (announceDm ? ' and in their DMs' : '') + ", and I'll DM you when everyone is in or if someone can't make it." : 'Tick the box above to ask everyone to confirm with yes/no buttons.'}</p>
+            <p class="muted small">A thread always opens and adding people to it pings them. {announceProbe ? 'The yes/no buttons go in the thread' + (announceDm ? ' and in their DMs' : '') + ", and I'll DM you when everyone is in or if someone can't make it." : ''}</p>
         {/if}
 
         <div class="repeat">

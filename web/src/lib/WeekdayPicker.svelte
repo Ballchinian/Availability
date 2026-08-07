@@ -27,10 +27,14 @@
     const ORDER = [1, 2, 3, 4, 5, 6, 0];
 
     const chosen = $derived(chosenDays(dayOn));
+    /*
+        Nothing to say while every day is on: the lit buttons already say it. Only a
+        restriction has a consequence the buttons do not show, which is the greying out.
+    */
     const hint = $derived.by(() => {
         if (chosen.length === 0) return 'Pick at least one day people can mark.';
-        if (chosen.length === 7) return 'People can mark any day in the range.';
-        return `People can only mark ${describeWeekdays(chosen)}.`;
+        if (chosen.length === 7) return '';
+        return `Everything but ${describeWeekdays(chosen)} is greyed out on their calendar.`;
     });
 
     function setWeekends() {
@@ -54,4 +58,4 @@
         <button type="button" class="wday" class:on={dayOn[i]} onclick={() => toggle(i)}>{WEEKDAYS[i]}</button>
     {/each}
 </div>
-<p class="muted small">{hint} Anything else is greyed out on their calendar.</p>
+{#if hint}<p class="muted small">{hint}</p>{/if}

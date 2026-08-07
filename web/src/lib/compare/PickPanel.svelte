@@ -192,7 +192,7 @@
         <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
         <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone to confirm they're coming (yes/no)</label>
         {#if probe}
-            <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it. Their votes show up below.</p>
+            <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it.</p>
         {/if}
         {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
         <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent}>

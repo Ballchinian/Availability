@@ -65,8 +65,9 @@
         if (data.confirmed && !saved) {
             return 'You are confirmed for this plan. Change anything below and confirm again if your plans shift.';
         }
+        //What to do with the grid is said under it either way, so this only says where they stand
         if (!data.lastFilled) {
-            return 'First time filling in your timetable. Tap the days you are free, and the clock on a day narrows it to certain hours.';
+            return 'First time filling in your timetable, so nothing is marked yet.';
         }
         const parts = [];
         if (stale) parts.push('It has been over a month since you last updated your availability.');
@@ -158,7 +159,7 @@
             <p class="prompt">This plan only asks about {weekdayLabel}, so the other days are greyed out.</p>
         {/if}
 
-        <p class="muted small">Tap a day, or press and drag across several to mark them all at once. Shift-click the other end of a stretch to do the same without dragging.</p>
+        <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
         <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
         {#if !clocksAgree(data.plan.timeZone, data.timeZone)}
             <p class="muted small">
@@ -185,9 +186,9 @@
         <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm me for any other plan these dates fully cover</label>
 
         <p class="muted small">
-            Heads up: this saves to your availability everywhere, not just this plan, so other plans see it too.
-            Free outside {formatDate(data.plan.start)} to {formatDate(data.plan.end)}?
-            <a href="#/availability">Set your general availability</a> for the dates beyond this plan's range.
+            These dates save to your availability everywhere, not just this plan, so every other plan sees them too.
+            For days outside {formatDate(data.plan.start)} to {formatDate(data.plan.end)},
+            <a href="#/availability">set your general availability</a>.
         </p>
 
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
