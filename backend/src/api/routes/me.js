@@ -97,7 +97,11 @@ function planRow(plan, userId, names) {
         inIt: Boolean(me),
         //Whether they still owe this plan their dates, which is the whole reason for the list
         filledIn: Boolean(me?.confirmed),
-        //Their own plans carry the compare link, since nobody else could open it anyway
+        /*
+            Marks the plans they started, which is what decides whether a row offers the
+            compare link. Not a permission: any planner in the server can open compare on
+            a plan they have the link to, invited to it or not.
+        */
         mine: running
     };
 }
