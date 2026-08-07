@@ -42,9 +42,9 @@
     //The other two columns someone can be moved to from where they stand now
     function moveTargets(from: string) {
         const all = [
-            { key: 'coming', label: 'Coming' },
-            { key: 'waiting', label: 'Waiting' },
-            { key: 'cant', label: "Can't make it" }
+            { key: 'coming', label: 'coming' },
+            { key: 'waiting', label: 'still to answer' },
+            { key: 'cant', label: "can't make it" }
         ];
         return all.filter((t) => t.key !== from);
     }
@@ -86,7 +86,7 @@
                                 {#if picked === p.userId}
                                     <div class="move-row">
                                         {#each moveTargets(colDef.key) as t (t.key)}
-                                            <button class="ghost" disabled={panel.busy} onclick={() => move(p.userId, t.key)}>→ {t.label}</button>
+                                            <button class="ghost" disabled={panel.busy} onclick={() => move(p.userId, t.key)}>Mark as {t.label}</button>
                                         {/each}
                                     </div>
                                 {/if}
