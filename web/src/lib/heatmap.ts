@@ -17,9 +17,18 @@ const RAMP: [number, number, number][] = [
     [253, 231, 37]
 ];
 
+/*
+    How far up the ramp a full score reaches. Viridis ends on a near maximum chroma
+    yellow, and a day free with no hours picked counts as all 24, so the ordinary
+    case sat on the loudest colour the ramp has and a filled grid glared. Stopping
+    short leaves the top green: 14.2:1 against the page down to 9.3:1, with the
+    lightness still climbing the whole way, which is what carries the ordering.
+*/
+const TOP = 0.8;
+
 function ramp(filled: number, total: number): [number, number, number] {
     if (total <= 0) return RAMP[0];
-    const factor = Math.max(0, Math.min(1, filled / total));
+    const factor = Math.max(0, Math.min(1, filled / total)) * TOP;
     const span = (RAMP.length - 1) * factor;
     const i = Math.min(RAMP.length - 2, Math.floor(span));
     const t = span - i;
