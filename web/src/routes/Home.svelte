@@ -106,7 +106,7 @@
 
 <section class="screen">
     {#if loading}
-        <p class="muted">Loading...</p>
+        <p class="muted">Loading your servers and plans...</p>
     {:else if !auth.user}
         <h1>When is everyone free?</h1>
         <p>Work out when a group is actually free, without the twenty message back and forth.</p>

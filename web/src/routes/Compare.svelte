@@ -191,7 +191,7 @@
     <h1>Compare dates</h1>
 
     {#if loading}
-        <p class="muted">Loading...</p>
+        <p class="muted">Loading everyone's dates...</p>
     {:else if !auth.user}
         <p class="muted">Log in above to compare.</p>
     {:else if loadError || !data}

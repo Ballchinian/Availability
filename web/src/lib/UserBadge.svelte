@@ -3,7 +3,7 @@
 </script>
 
 {#if !auth.loaded}
-    <span class="muted">checking...</span>
+    <span class="muted">Checking...</span>
 {:else if auth.user}
     <span class="user-badge">
         <img src={auth.user.avatar} alt="" width="28" height="28" />

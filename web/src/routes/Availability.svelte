@@ -134,7 +134,7 @@
     <h1>Your availability</h1>
 
     {#if loading}
-        <p class="muted">Loading...</p>
+        <p class="muted">Loading this plan...</p>
     {:else if !auth.user}
         <p class="muted">Log in above to fill in your dates.</p>
     {:else if loadError || !data}

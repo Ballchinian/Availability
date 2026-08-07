@@ -111,7 +111,7 @@
     <h1>Your availability</h1>
 
     {#if loading}
-        <p class="muted">Loading...</p>
+        <p class="muted">Loading your timetable...</p>
     {:else if !auth.user}
         <p class="muted">Log in above to set your availability.</p>
     {:else if loadError}

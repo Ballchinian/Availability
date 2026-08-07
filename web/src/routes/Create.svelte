@@ -213,7 +213,7 @@
     <h1>Plan a meetup</h1>
 
     {#if loading}
-        <p class="muted">Loading...</p>
+        <p class="muted">Loading the server...</p>
     {:else if !auth.user}
         <p class="muted">Log in above to start a plan.</p>
     {:else if !params.guildId}
