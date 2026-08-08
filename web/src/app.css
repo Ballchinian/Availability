@@ -952,6 +952,12 @@ code {
     flex-wrap: wrap;
 }
 
+/* What the nudge just did, under the button rather than squeezed in beside it */
+.waiting > .said {
+    flex: 1 0 100%;
+    margin: 0;
+}
+
 .ghost {
     background: none;
     border: 1px solid var(--border);
