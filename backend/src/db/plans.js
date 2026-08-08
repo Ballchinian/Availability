@@ -24,11 +24,7 @@ function freshParticipant(userId) {
         votedAt: null,
         invited: true,
         override: null,
-        /*
-            The DM that tells this person what the plan currently is, so it can be
-            rewritten in place rather than followed by a correction. See setPlanCards
-            for what the actor and the moved flag are doing here.
-        */
+        //The DM saying what the plan is, rewritten in place when it changes. See setPlanCards.
         cardMessageId: null,
         cardActor: '',
         cardMoved: false
@@ -526,17 +522,9 @@ export async function setAttendanceOverride(planId, userId, override, { reinvite
 }
 
 /*
-    Remember the DM that told each of these people what the plan is, so a later change
-    can rewrite that message rather than send a correction after it. One card per
-    person: a fresh send replaces whatever id was there.
-
-    Two things ride along with the id, both because the card names them and a rebuild
-    months later has nothing else to read them off. actorName is whoever put the plan
-    this way, and moved says whether they moved a day that was already set, which is
-    the difference between "set it for" and "moved it to".
-
-    One write for the lot. Sent as an unordered bulk since no two entries touch the
-    same participant.
+    Remember the DM that told each person what the plan is, so a later change rewrites it
+    rather than sending a correction after it. One card per person, one write for the lot.
+    actorName and moved are what the card's lead line needs and nothing else stores.
 */
 export async function setPlanCards(planId, cards, { actorName = '', moved = false } = {}) {
     if (!cards.length) return;
@@ -565,13 +553,17 @@ export async function clearPlanCard(planId, userId) {
     );
 }
 
-//Turn the probe on or off and remember which thread message carries its buttons, so the
-//running tally on it can be rewritten as votes land
-export async function setProbe(planId, { active, threadMessageId = null }) {
-    await col(collections.plans).updateOne(
-        { planId },
-        { $set: { probeActive: active, probeThreadMessageId: threadMessageId } }
-    );
+/*
+    Turn the probe on or off, and remember which thread message carries its buttons.
+
+    Leaving threadMessageId out keeps the one already there, which is how a reopen revives
+    the old poll instead of posting a second; pass null to really forget it. No vote is
+    touched either way, a probe being a switch rather than a round. clearedProbe wipes them.
+*/
+export async function setProbe(planId, { active, threadMessageId }) {
+    const set = { probeActive: active };
+    if (threadMessageId !== undefined) set.probeThreadMessageId = threadMessageId;
+    await col(collections.plans).updateOne({ planId }, { $set: set });
     return getPlan(planId);
 }
 

@@ -29,13 +29,8 @@ async function dmEach(ids, text, components = []) {
 }
 
 /*
-    The same, for a message that is meant to stay current: each person gets their own
-    payload and the ids of the ones that landed come back, so they can be found and
-    rewritten later. Anyone with DMs off is simply missing from the answer and has no
-    card, which is the honest state rather than a failure.
-
-    Pushed as they finish rather than by index, since nothing downstream reads these in
-    order: they go straight into a bulk write keyed by user.
+    The same for a message meant to stay current: each person gets their own payload and the
+    ids that landed come back to be written down. DMs off just means no card for them.
 */
 async function dmCards(ids, build) {
     const sent = [];
@@ -167,29 +162,23 @@ function probeTally(plan) {
 */
 function probeText(plan) {
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
+    //A closed one keeps its tally: what people said still stands, it is only the asking that stopped
+    const asking = plan.probeActive !== false;
     return banner('CAN YOU MAKE IT?') +
         `**${plan.name}** is set for ${whenLine(plan)}.${note}\n` +
         aboutLine(plan) +
-        `Tap below to let everyone know.\n\n` +
+        (asking ? `Tap below to let everyone know.\n\n` : `Confirmations are closed.\n\n`) +
         probeTally(plan);
 }
 
 /*
-    One person's card: the DM that says what this plan currently is. Everything else the
-    bot sends someone is a note about a moment (a nudge, a drop out, an all-in) which
-    stays true on its own and is left alone. This one goes wrong the instant a time, a
-    note or a description moves, so it is built from the plan every time and rewritten
-    in place rather than followed by a correction.
+    The one DM per person saying what the plan currently is, rebuilt from the plan every
+    time so a send and a later rewrite agree. Every other DM the bot sends is a note about
+    a moment and ages fine on its own.
 
-    The actor and the moved flag come off the participant when they are not passed, since
-    the lead names whoever put the plan this way and a rebuild has nothing else to read
-    that off. A card built with neither still reads properly, just without the name.
-
-    Their own answer is on it once they have given one, which is what keeps a rewrite from
-    blanking a voted DM back to the question.
-
-    aside is a line for this send only, sitting after the plan and before whatever the card
-    is asking them to do. A rewrite passes none, so advice about a moment does not outlive it.
+    actor and moved fall back to the participant, which is how a rebuild months later still
+    names the right person. Their own vote goes on it, or a rewrite would blank a voted DM
+    back to the question. aside is for this send only, so advice does not outlive its moment.
 */
 export function planCard(plan, p, { guildName = '', actorName = null, moved = null, aside = '' } = {}) {
     const who = actorName ?? p.cardActor ?? '';
@@ -197,11 +186,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
     const again = Boolean(plan.repeatedFrom);
     const where = guildName ? ` in ${guildName}` : '';
 
-    /*
-        Called off. First, so a cancelled plan cannot leave somebody holding a card that
-        still says they are coming on the twelfth, and everything that would have them
-        act on it comes off with it.
-    */
+    //First, so nobody is left holding a card that still has them coming on the twelfth
     if (plan.status === 'cancelled') {
         return {
             content: banner('PLAN CANCELLED') + `"${plan.name}"${where} is off. Nothing more to fill in.`,
@@ -234,11 +219,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
 
-    /*
-        Left off the invite list when the day was locked. Their card stops asking, since a
-        tap on it is refused anyway, and a DM still reading "can you make it" is how
-        somebody works out they were dropped by being ignored.
-    */
+    //Narrowed off the list. Their buttons are refused anyway, so the card stops asking.
     if (p.invited === false) {
         return {
             content: banner('NOT THIS ONE') +
@@ -283,16 +264,12 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
 }
 
 /*
-    Puts one of the plan's own messages where it belongs: edited where it sits, or posted
-    again when somebody has deleted it since.
+    One of the plan's own messages, edited where it sits or posted again when somebody has
+    deleted it. Without the second half a deletion is permanent, every later pass fetching
+    nothing and giving up.
 
-    The second half is the point. Without it one deleted message is permanent, since every
-    later pass fetches nothing, gives up, and the plan spends the rest of its life with no
-    pinned opener or a confirmation nobody in the thread can answer.
-
-    A replacement lands at the bottom of the thread rather than back where the old one was,
-    which is what pinning is for. Says which of the two happened, since only a fresh one
-    needs pinning and writing down. Answers with nothing when even the send failed.
+    A replacement lands at the bottom of the thread, not back where the old one was, which
+    is what pinning is for. Says which happened, since only a fresh one needs writing down.
 */
 async function placeThreadMessage(thread, messageId, payload) {
     if (messageId) {
@@ -307,13 +284,10 @@ async function placeThreadMessage(thread, messageId, payload) {
 }
 
 /*
-    Rewrite the shared thread probe so its tally keeps up as votes come in, including
-    votes cast from a DM, and put it back when it has been deleted.
+    Redraw the shared thread probe as votes land, and put it back when it has been deleted.
 
-    A probe that never had a thread message is left alone rather than given one. That is
-    the DM only case, from a probe that went up while the thread was unreachable, and
-    since this runs on every vote it would otherwise post a poll into a thread the
-    planner never asked to have one in.
+    A probe that never had a thread message is left alone rather than given one: that is the
+    DM only case, and this runs on every vote, so it would post a poll nobody asked for.
 */
 export async function updateProbeMessage(plan) {
     if (!plan.probeThreadMessageId || !plan.threadId) return;
@@ -321,12 +295,21 @@ export async function updateProbeMessage(plan) {
     if (!thread) return;
     await reviveThread(thread);
 
-    const placed = await placeThreadMessage(thread, plan.probeThreadMessageId, {
+    const payload = {
         content: probeText(plan),
-        components: [probeRow(plan.planId)],
+        components: plan.probeActive ? [probeRow(plan.planId)] : [],
         allowedMentions: { parse: [] }
-    });
-    if (placed?.fresh) await setProbe(plan.planId, { active: Boolean(plan.probeActive), threadMessageId: placed.message.id });
+    };
+
+    //A closed one is only ever edited: reposting a poll with no buttons helps nobody
+    if (!plan.probeActive) {
+        const msg = await thread.messages.fetch(plan.probeThreadMessageId).catch(() => null);
+        if (msg) await msg.edit(payload).catch(() => {});
+        return;
+    }
+
+    const placed = await placeThreadMessage(thread, plan.probeThreadMessageId, payload);
+    if (placed?.fresh) await setProbe(plan.planId, { active: true, threadMessageId: placed.message.id });
 }
 
 //Best effort display name for someone in a guild, falling back when they have left
@@ -442,11 +425,7 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     //Remember it so editing the title or description later can rewrite this same post
     await setPlanOpener(plan.planId, opener.id);
 
-    /*
-        The thread id is only in the database at this point, so it is patched onto the
-        copy the card is built from. Without it the card has no jump link to offer, and
-        the whole reason for a card is that the message can be rebuilt later.
-    */
+    //The thread id is only in the database yet, so it is patched on or the card has no jump link
     if (dm) {
         const withThread = { ...plan, threadId: thread.id };
         //A repeat has no actor: nobody did this, it just came round, so the card says that instead
@@ -493,11 +472,7 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
         plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
     }
 
-    /*
-        Built off the plan setProbe handed back where a probe went up, so the cards carry
-        the buttons rather than being written against a plan that still reads probeActive
-        false and having to be rewritten a moment later.
-    */
+    //Off the plan setProbe handed back, or the cards go out without the buttons
     if (dm) {
         const who = plan.repeatedFrom ? '' : actorName;
         const sent = await dmCards(ids, (id) =>
@@ -525,8 +500,7 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
         await addToThread(thread, newIds);
     }
 
-    //The same card everyone else on the plan holds, so a late joiner's DM is rewritten by
-    //the same pass as theirs from here on
+    //The same card everyone else holds, so a late joiner rides the same rewrites
     if (dm) {
         const sent = await dmCards(newIds, (id) =>
             planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
@@ -538,23 +512,17 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
 }
 
 /*
-    Rewrite every card the plan is holding so they all say what it says now.
+    Rewrite every card so they all say what the plan says now. An edit notifies nobody in
+    Discord, which is what lets a wrong time be corrected without the correction being an
+    event of its own.
 
-    Editing a message somebody already has makes no sound in Discord: no notification, no
-    ping, no unread. That is the whole point of it. A wrong time or a wrong note can be
-    put right without the correction itself becoming an event, and the people it was wrong
-    for end up with a DM that is simply correct.
-
-    Each one is swallowed on its own rather than through fanOut's rethrow, since one person
-    with DMs closed should not cost the other sixteen their edit. A card whose message has
-    really gone is forgotten so the next pass does not spend a call on it, and every other
-    failure is left alone to be tried again. Sending a replacement is deliberately not an
-    option here: that would ping them, which is the one thing this exists to avoid.
-
-    Comes back with how many landed, which is what the repair action reports.
+    Never sends a replacement: that would ping them, which is the one thing this avoids.
+    Each edit is swallowed alone rather than through fanOut's rethrow, so one person with
+    DMs closed does not cost the rest theirs. only narrows it to a few people by id.
 */
-export async function syncPlanCards(plan, cfg = null) {
-    const holders = plan.participants.filter((p) => p.cardMessageId);
+export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
+    const wanted = only ? new Set(only) : null;
+    const holders = plan.participants.filter((p) => p.cardMessageId && (!wanted || wanted.has(p.userId)));
     if (!holders.length) return 0;
 
     const conf = cfg || (await getGuildConfig(plan.guildId).catch(() => null));
@@ -577,17 +545,12 @@ export async function syncPlanCards(plan, cfg = null) {
 }
 
 /*
-    Everything Discord is holding about a plan, brought back in line with the plan: the
-    pinned opener, the confirmation and its tally, and every card. All three are edits to
-    messages that already exist, so this notifies nobody and pings nobody, and anything
-    deleted since is put back.
+    Everything Discord holds about a plan, brought back in line with it: the pinned opener,
+    the confirmation, every card. All edits, so this pings nobody.
 
-    rename renames the thread with it. Discord caps that at twice per ten minutes, so it
-    is asked for rather than done on every pass.
-
-    Older plans have no remembered opener and are left alone: a repost would land at the
-    bottom of the thread, which is not an opener, and no id says one was ever meant to be
-    there. A plan that had one and lost it does get a new one.
+    rename is asked for rather than done every pass, Discord capping thread renames at twice
+    per ten minutes. A plan with no remembered opener is left alone, since a repost would
+    land at the bottom of the thread and that is not an opener.
 */
 export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
     if (plan.threadId) {
@@ -619,8 +582,7 @@ export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
     a DM, so nobody who is meant to be there can miss it. Anyone the planner left off
     the invite list hears nothing. The headline and DM both name who set or moved it.
 
-    The DM is their card from here on, so the plan remembers it and a later change to
-    the time or the note rewrites this message rather than sending another after it.
+    The DM becomes their card, so a later change to the time or note rewrites it in place.
 */
 export async function announceOutcome(plan, cfg, { changed, actorName, probe = false }) {
     const ids = invitedOnly(plan).map((p) => p.userId);
@@ -656,12 +618,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
         plan = await setProbe(plan.planId, { active: true, threadMessageId: null });
     }
 
-    /*
-        Anyone whose certainty horizon sits before the chosen date never really answered
-        for this day, they just could not plan that far ahead. Their card gains a line
-        saying so, so they know to actually check rather than shrug it off. It is advice
-        about this moment rather than part of the plan, so a later rewrite drops it.
-    */
+    //Anyone whose horizon sits before the date never really answered for it, so their card says so
     const prefs = probe ? await getPlanningPrefs(ids).catch(() => ({})) : {};
     const nudge = '\nThis lands past the date you said you could plan up to, so it is worth a proper look.';
 
@@ -674,17 +631,51 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
         }));
     await setPlanCards(plan.planId, sent, { actorName, moved: changed });
 
-    /*
-        Anyone narrowed off the invite list hears nothing, which is the intent, but their
-        card would otherwise still be asking whether they can make a day they are no longer
-        on. Rewritten rather than left, so nobody works out they were dropped by tapping a
-        button and being refused.
-    */
-    const dropped = plan.participants.filter((p) => p.invited === false && p.cardMessageId);
+    //Narrowed off the list hear nothing, but their card would still be asking about the day
+    const dropped = plan.participants.filter((p) => p.invited === false).map((p) => p.userId);
     if (dropped.length) {
-        await syncPlanCards({ ...plan, participants: dropped }, cfg)
+        await syncPlanCards(plan, cfg, { only: dropped })
             .catch((err) => console.error('[plans] dropped card sync failed:', err));
     }
+}
+
+/*
+    Open or close the confirmation on a set day. A switch: no answer is touched either way,
+    so one closed by accident comes back with every yes and no still on it.
+
+    Opening revives the thread message it already had rather than posting a second poll.
+    The trap is that an edit notifies nobody, so a revived confirmation is silent however
+    loudly it was asked for, which is why the answer says which of the two happened.
+    Every card is rewritten with it, so the buttons appear and vanish with the switch.
+*/
+export async function applyConfirmations(plan, active, { cfg = null, mention = true } = {}) {
+    let updated = await setProbe(plan.planId, { active });
+    let revived = true;
+
+    if (active && updated.threadId) {
+        const thread = await client.channels.fetch(updated.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            const ids = invitedOnly(updated).map((p) => p.userId);
+            const ping = mention && ids.length;
+            //Mentions only on a confirmation this plan has never had, the rest being replacements
+            const announcing = ping && !updated.probeThreadMessageId;
+            const placed = await placeThreadMessage(thread, updated.probeThreadMessageId, {
+                content: (announcing ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '') + probeText(updated),
+                components: [probeRow(updated.planId)],
+                allowedMentions: announcing ? { users: ids } : { parse: [] }
+            });
+            if (placed?.fresh) {
+                revived = false;
+                updated = await setProbe(updated.planId, { active: true, threadMessageId: placed.message.id });
+            }
+        }
+    } else {
+        await updateProbeMessage(updated).catch(() => {});
+    }
+
+    await syncPlanCards(updated, cfg).catch((err) => console.error('[plans] confirmation card sync failed:', err));
+    return { plan: updated, revived };
 }
 
 /*
@@ -1000,7 +991,7 @@ export async function handleVoteModal(interaction) {
 function voteStale(plan, userId) {
     if (!plan) return 'That plan is no longer around.';
     if (plan.status === 'cancelled') return `"${plan.name}" was cancelled.`;
-    if (!plan.probeActive || !plan.chosenDate) return 'That confirmation is closed now, the date may have changed. Check the thread for the latest.';
+    if (!plan.probeActive || !plan.chosenDate) return 'That confirmation is closed now. Check the thread for the latest.';
     const me = plan.participants.find((p) => p.userId === userId);
     if (!me) return `You are not on "${plan.name}" anymore.`;
     if (me.invited === false) return `You are not on the invite list for this date. Check the thread for the latest.`;
@@ -1032,6 +1023,8 @@ async function ackVote(interaction, plan, vote) {
 
     if (interaction.inGuild()) {
         await interaction.reply({ content: `${line} Tap the buttons again any time to change it.${calendar}`, flags: MessageFlags.Ephemeral });
+        //A tap in the thread leaves their own DM still asking the question, so it is brought into line
+        await syncPlanCards(plan, null, { only: [interaction.user.id] }).catch(() => {});
     } else {
         await interaction.update({
             content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.${calendar}`,
@@ -1184,15 +1177,11 @@ async function notifyCreatorAllYes(plan) {
 }
 
 /*
-    The Discord side of a planner moving someone on the attendance board: the thread
-    tally, and nothing else.
+    A planner moving someone on the attendance board: the thread tally, nothing else.
 
-    The person moved is never told, deliberately. A planner reaches for the board
-    because they have already decided that person is not going to answer, so a DM
-    second guesses a call that was made for a reason and lands on the least engaged
-    person on the plan. An override only stops them being nudged anyway: they keep
-    the thread, they keep the buttons on their own DM, and casting a vote clears the
-    override, so their word still beats the planner's guess whenever they give it.
+    The person moved is never told. A planner reaches for the board having decided they
+    will not answer, and an override only stops them being nudged: they keep the buttons
+    on their card, and voting clears the override, so their own word still wins.
 */
 export async function applyAttendanceMove(plan, status) {
     await updateProbeMessage(plan).catch(() => {});

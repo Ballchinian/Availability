@@ -368,6 +368,33 @@ Planner role only.
 
 ---
 
+## POST `/api/plans/:planId/confirmations` (session)
+
+Opens or closes the yes/no confirmation on a set date.
+
+Planner role only.
+
+### Input
+
+* `active`: `true` to open, `false` to close
+* `quiet`: optional, `true` posts a first confirmation without mentioning anyone
+
+### Effects
+
+* A switch, not a round. Neither direction touches a single answer, so a confirmation closed by mistake reopens with every yes and no still on it and the attendance board never loses what it knew. Only a day actually moving clears answers, which is the choose, void, range and days routes.
+* Opening revives the confirmation message already in the thread wherever it survives, rather than posting a second one. Only a plan that has never had one gets a fresh post, and only that post carries mentions.
+* Every card is rewritten with it, so the buttons appear in people's DMs when it opens and come off when it closes.
+
+### Notes
+
+* `400` if no date is set, or `active` is not a boolean.
+* Answers `unchanged: true` and does nothing when it already matches.
+* `revived` says whether it came back on the old message. Reviving is an edit, and Discord does not notify on an edit, so a revived confirmation reaches nobody until someone nudges. The site says so rather than implying people were told.
+* No rate limit: opening revives a message rather than sending one.
+* `409` if the plan was cancelled.
+
+---
+
 ## POST `/api/plans/:planId/attendance` (session)
 
 A planner's manual call on someone's attendance for the set date, the moves on the compare page's board.

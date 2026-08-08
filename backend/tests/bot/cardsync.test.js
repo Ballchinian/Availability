@@ -1,12 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /*
-    Rewriting the DM everybody is holding, which is what lets a wrong time be corrected
-    without seventeen people being pinged about the correction.
-
-    The fake user records every edit, so what these mostly check is that one person going
-    wrong costs nobody else their edit, and that nothing here ever sends. Sending would
-    ping them, which is the one thing this exists to avoid.
+    Rewriting the DM everybody holds, which is what corrects a wrong time without pinging
+    seventeen people about it. Mostly these check that one person going wrong costs nobody
+    else their edit, and that nothing here ever sends, since a send would ping them.
 */
 
 //What each user's DM does when the bot reaches for it. Set per case.
@@ -101,10 +98,7 @@ describe('syncPlanCards', () => {
         expect(edits).toHaveLength(0);
     });
 
-    /*
-        The reason each edit is swallowed on its own rather than through fanOut, which
-        rethrows the first failure once the list has settled.
-    */
+    //Why each edit is swallowed alone: fanOut rethrows the first failure once it settles
     it('keeps going when one person has DMs closed', async () => {
         inbox.set('a', {});
         inbox.set('b', { dmsOff: true });
@@ -129,11 +123,7 @@ describe('syncPlanCards', () => {
         expect(db.clearPlanCard).toHaveBeenCalledWith('ab12cd34ef', 'a');
     });
 
-    /*
-        A blip is not a deletion. Forgetting the card here would mean a rate limit or a
-        stumble cost somebody their DM permanently, with no way back short of the plan
-        being announced again.
-    */
+    //A blip is not a deletion: forgetting here would cost somebody their DM for good
     it('keeps a card whose message merely failed to load', async () => {
         inbox.set('a', { wobbly: true });
         await syncPlanCards(plan([person('a')]));

@@ -110,6 +110,7 @@ export type PlanEvent =
     | (EventBase & { type: 'left' })
     | (EventBase & { type: 'rejoined' })
     | (EventBase & { type: 'reminded'; kind: 'availability' | 'vote'; count: number })
+    | (EventBase & { type: 'confirmations'; active: boolean })
     | (EventBase & { type: 'repeat'; repeatWeeks: number | null })
     //Written by the repeat sweep rather than by a person, so its by and byName are the plan's creator and blank
     | (EventBase & { type: 'repeated'; planId: string })

@@ -11,6 +11,7 @@
     import AddPeople from '../lib/compare/AddPeople.svelte';
     import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
     import CancelPanel from '../lib/compare/CancelPanel.svelte';
+    import ConfirmPanel from '../lib/compare/ConfirmPanel.svelte';
     import DaysEditor from '../lib/compare/DaysEditor.svelte';
     import EditDetails from '../lib/compare/EditDetails.svelte';
     import HistoryPanel from '../lib/compare/HistoryPanel.svelte';
@@ -305,6 +306,15 @@
                     probeActive={Boolean(data.plan.probeActive)}
                     onsaved={refresh}
                 />
+
+                {#if data.plan.chosenDate}
+                    <ConfirmPanel
+                        planId={params.planId}
+                        active={Boolean(data.plan.probeActive)}
+                        participants={data.participants}
+                        onchanged={refresh}
+                    />
+                {/if}
 
                 <AttendanceBoard
                     planId={params.planId}

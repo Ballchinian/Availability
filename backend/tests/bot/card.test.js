@@ -2,12 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { planCard } from '../../src/bot/plans.js';
 
 /*
-    The one DM per person that says what a plan currently is. What matters here is that
-    the same function builds the message on the day and rebuilds it a fortnight later,
-    since a rewrite that lost something would take it off a message somebody already has.
-
-    The rebuild cases pass no actor and no moved flag, reading both off the participant,
-    which is exactly what a sync months later does.
+    The DM saying what a plan is. What matters is that one send and a rebuild a fortnight
+    later agree, since anything the rebuild loses comes off a message somebody already has.
+    The rebuild cases pass no actor and no moved flag, which is what a later sync does.
 */
 
 const collecting = {

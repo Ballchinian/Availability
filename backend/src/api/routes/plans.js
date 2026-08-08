@@ -6,7 +6,7 @@ import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -362,6 +362,35 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     );
 
     res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed });
+});
+
+/*
+    Open or close the confirmation on a set date. A switch, so neither direction touches an
+    answer: one closed by mistake comes back with every yes and no still on it. Only a day
+    moving clears answers, which is choose, void, range and days, not this.
+
+    No rate limit: opening revives a message rather than sending one, so there is no volume.
+*/
+router.post('/:planId/confirmations', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
+    if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then ask people to confirm it.' });
+
+    const { active } = req.body || {};
+    if (typeof active !== 'boolean') return res.status(400).json({ error: 'Say whether confirmations are on or off.' });
+    if (active === Boolean(plan.probeActive)) {
+        return res.json({ ok: true, active, revived: false, unchanged: true });
+    }
+
+    const { revived } = await applyConfirmations(plan, active, { cfg: ctx.cfg, mention: req.body?.quiet !== true });
+
+    await addPlanEvent(plan.planId, {
+        type: 'confirmations',
+        by: req.user.id,
+        byName: ctx.member.displayName,
+        active
+    });
+
+    res.json({ ok: true, active, revived });
 });
 
 /*

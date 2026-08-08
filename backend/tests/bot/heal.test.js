@@ -1,14 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /*
-    What happens to a plan's own thread messages when somebody deletes one. Before this
-    a single deletion was permanent: every later pass fetched nothing, gave up, and the
-    plan spent the rest of its life with no pinned opener, or a confirmation nobody in
-    the thread could answer.
-
-    The fake thread records everything it is asked to do, and most of what these assert
-    is what is not in that record: no second opener on a plan that never had one, no
-    poll posted into a thread that never had one.
+    What happens when somebody deletes one of a plan's own thread messages. The fake thread
+    records everything it is asked to do, and most of these assert what is not in that
+    record: no second opener on a plan that never had one, no poll in a thread that had none.
 */
 
 const channels = new Map();

@@ -48,6 +48,8 @@ export function describeEvent(event: PlanEvent): string {
             return `changed the days asked about to ${describeWeekdays(event.allowedWeekdays) || 'every day'}`;
         case 'details':
             return event.renamed ? 'edited the title and description' : 'edited the description';
+        case 'confirmations':
+            return event.active ? 'asked everyone to confirm they are coming' : 'closed the confirmations';
         case 'added':
             return `added ${plural(event.count, 'person', 'people')}`;
         case 'left':
