@@ -40,6 +40,7 @@ vi.mock('../../src/db/plans.js', () => ({
     ...stubs(
         'confirmParticipant',
         'setPlanChosen',
+        'setPlanWhen',
         'voidPlanChoice',
         'setReminded',
         'setVoteReminded',
@@ -77,6 +78,8 @@ vi.mock('../../src/db/users.js', () => ({
 vi.mock('../../src/bot/plans.js', () =>
     stubs(
         'announceOutcome',
+        'announceWhenEdit',
+        'applyConfirmations',
         'remindStragglers',
         'remindVoters',
         'announceRangeChange',
@@ -289,5 +292,77 @@ describe('a plan as a template', () => {
         plannerAnswer = notPlanner;
         const res = await get('/ab12cd34ef/template');
         expect(res.status).toBe(403);
+    });
+});
+
+/*
+    Which of the two things the choose route does. Picking the day the plan is already on
+    used to run through setPlanChosen, which wipes every vote, takes the confirmation down
+    and rebuilds the invite list, so editing a note cost a planner the round they were
+    halfway through.
+*/
+describe('choosing the day a plan is already on', () => {
+    const setPlan = (over = {}) =>
+        plan({
+            status: 'closed',
+            chosenDate: '2026-08-05',
+            chosenTime: '19:00',
+            chosenNote: 'meet at the station',
+            ...over
+        });
+
+    it('edits the time and note without touching anything else', async () => {
+        plans.set('ab12cd34ef', setPlan());
+        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '20:00', note: 'meet at the station' });
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ edited: true, changed: false, chosenTime: '20:00' });
+        expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', 'meet at the station');
+        //The whole point: the call that clears the round is not made
+        expect(db.setPlanChosen).not.toHaveBeenCalled();
+    });
+
+    it('clears the note when it is emptied rather than leaving the old one', async () => {
+        plans.set('ab12cd34ef', setPlan());
+        await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '19:00', note: '' });
+        expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '19:00', null);
+    });
+
+    //An invite list rebuilt on an update is how somebody put on the board by hand falls off it
+    it('ignores the invite narrowing entirely', async () => {
+        plans.set('ab12cd34ef', setPlan());
+        await post('/ab12cd34ef/choose', {
+            date: '2026-08-05',
+            time: '20:00',
+            inviteMode: 'attending',
+            attendingIds: ['guest']
+        });
+        expect(db.setPlanChosen).not.toHaveBeenCalled();
+    });
+
+    it('refuses an update that changes nothing', async () => {
+        plans.set('ab12cd34ef', setPlan());
+        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '19:00', note: 'meet at the station' });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/Nothing changed/);
+        expect(db.setPlanWhen).not.toHaveBeenCalled();
+    });
+
+    //A different day is a real move and still starts the round again
+    it('still clears the round when the day actually moves', async () => {
+        plans.set('ab12cd34ef', setPlan());
+        const res = await post('/ab12cd34ef/choose', { date: '2026-08-06', time: '19:00' });
+
+        expect(await res.json()).toMatchObject({ changed: true });
+        expect(db.setPlanChosen).toHaveBeenCalled();
+        expect(db.setPlanWhen).not.toHaveBeenCalled();
+    });
+
+    //A plan still collecting has no day to be already on, however the date lines up
+    it('treats a first pick as a set rather than an edit', async () => {
+        plans.set('ab12cd34ef', plan({ chosenDate: null }));
+        await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '19:00' });
+        expect(db.setPlanChosen).toHaveBeenCalled();
+        expect(db.setPlanWhen).not.toHaveBeenCalled();
     });
 });

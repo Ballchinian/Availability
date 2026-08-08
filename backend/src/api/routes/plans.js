@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -312,7 +312,7 @@ router.get('/:planId/template', requirePlanner, (req, res) => {
 router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { date, time, note, inviteMode, attendingIds, probe } = req.body || {};
+    const { date, time, note, inviteMode, attendingIds, probe, quiet } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -329,6 +329,37 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     const rl = await takeAction(req.user.id, plan.guildId, 'choose', DAILY_LIMIT);
     if (!rl.allowed) {
         return res.status(429).json({ error: `You have set a date ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    /*
+        The day it is already on, so this edits the time or the note and nothing else. Every
+        vote, the confirmation and the invite list all stand, since nobody answered about a
+        different day. This used to run through setPlanChosen and wipe the lot.
+
+        The status half is belt and braces: voiding and moving the range both null the date
+        and reopen in one write, so a collecting plan never has a day to be already on.
+    */
+    if (plan.status === 'closed' && plan.chosenDate === date) {
+        if (cleanTime === (plan.chosenTime || null) && cleanNote === (plan.chosenNote || null)) {
+            return res.status(400).json({ error: 'Nothing changed there. Edit the time or the note to update it.' });
+        }
+
+        const was = { time: plan.chosenTime || null, note: plan.chosenNote || null };
+        const updated = await setPlanWhen(plan.planId, cleanTime, cleanNote);
+
+        await addPlanEvent(plan.planId, {
+            type: 'when',
+            by: req.user.id,
+            byName: ctx.member.displayName,
+            time: cleanTime,
+            quiet: quiet === true
+        });
+
+        announceAfter('when edit', () =>
+            announceWhenEdit(updated, ctx.cfg, { actorName: ctx.member.displayName, was, quiet: quiet === true })
+        );
+
+        return res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed: false, edited: true });
     }
 
     /*

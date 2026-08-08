@@ -640,6 +640,40 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
 }
 
 /*
+    A time or note edit on a day that is staying put. Everything already sent is brought
+    into line first, which pings nobody, so a quiet fix leaves every DM correct and no
+    trace of the correction.
+
+    Loud sends a DM and no thread post: the pin and the confirmation already carry the
+    change, and a second post about a note reads as noise. A moved time also puts the
+    buttons back in front of anyone who said yes to the old one.
+*/
+export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet = false }) {
+    await syncPlan(plan, { cfg });
+    if (quiet) return;
+
+    const ids = invitedOnly(plan).map((p) => p.userId);
+    if (!ids.length) return;
+
+    const timeMoved = (was.time || null) !== (plan.chosenTime || null);
+    const noteMoved = (was.note || null) !== (plan.chosenNote || null);
+
+    const bits = [];
+    if (timeMoved) bits.push(plan.chosenTime ? `it starts at ${formatTime(plan.chosenTime)} now` : 'there is no set time any more');
+    if (noteMoved) bits.push(plan.chosenNote ? `the note now reads "${plan.chosenNote}"` : 'the note is gone');
+
+    const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
+    //Only worth re-offering when the moment itself moved, since the file carries the time
+    const calendar = timeMoved ? `\n${calendarLines(plan)}` : '';
+    const recheck = plan.probeActive && timeMoved ? `\n\nIf that no longer works, change your answer below.` : '';
+
+    await dmEach(ids,
+        banner('PLAN UPDATED') +
+        `${actorName} updated "${plan.name}" in ${cfg.guildName} on ${whenLine(plan)}: ${bits.join(', and ')}.${about}${calendar}${recheck}`,
+        plan.probeActive && timeMoved ? [probeRow(plan.planId)] : []);
+}
+
+/*
     Open or close the confirmation on a set day. A switch: no answer is touched either way,
     so one closed by accident comes back with every yes and no still on it.
 

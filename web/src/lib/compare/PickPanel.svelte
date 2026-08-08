@@ -99,20 +99,18 @@
         return sel.ev.viable ? sel.ev.keptIds : sel.free.map((f) => f.userId);
     });
 
+    //The day the plan is already on, so the button edits the time and note rather than moving anything
+    const isUpdate = $derived(Boolean(chosen && selectedDate === chosen.date));
+
     //Whether the picked day, time and note all already match what the plan is set for
-    const sameDetails = $derived(Boolean(
-        chosen &&
-        selectedDate === chosen.date &&
-        time === chosen.time &&
-        note.trim() === chosen.note
-    ));
+    const sameDetails = $derived(Boolean(isUpdate && time === chosen!.time && note.trim() === chosen!.note));
 
     /*
-        Asking for a confirmation round is a change in its own right. Without it in
-        the check, a date set without one leaves the button greyed out for good and
-        the only way to start a probe is fiddling with the time or note.
+        Asking for a confirmation is a change in its own right, so the button cannot grey
+        out on it. Only offered on a day that is moving, since ConfirmPanel owns a
+        confirmation on the day the plan is already on.
     */
-    const probeWanted = $derived(probe && !probeActive);
+    const probeWanted = $derived(probe && !probeActive && !isUpdate);
 
     const isCurrent = $derived(sameDetails && !probeWanted);
 
@@ -185,22 +183,31 @@
         <label class="lbl" for="cnote">Note (optional)</label>
         <input id="cnote" type="text" bind:value={note} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
 
-        <div role="radiogroup" aria-labelledby="invitelabel">
-            <span class="lbl" id="invitelabel">Who is still invited?</span>
-            <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
-            <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
-        </div>
-        <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
-        <!--Hidden while one is running: that switch lives on the panel that can show its state-->
-        {#if !probeActive}
-            <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone to confirm they're coming (yes/no)</label>
-            {#if probe}
-                <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it.</p>
+        <!--Both only make sense for a day that is moving. On the day the plan is already on
+            there is no invite list to redraw, and the confirmation belongs to ConfirmPanel.-->
+        {#if !isUpdate}
+            <div role="radiogroup" aria-labelledby="invitelabel">
+                <span class="lbl" id="invitelabel">Who is still invited?</span>
+                <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+                <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
+            </div>
+            <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
+            {#if !probeActive}
+                <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone to confirm they're coming (yes/no)</label>
+                {#if probe}
+                    <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it.</p>
+                {/if}
             {/if}
+        {:else}
+            <p class="muted small">
+                Changing the time or the note leaves everything else alone: nobody's answer is cleared,
+                the confirmation keeps running, and the invite list stays as it is. Everyone's DM and the
+                pinned post are rewritten where they sit, and the people coming get told what moved.
+            </p>
         {/if}
         {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
         <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent}>
-            {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if sameDetails}Ask everyone to confirm{:else if chosen && selectedDate === chosen.date}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
+            {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
         </button>
     </div>
 {/if}

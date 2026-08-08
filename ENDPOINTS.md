@@ -342,7 +342,7 @@ Planner role only.
 
 ## POST `/api/plans/:planId/choose` (session)
 
-Lock in the winning date and announce it.
+Lock in the winning date and announce it, or edit the time and note on the day it is already on.
 
 Planner role only.
 
@@ -353,6 +353,13 @@ Planner role only.
 * `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list.
 * `attendingIds`: who can make the day, worked out by the compare page
 * `probe` (optional): whether to ask everyone to confirm they are coming with yes/no buttons
+* `quiet` (optional): only read on an edit, see below
+
+### Two things, decided by the date
+
+Picking the day the plan is **already set for** is an edit to the time and note and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` and `probe` are ignored, since neither has anything to decide. Everyone's DM and the pinned post are rewritten where they sit, and unless `quiet` is set the people still invited get a DM naming what moved, with the yes/no buttons again if the time is what changed. Answers `edited: true`.
+
+Picking **any other day** is a set or a move, and behaves as it always has, below. This split is the fix for an update having wiped a confirmation round that was halfway through.
 
 ### Effects
 
@@ -364,7 +371,8 @@ Planner role only.
 ### Notes
 
 * `409` if the plan was cancelled.
-* Capped at a high daily backstop per person, since it pings and DMs everyone.
+* `400` on an edit that changes neither the time nor the note.
+* Capped at a high daily backstop per person, since it pings and DMs everyone. An edit spends the same allowance: it is quieter, but it still rewrites a DM per person.
 
 ---
 

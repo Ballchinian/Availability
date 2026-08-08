@@ -309,6 +309,16 @@ export async function setPlanChosen(planId, date, time = null, note = null, invi
     return getPlan(planId);
 }
 
+/*
+    Change only the time and the note on a day that is staying put. Nothing else moves:
+    every vote, the confirmation and the invite list all stand, since the day people
+    answered about is the same day. Going through setPlanChosen for this wiped the lot.
+*/
+export async function setPlanWhen(planId, time, note) {
+    await col(collections.plans).updateOne({ planId }, { $set: { chosenTime: time, chosenNote: note } });
+    return getPlan(planId);
+}
+
 //Undo a confirmed date and reopen the plan so a fresh day can be picked. The date is
 //gone, so any confirmation votes for it go with it.
 export async function voidPlanChoice(planId) {
