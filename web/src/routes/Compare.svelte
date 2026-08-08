@@ -219,11 +219,7 @@
                     {#if chosen.time}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
                     {#if chosen.note}<p>{chosen.note}</p>{/if}
                     {#if !cancelled}
-                        <p>
-                            <a href={icsHref(params.planId)}>Add it to your calendar</a><br />
-                            Moving it, changing the time or the note, and going back out for dates are all
-                            under Change the plan below.
-                        </p>
+                        <p><a href={icsHref(params.planId)}>Add it to your calendar</a></p>
                     {/if}
                 </div>
 
