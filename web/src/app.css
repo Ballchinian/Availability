@@ -517,6 +517,32 @@ code {
     color: #6ee7a0;
 }
 
+/* The quiet switch, loud on screen so it cannot be left on without being noticed */
+.hush {
+    margin: 14px 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px dashed var(--line);
+    font-size: 14px;
+}
+
+.hush.on {
+    border-style: solid;
+    border-color: #d9a441;
+    background: rgba(217, 164, 65, 0.12);
+}
+
+.hush .check {
+    margin: 0;
+    font-weight: 600;
+}
+
+/* A toggle quiet mode has taken over, left legible rather than half invisible */
+.check.off {
+    opacity: 0.55;
+    cursor: default;
+}
+
 .small {
     font-size: 12px;
 }

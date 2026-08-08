@@ -7,9 +7,10 @@
         make sense while a date is set, but the message outlives it, since undoing
         is exactly what clears the date.
     */
-    let { planId, dateSet = false, onvoided }: {
+    let { planId, dateSet = false, quiet = false, onvoided }: {
         planId: string;
         dateSet?: boolean;
+        quiet?: boolean;
         onvoided: () => Promise<void>;
     } = $props();
 
@@ -21,12 +22,12 @@
         await panel.run(async () => {
             await api(`/plans/${planId}/void`, {
                 method: 'POST',
-                body: JSON.stringify({ reason: reason.trim() || null, dm })
+                body: JSON.stringify({ reason: reason.trim() || null, dm, quiet })
             });
             panel.open = false;
             reason = '';
             await onvoided();
-            return dm
+            return dm && !quiet
                 ? 'Date undone and everyone has been DMed. Pick a new one whenever you are ready.'
                 : 'Date undone. Pick a new one whenever you are ready.';
         });
@@ -40,7 +41,8 @@
         {:else}
             <p class="muted small">This clears the set date and reopens the plan so a new day can be picked. Their saved dates stay, no thread message goes out.</p>
             <input type="text" bind:value={reason} placeholder="Optional reason (e.g. the venue fell through)" maxlength="200" />
-            <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone that you are rescheduling</label>
+            <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone that you are rescheduling</label>
+            {#if quiet}<p class="muted small">Quiet mode is on, so nobody is DMed. Their DM stops saying a day is set either way.</p>{/if}
             <div class="void-row">
                 <button class="ghost danger-btn" onclick={doVoid} disabled={panel.busy}>
                     {panel.busy ? 'Undoing...' : 'Yes, undo the date'}

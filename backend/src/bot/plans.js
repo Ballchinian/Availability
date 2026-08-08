@@ -583,25 +583,34 @@ export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
     the invite list hears nothing. The headline and DM both name who set or moved it.
 
     The DM becomes their card, so a later change to the time or note rewrites it in place.
+
+    quiet sends nothing and mentions nobody. Everyone's card is rewritten where it sits
+    instead, so their DM quietly becomes the new day and the thread gains no post. A
+    confirmation still has to exist as a message to carry its buttons, so that one goes up
+    unmentioned rather than not at all.
 */
-export async function announceOutcome(plan, cfg, { changed, actorName, probe = false }) {
+export async function announceOutcome(plan, cfg, { changed, actorName, probe = false, quiet = false }) {
     const ids = invitedOnly(plan).map((p) => p.userId);
     const when = whenLine(plan);
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
 
-    if (plan.threadId) {
+    if (plan.threadId && (probe || !quiet)) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
-            const lead = ids.length ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
+            const lead = ids.length && !quiet ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
             if (probe) {
                 /*
                     With a probe on, the outcome post is the confirmation itself: the date
                     and the yes/no buttons in one. We remember the message so its tally
                     can be kept current as votes come in.
                 */
-                const probeMsg = await thread.send({ content: lead + probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { users: ids } });
+                const probeMsg = await thread.send({
+                    content: lead + probeText(plan),
+                    components: [probeRow(plan.planId)],
+                    allowedMentions: quiet ? { parse: [] } : { users: ids }
+                });
                 plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
             } else {
                 const headline = changed
@@ -616,6 +625,20 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
     //even though there is no thread message to tally
     if (probe && !plan.probeActive) {
         plan = await setProbe(plan.planId, { active: true, threadMessageId: null });
+    }
+
+    /*
+        Quiet rewrites the cards people already hold rather than sending new ones, so the DM
+        in somebody's inbox silently becomes the new day. The ids stay put and only the lead
+        they carry moves on, which has to be written down before the sync reads it back.
+    */
+    if (quiet) {
+        const held = plan.participants.filter((p) => p.cardMessageId);
+        await setPlanCards(plan.planId, held.map((p) => ({ userId: p.userId, messageId: p.cardMessageId })), { actorName, moved: changed });
+        const relabelled = { ...plan, participants: plan.participants.map((p) => ({ ...p, cardActor: actorName, cardMoved: changed })) };
+        //One pass for the pin, the confirmation and every card, since the probe is now settled
+        await syncPlan(relabelled, { cfg }).catch((err) => console.error('[plans] quiet outcome sync failed:', err));
+        return;
     }
 
     //Anyone whose horizon sits before the date never really answered for it, so their card says so

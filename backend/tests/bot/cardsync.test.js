@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 //What each user's DM does when the bot reaches for it. Set per case.
 const inbox = new Map();
 const edits = [];
+const sends = [];
 
 vi.mock('../../src/bot/client.js', () => ({
     client: {
@@ -18,6 +19,7 @@ vi.mock('../../src/bot/client.js', () => ({
                 const box = inbox.get(id);
                 if (!box) throw new Error('unknown user');
                 return {
+                    send: async (payload) => (sends.push({ userId: id, payload }), { id: `sent-${id}` }),
                     createDM: async () => {
                         if (box.dmsOff) throw Object.assign(new Error('cannot send'), { code: 50007 });
                         return {
@@ -39,11 +41,18 @@ vi.mock('../../src/bot/client.js', () => ({
     }
 }));
 
-const db = vi.hoisted(() => ({ clearPlanCard: vi.fn(async () => {}), setProbe: vi.fn(async () => {}), setPlanOpener: vi.fn(async () => {}) }));
+const db = vi.hoisted(() => ({
+    clearPlanCard: vi.fn(async () => {}),
+    setProbe: vi.fn(async () => {}),
+    setPlanOpener: vi.fn(async () => {}),
+    setPlanCards: vi.fn(async () => {})
+}));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 
-const { syncPlanCards } = await import('../../src/bot/plans.js');
+vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
+
+const { syncPlanCards, announceOutcome } = await import('../../src/bot/plans.js');
 
 const person = (userId, over = {}) => ({
     userId,
@@ -75,7 +84,9 @@ const plan = (participants, over = {}) => ({
 beforeEach(() => {
     inbox.clear();
     edits.length = 0;
+    sends.length = 0;
     db.clearPlanCard.mockClear();
+    db.setPlanCards.mockClear();
 });
 
 describe('syncPlanCards', () => {
@@ -154,5 +165,47 @@ describe('syncPlanCards', () => {
         expect(edits[0].payload.content).toContain('is off');
         expect(edits[0].payload.content).not.toContain('7pm');
         expect(edits[0].payload.components).toEqual([]);
+    });
+});
+
+/*
+    Setting a day quietly. The trap being avoided is a quiet path that still sends: a fresh
+    DM pings, and a ping is the one thing quiet mode exists to stop.
+*/
+describe('announceOutcome under quiet', () => {
+    it('rewrites the cards people hold rather than sending new ones', async () => {
+        for (const id of ['a', 'b']) inbox.set(id, {});
+        const p = plan([person('a'), person('b')], { threadId: null });
+
+        await announceOutcome(p, { guildName: 'The server' }, { changed: false, actorName: 'Ali', quiet: true });
+
+        expect(sends).toHaveLength(0);
+        expect(edits).toHaveLength(2);
+        expect(edits[0].payload.content).toContain('7pm');
+    });
+
+    //The lead a card carries has to move on with it or the rewrite says the wrong thing
+    it('moves the actor and the moved flag on without a send', async () => {
+        inbox.set('a', {});
+        const p = plan([person('a', { cardActor: 'Bo', cardMoved: false })], { threadId: null });
+
+        await announceOutcome(p, { guildName: 'The server' }, { changed: true, actorName: 'Ali', quiet: true });
+
+        expect(db.setPlanCards).toHaveBeenCalledWith(
+            'ab12cd34ef',
+            [{ userId: 'a', messageId: 'm-a' }],
+            { actorName: 'Ali', moved: true }
+        );
+        expect(edits[0].payload.content).toContain('Ali moved the plan');
+    });
+
+    it('still sends when it is not asked to keep quiet', async () => {
+        inbox.set('a', {});
+        const p = plan([person('a')], { threadId: null });
+
+        await announceOutcome(p, { guildName: 'The server' }, { changed: false, actorName: 'Ali' });
+
+        expect(sends).toHaveLength(1);
+        expect(edits).toHaveLength(0);
     });
 });

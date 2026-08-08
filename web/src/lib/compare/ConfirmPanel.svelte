@@ -7,9 +7,10 @@
         The yes/no confirmation on a set date, as a switch. Closing keeps every answer,
         so reopening brings the tally back rather than starting people over.
     */
-    let { planId, active = false, participants = [], onchanged }: {
+    let { planId, active = false, participants = [], quiet = false, onchanged }: {
         planId: string;
         active?: boolean;
+        quiet?: boolean;
         participants?: Participant[];
         onchanged: () => Promise<void>;
     } = $props();
@@ -30,7 +31,7 @@
         await panel.run(async () => {
             const res = await api<{ revived: boolean }>(`/plans/${planId}/confirmations`, {
                 method: 'POST',
-                body: JSON.stringify({ active: want })
+                body: JSON.stringify({ active: want, quiet })
             });
             await onchanged();
             if (!want) return 'Confirmations closed. Everyone keeps the answer they gave.';

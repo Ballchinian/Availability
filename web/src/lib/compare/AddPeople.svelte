@@ -9,9 +9,10 @@
         fetched the first time the panel opens and kept until someone is added,
         since that is the only thing that changes who is left to pick.
     */
-    let { planId, guildId, participants = [], onadded }: {
+    let { planId, guildId, participants = [], quiet = false, onadded }: {
         planId: string;
         guildId: string;
+        quiet?: boolean;
         participants?: Participant[];
         onadded: () => Promise<void>;
     } = $props();
@@ -44,13 +45,13 @@
         await panel.run(async () => {
             const res = await api<{ added: number }>(`/plans/${planId}/add`, {
                 method: 'POST',
-                body: JSON.stringify({ userIds: selectedIds, dm })
+                body: JSON.stringify({ userIds: selectedIds, dm, quiet })
             });
             selectedIds = [];
             members = [];
             panel.open = false;
             await onadded();
-            return dm
+            return dm && !quiet
                 ? `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} and let them know.`
                 : `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} to the thread.`;
         });
@@ -68,7 +69,10 @@
             <p class="muted small">Everyone in the server is already on this plan.</p>
         {:else}
             <MemberPicker {members} bind:selectedIds />
-            <label class="check"><input type="checkbox" bind:checked={dm} /> DM the people you add</label>
+            <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM the people you add</label>
+            <!--The one thing quiet cannot cover: there is no way to add somebody to a private
+                thread without Discord pinging them about it-->
+            {#if quiet}<p class="muted small">Quiet mode is on, so no DM. They are still pinged by being added to the thread, which Discord gives no way around.</p>{/if}
             <div class="add-row">
                 <button class="primary" onclick={add} disabled={panel.busy}>
                     {panel.busy ? 'Adding...' : 'Add to the plan'}

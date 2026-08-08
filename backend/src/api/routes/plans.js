@@ -65,6 +65,20 @@ function refuseCancelled(req, res, next) {
     next();
 }
 
+/*
+    How loudly a request wants to land. quiet forces off everything that would reach
+    somebody who is not already looking, so a planner fixing their own mistake is not
+    announcing the mistake to seventeen people.
+
+    What quiet never turns off is the rewriting: the pin, the confirmation and every card
+    are brought in line whatever this says, since an edit reaches nobody and a DM left
+    saying the wrong time is the thing worth avoiding in the first place.
+*/
+function loudness(body = {}) {
+    const quiet = body.quiet === true;
+    return { quiet, post: !quiet && body.post !== false, dm: !quiet && body.dm !== false };
+}
+
 router.get('/:planId', async (req, res) => {
     const { plan } = req;
 
@@ -388,11 +402,12 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         announceOutcome(updated, ctx.cfg, {
             changed,
             actorName: ctx.member.displayName,
-            probe: probe === true
+            probe: probe === true,
+            quiet: quiet === true
         })
     );
 
-    res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed });
+    res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed, quiet: quiet === true });
 });
 
 /*
@@ -468,9 +483,10 @@ router.post('/:planId/void', requirePlanner, refuseCancelled, async (req, res) =
 
     await addPlanEvent(plan.planId, { type: 'voided', by: req.user.id, byName: ctx.member.displayName, from: plan.chosenDate, reason });
 
-    announceAfter('void announce', () => announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm: req.body?.dm !== false }));
+    const { quiet, dm } = loudness(req.body);
+    announceAfter('void announce', () => announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm }));
 
-    res.json({ ok: true });
+    res.json({ ok: true, quiet });
 });
 
 /*
@@ -534,7 +550,8 @@ router.post('/:planId/remind', requirePlanner, refuseCancelled, async (req, res)
 router.post('/:planId/range', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { start, end, note, post, dm } = req.body || {};
+    const { start, end, note } = req.body || {};
+    const { quiet, post, dm } = loudness(req.body);
     const shape = /^\d{4}-\d{2}-\d{2}$/;
     if (!shape.test(start || '') || !shape.test(end || '')) {
         return res.status(400).json({ error: 'Pick a valid start and end date.' });
@@ -563,17 +580,18 @@ router.post('/:planId/range', requirePlanner, refuseCancelled, async (req, res) 
     await addPlanEvent(plan.planId, { type: 'range', by: req.user.id, byName: ctx.member.displayName, start, end });
 
     announceAfter('range post', () =>
-        announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post: post !== false, dm: dm !== false })
+        announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post, dm })
     );
 
-    res.json({ ok: true, start, end });
+    res.json({ ok: true, start, end, quiet });
 });
 
 //Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new days
 router.post('/:planId/weekdays', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { allowedWeekdays, note, post, dm } = req.body || {};
+    const { allowedWeekdays, note } = req.body || {};
+    const { quiet, post, dm } = loudness(req.body);
     const weekdays = cleanWeekdays(allowedWeekdays);
 
     //The new set has to leave at least one day inside the plan's current range
@@ -605,12 +623,12 @@ router.post('/:planId/weekdays', requirePlanner, refuseCancelled, async (req, re
             daysLabel: describeWeekdays(weekdays),
             reopened: opensADay,
             note: cleanNote,
-            post: post !== false,
-            dm: dm !== false
+            post,
+            dm
         })
     );
 
-    res.json({ ok: true, allowedWeekdays: weekdays, reopened: opensADay });
+    res.json({ ok: true, allowedWeekdays: weekdays, reopened: opensADay, quiet });
 });
 
 //Edit a plan's title and description. Renames the thread and rewrites the pinned opener, quietly.
@@ -649,6 +667,8 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
     //Already cancelled, do not tell everyone twice
     if (plan.status === 'cancelled') return res.json({ ok: true });
 
+    const { quiet, post, dm } = loudness(req.body);
+
     //Marked cancelled here rather than inside the announcement, so a reload sees it gone straight away
     let cancelled;
     try {
@@ -662,17 +682,18 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
 
     //The cancelled copy, since what the pin and everyone's DM end up saying is read off the status
     announceAfter('cancel announce', () =>
-        announceCancel(cancelled || plan, ctx.member.displayName, { post: req.body?.post !== false, dm: req.body?.dm !== false })
+        announceCancel(cancelled || plan, ctx.member.displayName, { post, dm })
     );
 
-    res.json({ ok: true });
+    res.json({ ok: true, quiet });
 });
 
 //Pull extra people into a running plan. Planner only, same gate as the rest.
 router.post('/:planId/add', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { userIds, dm } = req.body || {};
+    const { userIds } = req.body || {};
+    const { quiet, dm } = loudness(req.body);
     if (!Array.isArray(userIds) || userIds.length === 0) {
         return res.status(400).json({ error: 'Pick at least one person to add.' });
     }
@@ -689,9 +710,9 @@ router.post('/:planId/add', requirePlanner, refuseCancelled, async (req, res) =>
 
     await addPlanEvent(plan.planId, { type: 'added', by: req.user.id, byName: ctx.member.displayName, count: toAdd.length });
 
-    announceAfter('add announce', () => announceAddition(updated, toAdd, ctx.member.displayName, { dm: dm !== false }));
+    announceAfter('add announce', () => announceAddition(updated, toAdd, ctx.member.displayName, { dm }));
 
-    res.json({ ok: true, added: toAdd.length });
+    res.json({ ok: true, added: toAdd.length, quiet });
 });
 
 //Drop yourself out of a plan you were invited to, the website side of the DM button

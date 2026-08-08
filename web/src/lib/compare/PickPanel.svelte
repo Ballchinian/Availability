@@ -23,6 +23,7 @@
         totalParticipants = 0,
         probeActive = false,
         chosen = null,
+        quiet = false,
         onsaved
     }: {
         planId: string;
@@ -34,6 +35,7 @@
         confirmedCount?: number;
         totalParticipants?: number;
         probeActive?: boolean;
+        quiet?: boolean;
         chosen?: { date: string; time: string; note: string } | null;
         onsaved: () => Promise<void>;
     } = $props();
@@ -124,7 +126,8 @@
                     note: note.trim() || null,
                     inviteMode,
                     attendingIds: attendIds,
-                    probe
+                    probe,
+                    quiet
                 })
             });
             //Refetch so the invite list and the board reflect what was just set

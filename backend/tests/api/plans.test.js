@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
+import { announceAfter } from '../../src/api/announce.js';
+import { announceOutcome, announceWhenEdit, announceRangeChange, announceCancel, applyConfirmations } from '../../src/bot/plans.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -364,5 +366,60 @@ describe('choosing the day a plan is already on', () => {
         await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '19:00' });
         expect(db.setPlanChosen).toHaveBeenCalled();
         expect(db.setPlanWhen).not.toHaveBeenCalled();
+    });
+});
+
+/*
+    Quiet forces off everything that would reach somebody who is not already looking. What
+    it never turns off is the rewriting, which is why a quiet fix still leaves everyone
+    holding a correct DM.
+*/
+describe('quiet mode', () => {
+    const flagsOf = (fn) => fn.mock.calls.at(-1).at(-1);
+
+    it('silences the range change both ways', async () => {
+        await post('/ab12cd34ef/range', { start: '2026-08-02', end: '2026-08-20', quiet: true });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(flagsOf(announceRangeChange)).toMatchObject({ post: false, dm: false });
+    });
+
+    //A ticked box and quiet mode cannot both win, or the page and the server disagree
+    it('beats a box the panel left ticked', async () => {
+        await post('/ab12cd34ef/range', { start: '2026-08-02', end: '2026-08-20', quiet: true, post: true, dm: true });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(flagsOf(announceRangeChange)).toMatchObject({ post: false, dm: false });
+    });
+
+    it('leaves a request that says nothing about it as loud as ever', async () => {
+        await post('/ab12cd34ef/range', { start: '2026-08-02', end: '2026-08-20' });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(flagsOf(announceRangeChange)).toMatchObject({ post: true, dm: true });
+    });
+
+    it('silences a cancel when it is asked to', async () => {
+        await post('/ab12cd34ef/cancel', { quiet: true });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(flagsOf(announceCancel)).toMatchObject({ post: false, dm: false });
+    });
+
+    it('carries through to setting a day', async () => {
+        await post('/ab12cd34ef/choose', { date: '2026-08-05', quiet: true });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(flagsOf(announceOutcome)).toMatchObject({ quiet: true });
+    });
+
+    it('carries through to an edit of the time or note', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: '2026-08-05', chosenTime: '19:00' }));
+        await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '20:00', quiet: true });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(flagsOf(announceWhenEdit)).toMatchObject({ quiet: true });
+    });
+
+    //The confirmation reads it as "do not mention anyone", since the poll itself still has to exist
+    it('stops a first confirmation mentioning the invite list', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: '2026-08-05', probeActive: false }));
+        applyConfirmations.mockResolvedValue({ revived: false });
+        await post('/ab12cd34ef/confirmations', { active: true, quiet: true });
+        expect(applyConfirmations.mock.calls.at(-1).at(-1)).toMatchObject({ mention: false });
     });
 });

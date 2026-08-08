@@ -8,9 +8,10 @@
         Mondays without starting again. Opening a day resets confirmations, a pure
         narrowing leaves them be, which is why the message waits on the answer.
     */
-    let { planId, allowedWeekdays = null, onsaved }: {
+    let { planId, allowedWeekdays = null, quiet = false, onsaved }: {
         planId: string;
         allowedWeekdays?: number[] | null;
+        quiet?: boolean;
         onsaved: () => Promise<void>;
     } = $props();
 
@@ -44,9 +45,11 @@
             const payload = chosen.length === 7 ? null : chosen;
             const res = await api<{ reopened: boolean }>(`/plans/${planId}/weekdays`, {
                 method: 'POST',
-                body: JSON.stringify({ allowedWeekdays: payload, note: note.trim() || null, post, dm })
+                body: JSON.stringify({ allowedWeekdays: payload, note: note.trim() || null, post, dm, quiet })
             });
-            const told = post && dm ? ' Everyone was pinged and DMed.' : post ? ' The thread was pinged.' : dm ? ' Everyone was DMed.' : '';
+            const loud = post && !quiet;
+            const dmed = dm && !quiet;
+            const told = loud && dmed ? ' Everyone was pinged and DMed.' : loud ? ' The thread was pinged.' : dmed ? ' Everyone was DMed.' : ' Nobody was told.';
             note = '';
             panel.open = false;
             await onsaved();
@@ -64,8 +67,9 @@
         <p class="muted small">Open or close days for this plan, like turning on Mondays. Everyone gets asked to look again, and their saved days stay put.</p>
         <WeekdayPicker bind:dayOn />
         <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. Mondays are open now)" maxlength="200" />
-        <label class="check"><input type="checkbox" bind:checked={post} /> Post the change in the thread</label>
-        <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone</label>
+        <label class="check" class:off={quiet}><input type="checkbox" bind:checked={post} disabled={quiet} /> Post the change in the thread</label>
+        <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone</label>
+        {#if quiet}<p class="muted small">Quiet mode is on, so neither of those happens.</p>{/if}
         <div class="edit-row">
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Update the days'}

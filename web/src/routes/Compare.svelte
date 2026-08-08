@@ -42,6 +42,16 @@
     let ending = $state(false);
 
     /*
+        Quiet: nothing done from this page pings anybody. The pin, the confirmation and
+        everyone's DM are still rewritten, so what people hold stays true, they just are
+        not told it changed. For putting your own mistake right without announcing it.
+
+        Deliberately not remembered across a load. A forgotten quiet mode is how a real
+        date change reaches nobody, so arriving fresh is always loud.
+    */
+    let quiet = $state(false);
+
+    /*
         The slider's own value, and the settled one everything else reads. Every step
         of a drag rebuilds every day's evaluation, which is 200ms of work on twenty
         people across two years, so the grid waits for the thumb to stop while the
@@ -240,6 +250,23 @@
             <a href="#/g/{data.plan.guildId}?like={params.planId}">Plan another like this</a>
         </p>
 
+        {#if !cancelled}
+            <div class="hush" class:on={quiet}>
+                <label class="check"><input type="checkbox" bind:checked={quiet} /> Quiet: fix things without telling anyone</label>
+                <p class="muted small">
+                    {#if quiet}
+                        Nothing you do here pings anybody until you turn this off. The pinned post, the
+                        confirmation and everyone's DM are still rewritten where they sit, so what people
+                        are holding stays correct, they just are not told it changed. Turning the page off
+                        and on again turns this off.
+                    {:else}
+                        Turn this on to put a mistake right without announcing it. Everyone's DM still gets
+                        corrected, nobody is pinged about the correction.
+                    {/if}
+                </p>
+            </div>
+        {/if}
+
         <section class="group">
             <h2>Where it stands</h2>
 
@@ -304,6 +331,7 @@
                     confirmedCount={data.confirmedCount}
                     totalParticipants={data.totalParticipants}
                     probeActive={Boolean(data.plan.probeActive)}
+                    {quiet}
                     onsaved={refresh}
                 />
 
@@ -312,6 +340,7 @@
                         planId={params.planId}
                         active={Boolean(data.plan.probeActive)}
                         participants={data.participants}
+                        {quiet}
                         onchanged={refresh}
                     />
                 {/if}
@@ -348,12 +377,13 @@
                     planId={params.planId}
                     guildId={data.plan.guildId}
                     participants={data.participants}
+                    {quiet}
                     onadded={load}
                 />
 
-                <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} onsaved={reopen} />
+                <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} {quiet} onsaved={reopen} />
 
-                <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} onsaved={reopen} />
+                <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} {quiet} onsaved={reopen} />
 
                 <RepeatPanel
                     planId={params.planId}
@@ -367,10 +397,10 @@
             <details class="group" bind:open={ending}>
                 <summary>Undo or end it <span class="hint">clear the date and start again, or call the whole thing off</span></summary>
 
-                <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} onvoided={reopen} />
+                <VoidPanel planId={params.planId} dateSet={Boolean(chosen)} {quiet} onvoided={reopen} />
 
                 <!--A reload rather than the local flag, so status and banner cannot disagree-->
-                <CancelPanel planId={params.planId} oncancelled={load} />
+                <CancelPanel planId={params.planId} {quiet} oncancelled={load} />
             </details>
         {/if}
     {/if}

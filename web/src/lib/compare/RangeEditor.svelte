@@ -9,10 +9,11 @@
         Moving the window a plan asks about. Always open, since needing more days
         is the usual reason a planner comes back to this page at all.
     */
-    let { planId, start = '', end = '', onsaved }: {
+    let { planId, start = '', end = '', quiet = false, onsaved }: {
         planId: string;
         start?: string;
         end?: string;
+        quiet?: boolean;
         onsaved: () => Promise<void>;
     } = $props();
 
@@ -47,9 +48,11 @@
         await panel.run(async () => {
             const res = await api<{ start: string; end: string }>(`/plans/${planId}/range`, {
                 method: 'POST',
-                body: JSON.stringify({ start: newStart, end: newEnd, note: note.trim() || null, post, dm })
+                body: JSON.stringify({ start: newStart, end: newEnd, note: note.trim() || null, post, dm, quiet })
             });
-            const told = post && dm ? ' and everyone has been pinged and DM\'d' : post ? ' and the thread has been pinged' : dm ? " and everyone has been DM'd" : '';
+            const loud = post && !quiet;
+            const dmed = dm && !quiet;
+            const told = loud && dmed ? ' and everyone has been pinged and DM\'d' : loud ? ' and the thread has been pinged' : dmed ? " and everyone has been DM'd" : ', quietly';
             note = '';
             await onsaved();
             return `Range set to ${formatDate(res.start)} to ${formatDate(res.end)}${told}.`;
@@ -69,7 +72,8 @@
         </button>
     </div>
     <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
-    <label class="check"><input type="checkbox" bind:checked={post} /> Post the new dates in the thread</label>
-    <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone the new dates</label>
+    <label class="check" class:off={quiet}><input type="checkbox" bind:checked={post} disabled={quiet} /> Post the new dates in the thread</label>
+    <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone the new dates</label>
+    {#if quiet}<p class="muted small">Quiet mode is on, so neither of those happens. Everyone's DM still gets the new window.</p>{/if}
     {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
 </div>
