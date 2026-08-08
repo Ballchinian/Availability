@@ -1,8 +1,8 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, icsUrl, reviveThread, pinMessage } from './util.js';
+import { createThread, planUrl, compareUrl, icsUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { googleCalendarUrl } from '../lib/ics.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
@@ -26,6 +26,29 @@ async function dmEach(ids, text, components = []) {
             //DMs off, the thread ping still reaches them
         }
     });
+}
+
+/*
+    The same, for a message that is meant to stay current: each person gets their own
+    payload and the ids of the ones that landed come back, so they can be found and
+    rewritten later. Anyone with DMs off is simply missing from the answer and has no
+    card, which is the honest state rather than a failure.
+
+    Pushed as they finish rather than by index, since nothing downstream reads these in
+    order: they go straight into a bulk write keyed by user.
+*/
+async function dmCards(ids, build) {
+    const sent = [];
+    await fanOut(ids, async (id) => {
+        try {
+            const user = await client.users.fetch(id);
+            const msg = await user.send(build(id));
+            sent.push({ userId: id, messageId: msg.id });
+        } catch {
+            //DMs off, the thread is the backstop
+        }
+    });
+    return sent;
 }
 
 //Pulls people into a plan's thread, best effort: someone who has left the server
@@ -152,6 +175,88 @@ function probeText(plan) {
 }
 
 /*
+    One person's card: the DM that says what this plan currently is. Everything else the
+    bot sends someone is a note about a moment (a nudge, a drop out, an all-in) which
+    stays true on its own and is left alone. This one goes wrong the instant a time, a
+    note or a description moves, so it is built from the plan every time and rewritten
+    in place rather than followed by a correction.
+
+    The actor and the moved flag come off the participant when they are not passed, since
+    the lead names whoever put the plan this way and a rebuild has nothing else to read
+    that off. A card built with neither still reads properly, just without the name.
+
+    Their own answer is on it once they have given one, which is what keeps a rewrite from
+    blanking a voted DM back to the question.
+
+    aside is a line for this send only, sitting after the plan and before whatever the card
+    is asking them to do. A rewrite passes none, so advice about a moment does not outlive it.
+*/
+export function planCard(plan, p, { guildName = '', actorName = null, moved = null, aside = '' } = {}) {
+    const who = actorName ?? p.cardActor ?? '';
+    const wasMoved = moved ?? Boolean(p.cardMoved);
+    const again = Boolean(plan.repeatedFrom);
+    const where = guildName ? ` in ${guildName}` : '';
+
+    //Still collecting: the card is the invitation, and the way to the dates and the thread
+    if (plan.status !== 'closed' || !plan.chosenDate) {
+        const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
+        const lead = again
+            ? `"${plan.name}" is back round again${where} (${range}).`
+            : who
+                ? `${who} added you to the plan "${plan.name}"${where} (${range}).`
+                : `You are on the plan "${plan.name}"${where} (${range}).`;
+        //Dropped rather than guessed at when there is no thread yet, since the card outlives the send
+        const jump = plan.threadId ? `Jump straight to the thread: ${threadUrl(plan.guildId, plan.threadId)}\n` : '';
+        return {
+            content: banner(again ? 'ROUND AGAIN' : 'INVITED TO A PLAN') +
+                `${lead}\n` +
+                aboutLine(plan) +
+                `Add the dates you are free here: ${planUrl(plan.planId)}\n` +
+                `${jump}\n` +
+                `Hit "Drop out" below to leave the plan`,
+            components: [dropRow(plan.planId)]
+        };
+    }
+
+    const when = whenLine(plan);
+    const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
+    const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
+    const lead = again
+        ? `"${plan.name}" is back round again${where}, set for ${when}.`
+        : who
+            ? wasMoved
+                ? `${who} moved the plan "${plan.name}"${where} to ${when}.`
+                : `${who} set the plan "${plan.name}"${where} for ${when}.`
+            : `"${plan.name}"${where} is set for ${when}.`;
+
+    //Their answer, kept on the card so a rewrite cannot undo what ackVote put there
+    const vote = plan.probeActive ? p.vote || null : null;
+    if (vote) {
+        const line = vote === 'yes' ? "You're down as coming." : "You're down as not coming.";
+        return {
+            content: banner('CAN YOU MAKE IT?') +
+                `**${plan.name}** is set for ${when}.${about}${note}${aside}\n` +
+                `${line} Tap the other button if that changes.` +
+                (vote === 'yes' ? `\n${calendarLines(plan)}` : ''),
+            components: [votedDmRow(plan.planId, vote)]
+        };
+    }
+
+    if (plan.probeActive) {
+        return {
+            content: banner('CAN YOU MAKE IT?') + lead + about + note + aside + `\n\nCan you make it? Tap below.`,
+            components: [probeRow(plan.planId)]
+        };
+    }
+
+    return {
+        content: banner(again ? 'ROUND AGAIN' : wasMoved ? 'PLAN CHANGED' : 'DATE SET') +
+            lead + about + note + aside + '\n' + calendarLines(plan),
+        components: []
+    };
+}
+
+/*
     Rewrite the shared thread probe so its tally keeps up as votes come in, including
     votes cast from a DM. A probe with no thread message (DM only) has nothing to redraw,
     so this quietly does nothing. Best effort, a deleted message is fine.
@@ -270,8 +375,6 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     const ids = plan.participants.map((p) => p.userId);
     await addToThread(thread, ids);
 
-    const url = planUrl(plan.planId);
-    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     //No @ here, adding people to the thread already pings them
     const opener = await thread.send({ content: openerText(plan), allowedMentions: { parse: [] } });
     //Pin the opener so the link and the details stay at the top of the thread, best effort:
@@ -280,20 +383,20 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     //Remember it so editing the title or description later can rewrite this same post
     await setPlanOpener(plan.planId, opener.id);
 
+    /*
+        The thread id is only in the database at this point, so it is patched onto the
+        copy the card is built from. Without it the card has no jump link to offer, and
+        the whole reason for a card is that the message can be rebuilt later.
+    */
     if (dm) {
-        const jump = thread.url ? `Jump straight to the thread: ${thread.url}` : `Look for the thread in #${channel.name}.`;
-        //A repeat has no actor: nobody did this, it just came round, so it says that instead
-        const lead = plan.repeatedFrom
-            ? `"${plan.name}" is back round again in ${guild.name} (${range}).\n`
-            : `${actorName} added you to the plan "${plan.name}" in ${guild.name} (${range}).\n`;
-        await dmEach(ids,
-            banner(plan.repeatedFrom ? 'ROUND AGAIN' : 'INVITED TO A PLAN') +
-            lead +
-            aboutLine(plan) +
-            `Add the dates you are free here: ${url}\n` +
-            `${jump}\n\n` +
-            `Hit "Drop out" below to leave the plan`,
-            [dropRow(plan.planId)]);
+        const withThread = { ...plan, threadId: thread.id };
+        //A repeat has no actor: nobody did this, it just came round, so the card says that instead
+        const sent = await dmCards(ids, (id) =>
+            planCard(withThread, plan.participants.find((p) => p.userId === id) || {}, {
+                guildName: guild.name,
+                actorName: plan.repeatedFrom ? '' : actorName
+            }));
+        await setPlanCards(plan.planId, sent, { actorName: plan.repeatedFrom ? '' : actorName });
     }
 
     return thread;
@@ -309,8 +412,6 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
 */
 export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe = false } = {}) {
     const ids = plan.participants.map((p) => p.userId);
-    const when = whenLine(plan);
-    const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
 
     const guild = await client.guilds.fetch(plan.guildId);
     const channel = await guild.channels.fetch(cfg.plansChannelId);
@@ -333,17 +434,19 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
         plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
     }
 
+    /*
+        Built off the plan setProbe handed back where a probe went up, so the cards carry
+        the buttons rather than being written against a plan that still reads probeActive
+        false and having to be rewritten a moment later.
+    */
     if (dm) {
-        const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
-        const tail = probe ? `\n\nCan you make it? Tap below.` : '';
-        const lead = plan.repeatedFrom
-            ? `"${plan.name}" is back round again in ${cfg.guildName}, set for ${when}.${about}${note}\n`
-            : `${actorName} set up the plan "${plan.name}" in ${cfg.guildName} for ${when}.${about}${note}\n`;
-        await dmEach(ids,
-            banner(plan.repeatedFrom ? 'ROUND AGAIN' : 'PLAN SET') +
-            lead +
-            calendarLines(plan) + tail,
-            probe ? [probeRow(plan.planId)] : []);
+        const who = plan.repeatedFrom ? '' : actorName;
+        const sent = await dmCards(ids, (id) =>
+            planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+                guildName: cfg.guildName,
+                actorName: who
+            }));
+        await setPlanCards(plan.planId, sent, { actorName: who });
     }
 }
 
@@ -356,8 +459,6 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
 */
 export async function announceAddition(plan, newIds, actorName, { dm = true } = {}) {
     const guild = await client.guilds.fetch(plan.guildId);
-    const url = planUrl(plan.planId);
-    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
 
     const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
     if (thread) {
@@ -365,15 +466,15 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
         await addToThread(thread, newIds);
     }
 
+    //The same card everyone else on the plan holds, so a late joiner's DM is rewritten by
+    //the same pass as theirs from here on
     if (dm) {
-        const jump = thread?.url ? `\nJump straight to the thread: ${thread.url}` : '';
-        await dmEach(newIds,
-            banner('INVITED TO A PLAN') +
-            `${actorName} invited you to the plan "${plan.name}" in ${guild.name} (${range}).\n` +
-            aboutLine(plan) +
-            `Add the dates you are free here: ${url}${jump}\n\n` +
-            `Hit "Drop out" below to leave the plan`,
-            [dropRow(plan.planId)]);
+        const sent = await dmCards(newIds, (id) =>
+            planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+                guildName: guild.name,
+                actorName
+            }));
+        await setPlanCards(plan.planId, sent, { actorName });
     }
 }
 
@@ -406,6 +507,9 @@ export async function applyDetailsEdit(plan, renamed) {
     in the thread, pinging the people still invited, and those same people always get
     a DM, so nobody who is meant to be there can miss it. Anyone the planner left off
     the invite list hears nothing. The headline and DM both name who set or moved it.
+
+    The DM is their card from here on, so the plan remembers it and a later change to
+    the time or the note rewrites this message rather than sending another after it.
 */
 export async function announceOutcome(plan, cfg, { changed, actorName, probe = false }) {
     const ids = invitedOnly(plan).map((p) => p.userId);
@@ -441,24 +545,23 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
         plan = await setProbe(plan.planId, { active: true, threadMessageId: null });
     }
 
-    const lead = changed
-        ? `${actorName} moved the plan "${plan.name}" in ${cfg.guildName} to ${when}.`
-        : `${actorName} set the plan "${plan.name}" in ${cfg.guildName} for ${when}.`;
-    if (probe) {
-        /*
-            Anyone whose certainty horizon sits before the chosen date never really
-            answered for this day, they just could not plan that far ahead. Their DM
-            says so, so they know to actually check rather than shrug it off.
-        */
-        const prefs = await getPlanningPrefs(ids).catch(() => ({}));
-        const far = ids.filter((id) => prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil);
-        const near = ids.filter((id) => !far.includes(id));
-        const base = banner('CAN YOU MAKE IT?') + lead + about + note;
-        await dmEach(near, base + `\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
-        await dmEach(far, base + `\nThis lands past the date you said you could plan up to, so it is worth a proper look.\n\nCan you make it? Tap below.`, [probeRow(plan.planId)]);
-    } else {
-        await dmEach(ids, banner(changed ? 'PLAN CHANGED' : 'DATE SET') + lead + about + note + '\n' + calendarLines(plan));
-    }
+    /*
+        Anyone whose certainty horizon sits before the chosen date never really answered
+        for this day, they just could not plan that far ahead. Their card gains a line
+        saying so, so they know to actually check rather than shrug it off. It is advice
+        about this moment rather than part of the plan, so a later rewrite drops it.
+    */
+    const prefs = probe ? await getPlanningPrefs(ids).catch(() => ({})) : {};
+    const nudge = '\nThis lands past the date you said you could plan up to, so it is worth a proper look.';
+
+    const sent = await dmCards(ids, (id) =>
+        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+            guildName: cfg.guildName,
+            actorName,
+            moved: changed,
+            aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
+        }));
+    await setPlanCards(plan.planId, sent, { actorName, moved: changed });
 }
 
 /*

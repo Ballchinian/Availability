@@ -15,7 +15,24 @@ import { weekdayAllowed } from '../lib/dates.js';
     so a late joiner looks exactly like one who was there from the start.
 */
 function freshParticipant(userId) {
-    return { userId, confirmed: false, confirmedAt: null, vote: null, voteReason: null, votedAt: null, invited: true, override: null };
+    return {
+        userId,
+        confirmed: false,
+        confirmedAt: null,
+        vote: null,
+        voteReason: null,
+        votedAt: null,
+        invited: true,
+        override: null,
+        /*
+            The DM that tells this person what the plan currently is, so it can be
+            rewritten in place rather than followed by a correction. See setPlanCards
+            for what the actor and the moved flag are doing here.
+        */
+        cardMessageId: null,
+        cardActor: '',
+        cardMoved: false
+    };
 }
 
 /*
@@ -506,6 +523,46 @@ export async function setAttendanceOverride(planId, userId, override, { reinvite
         { $set: set }
     );
     return getPlan(planId);
+}
+
+/*
+    Remember the DM that told each of these people what the plan is, so a later change
+    can rewrite that message rather than send a correction after it. One card per
+    person: a fresh send replaces whatever id was there.
+
+    Two things ride along with the id, both because the card names them and a rebuild
+    months later has nothing else to read them off. actorName is whoever put the plan
+    this way, and moved says whether they moved a day that was already set, which is
+    the difference between "set it for" and "moved it to".
+
+    One write for the lot. Sent as an unordered bulk since no two entries touch the
+    same participant.
+*/
+export async function setPlanCards(planId, cards, { actorName = '', moved = false } = {}) {
+    if (!cards.length) return;
+    await col(collections.plans).bulkWrite(
+        cards.map(({ userId, messageId }) => ({
+            updateOne: {
+                filter: { planId, 'participants.userId': userId },
+                update: {
+                    $set: {
+                        'participants.$.cardMessageId': messageId,
+                        'participants.$.cardActor': actorName,
+                        'participants.$.cardMoved': moved
+                    }
+                }
+            }
+        })),
+        { ordered: false }
+    );
+}
+
+//Forget one person's card, for when the message behind it has gone and a rewrite found out
+export async function clearPlanCard(planId, userId) {
+    await col(collections.plans).updateOne(
+        { planId, 'participants.userId': userId },
+        { $set: { 'participants.$.cardMessageId': null } }
+    );
 }
 
 //Turn the probe on or off and remember which thread message carries its buttons, so the
