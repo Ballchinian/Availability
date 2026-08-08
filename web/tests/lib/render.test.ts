@@ -32,14 +32,14 @@ describe('the confirmation switch', () => {
     });
 
     it('offers to close a running one', () => {
-        expect(draw({ active: true })).toContain('Close the confirmations');
+        expect(draw({ active: true })).toContain('Stop asking');
     });
 
     //The whole point of the switch: a closed one still has the answers behind it
     it('says old answers are still there when it is closed', () => {
         const body = draw({ active: false });
-        expect(body).toContain('Ask everyone to confirm');
-        expect(body).toContain('reopening brings them back');
+        expect(body).toContain('Ask everyone if they can make it');
+        expect(body).toContain('asking again brings them back');
     });
 });
 
