@@ -1225,11 +1225,7 @@ code {
     resize: vertical;
 }
 
-/* What has happened to a plan, folded away under the grid */
-.history {
-    margin-top: 18px;
-}
-
+/* What has happened to a plan, folded away under the grid. Spacing comes from .group */
 .history ol {
     margin: 10px 0 0;
     padding: 0;

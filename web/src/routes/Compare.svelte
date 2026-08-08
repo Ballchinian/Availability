@@ -331,15 +331,19 @@
 
         <section class="group">
             {#if chosen}
-                <h2>Is there a better day? <span class="hint">the set day is ringed</span></h2>
+                <h2>Is there a better day? <span class="hint">the day it is set for has a green ring</span></h2>
             {:else}
                 <h2>Everyone's days</h2>
             {/if}
 
             {#if data.confirmedCount > 0}
                 <div class="miss">
-                    <label for="miss">How many people are you willing to miss out? <strong>{missInput}</strong></label>
-                    <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
+                    <!--With one person in there is nobody to leave out, and a slider whose two ends
+                        are the same place is a control that looks broken rather than settled-->
+                    {#if maxMiss > 0}
+                        <label for="miss">How many people are you willing to leave out? <strong>{missInput}</strong></label>
+                        <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
+                    {/if}
                     <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days have no time that fits: tap one to see why.</p>
                     <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->
                     <ClockNote zone={data.plan.timeZone} what="The days and hours here" />
@@ -382,15 +386,13 @@
             {/if}
         </section>
 
-        <section class="group">
-            <HistoryPanel history={data.history} />
-        </section>
+        <HistoryPanel history={data.history} />
 
         {#if cancelled}
             <p class="ways"><a href="#/">Back to your plans</a></p>
         {:else}
             <details class="group" bind:open={changing}>
-                <summary>Change the plan <span class="hint">title, people, dates, days, repeat</span></summary>
+                <summary>Change the plan <span class="hint">title, people, dates, days, repeat, and Discord itself</span></summary>
 
                 <EditDetails
                     planId={params.planId}

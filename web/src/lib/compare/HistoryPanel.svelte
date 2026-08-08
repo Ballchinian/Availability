@@ -12,28 +12,26 @@
     */
     let { history = [] }: { history?: PlanEvent[] } = $props();
 
-    let open = $state(false);
-
     //The stored order is oldest first, which is how it happened but not how it is read
     const latestFirst = $derived([...history].reverse());
 </script>
 
+<!--A <details> like every other foldable section on this page. As a small underlined
+    link between two headings it read as a footnote rather than as one of the sections.-->
 {#if history.length}
-    <div class="history">
-        <button class="link-btn" onclick={() => (open = !open)} aria-expanded={open}>
-            {open ? 'Hide what has happened' : `What has happened (${history.length})`}
-        </button>
-
-        {#if open}
-            <ol>
-                {#each latestFirst as event (event.at + event.type + event.by)}
-                    <li>
-                        {#if hasActor(event)}<span class="who">{event.byName || 'Someone'}</span>{/if}
-                        {describeEvent(event)}
-                        <time datetime={event.at} title={new Date(event.at).toLocaleString()}>{timeAgo(event.at)}</time>
-                    </li>
-                {/each}
-            </ol>
-        {/if}
-    </div>
+    <details class="group history">
+        <summary>
+            What has happened
+            <span class="hint">{history.length} {history.length === 1 ? 'entry' : 'entries'}, latest first</span>
+        </summary>
+        <ol>
+            {#each latestFirst as event (event.at + event.type + event.by)}
+                <li>
+                    {#if hasActor(event)}<span class="who">{event.byName || 'Someone'}</span>{/if}
+                    {describeEvent(event)}
+                    <time datetime={event.at} title={new Date(event.at).toLocaleString()}>{timeAgo(event.at)}</time>
+                </li>
+            {/each}
+        </ol>
+    </details>
 {/if}
