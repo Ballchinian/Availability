@@ -1167,8 +1167,12 @@ code {
     font-weight: 600;
 }
 
-/* The create form's, where it is a block of its own. In .tools the row sets the spacing. */
-.repeat {
+/*
+    Only the create form's, where it is a block of its own. Unscoped this also hit the
+    copy inside a .tools row, where it beat that row's own margin reset on source order
+    and sat the button 8px below the ones beside it.
+*/
+.screen > .repeat {
     margin: 8px 0 4px;
 }
 
