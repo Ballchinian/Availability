@@ -370,9 +370,12 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     person answered, "waiting" clears it and their own answer stands again. Moving
     someone to coming also puts them back on the invite list if they were left off,
     which is how you let in someone who never filled their availability.
+
+    Silent for the person moved. The board is a planner's own working state, and the
+    reason to reach for it is having decided that person will not answer.
 */
 router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, res) => {
-    const { plan, ctx } = req;
+    const { plan } = req;
     if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then sort out who is coming.' });
 
     const { userId, status } = req.body || {};
@@ -387,7 +390,7 @@ router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, 
     const updated = await setAttendanceOverride(plan.planId, userId, override, { reinvite });
 
     try {
-        await applyAttendanceMove(updated, userId, status, req.user.id, ctx.member.displayName);
+        await applyAttendanceMove(updated, status);
     } catch (err) {
         console.error('[plans] attendance move failed:', err);
     }

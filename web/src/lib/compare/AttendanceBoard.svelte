@@ -65,7 +65,8 @@
     <div class="votes">
         <p class="muted small">
             Where everyone stands for {formatDate(chosenDate)}. Tap someone to move them yourself,
-            their own answer stays in brackets.
+            their own answer stays in brackets. Nobody is told they were moved, and if they answer
+            for themselves later their word replaces yours.
         </p>
         <div class="board">
             {#each [

@@ -944,26 +944,19 @@ async function notifyCreatorAllYes(plan) {
 }
 
 /*
-    The Discord side of a planner moving someone on the attendance board. The thread
-    tally gets refreshed, and the person is told by DM where they were put, with the
-    yes/no buttons when a probe is running so they can correct it themselves. Moving
-    someone back to waiting is just an undo, so that one stays quiet. A planner moving
-    themselves already knows, no DM needed.
+    The Discord side of a planner moving someone on the attendance board: the thread
+    tally, and nothing else.
+
+    The person moved is never told, deliberately. A planner reaches for the board
+    because they have already decided that person is not going to answer, so a DM
+    second guesses a call that was made for a reason and lands on the least engaged
+    person on the plan. An override only stops them being nudged anyway: they keep
+    the thread, they keep the buttons on their own DM, and casting a vote clears the
+    override, so their word still beats the planner's guess whenever they give it.
 */
-export async function applyAttendanceMove(plan, userId, status, actorId, actorName) {
+export async function applyAttendanceMove(plan, status) {
     await updateProbeMessage(plan).catch(() => {});
-
     if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
-
-    if (status === 'waiting' || userId === actorId) return;
-
-    const cfg = await getGuildConfig(plan.guildId);
-    const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    const line = status === 'coming'
-        ? banner('YOU ARE DOWN AS COMING') + `${actorName} put you down as coming to "${plan.name}"${where} on ${whenLine(plan)}.`
-        : banner('YOU ARE DOWN AS NOT COMING') + `${actorName} put you down as unable to make "${plan.name}"${where} on ${whenLine(plan)}.`;
-    const fix = plan.probeActive ? `\n\nGot it wrong? Set it straight below.` : '';
-    await dmEach([userId], line + fix, plan.probeActive ? [probeRow(plan.planId)] : []);
 }
 
 /*
