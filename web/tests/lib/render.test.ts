@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import ConfirmPanel from '../../src/lib/compare/ConfirmPanel.svelte';
+import SetDate from '../../src/lib/compare/SetDate.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import type { Answer, Participant } from '../../src/lib/types.js';
 
@@ -40,6 +41,29 @@ describe('the confirmation switch', () => {
         const body = draw({ active: false });
         expect(body).toContain('Ask everyone if they can make it');
         expect(body).toContain('asking again brings them back');
+    });
+});
+
+/*
+    The way to a date that does not go through the grid. Everything else that sets a day
+    hangs off a cell being clicked, so a plan nobody has answered about had no way to one
+    at all, and rescheduling meant collecting availability first whether you wanted it or not.
+*/
+describe('setting the day outright', () => {
+    const draw = (props: Record<string, unknown> = {}) =>
+        render(SetDate, {
+            props: { planId: 'ab12cd34ef', start: '2026-08-01', end: '2026-08-31', onsaved: async () => {}, ...props }
+        }).body;
+
+    it('offers a way in on a plan with no day and nobody answered', () => {
+        expect(draw()).toContain('Set the day yourself');
+    });
+
+    //On a plan already on a day the same panel is how it moves, so it says that instead
+    it('reads as moving it once a day is set', () => {
+        const body = draw({ chosen: { date: '2026-08-12', time: '', note: '' } });
+        expect(body).toContain('Move it, or change the time or note');
+        expect(body).not.toContain('Set the day yourself');
     });
 });
 
