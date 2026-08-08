@@ -2,7 +2,7 @@ import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, icsUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { googleCalendarUrl } from '../lib/ics.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
@@ -197,6 +197,18 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
     const again = Boolean(plan.repeatedFrom);
     const where = guildName ? ` in ${guildName}` : '';
 
+    /*
+        Called off. First, so a cancelled plan cannot leave somebody holding a card that
+        still says they are coming on the twelfth, and everything that would have them
+        act on it comes off with it.
+    */
+    if (plan.status === 'cancelled') {
+        return {
+            content: banner('PLAN CANCELLED') + `"${plan.name}"${where} is off. Nothing more to fill in.`,
+            components: []
+        };
+    }
+
     //Still collecting: the card is the invitation, and the way to the dates and the thread
     if (plan.status !== 'closed' || !plan.chosenDate) {
         const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
@@ -221,6 +233,20 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
     const when = whenLine(plan);
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
+
+    /*
+        Left off the invite list when the day was locked. Their card stops asking, since a
+        tap on it is refused anyway, and a DM still reading "can you make it" is how
+        somebody works out they were dropped by being ignored.
+    */
+    if (p.invited === false) {
+        return {
+            content: banner('NOT THIS ONE') +
+                `"${plan.name}"${where} is set for ${when}, and you are not on the list for this one. ` +
+                `Nothing to do. Say so in the thread if that looks wrong.`,
+            components: []
+        };
+    }
     const lead = again
         ? `"${plan.name}" is back round again${where}, set for ${when}.`
         : who
@@ -512,36 +538,79 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
 }
 
 /*
-    Apply a title or description edit to the Discord side of a plan. The stored
-    plan is already updated, so this just keeps Discord in step: rename the thread
-    when the title changed, and rewrite the pinned opening post so it still shows
-    the right title and description. All best effort, a missing thread just means
-    there is nothing to update. This makes no noise and no DM.
+    Rewrite every card the plan is holding so they all say what it says now.
+
+    Editing a message somebody already has makes no sound in Discord: no notification, no
+    ping, no unread. That is the whole point of it. A wrong time or a wrong note can be
+    put right without the correction itself becoming an event, and the people it was wrong
+    for end up with a DM that is simply correct.
+
+    Each one is swallowed on its own rather than through fanOut's rethrow, since one person
+    with DMs closed should not cost the other sixteen their edit. A card whose message has
+    really gone is forgotten so the next pass does not spend a call on it, and every other
+    failure is left alone to be tried again. Sending a replacement is deliberately not an
+    option here: that would ping them, which is the one thing this exists to avoid.
+
+    Comes back with how many landed, which is what the repair action reports.
 */
-export async function applyDetailsEdit(plan, renamed) {
-    if (!plan.threadId) return;
-    const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-    if (!thread) return;
-    await reviveThread(thread);
+export async function syncPlanCards(plan, cfg = null) {
+    const holders = plan.participants.filter((p) => p.cardMessageId);
+    if (!holders.length) return 0;
 
-    //Discord caps thread renames at 2 per 10 minutes, so only rename when the title moved
-    if (renamed) await thread.setName(plan.name.slice(0, 100)).catch(() => {});
+    const conf = cfg || (await getGuildConfig(plan.guildId).catch(() => null));
+    const guildName = conf?.guildName || '';
 
-    /*
-        Older plans have no remembered opener and are left alone: a repost would land at
-        the bottom of the thread, which is not an opener, and there is no id saying one
-        was ever meant to be there. A plan that had one and lost it does get a new one.
-    */
-    if (plan.openerMessageId) {
-        const placed = await placeThreadMessage(thread, plan.openerMessageId, {
-            content: openerText(plan),
-            allowedMentions: { parse: [] }
-        });
-        if (placed?.fresh) {
-            await pinMessage(placed.message).catch(() => {});
-            await setPlanOpener(plan.planId, placed.message.id);
+    let done = 0;
+    await fanOut(holders, async (p) => {
+        try {
+            const user = await client.users.fetch(p.userId);
+            const dm = await user.createDM();
+            const msg = await dm.messages.fetch(p.cardMessageId);
+            await msg.edit(planCard(plan, p, { guildName }));
+            done++;
+        } catch (err) {
+            //10008 is Discord's unknown message: they deleted it, so stop paying for it every pass
+            if (err?.code === 10008) await clearPlanCard(plan.planId, p.userId).catch(() => {});
+        }
+    });
+    return done;
+}
+
+/*
+    Everything Discord is holding about a plan, brought back in line with the plan: the
+    pinned opener, the confirmation and its tally, and every card. All three are edits to
+    messages that already exist, so this notifies nobody and pings nobody, and anything
+    deleted since is put back.
+
+    rename renames the thread with it. Discord caps that at twice per ten minutes, so it
+    is asked for rather than done on every pass.
+
+    Older plans have no remembered opener and are left alone: a repost would land at the
+    bottom of the thread, which is not an opener, and no id says one was ever meant to be
+    there. A plan that had one and lost it does get a new one.
+*/
+export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
+    if (plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            if (rename) await thread.setName(plan.name.slice(0, 100)).catch(() => {});
+
+            if (plan.openerMessageId) {
+                const placed = await placeThreadMessage(thread, plan.openerMessageId, {
+                    content: openerText(plan),
+                    allowedMentions: { parse: [] }
+                });
+                if (placed?.fresh) {
+                    await pinMessage(placed.message).catch(() => {});
+                    await setPlanOpener(plan.planId, placed.message.id);
+                }
+            }
         }
     }
+
+    await updateProbeMessage(plan).catch(() => {});
+    return syncPlanCards(plan, cfg);
 }
 
 /*
@@ -604,6 +673,18 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
             aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
         }));
     await setPlanCards(plan.planId, sent, { actorName, moved: changed });
+
+    /*
+        Anyone narrowed off the invite list hears nothing, which is the intent, but their
+        card would otherwise still be asking whether they can make a day they are no longer
+        on. Rewritten rather than left, so nobody works out they were dropped by tapping a
+        button and being refused.
+    */
+    const dropped = plan.participants.filter((p) => p.invited === false && p.cardMessageId);
+    if (dropped.length) {
+        await syncPlanCards({ ...plan, participants: dropped }, cfg)
+            .catch((err) => console.error('[plans] dropped card sync failed:', err));
+    }
 }
 
 /*
@@ -612,6 +693,9 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
     is whoever changed it.
 */
 export async function announceRangeChange(plan, cfg, { actorName, note, post = true, dm = true }) {
+    //Every card carries the range, so they are all wrong until this runs
+    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] range sync failed:', err));
+
     const ids = plan.participants.map((p) => p.userId);
     const url = planUrl(plan.planId);
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
@@ -645,6 +729,10 @@ export async function announceRangeChange(plan, cfg, { actorName, note, post = t
     is whoever changed it.
 */
 export async function announceWeekdaysChange(plan, cfg, { actorName, daysLabel, reopened, note, post = true, dm = true }) {
+    //A change that opened a day drops any set date with it, so the cards go back to asking
+    //for availability and the pin has to stop saying the plan is set
+    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] weekdays sync failed:', err));
+
     const ids = plan.participants.map((p) => p.userId);
     const url = planUrl(plan.planId);
     const extra = note ? `\n${note}` : '';
@@ -677,6 +765,9 @@ export async function announceWeekdaysChange(plan, cfg, { actorName, daysLabel, 
     them for the new pick. actorName is whoever voided it.
 */
 export async function announceVoid(plan, cfg, actorName, reason, { dm = true } = {}) {
+    //Ahead of the dm branch, since a date that is gone has to come off the pin and every
+    //card whether or not anybody is being told about it
+    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] void sync failed:', err));
     if (!dm) return;
 
     const ids = plan.participants.map((p) => p.userId);
@@ -697,14 +788,18 @@ export async function announceVoid(plan, cfg, actorName, reason, { dm = true } =
     plan slot back since the plan never really ran. actorName is whoever cancelled it.
 */
 export async function cancelPlan(plan, actorId, actorName, { post = true, dm = true } = {}) {
-    await markPlanCancelled(plan.planId);
+    //The cancelled copy, not the one read before it: what the cards say is read off the status
+    const cancelled = await markPlanCancelled(plan.planId);
     await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
     await addPlanEvent(plan.planId, { type: 'cancelled', by: actorId, byName: actorName }).catch(() => {});
-    await announceCancel(plan, actorName, { post, dm });
+    await announceCancel(cancelled || plan, actorName, { post, dm });
 }
 
 //The telling-everyone half, split off so the site can send it after it has responded
 export async function announceCancel(plan, actorName, { post = true, dm = true } = {}) {
+    //Nobody should be left holding a card that still says they are coming on the twelfth
+    await syncPlan(plan).catch((err) => console.error('[plans] cancel sync failed:', err));
+
     const ids = plan.participants.map((p) => p.userId);
 
     if (post && plan.threadId) {

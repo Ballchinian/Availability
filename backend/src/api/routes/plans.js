@@ -6,7 +6,7 @@ import { getPlan, confirmParticipant, setPlanChosen, voidPlanChoice, setReminded
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, applyDetailsEdit, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -577,11 +577,8 @@ router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res
 
     await addPlanEvent(plan.planId, { type: 'details', by: req.user.id, byName: ctx.member.displayName, renamed });
 
-    try {
-        await applyDetailsEdit(updated, renamed);
-    } catch (err) {
-        console.error('[plans] details edit failed:', err);
-    }
+    //The thread post and everyone's DM both carry the description, so both are rewritten
+    announceAfter('details sync', () => syncPlan(updated, { cfg: ctx.cfg, rename: renamed }));
 
     res.json({ ok: true, name: cleanName, description: cleanDescription });
 });
@@ -593,8 +590,9 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
     if (plan.status === 'cancelled') return res.json({ ok: true });
 
     //Marked cancelled here rather than inside the announcement, so a reload sees it gone straight away
+    let cancelled;
     try {
-        await markPlanCancelled(plan.planId);
+        cancelled = await markPlanCancelled(plan.planId);
         await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
         await addPlanEvent(plan.planId, { type: 'cancelled', by: req.user.id, byName: ctx.member.displayName });
     } catch (err) {
@@ -602,8 +600,9 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
         return res.status(500).json({ error: 'Could not cancel the plan.' });
     }
 
+    //The cancelled copy, since what the pin and everyone's DM end up saying is read off the status
     announceAfter('cancel announce', () =>
-        announceCancel(plan, ctx.member.displayName, { post: req.body?.post !== false, dm: req.body?.dm !== false })
+        announceCancel(cancelled || plan, ctx.member.displayName, { post: req.body?.post !== false, dm: req.body?.dm !== false })
     );
 
     res.json({ ok: true });

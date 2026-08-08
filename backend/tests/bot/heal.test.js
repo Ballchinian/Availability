@@ -23,7 +23,7 @@ vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }))
 const pins = vi.hoisted(() => ({ pinMessage: vi.fn(async () => {}) }));
 vi.mock('../../src/bot/util.js', async (real) => ({ ...(await real()), ...pins }));
 
-const { applyDetailsEdit, updateProbeMessage } = await import('../../src/bot/plans.js');
+const { syncPlan, updateProbeMessage } = await import('../../src/bot/plans.js');
 
 /*
     held is which message ids the thread still has. Anything else fetches as gone, which
@@ -79,7 +79,7 @@ describe('the pinned opener', () => {
         const thread = fakeThread(['op1']);
         channels.set('t1', thread);
 
-        await applyDetailsEdit(plan(), false);
+        await syncPlan(plan());
 
         expect(thread.log.filter((e) => e.edit)).toHaveLength(1);
         expect(thread.log.some((e) => e.send)).toBe(false);
@@ -92,7 +92,7 @@ describe('the pinned opener', () => {
         const thread = fakeThread([]);
         channels.set('t1', thread);
 
-        await applyDetailsEdit(plan(), false);
+        await syncPlan(plan());
 
         const sent = thread.log.find((e) => e.send);
         expect(sent).toBeTruthy();
@@ -109,14 +109,14 @@ describe('the pinned opener', () => {
         const thread = fakeThread([]);
         channels.set('t1', thread);
 
-        await applyDetailsEdit(plan({ openerMessageId: null }), false);
+        await syncPlan(plan({ openerMessageId: null }));
 
         expect(thread.log.some((e) => e.send)).toBe(false);
         expect(db.setPlanOpener).not.toHaveBeenCalled();
     });
 
     it('does nothing at all when the thread itself is gone', async () => {
-        await applyDetailsEdit(plan(), true);
+        await syncPlan(plan(), { rename: true });
         expect(db.setPlanOpener).not.toHaveBeenCalled();
         expect(pins.pinMessage).not.toHaveBeenCalled();
     });
@@ -126,10 +126,10 @@ describe('the pinned opener', () => {
         const thread = fakeThread(['op1']);
         channels.set('t1', thread);
 
-        await applyDetailsEdit(plan(), false);
+        await syncPlan(plan());
         expect(thread.log.some((e) => e.setName)).toBe(false);
 
-        await applyDetailsEdit(plan(), true);
+        await syncPlan(plan(), { rename: true });
         expect(thread.log.some((e) => e.setName === 'Camping')).toBe(true);
     });
 });

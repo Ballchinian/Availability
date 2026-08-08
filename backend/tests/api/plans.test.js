@@ -86,7 +86,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'announceAddition',
         'announceVoid',
         'notifyCreatorIfAllIn',
-        'applyDetailsEdit',
+        'syncPlan',
         'applyAttendanceMove',
         'autoConfirmCoveredPlans'
     )
