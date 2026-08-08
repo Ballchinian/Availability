@@ -60,10 +60,11 @@
             {panel.busy ? 'Stopping...' : 'Stop asking'}
         </button>
     {:else}
-        <p class="muted small">
-            Nobody has been asked whether they can make this date.
-            {#if tally.answered}Answers from before are still here, and asking again brings them back.{/if}
-        </p>
+        <!--Only the answers, which nothing on screen shows while the asking is off. That
+            nobody has been asked is what the button underneath already says.-->
+        {#if tally.answered}
+            <p class="muted small">Answers from before are still here, and asking again brings them back.</p>
+        {/if}
         <button class="ghost" disabled={panel.busy} onclick={() => flip(true)}>
             {panel.busy ? 'Asking...' : 'Ask everyone if they can make it'}
         </button>
