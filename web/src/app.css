@@ -1138,10 +1138,6 @@ code {
 /* Free text and time inputs that live inside panels, not the .field wrapper */
 .pick-panel input[type='text'],
 .pick-panel input[type='time'],
-.set-day input[type='text'],
-.set-day input[type='date'],
-.set-day input[type='time'],
-.void input[type='text'],
 .days-edit input[type='text'],
 .extend input[type='text'] {
     background: var(--bg);

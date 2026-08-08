@@ -17,7 +17,6 @@
     import RemindPanel from '../lib/compare/RemindPanel.svelte';
     import RepairPanel from '../lib/compare/RepairPanel.svelte';
     import RepeatPanel from '../lib/compare/RepeatPanel.svelte';
-    import VoidPanel from '../lib/compare/VoidPanel.svelte';
 
     /*
         The planner's screen: where the plan stands, and the panels that act on it. Each
@@ -52,8 +51,6 @@
     let quiet = $state(false);
 
     let selectedDate = $state<string | null>(null);
-    //What reopening the plan did, said up here because the panel that did it is gone by then
-    let reopenNote = $state('');
 
     const unconfirmed = $derived(data ? data.participants.filter((p) => !p.confirmed) : []);
 
@@ -93,7 +90,6 @@
 
     async function load() {
         loading = true;
-        reopenNote = '';
         try {
             data = await api<CompareScreen>(`/plans/${params.planId}/compare`);
             //A cancelled plan is read only, the banner stands in for the controls
@@ -123,12 +119,6 @@
         selectedDate = null;
         betterDay = false;
         await load();
-    }
-
-    //Said after the reload, since the load is what clears the last one
-    async function reopened(said: string) {
-        await reopen();
-        reopenNote = said;
     }
 
     onMount(async () => {
@@ -201,10 +191,6 @@
 
         <section class="group">
             <h2>{chosen ? 'Where it stands' : 'Which day?'}</h2>
-
-            {#if reopenNote}
-                <p class="prompt">{reopenNote}</p>
-            {/if}
 
             {#if chosen}
                 <!--A box rather than one paragraph: the clock note is a paragraph of its own that
@@ -328,8 +314,6 @@
                                 </div>
                             {/if}
                         </div>
-
-                        <VoidPanel planId={params.planId} dateSet {quiet} onvoided={reopened} />
                     </div>
                 {/if}
 
