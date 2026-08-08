@@ -4,7 +4,7 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime, describeWeekdays } from '../lib/format.js';
     import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
-    import { clocksAgree } from '../lib/zone.js';
+    import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { PlanScreen, SavedForPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
@@ -43,6 +43,15 @@
 
     const unsaved = $derived(selectionKey(selection) !== savedKey);
     guardUnsaved(() => unsaved);
+
+    /*
+        One question for the whole clock note, asked of the clock the reader is on rather
+        than the one the server last wrote down. Those two can differ for a day after
+        somebody travels, and each half of the note used to ask a different one, so the
+        explanation could turn up on its own with nothing above it to explain.
+    */
+    const mine = browserZone();
+    const clocksDiffer = $derived(Boolean(data && mine && !clocksAgree(data.plan.timeZone, mine)));
 
     //A day already picked and already been, so all this page has left to do is say so
     const todayIso = isoFromNow(0, 'day');
@@ -218,8 +227,8 @@
         {/if}
 
         <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
-        <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
-        {#if !clocksAgree(data.plan.timeZone, data.timeZone)}
+        {#if clocksDiffer}
+            <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
             <p class="muted small">
                 Mark your own days and hours as you read them. Everyone's get lined up against each other
                 when the group compares, so a night out that starts at 8 for you counts against whatever
