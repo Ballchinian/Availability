@@ -204,6 +204,9 @@
         setDate = '';
         setTime = '';
         setNote = '';
+        //Cleared with the rest of it: a standing arrangement is about the plan that made it,
+        //and inheriting one silently is how a one off ends up coming round every fortnight
+        repeatWeeks = null;
     }
 </script>
 
@@ -251,7 +254,8 @@
         {#if likeName}
             <p class="prompt">
                 Set up like <strong>{likeName}</strong>, with the same days and everyone from it who is still in the
-                server. The dates are the one thing that did not come across, so pick the new window below.
+                server. The dates did not come across, so pick the new window below, and nor did whether it repeats,
+                since the one you copied is still doing that on its own.
             </p>
         {/if}
 
