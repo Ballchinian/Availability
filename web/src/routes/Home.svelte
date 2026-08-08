@@ -91,8 +91,16 @@
                 <div class="body">
                     <a class="name" href={p.inIt ? `#/plan/${p.planId}` : `#/plan/${p.planId}/compare`}>{p.name}</a>
                     <span class="muted note">{planNote(p, over)}</span>
-                    {#if p.mine && p.inIt}
-                        <a class="action" href="#/plan/{p.planId}/compare">Compare everyone's dates</a>
+                    <!--Every way on named out loud. The title above is a link too, and where it
+                        lands depends on whether they are in the plan or only running it, which
+                        is not something a card can show by looking at it.-->
+                    {#if p.inIt && p.status === 'collecting'}
+                        <a class="action" href="#/plan/{p.planId}">{p.filledIn ? 'Change your dates' : 'Fill in your dates'}</a>
+                    {/if}
+                    {#if p.mine}
+                        <a class="action" href="#/plan/{p.planId}/compare">
+                            {p.status === 'collecting' ? "Compare everyone's dates" : over ? 'Look back at it' : 'See who is coming'}
+                        </a>
                     {/if}
                     <!--No calendar link on a day that has already been-->
                     {#if !over && p.status === 'closed' && p.chosenDate}
