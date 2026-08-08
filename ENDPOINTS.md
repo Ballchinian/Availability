@@ -26,6 +26,25 @@ Dates are `YYYY-MM-DD` and times are `HH:MM`, both plain readings with no zone w
 
 Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compare`, which reads everyone's hours onto the server's clock so they can be compared, and in the calendar file, which turns a plan's reading into a real moment.
 
+## What the bot is holding for a plan
+
+Three kinds of Discord message belong to a plan, and every route that changes it brings all three back in line before it does anything else.
+
+* **The pinned opener** in the plan's thread, and **the confirmation** while one exists. Both are remembered by message id, both are edited where they sit, and both are posted again if somebody deletes one. Without that second half a single deletion was permanent: every later pass fetched nothing and gave up.
+* **One card per person**, the DM that says what the plan currently is. It is rebuilt from the plan every time, so the message sent on the day and the message rewritten a fortnight later agree, and somebody's own yes or no stays on theirs. Every other DM the bot sends is a note about a moment (a nudge, a drop out) and is left alone to age.
+
+Editing a message notifies nobody in Discord. That is what the whole arrangement rests on: a wrong time or a wrong note can be put right without the correction itself becoming an event, and the people it was wrong for end up holding a DM that is simply correct.
+
+A card that cannot be reached is skipped, never replaced, since sending a new one would ping them. A card whose message has really gone (Discord's `10008`) is forgotten so later passes stop paying for it; any other failure is left alone and tried again.
+
+## Quiet
+
+Most plan routes take an optional `quiet: true`, which forces off everything that would reach somebody who is not already looking: no new DM, no new thread post, and no mentions on anything that still has to be posted. It always beats a `post` or `dm` the caller also sent, so the site and the server cannot disagree about how loud something was.
+
+What quiet never turns off is the rewriting above. Everyone still ends up holding the truth, they are just not told it changed. It is for a planner putting their own mistake right rather than announcing the mistake to everybody.
+
+Two things it cannot do. Adding somebody to a private thread pings them and Discord offers no way around that, so a quiet `add` is only half quiet and says so. And a brand new plan cannot be quiet at all, for the same reason, which is why editing an existing plan is the better way out of a mess.
+
 ---
 
 # Health

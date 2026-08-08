@@ -19,6 +19,8 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
+- A quiet switch for putting a mistake right: everyone's DM is corrected where it sits, nobody is told it changed
+- Yes/no confirmations you can close and reopen without anybody losing their answer
 - Noise limits so nobody can get blasted with pings
 - Multi server support, fully isolated per server
 
@@ -33,6 +35,18 @@ When a planner starts a plan, the bot spins up a private thread named after it, 
 Anyone who would rather not click the link can run `/free` in the plan's thread instead and tick their days off a list right there. It writes exactly what the site writes, so the two can be used on the same plan interchangeably. The one thing it can't do is narrow a day to certain hours, since a Discord list has nowhere to put that: a day ticked there is a day free all through, and the reply says where to go if that isn't true.
 
 If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, cancelling, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want.
+
+### Fixing things without a fuss
+
+Everything the bot has said about a plan, it can go back and correct. It remembers the pinned post at the top of the thread, the confirmation if one is running, and the one DM each person is holding that says what the plan is, and every change rewrites all three before it does anything else. Editing a message in Discord notifies nobody, so getting the time wrong and fixing it a minute later leaves seventeen people holding a DM that just says the right time, with nothing to tell them it ever said anything else.
+
+There is a **quiet** switch on the compare page for the rest of it. With it on, nothing you do pings anybody: no DM, no thread post, no mentions. The corrections still happen, so everyone ends up holding the truth, they are simply not told it changed. It is for the mess you made yourself rather than for keeping people in the dark, and it turns itself off when the page reloads so it cannot be left on by accident. Cancelling a plan or moving its day quietly asks you to confirm twice, because those are the two where somebody could turn up to nothing.
+
+Two things it cannot do, both because Discord pings people the moment they are added to a private thread: a brand new plan is never quiet, and adding somebody to an existing one is only half quiet. The panel says so rather than pretending otherwise, which is also why fixing the plan you have beats starting another.
+
+Asking everyone to confirm is a switch rather than a one-shot round. Close it and every yes and no stays on record; open it again and the same message in the thread comes back to life with the tally intact, rather than a second poll appearing below the first. Nothing clears people's answers except the day itself actually moving.
+
+If the two ever drift apart anyway, because somebody deleted the pinned post or Discord was down when an announcement went out, **Fix up Discord** on the compare page rewrites the lot and puts back whatever is missing. It sends nothing and pings nobody, so it is safe to press whenever something looks wrong.
 
 ### Plans that come round again
 
