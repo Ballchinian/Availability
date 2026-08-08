@@ -340,14 +340,6 @@
                     </button>
                 {/each}
             </div>
-            <p class="muted small">
-                {#if repeatWeeks}
-                    Once this one's day has been and gone, I'll set the next one up {describeRepeat(repeatWeeks)} on with the
-                    same people. Only ever one at a time, and you can stop it from the compare page whenever you like.
-                {:else}
-                    Leave it as a one off, or have me set the next one up automatically after this one's day has been.
-                {/if}
-            </p>
         </div>
 
         {#if formError}
