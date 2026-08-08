@@ -37,7 +37,6 @@
 <div class="danger">
     {#if !panel.open}
         <button class="ghost danger-btn" onclick={() => panel.show()}>Cancel this plan</button>
-        <span class="muted small">Calls the whole thing off. To keep the plan and move the day, use Change the plan above.</span>
     {:else}
         <div class="confirm">
             <p class="small">Cancel this plan? The thread stays until you delete it by hand in Discord.</p>
