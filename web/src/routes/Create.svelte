@@ -34,10 +34,14 @@
     let dayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
     const chosenWeekdays = $derived(chosenDays(dayOn));
 
-    //Set-plan mode: a single day plus optional time and note, and how to announce it
+    /*
+        Set-plan mode: a single day plus an optional time, and how to announce it. The note
+        that hangs off the day itself is not here, it only reads as a second description
+        alongside one. It goes on beside the time on the compare page, where a day exists
+        for it to be about.
+    */
     let setDate = $state('');
     let setTime = $state('');
-    let setNote = $state('');
     let announceDm = $state(true);
     //Opt in to asking everyone to confirm they can make the date with yes/no buttons
     let announceProbe = $state(false);
@@ -153,7 +157,6 @@
                           announce: true,
                           date: setDate,
                           time: setTime || null,
-                          note: setNote.trim() || null,
                           participantIds: selectedIds,
                           dm: announceDm,
                           probe: announceProbe,
@@ -203,7 +206,6 @@
         planDescription = '';
         setDate = '';
         setTime = '';
-        setNote = '';
         //Cleared with the rest of it: a standing arrangement is about the plan that made it,
         //and inheriting one silently is how a one off ends up coming round every fortnight
         repeatWeeks = null;
@@ -309,10 +311,6 @@
                     <label for="settime">Time (optional)</label>
                     <input id="settime" type="time" bind:value={setTime} />
                 </div>
-            </div>
-            <div class="field">
-                <label for="setnote">Note (optional)</label>
-                <input id="setnote" type="text" bind:value={setNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
             </div>
         {/if}
 
