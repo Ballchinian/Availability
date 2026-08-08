@@ -18,6 +18,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - `/free` to tick your days off inside Discord, for the people who never click links
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
+- Two ways to reschedule: move the day yourself, or clear it and go back out for everyone's dates
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
 - A quiet switch for putting a mistake right: everyone's DM is corrected where it sits, nobody is told it changed
 - Yes/no confirmations you can close and reopen without anybody losing their answer
@@ -36,6 +37,12 @@ Anyone who would rather not click the link can run `/free` in the plan's thread 
 
 If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, cancelling, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want.
 
+### Moving a day that is already set
+
+There are two ways, and the compare page keeps them apart because they are not the same errand. **Move it yourself** is for when you already know: type the new day, a time and a note, everyone is told and nothing else about the plan changes. It never asks anybody anything, so it works on a plan nobody has filled in, which is the usual state of one you have just reopened. **Ask everyone for new days** is for when you don't: it clears the day, opens the plan back up and DMs everyone to go over their dates, and you pick again off the grid once the answers are in. Nobody loses what they had already saved either way.
+
+The grid itself is still there once a day is set, folded away behind **Is there a better day?**, with the day you are on ringed in green. That is the one to open when somebody says no and you want to see what else would have worked.
+
 ### Fixing things without a fuss
 
 Everything the bot has said about a plan, it can go back and correct. It remembers the pinned post at the top of the thread, the confirmation if one is running, and the one DM each person is holding that says what the plan is, and every change rewrites all three before it does anything else. Editing a message in Discord notifies nobody, so getting the time wrong and fixing it a minute later leaves seventeen people holding a DM that just says the right time, with nothing to tell them it ever said anything else.
@@ -50,7 +57,7 @@ If the two ever drift apart anyway, because somebody deleted the pinned post or 
 
 ### Plans that come round again
 
-A plan can be set to repeat every week, every other week or every four weeks, either when you start it or later from the compare page. Weeks rather than months on purpose: shifting a date by a multiple of seven lands on the same weekday, so "every other Thursday" stays on Thursdays and a plan pinned to weekends stays on weekends.
+A plan can be set to repeat every week, every other week or every four weeks, either when you start it or later from the compare page. Weeks rather than months on purpose: shifting a date by a multiple of seven lands on the same weekday, so "every other Thursday" stays on Thursdays and a plan pinned to weekends stays on weekends. Picking an interval on the compare page shows you the dates it would actually land on before you save it, worked out by the same code that makes the next plan, so what you are shown is what you get.
 
 Nothing is scheduled ahead. The next plan is only made once the current one's day has been and gone, so there is never more than one of a series live at a time, and the new one is a real plan of its own with its own thread and its own history rather than a second date bolted onto the old one. That also means cancelling a plan ends the series without any separate way of saying so, and stopping it is always a button on whichever plan is currently live.
 
