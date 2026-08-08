@@ -20,10 +20,7 @@
     link between two headings it read as a footnote rather than as one of the sections.-->
 {#if history.length}
     <details class="group history">
-        <summary>
-            What has happened
-            <span class="hint">{history.length} {history.length === 1 ? 'entry' : 'entries'}, latest first</span>
-        </summary>
+        <summary>What has happened</summary>
         <ol>
             {#each latestFirst as event (event.at + event.type + event.by)}
                 <li>
