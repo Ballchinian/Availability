@@ -134,6 +134,12 @@
             </div>
         </div>
 
+        <!--These two read like a filter and are actually the scope of the save, which is
+            worth saying before somebody narrows the window and expects the rest to go up-->
+        <p class="muted small">
+            Only the window you have on screen gets saved. Narrowing it leaves every day outside exactly as it was.
+        </p>
+
         <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
         {#if timeZone}
             <p class="muted small">
