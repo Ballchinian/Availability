@@ -321,7 +321,6 @@
 
         {#if mode === 'collect'}
             <label class="check"><input type="checkbox" bind:checked={collectDm} /> Also DM everyone the link</label>
-            <p class="muted small">Everyone you pick gets pinged in a new thread either way{collectDm ? ', and the DM carries the link so they can answer without going back to find it' : ''}.</p>
         {:else}
             <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
             <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone if they can make it</label>
