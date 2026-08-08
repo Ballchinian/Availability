@@ -1,6 +1,5 @@
 <script lang="ts">
     import { api } from '../api.js';
-    import { formatDate } from '../format.js';
     import type { Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
 
@@ -63,11 +62,6 @@
 
 {#if board && chosenDate}
     <div class="votes">
-        <p class="muted small">
-            Where everyone stands for {formatDate(chosenDate)}. Tap someone to move them yourself,
-            their own answer stays in brackets. Nobody is told they were moved, and if they answer
-            for themselves later their word replaces yours.
-        </p>
         <div class="board">
             {#each [
                 { key: 'coming', title: 'Coming', people: board.coming },
@@ -89,6 +83,8 @@
                                         {#each moveTargets(colDef.key) as t (t.key)}
                                             <button class="ghost" disabled={panel.busy} onclick={() => move(p.userId, t.key)}>Mark as {t.label}</button>
                                         {/each}
+                                        <!--The one thing the columns cannot show, said where the move is made-->
+                                        <span class="muted small aside">They are not told, and answering later replaces this.</span>
                                     </div>
                                 {/if}
                             </li>

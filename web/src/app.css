@@ -1091,6 +1091,11 @@ code {
     font-size: 12px;
 }
 
+/* Under the move buttons rather than beside them, the column is too narrow to share a line */
+.move-row .aside {
+    flex: 1 0 100%;
+}
+
 /* The people left off the invite list when the date was locked, with a way back in */
 .uninvited {
     margin-top: 10px;
