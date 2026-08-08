@@ -37,7 +37,8 @@
                 body: JSON.stringify({ active: want, quiet })
             });
             await onchanged();
-            if (!want) return 'Stopped asking. Everyone keeps the answer they gave.';
+            //The panel flipping back to "Ask everyone if they can make it" is the confirmation
+            if (!want) return;
             /*
                 A revived poll is an edit, and Discord does not notify on an edit, so saying
                 it reopened would leave a planner thinking people had been told.
