@@ -101,6 +101,9 @@
         return sel.ev.viable ? sel.ev.keptIds : sel.free.map((f) => f.userId);
     });
 
+    //How many the invite list would lose if it were narrowed to the people who fit
+    const dropping = $derived(inviteMode === 'attending' ? Math.max(0, totalParticipants - attendIds.length) : 0);
+
     //The day the plan is already on, so the button edits the time and note rather than moving anything
     const isUpdate = $derived(Boolean(chosen && selectedDate === chosen.date));
 
@@ -204,6 +207,14 @@
                 <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
             </div>
             <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
+            <!--Said before it happens rather than found afterwards on the board: the default
+                here is the one that takes people off the plan-->
+            {#if dropping > 0}
+                <p class="muted small">
+                    {dropping} {dropping === 1 ? 'person comes' : 'people come'} off the invite list for this date, so no DM
+                    and nothing more about it. The board puts them back once the date is set.
+                </p>
+            {/if}
             {#if !probeActive}
                 <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone if they can make it (yes/no)</label>
                 {#if probe}
