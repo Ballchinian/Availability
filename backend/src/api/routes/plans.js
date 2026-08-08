@@ -440,6 +440,33 @@ router.post('/:planId/confirmations', requirePlanner, refuseCancelled, async (re
 });
 
 /*
+    Put Discord back in step with the plan by hand: the pinned opener, the confirmation and
+    everyone's DM, all rewritten and anything deleted since put back.
+
+    Every change already does this on its way past, so this is for when that failed and
+    nothing said so. announceAfter runs the Discord side after the response and only logs a
+    failure, so a Discord outage leaves the plan set, the database right and not a word sent.
+    Until now there was no second attempt.
+
+    Sends nothing and pings nobody, so it is safe to lean on. Answers with what it managed.
+
+    No refuseCancelled, which makes four planner routes without one. A cancelled plan is the
+    one whose DMs most want correcting, a stale card there having somebody turn up to nothing.
+*/
+router.post('/:planId/repair', requirePlanner, async (req, res) => {
+    const { plan, ctx } = req;
+
+    const cards = await syncPlan(plan, { cfg: ctx.cfg }).catch((err) => {
+        console.error('[plans] repair failed:', err);
+        return null;
+    });
+    if (cards === null) return res.status(502).json({ error: 'Discord would not answer. Try again in a minute.' });
+
+    const holders = plan.participants.filter((p) => p.cardMessageId).length;
+    res.json({ ok: true, cards, holders, thread: Boolean(plan.threadId) });
+});
+
+/*
     A planner's manual call on someone's attendance for the set date, the moves on
     the compare page's board. "coming" and "cant" lay an override over whatever the
     person answered, "waiting" clears it and their own answer stands again. Moving

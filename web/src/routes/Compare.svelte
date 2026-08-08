@@ -18,6 +18,7 @@
     import PickPanel from '../lib/compare/PickPanel.svelte';
     import RangeEditor from '../lib/compare/RangeEditor.svelte';
     import RemindPanel from '../lib/compare/RemindPanel.svelte';
+    import RepairPanel from '../lib/compare/RepairPanel.svelte';
     import RepeatPanel from '../lib/compare/RepeatPanel.svelte';
     import VoidPanel from '../lib/compare/VoidPanel.svelte';
 
@@ -392,6 +393,8 @@
                     repeatedInto={data.plan.repeatedInto}
                     onchanged={load}
                 />
+
+                <RepairPanel planId={params.planId} />
             </details>
 
             <details class="group" bind:open={ending}>

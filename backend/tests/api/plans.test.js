@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announceRangeChange, announceCancel, applyConfirmations } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceRangeChange, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -421,5 +421,58 @@ describe('quiet mode', () => {
         applyConfirmations.mockResolvedValue({ revived: false });
         await post('/ab12cd34ef/confirmations', { active: true, quiet: true });
         expect(applyConfirmations.mock.calls.at(-1).at(-1)).toMatchObject({ mention: false });
+    });
+});
+
+/*
+    The retry that did not exist. announceAfter runs the Discord side after the response and
+    only logs a failure, so an outage used to leave the plan set, the database right and not
+    a word sent anywhere.
+*/
+describe('fixing up Discord by hand', () => {
+    const held = (n) =>
+        Array.from({ length: n }, (_, i) => ({ userId: `p${i}`, confirmed: false, cardMessageId: `m${i}` }));
+
+    it('says how many DMs it managed against how many are out there', async () => {
+        plans.set('ab12cd34ef', plan({ threadId: 't1', participants: held(3) }));
+        syncPlan.mockResolvedValue(2);
+
+        const res = await post('/ab12cd34ef/repair');
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true, cards: 2, holders: 3, thread: true });
+    });
+
+    //Nobody has a card on a plan whose DMs all went out before the bot started remembering them
+    it('counts nobody when nobody is holding one', async () => {
+        plans.set('ab12cd34ef', plan({ participants: [{ userId: 'guest', confirmed: false }] }));
+        syncPlan.mockResolvedValue(0);
+
+        expect(await (await post('/ab12cd34ef/repair')).json()).toMatchObject({ cards: 0, holders: 0, thread: false });
+    });
+
+    //The one case this is for: saying it worked when Discord never answered would be worse than useless
+    it('admits it when Discord will not answer', async () => {
+        syncPlan.mockRejectedValue(new Error('discord is down'));
+        const res = await post('/ab12cd34ef/repair');
+
+        expect(res.status).toBe(502);
+        expect((await res.json()).error).toMatch(/would not answer/);
+    });
+
+    /*
+        No refuseCancelled, deliberately. A cancelled plan is the one whose DMs most want
+        correcting, since a stale card there has somebody turning up to nothing.
+    */
+    it('works on a cancelled plan', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled', participants: held(1) }));
+        syncPlan.mockResolvedValue(1);
+
+        expect((await post('/ab12cd34ef/repair')).status).toBe(200);
+    });
+
+    it('is planner only', async () => {
+        plannerAnswer = notPlanner;
+        expect((await post('/ab12cd34ef/repair')).status).toBe(403);
     });
 });

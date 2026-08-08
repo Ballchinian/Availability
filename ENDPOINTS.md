@@ -376,6 +376,26 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 
 ---
 
+## POST `/api/plans/:planId/repair` (session)
+
+Puts Discord back in step with the plan by hand.
+
+Planner role only.
+
+### Effects
+
+* Rewrites the pinned opener, the confirmation and its tally, and every DM card, from the plan as it currently stands. Anything deleted since is posted again, except a card, since sending one would ping them.
+* Sends nothing and pings nobody, so it is safe to press whenever something looks out of step.
+
+### Notes
+
+* Every change already does this on its way past. This exists for when that failed and nothing said so: announcements run after the response and only log a failure, so a Discord outage leaves the plan set, the database right and not a word sent anywhere. There was no second attempt before this.
+* Answers `cards` (how many DMs were corrected) against `holders` (how many people are holding one). A gap between them is people who deleted theirs or have DMs closed.
+* `502` if Discord would not answer at all, rather than reporting a success it did not have.
+* No `refuseCancelled`, deliberately, and it is the fourth planner route to go without one. A cancelled plan is the one whose DMs most want correcting, since a stale card there has somebody turning up to nothing.
+
+---
+
 ## POST `/api/plans/:planId/confirmations` (session)
 
 Opens or closes the yes/no confirmation on a set date.
