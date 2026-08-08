@@ -252,6 +252,7 @@ Everything the availability page needs to draw the grid.
 ### Returns
 
 * The plan: name, description, date range, status, server name, any weekday restriction, and the clock the server runs on
+* The day it ended up set for, with its time and note, all null while one is still being found. Nothing private: the same day is on their landing page and in the DM they were sent, and the page needs it to stop asking for dates once there is nothing left to ask.
 * Whether the requester is a participant, and whether they have confirmed
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled

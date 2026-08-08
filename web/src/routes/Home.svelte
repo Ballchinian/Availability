@@ -161,8 +161,8 @@
             <details class="group">
                 <summary>Been and gone <span class="hint">days that have passed, and plans that were called off</span></summary>
                 <p class="muted small">
-                    Nothing here can be changed. Who said what, and everything that happened along the way, is still on
-                    the compare page until you delete the thread in Discord.
+                    Nothing here can be changed. If you ran one of these, its compare page still has who said what and
+                    everything that happened along the way, until you delete the thread in Discord.
                 </p>
                 {@render planCards(past, true)}
             </details>

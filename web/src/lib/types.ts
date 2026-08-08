@@ -53,6 +53,10 @@ export interface Plan {
     status: PlanStatus;
     allowedWeekdays: number[] | null;
     guildName: string;
+    //What the plan ended up set for, all null while the day is still being found
+    chosenDate: string | null;
+    chosenTime: string | null;
+    chosenNote: string | null;
     //The server's clock, which the plan's days and its set time are all read on
     timeZone: string;
 }
@@ -74,9 +78,6 @@ export interface PlanScreen {
 //The same plan with what a planner is allowed to know: the set date and the way back to Discord
 export interface ComparePlan extends Plan {
     guildId: string;
-    chosenDate: string | null;
-    chosenTime: string | null;
-    chosenNote: string | null;
     probeActive: boolean;
     //How often this comes round again, null for a one off
     repeatWeeks: number | null;

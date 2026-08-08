@@ -1,9 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText } from '../lib/api.js';
+    import { api, errorText, icsHref } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate, describeWeekdays } from '../lib/format.js';
-    import { countDays, daysSince, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
+    import { formatDate, formatTime, describeWeekdays } from '../lib/format.js';
+    import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import { clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { PlanScreen, SavedForPlan } from '../lib/types.js';
@@ -33,8 +33,22 @@
     let left = $state(false);
     let leaveError = $state('');
 
+    /*
+        Set by a save, and everything below about what they have not looked at yet reads
+        it first. Both of those are worked out from where their timetable reached when
+        the page loaded, which a save has just moved: without this, saving leaves the
+        page still telling them to look at days they were looking at when they saved.
+    */
+    let reviewed = $state(false);
+
     const unsaved = $derived(selectionKey(selection) !== savedKey);
     guardUnsaved(() => unsaved);
+
+    //A day already picked and already been, so all this page has left to do is say so
+    const todayIso = isoFromNow(0, 'day');
+    //The horizon is one date across everything they are in, so it takes the same ends here as it does on the general page
+    const maxDate = isoFromNow(2, 'year');
+    const beenAndGone = $derived(Boolean(data?.plan.chosenDate && data.plan.chosenDate < todayIso));
 
     //Which weekdays this plan asks about, null when it wants the whole range
     const allowedWeekdays = $derived<number[] | null>(data?.plan.allowedWeekdays ?? null);
@@ -46,7 +60,7 @@
 
     //The first day past the front edge of their timetable, or null if it reaches the end
     const newFrom = $derived.by(() => {
-        if (!data || !data.lastFilled) return null;
+        if (reviewed || !data || !data.lastFilled) return null;
         const { start, end } = data.plan;
         if (data.lastFilled >= end) return null;
         const nd = nextDay(data.lastFilled);
@@ -55,15 +69,15 @@
 
     //Has it been a while since they last touched their availability
     const stale = $derived.by(() => {
-        if (!data || !data.lastUpdatedAt) return false;
+        if (reviewed || !data || !data.lastUpdatedAt) return false;
         return daysSince(data.lastUpdatedAt) >= 30;
     });
 
     //The reminder line, built from how fresh and how complete their timetable is
     const promptText = $derived.by(() => {
         if (!data) return '';
-        if (data.confirmed && !saved) {
-            return 'You are confirmed for this plan. Change anything below and confirm again if your plans shift.';
+        if (data.confirmed) {
+            return 'Your dates are in for this plan. Change anything below and save again if your plans shift.';
         }
         //What to do with the grid is said under it either way, so this only says where they stand
         if (!data.lastFilled) {
@@ -72,7 +86,7 @@
         const parts = [];
         if (stale) parts.push('It has been over a month since you last updated your availability.');
         if (newFrom) parts.push(`You have not touched anything past ${formatDate(data.lastFilled)}. The days from there are highlighted below.`);
-        if (!parts.length) parts.push('Your timetable already covers this range. Give it a once-over and confirm.');
+        if (!parts.length) parts.push('Your timetable already covers this range. Give it a once-over and save.');
         return parts.join(' ');
     });
 
@@ -109,6 +123,7 @@
                 body: JSON.stringify({ days, autoConfirm, sureUntil: sureUntil || null })
             });
             savedKey = selectionKey(selection);
+            reviewed = true;
             if (data) data.confirmed = true;
         } catch (err) {
             saveError = errorText(err);
@@ -116,7 +131,7 @@
         submitting = false;
     }
 
-    async function dropOut() {
+    async function leave() {
         leaveError = '';
         leaving = true;
         try {
@@ -131,8 +146,27 @@
 
 <svelte:head><title>{data ? `${data.plan.name} · your dates` : 'Your availability'}</title></svelte:head>
 
+<!--Offered while a plan is still ahead of you, whether or not it is still asking for dates:
+    a day that is already set is exactly when somebody finds out they cannot come-->
+{#snippet dropOut()}
+    <div class="danger">
+        {#if !leaveArmed}
+            <button class="ghost danger-btn" onclick={() => (leaveArmed = true)}>Drop out of this plan</button>
+        {:else}
+            <span class="small">Drop out of this plan? The group gets told and you come off the guest list.</span>
+            <button class="ghost danger-btn" onclick={leave} disabled={leaving}>
+                {leaving ? 'Dropping out...' : 'Yes, drop me out'}
+            </button>
+            <button class="ghost" onclick={() => (leaveArmed = false)}>No</button>
+        {/if}
+        {#if leaveError}<p class="status error" aria-live="polite">{leaveError}</p>{/if}
+    </div>
+{/snippet}
+
 <section class="screen">
-    <h1>Your availability</h1>
+    <!--The plan's name, since the other availability page is this one's twin and the
+        heading was the one place they had nothing to tell them apart-->
+    <h1>{data ? data.plan.name : 'Your availability'}</h1>
 
     {#if loading}
         <p class="muted">Loading this plan...</p>
@@ -144,10 +178,34 @@
         <p class="prompt good">You have dropped out of <strong>{data.plan.name}</strong>. The group has been told, and you will not get any more nudges about it.</p>
     {:else if data.plan.status === 'cancelled'}
         <p class="prompt">This plan was cancelled, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
+    {:else if data.plan.status === 'closed'}
+        <!--The day is picked, so asking which days suit is asking about a question that has been
+            answered. This is where the plans on the landing page that are over end up too.-->
+        {#if data.plan.guildName}<p class="muted">In {data.plan.guildName}</p>{/if}
+        {#if data.plan.description}
+            <p class="muted small">{data.plan.description}</p>
+        {/if}
+
+        <div class="prompt good">
+            <p>
+                {beenAndGone ? 'This was set for' : 'This is set for'}
+                {formatDate(data.plan.chosenDate)}{data.plan.chosenTime ? ` at ${formatTime(data.plan.chosenTime)}` : ''},
+                so there is nothing left to fill in here.
+            </p>
+            {#if data.plan.chosenTime}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
+            {#if data.plan.chosenNote}<p>{data.plan.chosenNote}</p>{/if}
+            {#if !beenAndGone}<p><a href={icsHref(params.planId)}>Add it to your calendar</a></p>{/if}
+        </div>
+
+        <p class="muted small">
+            Your saved days are still yours to change for everything else:
+            <a href="#/availability">set your general availability</a>.
+        </p>
+
+        {#if !beenAndGone}{@render dropOut()}{/if}
     {:else}
         <p class="muted">
-            <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''} ·
-            {formatDate(data.plan.start)} to {formatDate(data.plan.end)}
+            {data.plan.guildName ? `${data.plan.guildName} · ` : ''}{formatDate(data.plan.start)} to {formatDate(data.plan.end)}
         </p>
         {#if data.plan.description}
             <p class="muted small">{data.plan.description}</p>
@@ -174,16 +232,17 @@
         <div class="horizon">
             <div class="horizon-row">
                 <label class="lbl" for="sure">Sure up to (optional)</label>
-                <input id="sure" type="date" bind:value={sureUntil} min={data.plan.start} />
+                <input id="sure" type="date" bind:value={sureUntil} min={todayIso} max={maxDate} />
                 {#if sureUntil}<button class="link-btn" onclick={() => (sureUntil = '')}>clear</button>{/if}
             </div>
             <p class="muted small">
                 Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,
-                so you don't have to mark no on months you just can't call yet.
+                so you don't have to mark no on months you just can't call yet. It is one date for every
+                plan you are in rather than this one on its own.
             </p>
         </div>
 
-        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm me for any other plan these dates fully cover</label>
+        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Count these as my answer on any other plan they fully cover</label>
 
         <p class="muted small">
             These dates save to your availability everywhere, not just this plan, so every other plan sees them too.
@@ -196,29 +255,18 @@
         <div class="actionbar">
             <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
             <button class="primary" onclick={confirm} disabled={submitting}>
-                {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Confirm my dates'}
+                {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
             </button>
             {#if saveError}
                 <p class="status msg error" aria-live="polite">{saveError}</p>
             {:else if saved}
                 <p class="status msg good" aria-live="polite">
-                    Confirmed. You are {saved.confirmedCount}/{saved.totalParticipants} of the group now.
-                    {#if saved.confirmedPlans?.length}Also auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
+                    Saved. That is {saved.confirmedCount} of {saved.totalParticipants} on this plan with their dates in.
+                    {#if saved.confirmedPlans?.length}These also answered: {saved.confirmedPlans.join(', ')}.{/if}
                 </p>
             {/if}
         </div>
 
-        <div class="danger">
-            {#if !leaveArmed}
-                <button class="ghost danger-btn" onclick={() => (leaveArmed = true)}>Drop out of this plan</button>
-            {:else}
-                <span class="small">Drop out of this plan? The group gets told and you come off the guest list.</span>
-                <button class="ghost danger-btn" onclick={dropOut} disabled={leaving}>
-                    {leaving ? 'Dropping out...' : 'Yes, drop me out'}
-                </button>
-                <button class="ghost" onclick={() => (leaveArmed = false)}>No</button>
-            {/if}
-            {#if leaveError}<p class="status error" aria-live="polite">{leaveError}</p>{/if}
-        </div>
+        {@render dropOut()}
     {/if}
 </section>

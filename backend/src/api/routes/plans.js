@@ -108,6 +108,14 @@ router.get('/:planId', async (req, res) => {
             end: plan.dateRange.end,
             status: plan.status,
             allowedWeekdays: plan.allowedWeekdays || null,
+            /*
+                The day, once there is one. No secret: it is on their landing page and in
+                the DM they were sent. Here so a plan with its day settled can say so
+                rather than go on asking for dates it has stopped needing.
+            */
+            chosenDate: plan.chosenDate || null,
+            chosenTime: plan.chosenTime || null,
+            chosenNote: plan.chosenNote || null,
             //The clock the plan's own days run on, which the page only mentions when it is not theirs
             timeZone: safeZone(cfg?.timeZone),
             guildName: cfg?.guildName || ''
