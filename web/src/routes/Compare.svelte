@@ -310,12 +310,12 @@
             <p class="ways"><a href="#/">Back to your plans</a></p>
         {:else}
             <details class="group" bind:open={changing}>
-                <summary>Change the plan <span class="hint">{chosen ? 'the day it is on, the days it asks about, and the plan itself' : 'the days it asks about, and the plan itself'}</span></summary>
+                <summary>Change the plan</summary>
 
                 <!--Only once a day is set. While it is still open the grid above is where the day
                     is picked, and everything here would be a second way to do the same thing.-->
                 {#if chosen}
-                    <h3>The day it is on <span class="hint">move it yourself, or go back out for dates</span></h3>
+                    <h3>The day it is on</h3>
                     <div class="tools">
                         <SetDate
                             planId={params.planId}
@@ -364,7 +364,7 @@
                     </div>
                 {/if}
 
-                <h3>The days it asks about <span class="hint">the window, which weekdays count, and whether it comes round again</span></h3>
+                <h3>The days it asks about</h3>
                 <div class="tools">
                     <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} {quiet} onsaved={reopen} />
 
@@ -383,7 +383,7 @@
                     />
                 </div>
 
-                <h3>The plan itself <span class="hint">what it is called, who is on it, and Discord</span></h3>
+                <h3>The plan itself</h3>
                 <div class="tools">
                     <EditDetails
                         planId={params.planId}
