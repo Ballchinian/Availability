@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { nextPlanShape } from '../../src/lib/calendar.js';
 import { REPEAT_WEEKS, describeRepeat } from '../../src/lib/format.js';
 
 /*
@@ -32,5 +33,38 @@ describe('describeRepeat', () => {
         expect(describeRepeat(null)).toBe('');
         expect(describeRepeat(0)).toBe('');
         expect(describeRepeat()).toBe('');
+    });
+});
+
+/*
+    The dates the repeat panel shows before anything is saved. The maths itself is covered
+    against the sweep in backend/tests/bot/repeat.test.js, so what matters here is that the
+    site reaches the same function rather than a copy of it that could drift.
+*/
+describe('the repeat preview', () => {
+    it('previews another set day for a plan announced with its day known', () => {
+        const shape = nextPlanShape(
+            { repeatWeeks: 2, dateRange: { start: '2026-08-06', end: '2026-08-06' }, chosenDate: '2026-08-06', chosenTime: '19:00' },
+            '2026-08-08'
+        );
+        expect(shape).toEqual({
+            set: true,
+            dateRange: { start: '2026-08-20', end: '2026-08-20' },
+            chosen: { date: '2026-08-20', time: '19:00', note: null }
+        });
+    });
+
+    it('previews a window of the same length for a plan that collected dates', () => {
+        const shape = nextPlanShape(
+            { repeatWeeks: 1, dateRange: { start: '2026-08-01', end: '2026-08-14' }, chosenDate: '2026-08-10' },
+            '2026-08-12'
+        );
+        expect(shape).toEqual({ set: false, dateRange: { start: '2026-08-15', end: '2026-08-28' }, chosen: null });
+    });
+
+    //What the panel says out loud instead of a date, rather than showing one it cannot promise
+    it('has nothing to show once the series runs past what the site reaches', () => {
+        const far = '2030-01-01';
+        expect(nextPlanShape({ repeatWeeks: 1, dateRange: { start: far, end: far }, chosenDate: far }, far)).toBe(null);
     });
 });
