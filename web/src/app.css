@@ -799,10 +799,10 @@ code {
 }
 
 /*
-    A section of a page, foldable when it is a <details>. The compare page comes in
-    three of them, where the plan stands, what changes it and what ends it, and the
-    landing page keeps the plans that are over in one. What folds is always the part
-    you did not come for.
+    A section of a page, foldable when it is a <details>. The compare page comes in five,
+    where the plan stands, everyone's days, the history, what changes it and what ends it,
+    and the landing page keeps the plans that are over in one. What folds is always the
+    part you did not come for.
 */
 .group {
     margin-top: 26px;
@@ -905,6 +905,14 @@ code {
 .cday.chosen {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+}
+
+/*
+    The day the plan is set for, as against the day being looked at. A ring rather than
+    another outline, so a day that is both still reads as selected.
+*/
+.cday.isset {
+    box-shadow: 0 0 0 2px #6ee7a0 inset;
 }
 
 /* Waiting / remind block */

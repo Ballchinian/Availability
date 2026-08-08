@@ -268,8 +268,49 @@
             </div>
         {/if}
 
+        <!--
+            Two screens in one coat. While the day is still being found the question is which
+            day, so the grid leads. Once it is set the question is who is coming, and the grid
+            drops to being the tool for one errand: seeing whether a better day exists after
+            somebody says no. It stays on the page either way, unfolded, since reading who is
+            free is the whole reason for it.
+        -->
         <section class="group">
-            <h2>Where it stands</h2>
+            <h2>{chosen ? 'Where it stands' : 'Which day?'}</h2>
+
+            {#if chosen}
+                <p class="prompt good">
+                    <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
+                    {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
+                    {#if chosen.time}<br /><ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
+                    {#if chosen.note}<br />{chosen.note}{/if}
+                    {#if !cancelled}
+                        <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>
+                        <br />The grid below moves it, or changes the time and the note.
+                    {/if}
+                </p>
+
+                {#if !cancelled}
+                    <ConfirmPanel
+                        planId={params.planId}
+                        active={Boolean(data.plan.probeActive)}
+                        participants={data.participants}
+                        {quiet}
+                        onchanged={refresh}
+                    />
+
+                    <AttendanceBoard
+                        planId={params.planId}
+                        participants={data.participants}
+                        chosenDate={data.plan.chosenDate}
+                        onmoved={refresh}
+                    />
+
+                    {#if pendingVoters.length}
+                        <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
+                    {/if}
+                {/if}
+            {/if}
 
             <!--Nought of everyone, for good, on a plan that was announced with its day already known-->
             {#if collecting || data.confirmedCount > 0}
@@ -278,6 +319,14 @@
 
             {#if nudging}
                 <RemindPanel planId={params.planId} waiting={unconfirmed} />
+            {/if}
+        </section>
+
+        <section class="group">
+            {#if chosen}
+                <h2>Is there a better day? <span class="hint">the set day is ringed</span></h2>
+            {:else}
+                <h2>Everyone's days</h2>
             {/if}
 
             {#if data.confirmedCount > 0}
@@ -295,6 +344,7 @@
                     freeByDate={data.freeByDate}
                     confirmedCount={data.confirmedCount}
                     allowedWeekdays={data.plan.allowedWeekdays}
+                    chosenDate={data.plan.chosenDate}
                     {unsureByDate}
                     {missAllowed}
                     bind:selectedDate
@@ -303,19 +353,6 @@
                 <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
             {:else if collecting}
                 <p class="muted">No one has confirmed dates yet, so there is nothing to compare.{nudging ? ' Give it a moment, or nudge the stragglers above.' : ''}</p>
-            {/if}
-
-            {#if chosen}
-                <p class="prompt good">
-                    <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
-                    {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
-                    {#if chosen.time}<br /><ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
-                    {#if chosen.note}<br />{chosen.note}{/if}
-                    {#if !cancelled}
-                        <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>
-                        <br />Pick another day below to move it, and everyone gets told.
-                    {/if}
-                </p>
             {/if}
 
             <!--Straight under the grid, because it is the answer to clicking a day: anywhere
@@ -335,29 +372,10 @@
                     {quiet}
                     onsaved={refresh}
                 />
-
-                {#if data.plan.chosenDate}
-                    <ConfirmPanel
-                        planId={params.planId}
-                        active={Boolean(data.plan.probeActive)}
-                        participants={data.participants}
-                        {quiet}
-                        onchanged={refresh}
-                    />
-                {/if}
-
-                <AttendanceBoard
-                    planId={params.planId}
-                    participants={data.participants}
-                    chosenDate={data.plan.chosenDate}
-                    onmoved={refresh}
-                />
-
-                {#if pendingVoters.length}
-                    <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
-                {/if}
             {/if}
+        </section>
 
+        <section class="group">
             <HistoryPanel history={data.history} />
         </section>
 

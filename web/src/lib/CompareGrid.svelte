@@ -21,6 +21,7 @@
         missAllowed = 0,
         allowedWeekdays = null,
         unsureByDate = {},
+        chosenDate = null,
         selectedDate = $bindable(null)
     }: {
         start: string;
@@ -30,6 +31,8 @@
         missAllowed?: number;
         allowedWeekdays?: number[] | null;
         unsureByDate?: Record<string, number>;
+        //The day the plan is actually set for, marked apart from whichever day is being looked at
+        chosenDate?: string | null;
         selectedDate?: string | null;
     } = $props();
 
@@ -63,7 +66,9 @@
     function describe(date: string, ev: DayEval) {
         const unsure = unsureByDate[date] || 0;
         const window = ev.viable ? `${ev.windowSize}h in common` : 'no time that fits everyone counted';
-        return `${formatLong(date)}: ${ev.freeCount} of ${countedOn(date)} free, ${window}${unsure ? `, ${unsure} too far out to say` : ''}`;
+        //First, since it is the one thing about a day that beats how good the day looks
+        const set = date === chosenDate ? 'the day this plan is set for. ' : '';
+        return `${set}${formatLong(date)}: ${ev.freeCount} of ${countedOn(date)} free, ${window}${unsure ? `, ${unsure} too far out to say` : ''}`;
     }
 
     function pick(date: string) {
@@ -90,6 +95,7 @@
                             class="cday"
                             class:dim={!ev.viable}
                             class:chosen={selectedDate === cell.date}
+                            class:isset={chosenDate === cell.date}
                             style={ev.viable ? fillTextStyle(ev.windowSize, HOUR_COUNT) : ''}
                             aria-label={describe(cell.date, ev)}
                             aria-pressed={selectedDate === cell.date}
