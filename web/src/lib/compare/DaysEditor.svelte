@@ -55,7 +55,7 @@
             await onsaved();
             return (res.reopened
                 ? 'Days updated. A new day opened, so everyone was asked to look again.'
-                : 'Days narrowed. Confirmations still stand, nobody has to redo anything.') + told;
+                : 'Days narrowed. The dates people have already filled in still stand, nobody has to redo anything.') + told;
         });
     }
 </script>
@@ -67,9 +67,12 @@
         <p class="muted small">Open or close days for this plan, like turning on Mondays. Everyone gets asked to look again, and their saved days stay put.</p>
         <WeekdayPicker bind:dayOn />
         <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. Mondays are open now)" maxlength="200" />
-        <label class="check" class:off={quiet}><input type="checkbox" bind:checked={post} disabled={quiet} /> Post the change in the thread</label>
-        <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone</label>
-        {#if quiet}<p class="muted small">Quiet mode is on, so neither of those happens.</p>{/if}
+        {#if quiet}
+            <p class="muted small">Quiet mode is on, so nothing goes in the thread and nobody is DMed.</p>
+        {:else}
+            <label class="check"><input type="checkbox" bind:checked={post} /> Post the change in the thread</label>
+            <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone</label>
+        {/if}
         <div class="edit-row">
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Update the days'}

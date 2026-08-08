@@ -67,13 +67,22 @@
         <input id="rstart" type="date" bind:value={newStart} min={todayIso} max={newEnd || rangeMax} />
         <label class="lbl" for="rend">End</label>
         <input id="rend" type="date" bind:value={newEnd} min={newStart || todayIso} max={rangeMax} />
+    </div>
+    <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
+    <!--Taken away rather than greyed out while quiet is on: a ticked box saying everyone gets
+        DMed, next to a line saying nobody does, is the page arguing with itself-->
+    {#if quiet}
+        <p class="muted small">Quiet mode is on, so nothing goes in the thread and nobody is DMed. Everyone's DM still gets the new window where it sits.</p>
+    {:else}
+        <label class="check"><input type="checkbox" bind:checked={post} /> Post the new dates in the thread</label>
+        <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone the new dates</label>
+    {/if}
+    <!--Last, like every other panel here. Up in the row with the dates it was above the note
+        and the two toggles it sends, so the way to find them was to have already pressed it.-->
+    <div class="edit-row">
         <button class="ghost" onclick={save} disabled={panel.busy}>
             {panel.busy ? 'Saving...' : 'Update the date range'}
         </button>
     </div>
-    <input type="text" bind:value={note} placeholder="Optional note for the DM (e.g. added another weekend)" maxlength="200" />
-    <label class="check" class:off={quiet}><input type="checkbox" bind:checked={post} disabled={quiet} /> Post the new dates in the thread</label>
-    <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone the new dates</label>
-    {#if quiet}<p class="muted small">Quiet mode is on, so neither of those happens. Everyone's DM still gets the new window.</p>{/if}
     {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
 </div>

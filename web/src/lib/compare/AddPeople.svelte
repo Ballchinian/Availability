@@ -69,10 +69,13 @@
             <p class="muted small">Everyone in the server is already on this plan.</p>
         {:else}
             <MemberPicker {members} bind:selectedIds />
-            <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM the people you add</label>
             <!--The one thing quiet cannot cover: there is no way to add somebody to a private
                 thread without Discord pinging them about it-->
-            {#if quiet}<p class="muted small">Quiet mode is on, so no DM. They are still pinged by being added to the thread, which Discord gives no way around.</p>{/if}
+            {#if quiet}
+                <p class="muted small">Quiet mode is on, so no DM. They are still pinged by being added to the thread, which Discord gives no way around.</p>
+            {:else}
+                <label class="check"><input type="checkbox" bind:checked={dm} /> DM the people you add</label>
+            {/if}
             <div class="add-row">
                 <button class="primary" onclick={add} disabled={panel.busy}>
                     {panel.busy ? 'Adding...' : 'Add to the plan'}

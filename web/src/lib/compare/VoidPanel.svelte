@@ -41,8 +41,11 @@
         {:else}
             <p class="muted small">This clears the set date and reopens the plan so a new day can be picked. Their saved dates stay, no thread message goes out.</p>
             <input type="text" bind:value={reason} placeholder="Optional reason (e.g. the venue fell through)" maxlength="200" />
-            <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone that you are rescheduling</label>
-            {#if quiet}<p class="muted small">Quiet mode is on, so nobody is DMed. Their DM stops saying a day is set either way.</p>{/if}
+            {#if quiet}
+                <p class="muted small">Quiet mode is on, so nobody is DMed. Their DM stops saying a day is set either way.</p>
+            {:else}
+                <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone that you are rescheduling</label>
+            {/if}
             <div class="void-row">
                 <button class="ghost danger-btn" onclick={doVoid} disabled={panel.busy}>
                     {panel.busy ? 'Undoing...' : 'Yes, undo the date'}
