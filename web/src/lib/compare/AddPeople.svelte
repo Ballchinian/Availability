@@ -58,7 +58,7 @@
     }
 </script>
 
-<div class="add">
+<div class="add" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
         <button class="ghost" onclick={open}>Add someone to this plan</button>
     {:else}
@@ -76,7 +76,7 @@
             {:else}
                 <label class="check"><input type="checkbox" bind:checked={dm} /> DM the people you add</label>
             {/if}
-            <div class="add-row">
+            <div class="btn-row">
                 <button class="primary" onclick={add} disabled={panel.busy}>
                     {panel.busy ? 'Adding...' : 'Add to the plan'}
                 </button>

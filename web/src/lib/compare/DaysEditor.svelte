@@ -60,9 +60,9 @@
     }
 </script>
 
-<div class="days-edit">
+<div class="days-edit" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>Change which days count</button>
+        <button class="ghost" onclick={open}>Change which weekdays count</button>
     {:else}
         <p class="muted small">Open or close days for this plan, like turning on Mondays. Everyone gets asked to look again, and their saved days stay put.</p>
         <WeekdayPicker bind:dayOn />
@@ -73,7 +73,7 @@
             <label class="check"><input type="checkbox" bind:checked={post} /> Post the change in the thread</label>
             <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone</label>
         {/if}
-        <div class="edit-row">
+        <div class="btn-row">
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Update the days'}
             </button>

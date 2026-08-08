@@ -16,6 +16,7 @@
                 `/plans/${planId}/repair`,
                 { method: 'POST' }
             );
+            panel.open = false;
             const thread = res.thread ? 'Thread post and yes/no message put right. ' : '';
             if (!res.holders) return `${thread}Nobody is holding a DM about this plan, so there was none to correct.`;
             //Named rather than glossed: the gap is people who binned their DM or have them closed
@@ -26,14 +27,21 @@
     }
 </script>
 
-<div class="repair">
-    <p class="muted small">
-        Out of step with Discord? This rewrites the pinned post, the yes/no message and everyone's DM
-        from the plan as it stands, and puts back anything that has been deleted. Nothing is sent and
-        nobody is pinged, so it is safe to press whenever something looks wrong.
-    </p>
-    <button class="ghost" onclick={repair} disabled={panel.busy}>
-        {panel.busy ? 'Fixing up...' : 'Fix up Discord'}
-    </button>
+<div class="repair" class:wide={panel.open || Boolean(panel.msg)}>
+    {#if !panel.open}
+        <button class="ghost" onclick={() => panel.show()}>Fix up Discord</button>
+    {:else}
+        <p class="muted small">
+            Out of step with Discord? This rewrites the pinned post, the yes/no message and everyone's DM
+            from the plan as it stands, and puts back anything that has been deleted. Nothing is sent and
+            nobody is pinged, so it is safe to press whenever something looks wrong.
+        </p>
+        <div class="btn-row">
+            <button class="primary" onclick={repair} disabled={panel.busy}>
+                {panel.busy ? 'Fixing up...' : 'Fix it up'}
+            </button>
+            <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+        </div>
+    {/if}
     {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
 </div>

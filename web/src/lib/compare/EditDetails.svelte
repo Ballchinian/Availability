@@ -44,7 +44,7 @@
     }
 </script>
 
-<div class="edit">
+<div class="edit" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
         <button class="ghost" onclick={open}>Edit title or description</button>
     {:else}
@@ -53,7 +53,7 @@
         <input id="ename" type="text" bind:value={title} maxlength="90" />
         <label class="lbl" for="edesc">Description (optional)</label>
         <textarea id="edesc" bind:value={desc} maxlength="280" rows="2"></textarea>
-        <div class="edit-row">
+        <div class="btn-row">
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Save changes'}
             </button>

@@ -37,6 +37,7 @@
 <div class="danger">
     {#if !panel.open}
         <button class="ghost danger-btn" onclick={() => panel.show()}>Cancel this plan</button>
+        <span class="muted small">Calls the whole thing off. To keep the plan and move the day, use Change the plan above.</span>
     {:else}
         <div class="confirm">
             <p class="small">Cancel this plan? The thread stays until you delete it by hand in Discord.</p>
@@ -51,7 +52,7 @@
                 <label class="check"><input type="checkbox" bind:checked={post} /> Post the cancellation in the thread</label>
                 <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone</label>
             {/if}
-            <div class="void-row">
+            <div class="btn-row">
                 <button class="ghost danger-btn" onclick={doCancel} disabled={panel.busy || blocked}>
                     {panel.busy ? 'Cancelling...' : quiet ? 'Yes, cancel it quietly' : 'Yes, cancel it'}
                 </button>
