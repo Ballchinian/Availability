@@ -325,7 +325,9 @@
         {:else}
             <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
             <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone if they can make it</label>
-            <p class="muted small">A thread always opens and adding people to it pings them. {announceProbe ? 'The yes/no buttons go in the thread' + (announceDm ? ' and in their DMs' : '') + ", and I'll DM you when everyone is in or if someone can't make it." : ''}</p>
+            {#if announceProbe}
+                <p class="muted small">The yes/no buttons go in the thread{announceDm ? ' and in their DMs' : ''}, and I'll DM you when everyone is in or if someone can't make it.</p>
+            {/if}
         {/if}
 
         <div class="repeat">
