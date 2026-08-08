@@ -4,8 +4,11 @@
     import { Panel } from './panel.svelte.js';
 
     /*
-        The yes/no confirmation on a set date, as a switch. Closing keeps every answer,
+        The yes/no headcount on a set date, as a switch. Closing keeps every answer,
         so reopening brings the tally back rather than starting people over.
+
+        Said here the way the thread says it, "can you make it", rather than as
+        confirming: this page already uses that word for filling dates in.
     */
     let { planId, active = false, participants = [], quiet = false, onchanged }: {
         planId: string;
@@ -34,14 +37,14 @@
                 body: JSON.stringify({ active: want, quiet })
             });
             await onchanged();
-            if (!want) return 'Confirmations closed. Everyone keeps the answer they gave.';
+            if (!want) return 'Stopped asking. Everyone keeps the answer they gave.';
             /*
                 A revived poll is an edit, and Discord does not notify on an edit, so saying
                 it reopened would leave a planner thinking people had been told.
             */
             return res.revived
-                ? 'Reopened on the message that was already in the thread, with every answer still on it. Nobody was pinged, so nudge them if you want them chased.'
-                : 'Asked everyone to confirm.';
+                ? 'Asking again on the message that was already in the thread, with every answer still on it. Nobody was pinged, so nudge them if you want them chased.'
+                : 'Asked everyone if they can make it.';
         });
     }
 </script>
@@ -49,19 +52,19 @@
 <div class="confirms">
     {#if active}
         <p class="muted small">
-            Confirmations are <strong>running</strong>: {tally.answered} of {tally.total} have answered,
-            {tally.coming} coming. Closing keeps every answer, and you can open it again later.
+            You are <strong>asking who can make it</strong>: {tally.answered} of {tally.total} have answered,
+            {tally.coming} coming. Stopping keeps every answer, and you can ask again later.
         </p>
         <button class="ghost" disabled={panel.busy} onclick={() => flip(false)}>
-            {panel.busy ? 'Closing...' : 'Close the confirmations'}
+            {panel.busy ? 'Stopping...' : 'Stop asking'}
         </button>
     {:else}
         <p class="muted small">
-            Nobody has been asked to confirm this date.
-            {#if tally.answered}Answers from before are still here, and reopening brings them back.{/if}
+            Nobody has been asked whether they can make this date.
+            {#if tally.answered}Answers from before are still here, and asking again brings them back.{/if}
         </p>
         <button class="ghost" disabled={panel.busy} onclick={() => flip(true)}>
-            {panel.busy ? 'Asking...' : 'Ask everyone to confirm they can make it'}
+            {panel.busy ? 'Asking...' : 'Ask everyone if they can make it'}
         </button>
     {/if}
     {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}

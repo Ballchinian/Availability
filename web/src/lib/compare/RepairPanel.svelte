@@ -16,7 +16,7 @@
                 `/plans/${planId}/repair`,
                 { method: 'POST' }
             );
-            const thread = res.thread ? 'Thread post and confirmation put right. ' : '';
+            const thread = res.thread ? 'Thread post and yes/no message put right. ' : '';
             if (!res.holders) return `${thread}Nobody is holding a DM about this plan, so there was none to correct.`;
             //Named rather than glossed: the gap is people who binned their DM or have them closed
             const missed = res.holders - res.cards;
@@ -28,7 +28,7 @@
 
 <div class="repair">
     <p class="muted small">
-        Out of step with Discord? This rewrites the pinned post, the confirmation and everyone's DM
+        Out of step with Discord? This rewrites the pinned post, the yes/no message and everyone's DM
         from the plan as it stands, and puts back anything that has been deleted. Nothing is sent and
         nobody is pinged, so it is safe to press whenever something looks wrong.
     </p>

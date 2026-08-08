@@ -205,7 +205,7 @@
             </div>
             <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
             {#if !probeActive}
-                <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone to confirm they're coming (yes/no)</label>
+                <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone if they can make it (yes/no)</label>
                 {#if probe}
                     <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it.</p>
                 {/if}
@@ -213,8 +213,8 @@
         {:else}
             <p class="muted small">
                 Changing the time or the note leaves everything else alone: nobody's answer is cleared,
-                the confirmation keeps running, and the invite list stays as it is. Everyone's DM and the
-                pinned post are rewritten where they sit, and the people coming get told what moved.
+                you are still asking who can make it, and the invite list stays as it is. Everyone's DM and
+                the pinned post are rewritten where they sit, and the people coming get told what moved.
             </p>
         {/if}
         {#if risky}
@@ -226,7 +226,7 @@
         {/if}
         {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
         <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
-            {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
+            {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Set it to {formatDate(selectedDate)}{/if}
         </button>
     </div>
 {/if}

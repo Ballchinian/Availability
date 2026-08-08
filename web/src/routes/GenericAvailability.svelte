@@ -156,7 +156,7 @@
             </p>
         </div>
 
-        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Auto-confirm any plan this window fully covers</label>
+        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Count these as my answer on any plan this window fully covers</label>
 
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
             and whatever the last save said are all in reach of a two year page-->
@@ -170,7 +170,7 @@
             {:else if saved}
                 <p class="status msg good" aria-live="polite">
                     Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.
-                    {#if saved.confirmedPlans.length}Auto-confirmed: {saved.confirmedPlans.join(', ')}.{/if}
+                    {#if saved.confirmedPlans.length}These also answered: {saved.confirmedPlans.join(', ')}.{/if}
                 </p>
             {/if}
         </div>

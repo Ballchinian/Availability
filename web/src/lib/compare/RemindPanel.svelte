@@ -27,7 +27,7 @@
         await panel.run(async () => {
             const res = await api<{ pinged: number }>(`/plans/${planId}/remind`, { method: 'POST' });
             if (res.pinged) return `Nudged ${res.pinged} ${res.pinged === 1 ? 'person' : 'people'}.`;
-            return chasingVotes ? 'Everyone has already answered.' : 'Everyone has already confirmed.';
+            return chasingVotes ? 'Everyone has already answered.' : 'Everyone has already filled theirs in.';
         });
     }
 </script>
@@ -47,7 +47,7 @@
         {:else if chasingVotes}
             Nudge the ones who have not answered
         {:else}
-            Remind the stragglers
+            Nudge the stragglers
         {/if}
     </button>
     {#if panel.msg}<span class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</span>{/if}

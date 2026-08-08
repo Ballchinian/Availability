@@ -227,7 +227,7 @@
     {:else if result}
         <div class="result">
             {#if result.set}
-                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}{announceProbe ? ' with a yes/no to confirm they can make it' : ''}.</p>
+                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}{announceProbe ? ' with a yes/no so you know who is coming' : ''}.</p>
             {:else}
                 <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{collectDm ? " and DM'd them" : ''}.</p>
             {/if}
@@ -322,7 +322,7 @@
             <p class="muted small">Everyone you pick gets pinged in a new thread either way{collectDm ? ', and the DM carries the link so they can answer without going back to find it' : ''}.</p>
         {:else}
             <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
-            <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone to confirm they're coming</label>
+            <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone if they can make it</label>
             <p class="muted small">A thread always opens and adding people to it pings them. {announceProbe ? 'The yes/no buttons go in the thread' + (announceDm ? ' and in their DMs' : '') + ", and I'll DM you when everyone is in or if someone can't make it." : ''}</p>
         {/if}
 

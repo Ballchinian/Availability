@@ -257,9 +257,9 @@
                 <p class="muted small">
                     {#if quiet}
                         Nothing you do here pings anybody until you turn this off. The pinned post, the
-                        confirmation and everyone's DM are still rewritten where they sit, so what people
-                        are holding stays correct, they just are not told it changed. Turning the page off
-                        and on again turns this off.
+                        yes/no message and everyone's DM are still rewritten where they sit, so what people
+                        are holding stays correct, they just are not told it changed. Reloading the page
+                        turns this off again.
                     {:else}
                         Turn this on to put a mistake right without announcing it. Everyone's DM still gets
                         corrected, nobody is pinged about the correction.
@@ -279,16 +279,23 @@
             <h2>{chosen ? 'Where it stands' : 'Which day?'}</h2>
 
             {#if chosen}
-                <p class="prompt good">
-                    <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
-                    {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
-                    {#if chosen.time}<br /><ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
-                    {#if chosen.note}<br />{chosen.note}{/if}
+                <!--A box rather than one paragraph: the clock note is a paragraph of its own that
+                    says nothing at all when everyone shares a clock, and hanging it off a <br />
+                    left an empty line in the box for everybody who does-->
+                <div class="prompt good">
+                    <p>
+                        <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
+                        {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
+                    </p>
+                    {#if chosen.time}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
+                    {#if chosen.note}<p>{chosen.note}</p>{/if}
                     {#if !cancelled}
-                        <br /><a href={icsHref(params.planId)}>Add it to your calendar</a>
-                        <br />The grid below moves it, or changes the time and the note.
+                        <p>
+                            <a href={icsHref(params.planId)}>Add it to your calendar</a><br />
+                            The grid below moves it, or changes the time and the note.
+                        </p>
                     {/if}
-                </p>
+                </div>
 
                 {#if !cancelled}
                     <ConfirmPanel
@@ -314,7 +321,7 @@
 
             <!--Nought of everyone, for good, on a plan that was announced with its day already known-->
             {#if collecting || data.confirmedCount > 0}
-                <p class="status">{data.confirmedCount} of {data.totalParticipants} have confirmed their dates.</p>
+                <p class="status">{data.confirmedCount} of {data.totalParticipants} have filled in their dates.</p>
             {/if}
 
             {#if nudging}
@@ -352,7 +359,7 @@
             {:else if cancelled}
                 <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
             {:else if collecting}
-                <p class="muted">No one has confirmed dates yet, so there is nothing to compare.{nudging ? ' Give it a moment, or nudge the stragglers above.' : ''}</p>
+                <p class="muted">No one has filled their dates in yet, so there is nothing to compare.{nudging ? ' Give it a moment, or nudge the stragglers above.' : ''}</p>
             {/if}
 
             <!--Straight under the grid, because it is the answer to clicking a day: anywhere
