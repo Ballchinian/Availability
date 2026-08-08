@@ -149,6 +149,15 @@
         return fillTextStyle(count, HOUR_COUNT);
     }
 
+    /*
+        The hours kept, on the badge. A bare number read as a count of anything at all,
+        so it carries its unit. Every hour picked is the same thing as none picked, which
+        is what formatHours already says out loud, so both come out as the quiet dot.
+    */
+    function hourBadge(hours: number[]) {
+        return !hours.length || hours.length === HOUR_COUNT ? '·' : `${hours.length}h`;
+    }
+
     //Whether this day is past the point they said they can honestly plan to
     function beyondHorizon(date: string) {
         return Boolean(sureUntil && date > sureUntil && !isFree(date));
@@ -194,6 +203,10 @@
 
 <svelte:window onpointerup={stopPaint} />
 
+<!--What the colours mean, which nothing said before: the same shading on the compare
+    grid means something else entirely, and it has had a legend all along-->
+<p class="legend small">Brighter means more of the day free. The badge on a day counts the hours you kept, a dot meaning all of them.</p>
+
 <div class="grid-wrap" class:painting>
     {#each months as month (monthKey(month))}
         {@const tally = view.tallies[monthKey(month)]}
@@ -235,7 +248,7 @@
                                     aria-label={`Set hours for ${names[cell.date]}, free ${formatHours(selection[cell.date])}`}
                                     onpointerdown={(e) => e.stopPropagation()}
                                     onclick={() => (editingDate = cell.date)}
-                                >{selection[cell.date].length ? selection[cell.date].length : '·'}</button>
+                                >{hourBadge(selection[cell.date])}</button>
                             {/if}
                         </span>
                     {/if}
