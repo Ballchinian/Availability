@@ -1,4 +1,4 @@
-import { describeWeekdays as describeDays, weekdayAllowed } from '../../../shared/dates.js';
+import { describeWeekdays as describeDays, weekdayAllowed, isoDate, tomorrow, maxEnd } from '../../../shared/dates.js';
 
 /*
     Plain calendar date helpers. Everything is a YYYY-MM-DD string so a date is
@@ -10,34 +10,18 @@ import { describeWeekdays as describeDays, weekdayAllowed } from '../../../share
     this one file.
 */
 
-export { formatDate, formatTime, weekdayOf, weekdayAllowed, REPEAT_WEEKS, describeRepeat } from '../../../shared/dates.js';
+export {
+    formatDate, formatTime, weekdayOf, weekdayAllowed, REPEAT_WEEKS, describeRepeat,
+    isoDate, tomorrow, maxEnd, shiftDate, daysBetween, nextInSeries, nextPlanShape
+} from '../../../shared/dates.js';
 
 //The bot writes the days into a sentence, so no restriction has to read as something
 export function describeWeekdays(allowedWeekdays) {
     return describeDays(allowedWeekdays, 'every day');
 }
 
-export function isoDate(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-}
-
 export function today() {
     return isoDate(new Date());
-}
-
-export function tomorrow() {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return isoDate(d);
-}
-
-export function maxEnd() {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() + 2);
-    return isoDate(d);
 }
 
 //Returns an error string if the range is no good, or null if it is fine
@@ -48,22 +32,6 @@ export function checkRange(start, end) {
     if (end > maxEnd()) return 'The end date cannot be more than two years away.';
     if (start > end) return 'The start date is after the end date.';
     return null;
-}
-
-/*
-    The day a number of days either side of this one. Walked in UTC so a zone that
-    moves its clocks at midnight cannot land it on the wrong date, which is the same
-    reason weekdayOf reads that way.
-*/
-export function shiftDate(date, days) {
-    const d = new Date(`${date}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-}
-
-//How many days from one date to another, negative if the second is the earlier one
-export function daysBetween(from, to) {
-    return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 }
 
 //Every day from start to end, inclusive, as YYYY-MM-DD strings

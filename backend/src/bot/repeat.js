@@ -3,7 +3,7 @@ import { getGuildConfig } from '../db/guilds.js';
 import { isMongoReady } from '../db/mongo.js';
 import { announcePlan, announceSetPlan } from './plans.js';
 import { shortId } from '../lib/ids.js';
-import { today, tomorrow, maxEnd, shiftDate, daysBetween } from '../lib/dates.js';
+import { today, shiftDate, nextPlanShape } from '../lib/dates.js';
 import { safeZone, instantToWall } from '../lib/zones.js';
 
 /*
@@ -18,6 +18,9 @@ import { safeZone, instantToWall } from '../lib/zones.js';
     Intervals are whole weeks, which is the whole reason they are not months: shifting by
     a multiple of seven lands on the same weekday, so a plan pinned to weekends is still
     pinned to weekends afterwards and nothing has to be re-derived.
+
+    Working out where the next one lands is nextPlanShape in shared/dates.js, since the
+    compare page shows a planner those dates before they turn a repeat on.
 */
 
 //How often to look. A plan falls due at midnight somewhere, so this is about how late it can be.
@@ -25,27 +28,7 @@ const SWEEP_MS = 30 * 60 * 1000;
 //Long enough after boot to be past the gateway and the first database connection
 const FIRST_SWEEP_MS = 60 * 1000;
 
-/*
-    How many intervals forward we are willing to skip to find a date that has not already
-    gone. Only reached when the service was off for a long time, and the point of a cap is
-    that a plan stale by years should stop rather than quietly reappear.
-*/
-const MAX_SKIPS = 200;
-
 let timer = null;
-
-/*
-    The next date in the series that has not already passed. Normally one interval on,
-    but a service that was off for a month has to catch up, and the right answer there is
-    one plan on the next date still to come, not four plans for days nobody can attend.
-*/
-export function nextInSeries(date, weeks, notBefore) {
-    let next = shiftDate(date, weeks * 7);
-    for (let skipped = 0; next < notBefore && skipped < MAX_SKIPS; skipped++) {
-        next = shiftDate(next, weeks * 7);
-    }
-    return next < notBefore ? null : next;
-}
 
 /*
     Whether the plan's day has actually been and gone where the plan is. The sweep's query
@@ -54,33 +37,6 @@ export function nextInSeries(date, weeks, notBefore) {
 */
 function dayHasPassed(plan) {
     return instantToWall(safeZone(plan.timeZone), new Date()).date > plan.chosenDate;
-}
-
-/*
-    What the next plan in the series looks like. A plan announced with its day already
-    decided (a range of one day) comes back as another of those on the next date. A plan
-    that collected availability comes back as another window of the same length, shifted
-    the same way, so it asks about the same stretch of the same weekdays.
-
-    Null when the series has run out of road: too stale to catch up, or the next window
-    would land past the two years everything else here is bounded by.
-*/
-export function nextPlanShape(plan, from = tomorrow()) {
-    const weeks = plan.repeatWeeks;
-    const wasSet = plan.dateRange.start === plan.dateRange.end;
-
-    if (wasSet) {
-        const date = nextInSeries(plan.chosenDate, weeks, from);
-        if (!date || date > maxEnd()) return null;
-        return { set: true, dateRange: { start: date, end: date }, chosen: { date, time: plan.chosenTime || null, note: plan.chosenNote || null } };
-    }
-
-    const span = daysBetween(plan.dateRange.start, plan.dateRange.end);
-    const start = nextInSeries(plan.dateRange.start, weeks, from);
-    if (!start) return null;
-    const end = shiftDate(start, span);
-    if (end > maxEnd()) return null;
-    return { set: false, dateRange: { start, end }, chosen: null };
 }
 
 /*

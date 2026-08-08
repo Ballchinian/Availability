@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextInSeries, nextPlanShape } from '../../src/bot/repeat.js';
-import { weekdayOf, maxEnd } from '../../src/lib/dates.js';
+import { nextInSeries, nextPlanShape, weekdayOf, maxEnd } from '../../src/lib/dates.js';
 
 /*
     The dates here are fixed rather than relative to today, and every call passes its own

@@ -65,11 +65,12 @@ export function daysSince(ts: string): number {
 }
 
 /*
-    Which weekday a date is, and whether a plan asks about it. Both come from
-    shared/dates.js so the bot and the grid pin a plan to the same days, and
-    weekdayAllowed keeps its site name here since that is what the screens read as.
+    Which weekday a date is, whether a plan asks about it, and where a repeat would put
+    the next one. All from shared/dates.js so the bot and the grid pin a plan to the same
+    days and the page cannot promise a date the sweep would not make. weekdayAllowed keeps
+    its site name here since that is what the screens read as.
 */
-export { weekdayOf, weekdayAllowed as isWeekdayAllowed } from '../../../shared/dates.js';
+export { weekdayOf, weekdayAllowed as isWeekdayAllowed, shiftDate, nextPlanShape } from '../../../shared/dates.js';
 
 //Days in a range, or just the ones on the allowed weekdays when the plan is pinned
 export function countDays(start: string, end: string, allowedWeekdays?: number[] | null): number {
