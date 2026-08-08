@@ -101,8 +101,15 @@
         return sel.ev.viable ? sel.ev.keptIds : sel.free.map((f) => f.userId);
     });
 
+    /*
+        Whether narrowing the guest list means anything. With nobody free on the day, and on
+        a plan nobody has answered at all, "just the people who can make it" is nought people,
+        and offering it as the default reads as an invitation to nobody.
+    */
+    const canNarrow = $derived(attendIds.length > 0);
+
     //How many the invite list would lose if it were narrowed to the people who fit
-    const dropping = $derived(inviteMode === 'attending' ? Math.max(0, totalParticipants - attendIds.length) : 0);
+    const dropping = $derived(canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - attendIds.length) : 0);
 
     //The day the plan is already on, so the button edits the time and note rather than moving anything
     const isUpdate = $derived(Boolean(chosen && selectedDate === chosen.date));
@@ -136,7 +143,7 @@
                     date: selectedDate,
                     time: time || null,
                     note: note.trim() || null,
-                    inviteMode,
+                    inviteMode: canNarrow ? inviteMode : 'all',
                     attendingIds: attendIds,
                     probe,
                     quiet
@@ -157,7 +164,12 @@
                 The title attribute carried this and never showed up on a phone.-->
             <p>
                 <strong>{formatDate(selectedDate)}</strong>
-                {#if sel.reason?.block === 'nobody'}
+                <!--Told apart from the horizon case below, which also counts nobody. On a plan
+                    nobody has answered yet every day lands here, and blaming it on sure-up-to
+                    dates nobody has set reads as a fault.-->
+                {#if confirmedCount === 0}
+                    has nothing to weigh it against yet, since nobody has filled their dates in.
+                {:else if sel.reason?.block === 'nobody'}
                     is past everyone's sure-up-to date, so nobody is counted on it.
                 {:else if sel.reason?.block === 'missing'}
                     is dim because {sel.missing.length} of {sel.counted} did not mark it free, and you are
@@ -201,11 +213,13 @@
         <!--Both only make sense for a day that is moving. On the day the plan is already on
             there is no invite list to redraw, and the confirmation belongs to ConfirmPanel.-->
         {#if !isUpdate}
-            <div role="radiogroup" aria-labelledby="invitelabel">
-                <span class="lbl" id="invitelabel">Who is still invited?</span>
-                <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
-                <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
-            </div>
+            {#if canNarrow}
+                <div role="radiogroup" aria-labelledby="invitelabel">
+                    <span class="lbl" id="invitelabel">Who is still invited?</span>
+                    <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+                    <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
+                </div>
+            {/if}
             <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
             <!--Said before it happens rather than found afterwards on the board: the default
                 here is the one that takes people off the plan-->

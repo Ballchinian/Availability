@@ -17,7 +17,6 @@
     import RemindPanel from '../lib/compare/RemindPanel.svelte';
     import RepairPanel from '../lib/compare/RepairPanel.svelte';
     import RepeatPanel from '../lib/compare/RepeatPanel.svelte';
-    import SetDate from '../lib/compare/SetDate.svelte';
     import VoidPanel from '../lib/compare/VoidPanel.svelte';
 
     /*
@@ -262,7 +261,10 @@
             <section class="group">
                 <h2>Everyone's days</h2>
 
-                {#if data.confirmedCount > 0}
+                <!--Drawn even with nobody in. Every day in the window is clickable whether or not
+                    anyone has marked it, so the grid is the way to a date on a plan nobody has
+                    answered yet, and there is no second control for setting one by hand.-->
+                {#if data.confirmedCount > 0 || !cancelled}
                     <DayCompare
                         planId={params.planId}
                         start={data.plan.start}
@@ -280,27 +282,8 @@
                         bind:selectedDate
                         onsaved={refresh}
                     />
-                {:else if cancelled}
+                {:else}
                     <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
-                {:else if collecting}
-                    <p class="muted">No one has filled their dates in yet, so there is nothing to compare.{nudging ? ' Give it a moment, or nudge the stragglers above.' : ''}</p>
-                {/if}
-
-                <!--The way past the grid entirely. A plan can be set for a day nobody has answered
-                    about, and waiting on a poll to do it is the long way round when you already know.-->
-                {#if !cancelled}
-                    <div class="tools">
-                        <SetDate
-                            planId={params.planId}
-                            start={data.plan.start}
-                            end={data.plan.end}
-                            allowedWeekdays={data.plan.allowedWeekdays}
-                            probeActive={Boolean(data.plan.probeActive)}
-                            {chosen}
-                            {quiet}
-                            onsaved={refresh}
-                        />
-                    </div>
                 {/if}
             </section>
         {/if}
@@ -317,48 +300,34 @@
                 {#if chosen}
                     <h3>The day it is on</h3>
                     <div class="tools">
-                        <SetDate
-                            planId={params.planId}
-                            start={data.plan.start}
-                            end={data.plan.end}
-                            allowedWeekdays={data.plan.allowedWeekdays}
-                            probeActive={Boolean(data.plan.probeActive)}
-                            {chosen}
-                            {quiet}
-                            onsaved={refresh}
-                        />
-
-                        {#if data.confirmedCount > 0}
-                            <div class="better" class:wide={betterDay}>
-                                {#if !betterDay}
-                                    <button class="ghost" onclick={() => (betterDay = true)}>Is there a better day?</button>
-                                {:else}
-                                    <p class="muted small">
-                                        Everyone's days as they stand, with the one this is set for ringed in green. Click a
-                                        day to see who it works for, and to move the plan onto it.
-                                    </p>
-                                    <DayCompare
-                                        planId={params.planId}
-                                        start={data.plan.start}
-                                        end={data.plan.end}
-                                        allowedWeekdays={data.plan.allowedWeekdays}
-                                        freeByDate={data.freeByDate}
-                                        participants={data.participants}
-                                        confirmedCount={data.confirmedCount}
-                                        totalParticipants={data.totalParticipants}
-                                        probeActive={Boolean(data.plan.probeActive)}
-                                        timeZone={data.plan.timeZone}
-                                        {chosen}
-                                        {quiet}
-                                        bind:selectedDate
-                                        onsaved={refresh}
-                                    />
-                                    <div class="btn-row">
-                                        <button class="ghost" onclick={() => (betterDay = false)}>Close the grid</button>
-                                    </div>
-                                {/if}
-                            </div>
-                        {/if}
+                        <!--The grid is the only way to a different day, and to the time and note on
+                            the one it is on, so it is offered whether or not anybody has answered-->
+                        <div class="better" class:wide={betterDay}>
+                            {#if !betterDay}
+                                <button class="ghost" onclick={() => (betterDay = true)}>Move it, or change the time or note</button>
+                            {:else}
+                                <p class="muted small">The day it is set for is ringed in green.</p>
+                                <DayCompare
+                                    planId={params.planId}
+                                    start={data.plan.start}
+                                    end={data.plan.end}
+                                    allowedWeekdays={data.plan.allowedWeekdays}
+                                    freeByDate={data.freeByDate}
+                                    participants={data.participants}
+                                    confirmedCount={data.confirmedCount}
+                                    totalParticipants={data.totalParticipants}
+                                    probeActive={Boolean(data.plan.probeActive)}
+                                    timeZone={data.plan.timeZone}
+                                    {chosen}
+                                    {quiet}
+                                    bind:selectedDate
+                                    onsaved={refresh}
+                                />
+                                <div class="btn-row">
+                                    <button class="ghost" onclick={() => (betterDay = false)}>Close the grid</button>
+                                </div>
+                            {/if}
+                        </div>
 
                         <VoidPanel planId={params.planId} dateSet {quiet} onvoided={reopened} />
                     </div>

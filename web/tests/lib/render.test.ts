@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import ConfirmPanel from '../../src/lib/compare/ConfirmPanel.svelte';
-import SetDate from '../../src/lib/compare/SetDate.svelte';
+import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import type { Answer, Participant } from '../../src/lib/types.js';
 
@@ -45,25 +45,39 @@ describe('the confirmation switch', () => {
 });
 
 /*
-    The way to a date that does not go through the grid. Everything else that sets a day
-    hangs off a cell being clicked, so a plan nobody has answered about had no way to one
-    at all, and rescheduling meant collecting availability first whether you wanted it or not.
+    The grid is the only way to a date now, so it has to hold up on a plan nobody has
+    answered, which is where the panel that used to stand in for it was reached from.
 */
-describe('setting the day outright', () => {
+describe('picking a day nobody has answered about', () => {
     const draw = (props: Record<string, unknown> = {}) =>
-        render(SetDate, {
-            props: { planId: 'ab12cd34ef', start: '2026-08-01', end: '2026-08-31', onsaved: async () => {}, ...props }
+        render(PickPanel, {
+            props: { planId: 'ab12cd34ef', selectedDate: '2026-08-12', onsaved: async () => {}, ...props }
         }).body;
 
-    it('offers a way in on a plan with no day and nobody answered', () => {
-        expect(draw()).toContain('Set the day yourself');
+    //The other way to count nobody is everyone's sure-up-to date having passed, which
+    //this would otherwise blame it on
+    it('says nobody has answered rather than blaming their horizons', () => {
+        const body = draw({ confirmedCount: 0, totalParticipants: 3 });
+        expect(body).toContain('nobody has filled their dates in');
+        expect(body).not.toContain('sure-up-to date');
     });
 
-    //On a plan already on a day the same panel is how it moves, so it says that instead
-    it('reads as moving it once a day is set', () => {
-        const body = draw({ chosen: { date: '2026-08-12', time: '', note: '' } });
-        expect(body).toContain('Move it, or change the time or note');
-        expect(body).not.toContain('Set the day yourself');
+    it('still offers to set the day', () => {
+        expect(draw({ confirmedCount: 0, totalParticipants: 3 })).toContain('You can still set it');
+    });
+
+    //Narrowing to the people who can make it is nought people here, and it is the default
+    it('does not offer to narrow the invite list to nobody', () => {
+        expect(draw({ confirmedCount: 0, totalParticipants: 3 })).not.toContain('Just the people who can make it');
+    });
+
+    it('offers it again once somebody is free on the day', () => {
+        const body = draw({
+            confirmedCount: 1,
+            totalParticipants: 3,
+            freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] }
+        });
+        expect(body).toContain('Just the people who can make it');
     });
 });
 
