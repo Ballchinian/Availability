@@ -517,12 +517,17 @@ code {
     color: #6ee7a0;
 }
 
+/* A prompt built of more than one line, so its parts stack without pushing the box open */
+.prompt > p {
+    margin: 0;
+}
+
 /* The quiet switch, loud on screen so it cannot be left on without being noticed */
 .hush {
     margin: 14px 0;
     padding: 10px 14px;
     border-radius: 8px;
-    border: 1px dashed var(--line);
+    border: 1px dashed var(--border);
     font-size: 14px;
 }
 
@@ -535,12 +540,6 @@ code {
 .hush .check {
     margin: 0;
     font-weight: 600;
-}
-
-/* A toggle quiet mode has taken over, left legible rather than half invisible */
-.check.off {
-    opacity: 0.55;
-    cursor: default;
 }
 
 .small {
@@ -893,13 +892,13 @@ code {
     line-height: 1.1;
 }
 
+/* Still pickable, and the panel under the grid is where it says why it came out dim */
 .cday.dim {
     background: var(--bg);
     border-color: var(--border);
     color: var(--muted);
     text-shadow: none;
     opacity: 0.6;
-    cursor: default;
 }
 
 .cday.chosen {
