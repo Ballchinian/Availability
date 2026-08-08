@@ -257,17 +257,50 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
 }
 
 /*
+    Puts one of the plan's own messages where it belongs: edited where it sits, or posted
+    again when somebody has deleted it since.
+
+    The second half is the point. Without it one deleted message is permanent, since every
+    later pass fetches nothing, gives up, and the plan spends the rest of its life with no
+    pinned opener or a confirmation nobody in the thread can answer.
+
+    A replacement lands at the bottom of the thread rather than back where the old one was,
+    which is what pinning is for. Says which of the two happened, since only a fresh one
+    needs pinning and writing down. Answers with nothing when even the send failed.
+*/
+async function placeThreadMessage(thread, messageId, payload) {
+    if (messageId) {
+        const msg = await thread.messages.fetch(messageId).catch(() => null);
+        if (msg) {
+            const edited = await msg.edit(payload).catch(() => null);
+            if (edited) return { message: edited, fresh: false };
+        }
+    }
+    const sent = await thread.send(payload).catch(() => null);
+    return sent ? { message: sent, fresh: true } : null;
+}
+
+/*
     Rewrite the shared thread probe so its tally keeps up as votes come in, including
-    votes cast from a DM. A probe with no thread message (DM only) has nothing to redraw,
-    so this quietly does nothing. Best effort, a deleted message is fine.
+    votes cast from a DM, and put it back when it has been deleted.
+
+    A probe that never had a thread message is left alone rather than given one. That is
+    the DM only case, from a probe that went up while the thread was unreachable, and
+    since this runs on every vote it would otherwise post a poll into a thread the
+    planner never asked to have one in.
 */
 export async function updateProbeMessage(plan) {
     if (!plan.probeThreadMessageId || !plan.threadId) return;
     const thread = await client.channels.fetch(plan.threadId).catch(() => null);
     if (!thread) return;
     await reviveThread(thread);
-    const msg = await thread.messages.fetch(plan.probeThreadMessageId).catch(() => null);
-    if (msg) await msg.edit({ content: probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { parse: [] } }).catch(() => {});
+
+    const placed = await placeThreadMessage(thread, plan.probeThreadMessageId, {
+        content: probeText(plan),
+        components: [probeRow(plan.planId)],
+        allowedMentions: { parse: [] }
+    });
+    if (placed?.fresh) await setProbe(plan.planId, { active: Boolean(plan.probeActive), threadMessageId: placed.message.id });
 }
 
 //Best effort display name for someone in a guild, falling back when they have left
@@ -482,9 +515,8 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
     Apply a title or description edit to the Discord side of a plan. The stored
     plan is already updated, so this just keeps Discord in step: rename the thread
     when the title changed, and rewrite the pinned opening post so it still shows
-    the right title and description. All best effort, a missing thread or a deleted
-    opener just means there is nothing to update. This makes no noise, no DM and no
-    new thread message.
+    the right title and description. All best effort, a missing thread just means
+    there is nothing to update. This makes no noise and no DM.
 */
 export async function applyDetailsEdit(plan, renamed) {
     if (!plan.threadId) return;
@@ -495,10 +527,20 @@ export async function applyDetailsEdit(plan, renamed) {
     //Discord caps thread renames at 2 per 10 minutes, so only rename when the title moved
     if (renamed) await thread.setName(plan.name.slice(0, 100)).catch(() => {});
 
-    //Older plans have no remembered opener, so there is nothing to rewrite for those
+    /*
+        Older plans have no remembered opener and are left alone: a repost would land at
+        the bottom of the thread, which is not an opener, and there is no id saying one
+        was ever meant to be there. A plan that had one and lost it does get a new one.
+    */
     if (plan.openerMessageId) {
-        const msg = await thread.messages.fetch(plan.openerMessageId).catch(() => null);
-        if (msg) await msg.edit({ content: openerText(plan), allowedMentions: { parse: [] } }).catch(() => {});
+        const placed = await placeThreadMessage(thread, plan.openerMessageId, {
+            content: openerText(plan),
+            allowedMentions: { parse: [] }
+        });
+        if (placed?.fresh) {
+            await pinMessage(placed.message).catch(() => {});
+            await setPlanOpener(plan.planId, placed.message.id);
+        }
     }
 }
 
