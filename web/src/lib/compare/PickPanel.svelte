@@ -116,6 +116,15 @@
 
     const isCurrent = $derived(sameDetails && !probeWanted);
 
+    /*
+        An edited DM makes no sound, so a day moved quietly never reaches anyone who read
+        the old one. Editing a time or note on a day that is staying put is what quiet mode
+        is for and goes without this.
+    */
+    let owned = $state(false);
+    const risky = $derived(quiet && !isUpdate);
+    const blocked = $derived(risky && !owned);
+
     async function lockIn() {
         await panel.run(async () => {
             await api(`/plans/${planId}/choose`, {
@@ -208,8 +217,15 @@
                 pinned post are rewritten where they sit, and the people coming get told what moved.
             </p>
         {/if}
+        {#if risky}
+            <p class="status error small">
+                Quiet mode is on and this sets the day itself. Everyone's DM will say the new day,
+                but nothing will tell them to look, so anyone who has read theirs keeps the old one.
+            </p>
+            <label class="check"><input type="checkbox" bind:checked={owned} /> I know, set it quietly anyway</label>
+        {/if}
         {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
-        <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent}>
+        <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
             {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Confirm {formatDate(selectedDate)}{/if}
         </button>
     </div>

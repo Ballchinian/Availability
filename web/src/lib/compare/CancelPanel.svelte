@@ -16,6 +16,13 @@
     let post = $state(true);
     let dm = $state(true);
 
+    /*
+        Every other quiet action leaves people holding something true. This one leaves them
+        free to turn up to nothing, so it is still obeyed, but only once it has been said twice.
+    */
+    let owned = $state(false);
+    const blocked = $derived(quiet && !owned);
+
     async function doCancel() {
         await panel.run(async () => {
             await api(`/plans/${planId}/cancel`, {
@@ -35,9 +42,15 @@
             <p class="small">Cancel this plan? The thread stays until you delete it by hand in Discord.</p>
             <label class="check" class:off={quiet}><input type="checkbox" bind:checked={post} disabled={quiet} /> Post the cancellation in the thread</label>
             <label class="check" class:off={quiet}><input type="checkbox" bind:checked={dm} disabled={quiet} /> DM everyone</label>
-            {#if quiet}<p class="muted small">Quiet mode is on, so neither of those happens.</p>{/if}
+            {#if quiet}
+                <p class="status error small">
+                    Quiet mode is on. Everyone's DM will say the plan is off, but nothing will tell
+                    them to look, so anyone who has already read theirs could still turn up.
+                </p>
+                <label class="check"><input type="checkbox" bind:checked={owned} /> I know, cancel it quietly anyway</label>
+            {/if}
             <div class="void-row">
-                <button class="ghost danger-btn" onclick={doCancel} disabled={panel.busy}>
+                <button class="ghost danger-btn" onclick={doCancel} disabled={panel.busy || blocked}>
                     {panel.busy ? 'Cancelling...' : quiet ? 'Yes, cancel it quietly' : 'Yes, cancel it'}
                 </button>
                 <button class="ghost" onclick={() => (panel.open = false)}>No</button>
