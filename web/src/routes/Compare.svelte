@@ -5,18 +5,18 @@
     import { formatDate, formatTime } from '../lib/format.js';
     import type { CompareScreen } from '../lib/types.js';
     import ClockNote from '../lib/ClockNote.svelte';
+    import AboutPanel from '../lib/compare/AboutPanel.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
     import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
     import CancelPanel from '../lib/compare/CancelPanel.svelte';
     import ConfirmPanel from '../lib/compare/ConfirmPanel.svelte';
     import DayCompare from '../lib/compare/DayCompare.svelte';
-    import DaysEditor from '../lib/compare/DaysEditor.svelte';
     import EditDetails from '../lib/compare/EditDetails.svelte';
     import HistoryPanel from '../lib/compare/HistoryPanel.svelte';
-    import RangeEditor from '../lib/compare/RangeEditor.svelte';
     import RemindPanel from '../lib/compare/RemindPanel.svelte';
     import RepairPanel from '../lib/compare/RepairPanel.svelte';
     import RepeatPanel from '../lib/compare/RepeatPanel.svelte';
+    import WhenPanel from '../lib/compare/WhenPanel.svelte';
 
     /*
         The planner's screen: where the plan stands, and the panels that act on it. Each
@@ -112,13 +112,6 @@
         } catch (err) {
             if (isAuthError(err)) loadError = errorText(err);
         }
-    }
-
-    //Changes that make the picked day meaningless: the plan reopens with nothing set
-    async function reopen() {
-        selectedDate = null;
-        betterDay = false;
-        await load();
     }
 
     onMount(async () => {
@@ -278,19 +271,21 @@
             <HistoryPanel history={data.history} />
             <p class="ways"><a href="#/">Back to your plans</a></p>
         {:else}
+            <!--A list of what you came here wanting, not of what the app would have to do about it.
+                Whether a change costs everyone their answer is worked out from the change itself,
+                so it is said on the button that does it rather than by filing it under a heading.-->
             <details class="group" bind:open={changing}>
                 <summary>Change the plan</summary>
 
-                <!--Only once a day is set. While it is still open the grid above is where the day
-                    is picked, and everything here would be a second way to do the same thing.-->
-                {#if chosen}
-                    <h3>The day it is on</h3>
-                    <div class="tools">
-                        <!--The grid is the only way to a different day, and to the time and note on
-                            the one it is on, so it is offered whether or not anybody has answered-->
+                <div class="tools">
+                    <!--Only once a day is set. While it is still open the grid above is where the day
+                        is picked, and this would be a second way to do the same thing.-->
+                    {#if chosen}
+                        <!--The grid is the only way to a different day, so it is offered whether or
+                            not anybody has answered-->
                         <div class="better" class:wide={betterDay}>
                             {#if !betterDay}
-                                <button class="ghost" onclick={() => (betterDay = true)}>Move it, or change the time or note</button>
+                                <button class="ghost" onclick={() => (betterDay = true)}>The day is wrong</button>
                             {:else}
                                 <p class="muted small">The day it is set for is ringed in green.</p>
                                 <DayCompare
@@ -314,30 +309,28 @@
                                 </div>
                             {/if}
                         </div>
-                    </div>
-                {/if}
 
-                <h3>The days it asks about</h3>
-                <div class="tools">
-                    <RangeEditor planId={params.planId} start={data.plan.start} end={data.plan.end} {quiet} onsaved={reopen} />
+                        <WhenPanel
+                            planId={params.planId}
+                            chosenDate={chosen.date}
+                            time={chosen.time}
+                            note={chosen.note}
+                            {quiet}
+                            onsaved={load}
+                        />
+                    {/if}
 
-                    <DaysEditor planId={params.planId} allowedWeekdays={data.plan.allowedWeekdays} {quiet} onsaved={reopen} />
-
-                    <RepeatPanel
+                    <AboutPanel
                         planId={params.planId}
-                        repeatWeeks={data.plan.repeatWeeks}
-                        repeatedFrom={data.plan.repeatedFrom}
-                        repeatedInto={data.plan.repeatedInto}
-                        start={data.plan.start}
-                        end={data.plan.end}
+                        name={data.plan.name}
+                        description={data.plan.description}
                         chosenDate={data.plan.chosenDate}
-                        chosenTime={data.plan.chosenTime}
-                        onchanged={load}
+                        time={chosen?.time ?? ''}
+                        note={chosen?.note ?? ''}
+                        {quiet}
+                        onsaved={load}
                     />
-                </div>
 
-                <h3>The plan itself</h3>
-                <div class="tools">
                     <EditDetails
                         planId={params.planId}
                         name={data.plan.name}
@@ -351,6 +344,22 @@
                         participants={data.participants}
                         {quiet}
                         onadded={load}
+                    />
+
+                    <!--A screen rather than a panel: it is the create form again, and the only one
+                        of these that can cost everyone their answer-->
+                    <a class="ghost" href="#/plan/{params.planId}/dates">None of these days work</a>
+
+                    <RepeatPanel
+                        planId={params.planId}
+                        repeatWeeks={data.plan.repeatWeeks}
+                        repeatedFrom={data.plan.repeatedFrom}
+                        repeatedInto={data.plan.repeatedInto}
+                        start={data.plan.start}
+                        end={data.plan.end}
+                        chosenDate={data.plan.chosenDate}
+                        chosenTime={data.plan.chosenTime}
+                        onchanged={load}
                     />
 
                     <RepairPanel planId={params.planId} />

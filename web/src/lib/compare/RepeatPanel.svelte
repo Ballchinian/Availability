@@ -69,7 +69,7 @@
         </p>
     {:else if !panel.open}
         <button class="ghost" onclick={open}>
-            {repeatWeeks ? `Comes round ${describeRepeat(repeatWeeks)}, change it` : 'Make this repeat'}
+            {repeatWeeks ? `Comes round ${describeRepeat(repeatWeeks)}, change it` : 'It should come round again'}
         </button>
     {:else}
         <p class="muted small">

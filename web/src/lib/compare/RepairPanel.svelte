@@ -29,7 +29,7 @@
 
 <div class="repair" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={() => panel.show()}>Fix up Discord</button>
+        <button class="ghost" onclick={() => panel.show()}>Discord has gone wrong</button>
     {:else}
         <p class="muted small">
             Out of step with Discord? This rewrites the pinned post, the yes/no message and everyone's DM

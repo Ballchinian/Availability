@@ -973,6 +973,22 @@ code {
     cursor: default;
 }
 
+/*
+    One action in the change list is a screen rather than a panel, so it is a link sitting
+    in a row of buttons. Everything here is undoing what a link is: the colour, the
+    underline, and the baseline it would otherwise sit on a pixel off from its neighbours.
+*/
+a.ghost {
+    display: inline-block;
+    color: var(--text);
+    text-decoration: none;
+    line-height: normal;
+}
+
+a.ghost:hover {
+    border-color: var(--muted);
+}
+
 .pick-panel {
     margin-top: 18px;
     padding: 16px;
@@ -1314,6 +1330,7 @@ code {
     font-size: 14px;
 }
 
+.edit input[type='time'],
 .edit input[type='text'],
 .edit textarea {
     background: var(--bg);

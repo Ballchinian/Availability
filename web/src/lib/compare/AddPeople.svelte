@@ -60,7 +60,7 @@
 
 <div class="add" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>Add someone to this plan</button>
+        <button class="ghost" onclick={open}>Someone else should be on it</button>
     {:else}
         <p class="muted small">Pick anyone in the server to pull into this plan. They get added to the thread, and a DM with the link if you leave the box ticked.</p>
         {#if listing}

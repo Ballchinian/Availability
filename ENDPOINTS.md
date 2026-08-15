@@ -629,7 +629,7 @@ Planner role only.
 * At least one of the picked weekdays has to fall inside the new window.
 * The request has to change something: the same window, days, people and repeat is refused.
 * Shares the range route's daily backstop rather than taking one of its own, since it is the same ask.
-* The `/range`, `/weekdays`, `/add` and `/repeat` routes are all still here, for the panels that change one thing at a time.
+* `/add` and `/repeat` are still reached on their own from the compare page, since adding a person and turning a repeat on are their own reasons to be there. `/range` and `/weekdays` no longer have a caller on the site, this route being how the window and the days move now, but both remain.
 
 ---
 
