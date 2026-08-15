@@ -83,6 +83,51 @@ describe('picking a day nobody has answered about', () => {
     });
 });
 
+/*
+    The line above the set button. Three switches decide who hears about a date and how,
+    and no two of them are next to each other, so what they come to together is the only
+    thing worth asserting here.
+*/
+describe('what setting a day says it will do', () => {
+    const draw = (props: Record<string, unknown> = {}) =>
+        render(PickPanel, {
+            props: {
+                planId: 'ab12cd34ef',
+                selectedDate: '2026-08-12',
+                confirmedCount: 0,
+                totalParticipants: 3,
+                onsaved: async () => {},
+                ...props
+            }
+        }).body;
+
+    it('names the thread post and the DMs on a plain set', () => {
+        expect(draw()).toContain('Posts in the thread, pings 3 people and DMs them.');
+    });
+
+    //The default narrows the list, so the people it takes off get counted before it happens
+    it('counts who comes off the list when it narrows', () => {
+        const body = draw({ confirmedCount: 1, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
+        expect(body).toContain('pings 1 person and DMs them.');
+        expect(body).toContain('2 people come off the list and hear no more about it.');
+    });
+
+    it('says nothing goes out at all under quiet mode', () => {
+        expect(draw({ quiet: true })).toContain('Sends nothing.');
+    });
+
+    //A day staying put keeps every answer, which is the opposite of what moving one does
+    it('says what stands when only the time or note is changing', () => {
+        const body = draw({ chosen: { date: '2026-08-12', time: '', note: '' } });
+        expect(body).toContain('DMs 3 people to say what changed');
+        expect(body).toContain('Every answer and the invite list stand.');
+    });
+
+    it('tells nobody about a quiet edit to a day that is staying put', () => {
+        expect(draw({ quiet: true, chosen: { date: '2026-08-12', time: '', note: '' } })).toContain('tells nobody');
+    });
+});
+
 describe('the compare grid', () => {
     const draw = (props: Record<string, unknown>) =>
         render(CompareGrid, {

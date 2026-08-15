@@ -135,6 +135,40 @@
     const risky = $derived(quiet && !isUpdate);
     const blocked = $derived(risky && !owned);
 
+    /*
+        What pressing the button does to people, given the switches as they stand. Quiet,
+        the yes/no box and the invite radio each pull it a different way, and what the three
+        of them add up to is the one thing about this panel nothing else on screen shows.
+
+        Takes a thread for granted the same way the invite list does: a plan whose thread has
+        gone is what the repair panel is for.
+    */
+    const outcome = $derived.by(() => {
+        const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+        const invited = people(totalParticipants - dropping);
+
+        //Setting a day clears the confirmation, so only the box decides whether one is running
+        if (isUpdate) {
+            const said = quiet
+                ? 'Rewrites the pinned post and the DMs everyone already holds, and tells nobody'
+                : `Rewrites the pinned post and DMs ${invited} to say what changed`;
+            return `${said}. Every answer and the invite list stand.`;
+        }
+
+        const off = dropping
+            ? ` ${people(dropping)} ${dropping === 1 ? 'comes off the list and hears' : 'come off the list and hear'} no more about it.`
+            : '';
+
+        if (quiet) {
+            return probe
+                ? `Posts the yes/no in the thread pinging nobody, and quietly rewrites the DMs everyone already holds.${off}`
+                : `Sends nothing. Quietly rewrites the DMs everyone already holds to the new day.${off}`;
+        }
+        return probe
+            ? `Posts the yes/no in the thread, pings ${invited} and DMs them the same buttons. I'll DM you when everyone is in, or if someone can't make it.${off}`
+            : `Posts in the thread, pings ${invited} and DMs them.${off}`;
+    });
+
     async function lockIn() {
         await panel.run(async () => {
             await api(`/plans/${planId}/choose`, {
@@ -220,33 +254,17 @@
                     <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
                 </div>
             {/if}
-            <p class="muted small">The outcome goes in the thread and everyone still invited gets a DM.</p>
-            <!--Said before it happens rather than found afterwards on the board: the default
-                here is the one that takes people off the plan-->
-            {#if dropping > 0}
-                <p class="muted small">
-                    {dropping} {dropping === 1 ? 'person comes' : 'people come'} off the invite list for this date, so no DM
-                    and nothing more about it. The board puts them back once the date is set.
-                </p>
-            {/if}
             {#if !probeActive}
                 <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone if they can make it (yes/no)</label>
-                {#if probe}
-                    <p class="muted small">Everyone still invited gets yes/no buttons in the thread and by DM. I'll DM you when everyone is in, or if someone can't make it.</p>
-                {/if}
             {/if}
-        {:else}
-            <p class="muted small">
-                Changing the time or the note leaves everything else alone: nobody's answer is cleared,
-                you are still asking who can make it, and the invite list stays as it is. Everyone's DM and
-                the pinned post are rewritten where they sit, and the people coming get told what moved.
-            </p>
         {/if}
+
+        <!--Said before it happens rather than found afterwards on the board, since the switches
+            above show what they are set to and never what they come to together-->
+        <p class="muted small">{outcome}</p>
+
         {#if risky}
-            <p class="status error small">
-                Quiet mode is on and this sets the day itself. Everyone's DM will say the new day,
-                but nothing will tell them to look, so anyone who has read theirs keeps the old one.
-            </p>
+            <p class="status error small">Anyone who has already read their DM keeps the old day, since nothing tells them to look again.</p>
             <label class="check"><input type="checkbox" bind:checked={owned} /> I know, set it quietly anyway</label>
         {/if}
         {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
