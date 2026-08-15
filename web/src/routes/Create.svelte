@@ -3,10 +3,11 @@
     import { router } from 'svelte-spa-router';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { isoFromNow, isoPlus } from '../lib/calendar.js';
+    import { isoFromNow, isoPlus, repeatSeries } from '../lib/calendar.js';
     import { formatDate, REPEAT_WEEKS, describeRepeat } from '../lib/format.js';
     import type { CreatedPlan, GuildInfo, Member, PlanTemplate } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
+    import RepeatDates from '../lib/RepeatDates.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -52,6 +53,22 @@
         known. Null is a one off, which is nearly every plan.
     */
     let repeatWeeks = $state<number | null>(null);
+
+    /*
+        The turns the picked interval takes, to draw rather than describe. Only announce
+        mode has them: a plan out collecting dates has no day of its own yet for a series
+        to count from, and nothing is made until it gets one.
+    */
+    const repeatDates = $derived(
+        mode === 'announce' && setDate && repeatWeeks
+            ? repeatSeries({
+                  repeatWeeks,
+                  dateRange: { start: setDate, end: setDate },
+                  chosenDate: setDate,
+                  chosenTime: setTime || null
+              })
+            : []
+    );
 
     const todayIso = isoFromNow(0, 'day');
     const minStart = isoFromNow(1, 'day');
@@ -339,6 +356,17 @@
                     </button>
                 {/each}
             </div>
+            {#if mode === 'announce' && setDate && repeatWeeks}
+                {#if repeatDates.length}
+                    <RepeatDates first={setDate} shapes={repeatDates} />
+                {:else}
+                    <!--The one thing the calendar cannot draw, since there is nothing to put on it-->
+                    <p class="status small">
+                        Nothing follows it: {describeRepeat(repeatWeeks)} on from {formatDate(setDate)} lands past the two
+                        years anything here reaches.
+                    </p>
+                {/if}
+            {/if}
         </div>
 
         {#if formError}

@@ -3,6 +3,8 @@ import { render } from 'svelte/server';
 import ConfirmPanel from '../../src/lib/compare/ConfirmPanel.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
+import RepeatDates from '../../src/lib/RepeatDates.svelte';
+import { repeatSeries } from '../../src/lib/calendar.js';
 import type { Answer, Participant } from '../../src/lib/types.js';
 
 /*
@@ -109,5 +111,49 @@ describe('the compare grid', () => {
 
     it('marks nothing when no day is set', () => {
         expect(draw({ chosenDate: null })).not.toContain('isset');
+    });
+});
+
+/*
+    The repeat calendar. It exists to draw dates instead of writing them out, so what it
+    puts on screen is the only thing worth asserting.
+*/
+describe('the repeat dates calendar', () => {
+    const series = repeatSeries({
+        repeatWeeks: 2,
+        dateRange: { start: '2026-08-06', end: '2026-08-06' },
+        chosenDate: '2026-08-06',
+        chosenTime: null
+    });
+    const draw = (props: Record<string, unknown>) =>
+        render(RepeatDates, { props: { first: '2026-08-06', shapes: series, ...props } }).body;
+
+    it('opens on the month the plan itself is on', () => {
+        expect(draw({})).toContain('August 2026');
+    });
+
+    it('tells the day this plan is on apart from the ones that follow', () => {
+        const body = draw({});
+        expect(body).toContain('Thursday 6 August 2026, this one');
+        expect(body).toContain('Thursday 20 August 2026, it comes round again');
+    });
+
+    //A month at a time is the whole reason there are arrows on it
+    it('draws one month, not the whole series', () => {
+        expect(draw({})).not.toContain('<h4>September 2026</h4>');
+    });
+
+    it('says the series out loud for anyone who cannot see the grid', () => {
+        expect(draw({})).toContain('Thursday 3 September 2026');
+    });
+
+    //A plan that collected dates comes back as a window, which reads as a stretch rather than a day
+    it('names the days a following window asks about', () => {
+        const body = draw({
+            first: '2026-08-10',
+            shapes: repeatSeries({ repeatWeeks: 1, dateRange: { start: '2026-08-01', end: '2026-08-14' }, chosenDate: '2026-08-10' })
+        });
+        expect(body).toContain('one of the days the next one asks about');
+        expect(body).toContain('the days it asks about');
     });
 });

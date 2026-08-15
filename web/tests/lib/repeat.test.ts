@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextPlanShape } from '../../src/lib/calendar.js';
+import { nextPlanShape, repeatSeries } from '../../src/lib/calendar.js';
 import { REPEAT_WEEKS, describeRepeat } from '../../src/lib/format.js';
 
 /*
@@ -66,5 +66,47 @@ describe('the repeat preview', () => {
     it('has nothing to show once the series runs past what the site reaches', () => {
         const far = '2030-01-01';
         expect(nextPlanShape({ repeatWeeks: 1, dateRange: { start: far, end: far }, chosenDate: far }, far)).toBe(null);
+    });
+});
+
+/*
+    The days the calendar draws. Chained through nextPlanShape rather than stepping the
+    interval, so a drawn date is one the sweep would make, and the shape of the plan is
+    what decides how many turns are worth drawing.
+*/
+describe('repeatSeries', () => {
+    const setPlan = (repeatWeeks: number | null) => ({
+        repeatWeeks: repeatWeeks as number,
+        dateRange: { start: '2026-08-06', end: '2026-08-06' },
+        chosenDate: '2026-08-06',
+        chosenTime: '19:00'
+    });
+
+    it('walks a set day out a whole interval at a time', () => {
+        const dates = repeatSeries(setPlan(2)).map((s) => s.chosen?.date);
+        expect(dates).toEqual(['2026-08-20', '2026-09-03', '2026-09-17', '2026-10-01', '2026-10-15', '2026-10-29']);
+    });
+
+    it('carries the time onto every turn, since the plan keeps it', () => {
+        expect(repeatSeries(setPlan(1)).every((s) => s.chosen?.time === '19:00')).toBe(true);
+    });
+
+    //Six shifted windows would tile the months solid, and the sweep only makes one at a time
+    it('draws only the next window for a plan that collected dates', () => {
+        const series = repeatSeries({
+            repeatWeeks: 1,
+            dateRange: { start: '2026-08-01', end: '2026-08-14' },
+            chosenDate: '2026-08-10'
+        });
+        expect(series).toEqual([{ set: false, dateRange: { start: '2026-08-15', end: '2026-08-28' }, chosen: null }]);
+    });
+
+    it('has nothing to draw for a one off', () => {
+        expect(repeatSeries(setPlan(null))).toEqual([]);
+    });
+
+    it('stops rather than running past the two years anything here reaches', () => {
+        const far = '2030-01-01';
+        expect(repeatSeries({ repeatWeeks: 1, dateRange: { start: far, end: far }, chosenDate: far })).toEqual([]);
     });
 });

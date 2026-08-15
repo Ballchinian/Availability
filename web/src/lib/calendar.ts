@@ -70,7 +70,50 @@ export function daysSince(ts: string): number {
     days and the page cannot promise a date the sweep would not make. weekdayAllowed keeps
     its site name here since that is what the screens read as.
 */
-export { weekdayOf, weekdayAllowed as isWeekdayAllowed, shiftDate, nextPlanShape } from '../../../shared/dates.js';
+import { shiftDate, nextPlanShape, type RepeatSource, type PlanShape } from '../../../shared/dates.js';
+export { weekdayOf, weekdayAllowed as isWeekdayAllowed } from '../../../shared/dates.js';
+export { shiftDate, nextPlanShape };
+export type { RepeatSource, PlanShape };
+
+//As many turns of a repeat as the calendar draws before it stops being useful to look at
+const SERIES_LIMIT = 6;
+
+/*
+    The turns a repeat takes, for drawing on a calendar. Chained through the same
+    function the sweep uses rather than stepping the interval here, so a date on the
+    calendar is one the sweep would actually make. Runs short, or empty, once the
+    series reaches past the two years anything here goes to.
+
+    Each turn is read from two days past the one before it, which is the earliest the
+    sweep can fire: it only looks once a day has been and gone, and asks for dates from
+    its own tomorrow.
+
+    A plan that collected dates comes back as a window rather than a day, and only the
+    next one of those is worth drawing: the sweep makes one at a time either way, and
+    six shifted windows tile the months solid.
+*/
+export function repeatSeries(plan: RepeatSource): PlanShape[] {
+    const out: PlanShape[] = [];
+    if (!plan.repeatWeeks) return out;
+
+    const limit = plan.dateRange.start === plan.dateRange.end ? SERIES_LIMIT : 1;
+    let source = plan;
+    let from = shiftDate(plan.chosenDate || plan.dateRange.start, 2);
+
+    for (let i = 0; i < limit; i++) {
+        const shape = nextPlanShape(source, from);
+        if (!shape) break;
+        out.push(shape);
+        source = {
+            repeatWeeks: plan.repeatWeeks,
+            dateRange: shape.dateRange,
+            chosenDate: shape.chosen ? shape.chosen.date : null,
+            chosenTime: shape.chosen ? shape.chosen.time : null
+        };
+        from = shiftDate(shape.chosen ? shape.chosen.date : shape.dateRange.start, 2);
+    }
+    return out;
+}
 
 //Days in a range, or just the ones on the allowed weekdays when the plan is pinned
 export function countDays(start: string, end: string, allowedWeekdays?: number[] | null): number {
