@@ -4,6 +4,7 @@ import ConfirmPanel from '../../src/lib/compare/ConfirmPanel.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
+import RepeatField from '../../src/lib/RepeatField.svelte';
 import { repeatSeries } from '../../src/lib/calendar.js';
 import type { Answer, Participant } from '../../src/lib/types.js';
 
@@ -211,5 +212,32 @@ describe('the repeat dates calendar', () => {
         });
         expect(body).toContain('one of the days the next one asks about');
         expect(body).toContain('the days it asks about');
+    });
+});
+
+/*
+    The repeat picker both screens share. What it has to get right is when there is a day
+    for a series to count off at all: without one the sweep makes nothing, and a calendar
+    drawn anyway would be promising dates from a day that does not exist.
+*/
+describe('the repeat picker', () => {
+    const draw = (props: Record<string, unknown> = {}) => render(RepeatField, { props }).body;
+
+    it('offers the intervals whether or not a day is set', () => {
+        expect(draw()).toContain('one off');
+        expect(draw()).toContain('every other week');
+    });
+
+    it('draws where the interval lands once there is a day to count from', () => {
+        expect(draw({ weeks: 2, from: '2026-08-06' })).toContain('Thursday 20 August 2026, it comes round again');
+    });
+
+    //Nothing is made until this plan has a day of its own, so there is nothing honest to draw
+    it('draws no calendar while the plan is still looking for a day', () => {
+        expect(draw({ weeks: 2, from: null })).not.toContain('rcal');
+    });
+
+    it('draws no calendar for a one off', () => {
+        expect(draw({ weeks: null, from: '2026-08-06' })).not.toContain('rcal');
     });
 });
