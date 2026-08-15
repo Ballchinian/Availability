@@ -769,6 +769,51 @@ export async function announceRangeChange(plan, cfg, { actorName, note, post = t
 }
 
 /*
+    One post for a change that moved several things at once: the window, which days count,
+    and anyone new on the list. announceRangeChange and announceWeekdaysChange are still
+    what the single-change panels send; this is what the dates screen sends instead, since
+    three of those arriving in the same thread within a second of each other reads as a
+    fault rather than as one decision.
+
+    Anyone added is left out of the ids this writes to and handed to announceAddition
+    instead: the invitation already carries the window and the days, so a second message
+    telling them what changed would be about a plan they have never seen.
+*/
+export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reopened, note, added = [], post = true, dm = true }) {
+    //Every card carries the window and the days, so they are all wrong until this runs
+    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] dates sync failed:', err));
+
+    const isNew = new Set(added);
+    const ids = plan.participants.map((p) => p.userId).filter((id) => !isNew.has(id));
+    const url = planUrl(plan.planId);
+    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
+    const days = daysLabel ? `, ${daysLabel} only` : '';
+    //A round reopened means fill it in, anything narrower means nothing to do
+    const tail = reopened ? `Add your availability here: ${url}` : 'Nothing to do, your saved days still stand.';
+    const extra = note ? `\n${note}` : '';
+
+    if (post && plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            await thread.send({
+                content: banner('DATES CHANGED') +
+                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} is asking about different dates for **${plan.name}**: ${range}${days}. ${tail}${extra}`,
+                allowedMentions: { users: ids }
+            });
+        }
+    }
+
+    if (dm && ids.length) {
+        await dmEach(ids,
+            banner('DATES CHANGED') +
+            `${actorName} is asking about different dates for "${plan.name}" in ${cfg.guildName}: ${range}${days}. ${tail}${extra}`);
+    }
+
+    if (added.length) await announceAddition(plan, added, actorName, { dm });
+}
+
+/*
     Tells everyone the plan now asks about a different set of days. When reopened is on
     the change opened a new day, so people are asked to look again and fill it in; when
     it is off the plan only narrowed, so their saved days still stand and there is

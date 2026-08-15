@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announceRangeChange, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceRangeChange, announcePlanDates, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -48,6 +48,7 @@ vi.mock('../../src/db/plans.js', () => ({
         'setVoteReminded',
         'setPlanRange',
         'setPlanWeekdays',
+        'setPlanDates',
         'addParticipants',
         'setPlanDetails',
         'setAttendanceOverride',
@@ -86,6 +87,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'remindVoters',
         'announceRangeChange',
         'announceWeekdaysChange',
+        'announcePlanDates',
         'announceCancel',
         'leavePlan',
         'announceAddition',
@@ -155,7 +157,7 @@ const post = (path, body = {}) =>
     });
 
 //The routes that refuse to touch a cancelled plan, which is all of them bar the three below
-const changing = ['/choose', '/attendance', '/void', '/repeat', '/remind', '/range', '/weekdays', '/details', '/add'];
+const changing = ['/choose', '/attendance', '/void', '/repeat', '/remind', '/range', '/weekdays', '/dates', '/details', '/add'];
 
 describe('the plan gate', () => {
     /*
@@ -474,5 +476,124 @@ describe('fixing up Discord by hand', () => {
     it('is planner only', async () => {
         plannerAnswer = notPlanner;
         expect((await post('/ab12cd34ef/repair')).status).toBe(403);
+    });
+});
+
+
+/*
+    The one route that changes the window, the days, the crowd and the repeat together.
+    What matters is which of those four it decides has moved, since that is what sets
+    whether everyone goes back for their dates and what the single post ends up saying.
+
+    Its dates are worked out from today rather than written down: this route refuses a
+    window that has already been, so fixed dates here would pass until the day they did not.
+*/
+describe('going back out for different dates', () => {
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ahead = (days) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return iso(d);
+    };
+    //The first Monday a month out, so a Monday to Friday window is the same shape whenever this runs
+    const monday = (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 30);
+        d.setDate(d.getDate() + ((8 - d.getDay()) % 7));
+        return d;
+    })();
+    const friday = new Date(monday.getTime() + 4 * 86400000);
+
+    const window = { start: ahead(30), end: ahead(60) };
+    const moved = { start: ahead(90), end: ahead(120) };
+
+    const dates = (body) => post('/ab12cd34ef/dates', body);
+    //The plan's own window, so a request repeating it is the one that has changed nothing
+    const standing = (over = {}) => plan({ dateRange: { start: window.start, end: window.end }, ...over });
+
+    beforeEach(() => plans.set('ab12cd34ef', standing()));
+
+    it('moves the window and sends everyone back for their dates', async () => {
+        const res = await dates(moved);
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ start: moved.start, end: moved.end, reopened: true });
+        expect(db.setPlanDates).toHaveBeenCalledWith('ab12cd34ef', {
+            start: moved.start,
+            end: moved.end,
+            allowedWeekdays: null,
+            repeatWeeks: null,
+            reopen: true
+        });
+    });
+
+    //A window that stayed put falls back to the weekday rule, where taking days away costs nobody their answer
+    it('narrows the days without sending anyone back', async () => {
+        const res = await dates({ ...window, allowedWeekdays: [0, 6] });
+
+        expect(await res.json()).toMatchObject({ reopened: false, allowedWeekdays: [0, 6] });
+        expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reopen: false }));
+    });
+
+    it('sends everyone back when a day nobody was asked about opens', async () => {
+        plans.set('ab12cd34ef', standing({ allowedWeekdays: [0, 6] }));
+        expect(await (await dates({ ...window, allowedWeekdays: null })).json()).toMatchObject({ reopened: true });
+    });
+
+    it('carries the repeat into the same write rather than a second one', async () => {
+        await dates({ ...window, repeatWeeks: 2 });
+        expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ repeatWeeks: 2 }));
+        expect(db.setPlanRepeat).not.toHaveBeenCalled();
+    });
+
+    it('refuses a repeat that is not one of the offered intervals', async () => {
+        expect((await dates({ ...window, repeatWeeks: 3 })).status).toBe(400);
+        expect(db.setPlanDates).not.toHaveBeenCalled();
+    });
+
+    //Four things it could change and none of them did, so there is nothing to announce
+    it('refuses a request that moves nothing at all', async () => {
+        const res = await dates(window);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/Nothing changed/);
+        expect(db.setPlanDates).not.toHaveBeenCalled();
+    });
+
+    it('refuses days that fall nowhere inside the new window', async () => {
+        const res = await dates({ start: iso(monday), end: iso(friday), allowedWeekdays: [0, 6] });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/None of those days/);
+    });
+
+    it('refuses a window that has already been', async () => {
+        const res = await dates({ start: '2020-01-01', end: '2020-01-31' });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/in the past/);
+    });
+
+    //One post for the lot, rather than the three the panels it stands in for would have sent
+    it('announces the change once', async () => {
+        await dates({ ...moved, allowedWeekdays: [0, 6] });
+        expect(announceAfter).toHaveBeenCalledTimes(1);
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(announcePlanDates).toHaveBeenCalledTimes(1);
+    });
+
+    it('goes quiet on both the thread and the DMs when asked', async () => {
+        await dates({ ...moved, quiet: true });
+        announceAfter.mock.calls.at(-1)[1]();
+        expect(announcePlanDates.mock.calls.at(-1).at(-1)).toMatchObject({ post: false, dm: false });
+    });
+
+    //Nobody is ever taken off here, so a list missing someone already on the plan changes nothing
+    it('adds only the people the plan has never had', async () => {
+        plannerAnswer = {
+            ...asPlanner,
+            guild: { members: { cache: { get: (id) => ({ id, user: { bot: false } }) }, fetch: async () => null } }
+        };
+        const res = await dates({ ...window, participantIds: ['guest', 'newbie'] });
+
+        expect(await res.json()).toMatchObject({ added: 1 });
+        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['newbie']);
     });
 });

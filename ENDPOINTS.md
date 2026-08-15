@@ -334,7 +334,7 @@ Planner role only.
 * An empty hours list still means free all day, and survives as one from anybody whose clock matches the server's, which on most servers is everybody.
 
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
-* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
 * Every line but one was done by a person. Coming round again is written by the repeat sweep on a timer, so it carries no name and reads as a sentence of its own.
 * Capped at the most recent 100, and it is the only place history is exposed, so it never leaves the planner's screen.
 
@@ -592,6 +592,44 @@ Planner role only.
 
 * The new set has to leave at least one day inside the plan's current range, and be different from what it already asks about.
 * Capped at a high daily backstop per person, since each change can ping and DM everyone.
+
+---
+
+## POST `/api/plans/:planId/dates` (session)
+
+Go back out for different dates: the window, the weekdays, the guest list and the repeat, all in one press.
+
+Planner role only.
+
+### Input
+
+* New start and end date
+* `allowedWeekdays` (optional): as on the weekdays route, `null` or all seven for the whole range
+* `participantIds` (optional): the full guest list as the screen has it
+* `repeatWeeks` (optional): 1, 2, 4, or `null` for a one off
+* Note (optional)
+* `post` (optional, default true): whether to ping the change in the thread
+* `dm` (optional, default true): whether to DM everyone
+
+### Effects
+
+* Sets the window, the weekdays and the repeat in a single write, then adds anyone new to the guest list.
+* Reopens the plan and resets everyone's confirmed flag when the window moved, or when the weekdays opened a day nobody has been asked about. A window that stayed put falls back to the weekday rule, so a pure narrowing leaves every answer standing.
+* Sends one thread post and one round of DMs for the whole change, rather than the three the single-change routes would each have sent.
+* Anyone added gets the ordinary invitation instead, since it already carries the new window and days.
+
+### Returns
+
+* `reopened`: whether everyone was sent back for their dates
+* `added`: how many people were new to the plan
+
+### Notes
+
+* Nobody is ever taken off here. A list arriving short of someone already on the plan means the picker did not know about them, not that they are meant to go.
+* At least one of the picked weekdays has to fall inside the new window.
+* The request has to change something: the same window, days, people and repeat is refused.
+* Shares the range route's daily backstop rather than taking one of its own, since it is the same ask.
+* The `/range`, `/weekdays`, `/add` and `/repeat` routes are all still here, for the panels that change one thing at a time.
 
 ---
 

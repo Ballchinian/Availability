@@ -44,6 +44,17 @@ describe('describeEvent', () => {
         );
     });
 
+    //One press moved several things, so one line says all of them rather than three lines saying one each
+    it('reads a trip back out for dates as a single line', () => {
+        const went = { ...base, type: 'dates' as const, start: '2026-09-01', end: '2026-09-30', reopened: true };
+        expect(describeEvent({ ...went, allowedWeekdays: null, added: 0 })).toBe(
+            'went back out for dates, 01/09/2026 to 30/09/2026'
+        );
+        expect(describeEvent({ ...went, allowedWeekdays: [0, 6], added: 2 })).toBe(
+            'went back out for dates, 01/09/2026 to 30/09/2026, weekends only, and added 2 people'
+        );
+    });
+
     /*
         describeWeekdays says nothing at all when there is no restriction, which is right
         in a line of its own and useless mid sentence, so this one supplies the words.
@@ -91,7 +102,7 @@ describe('describeEvent', () => {
     //Every branch returns, so a new event type is a build error rather than a blank line
     it('says something for every type there is', () => {
         const types: PlanEvent['type'][] = [
-            'created', 'chosen', 'moved', 'voided', 'range', 'weekdays',
+            'created', 'chosen', 'moved', 'voided', 'range', 'dates', 'weekdays',
             'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'cancelled'
         ];
         for (const type of types) {
@@ -99,7 +110,7 @@ describe('describeEvent', () => {
                 ...base, type,
                 date: '2026-08-12', time: null, probe: false, from: '2026-08-01',
                 start: '2026-08-01', end: '2026-08-31', allowedWeekdays: null,
-                renamed: false, count: 1, kind: 'vote', repeatWeeks: 2, planId: 'ab12cd34ef'
+                renamed: false, count: 1, added: 0, reopened: true, kind: 'vote', repeatWeeks: 2, planId: 'ab12cd34ef'
             } as PlanEvent;
             expect(describeEvent(event)).toBeTruthy();
         }

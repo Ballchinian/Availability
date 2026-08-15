@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announcePlanDates, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -664,6 +664,96 @@ router.post('/:planId/weekdays', requirePlanner, refuseCancelled, async (req, re
     );
 
     res.json({ ok: true, allowedWeekdays: weekdays, reopened: opensADay, quiet });
+});
+
+/*
+    Everything the "ask about different dates" screen sets, in one go: the window, which
+    weekdays count, who is on it and whether it comes round again. The four routes it
+    stands in for are all still here for the panels that change one thing at a time.
+
+    Reopening reads the window first. A moved window always sends everyone back for their
+    dates, since the days they answered about are not the days being asked any more. A
+    window that stayed put falls back to the weekday rule, where opening a day reopens and
+    a pure narrowing leaves every answer standing.
+
+    Nobody is ever taken off here. A list arriving short of someone already on the plan
+    means the picker did not know about them, not that they are meant to go, and dropping
+    people is what the guest list panel is for.
+*/
+router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
+
+    const { start, end, allowedWeekdays, participantIds, repeatWeeks, note } = req.body || {};
+    const { quiet, post, dm } = loudness(req.body);
+
+    const shape = /^\d{4}-\d{2}-\d{2}$/;
+    if (!shape.test(start || '') || !shape.test(end || '')) {
+        return res.status(400).json({ error: 'Pick a valid start and end date.' });
+    }
+    if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
+    if (end < today()) return res.status(400).json({ error: 'That whole range is in the past.' });
+    if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
+
+    const weekdays = cleanWeekdays(allowedWeekdays);
+    if (weekdays && !allowedDaysInRange(start, end, weekdays).length) {
+        return res.status(400).json({ error: 'None of those days fall inside that range.' });
+    }
+
+    const wanted = repeatWeeks == null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
+    if (wanted === false) return res.status(400).json({ error: 'That is not a repeat I can do.' });
+
+    //Only the people the plan has never had. Anyone already on it is left exactly as they are.
+    const already = new Set(plan.participants.map((p) => p.userId));
+    const asked = Array.isArray(participantIds) ? participantIds.filter((id) => !already.has(id)) : [];
+    if (asked.length > MAX_PARTICIPANTS) {
+        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people to add at once.` });
+    }
+    const toAdd = asked.length ? await realMembers(ctx.guild, asked) : [];
+
+    const movedWindow = start !== plan.dateRange.start || end !== plan.dateRange.end;
+    const { same: sameDays, opensADay } = weekdayChange(plan.allowedWeekdays, weekdays);
+    const movedRepeat = wanted !== (plan.repeatWeeks || null);
+
+    if (!movedWindow && sameDays && !movedRepeat && toAdd.length === 0) {
+        return res.status(400).json({ error: 'Nothing changed there. Move the window, the days, the people or the repeat.' });
+    }
+
+    //Shares the range cooldown rather than taking one of its own, since it is the same ask
+    const rl = await takeAction(req.user.id, plan.guildId, 'extend', DAILY_LIMIT);
+    if (!rl.allowed) {
+        return res.status(429).json({ error: `You have changed the dates ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    const cleanNote = String(note || '').trim().slice(0, 200) || null;
+    const reopen = movedWindow || opensADay;
+
+    let updated = await setPlanDates(plan.planId, { start, end, allowedWeekdays: weekdays, repeatWeeks: wanted, reopen });
+    if (toAdd.length) updated = await addParticipants(plan.planId, toAdd);
+
+    await addPlanEvent(plan.planId, {
+        type: 'dates',
+        by: req.user.id,
+        byName: ctx.member.displayName,
+        start,
+        end,
+        allowedWeekdays: weekdays,
+        added: toAdd.length,
+        reopened: reopen
+    });
+
+    announceAfter('dates post', () =>
+        announcePlanDates(updated, ctx.cfg, {
+            actorName: ctx.member.displayName,
+            daysLabel: describeWeekdays(weekdays),
+            reopened: reopen,
+            note: cleanNote,
+            added: toAdd,
+            post,
+            dm
+        })
+    );
+
+    res.json({ ok: true, start, end, allowedWeekdays: weekdays, repeatWeeks: wanted, added: toAdd.length, reopened: reopen, quiet });
 });
 
 //Edit a plan's title and description. Renames the thread and rewrites the pinned opener, quietly.

@@ -105,6 +105,8 @@ export type PlanEvent =
     | (EventBase & { type: 'moved'; date: string; time: string | null; probe: boolean; from: string })
     | (EventBase & { type: 'voided'; from: string; reason: string | null })
     | (EventBase & { type: 'range'; start: string; end: string })
+    //The window, the days, the crowd and the repeat moved together, from the ask-again screen
+    | (EventBase & { type: 'dates'; start: string; end: string; allowedWeekdays: number[] | null; added: number; reopened: boolean })
     | (EventBase & { type: 'weekdays'; allowedWeekdays: number[] | null })
     | (EventBase & { type: 'details'; renamed: boolean })
     | (EventBase & { type: 'added'; count: number })

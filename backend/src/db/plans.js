@@ -429,6 +429,56 @@ export async function setPlanWeekdays(planId, allowedWeekdays, { reopen }) {
     return getPlan(planId);
 }
 
+/*
+    The window, the weekdays and the repeat in one write, for the screen that goes back
+    out for different dates. The three setters above still stand on their own for the
+    panels that change one thing at a time; this is what a screen reaching for all of
+    them at once goes through, so three changes are one write and one announcement
+    rather than three of each landing in the thread together.
+
+    reopen sends everyone back for their dates. Without it a pure narrowing leaves every
+    confirmation standing, and the only tidying left is a set day the narrowed weekdays
+    no longer collect, which is dropped on its own. Both branches match setPlanRange and
+    setPlanWeekdays exactly: a plan that came through here has to be in the same state as
+    one that came through them.
+*/
+export async function setPlanDates(planId, { start, end, allowedWeekdays, repeatWeeks, reopen }) {
+    const set = {
+        'dateRange.start': start,
+        'dateRange.end': end,
+        allowedWeekdays: allowedWeekdays || null,
+        repeatWeeks: repeatWeeks || null
+    };
+    //Only the narrowing case has anything left to decide, and what it reads is the day, not the guest list
+    const plan = reopen ? null : await getPlan(planId);
+
+    if (reopen) {
+        Object.assign(set, {
+            status: 'collecting',
+            chosenDate: null,
+            chosenTime: null,
+            chosenNote: null,
+            ...unconfirmAll,
+            ...clearedProbe().set,
+            //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
+            lastRemindedAt: null,
+            allInNotifiedAt: null
+        });
+    } else if (plan.chosenDate && !weekdayAllowed(plan.chosenDate, allowedWeekdays)) {
+        Object.assign(set, {
+            status: 'collecting',
+            chosenDate: null,
+            chosenTime: null,
+            chosenNote: null,
+            ...clearedProbe().set,
+            allInNotifiedAt: null
+        });
+    }
+
+    await col(collections.plans).updateOne({ planId }, { $set: set });
+    return getPlan(planId);
+}
+
 export async function setPlanThread(planId, threadId) {
     await col(collections.plans).updateOne({ planId }, { $set: { threadId } });
 }

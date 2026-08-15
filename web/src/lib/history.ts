@@ -43,6 +43,13 @@ export function describeEvent(event: PlanEvent): string {
             return `called off ${formatDate(event.from)}${event.reason ? `, because ${event.reason}` : ''}`;
         case 'range':
             return `changed the dates to ${formatDate(event.start)} to ${formatDate(event.end)}`;
+        //One line for what the panels above would have written three of, since it was one press
+        case 'dates':
+            return (
+                `went back out for dates, ${formatDate(event.start)} to ${formatDate(event.end)}` +
+                `${describeWeekdays(event.allowedWeekdays) ? `, ${describeWeekdays(event.allowedWeekdays)} only` : ''}` +
+                `${event.added ? `, and added ${plural(event.added, 'person', 'people')}` : ''}`
+            );
         //describeWeekdays says nothing at all for no restriction, which needs words here
         case 'weekdays':
             return `changed the days asked about to ${describeWeekdays(event.allowedWeekdays) || 'every day'}`;
