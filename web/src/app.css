@@ -1153,9 +1153,7 @@ a.ghost:hover {
 
 /* Free text and time inputs that live inside panels, not the .field wrapper */
 .pick-panel input[type='text'],
-.pick-panel input[type='time'],
-.days-edit input[type='text'],
-.extend input[type='text'] {
+.pick-panel input[type='time'] {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -1191,9 +1189,9 @@ a.ghost:hover {
 }
 
 /*
-    Only the create form's, where it is a block of its own. Unscoped this also hit the
-    copy inside a .tools row, where it beat that row's own margin reset on source order
-    and sat the button 8px below the ones beside it.
+    Only where it is a block of its own on a form, which is the create form and the dates
+    screen. Unscoped this also hit the copy inside a .tools row, where it beat that row's
+    own margin reset on source order and sat the button 8px below the ones beside it.
 */
 .screen > .repeat {
     margin: 8px 0 4px;
@@ -1305,29 +1303,6 @@ a.ghost:hover {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-}
-
-.extend-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    margin-top: 6px;
-}
-
-/* The Start / End labels sit inline in the range row, no stacked margins */
-.extend-row .lbl {
-    display: inline;
-    margin: 0;
-}
-
-.extend-row input[type='date'] {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 7px 10px;
-    font-size: 14px;
 }
 
 .edit input[type='time'],

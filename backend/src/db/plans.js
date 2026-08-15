@@ -431,10 +431,10 @@ export async function setPlanWeekdays(planId, allowedWeekdays, { reopen }) {
 
 /*
     The window, the weekdays and the repeat in one write, for the screen that goes back
-    out for different dates. The three setters above still stand on their own for the
-    panels that change one thing at a time; this is what a screen reaching for all of
-    them at once goes through, so three changes are one write and one announcement
-    rather than three of each landing in the thread together.
+    out for different dates, which is the only way the site moves a window now. The three
+    setters above still answer their own routes; this is what a caller reaching for all of
+    them at once goes through, so three changes are one write and one announcement rather
+    than three of each landing in the thread together.
 
     reopen sends everyone back for their dates. Without it a pure narrowing leaves every
     confirmation standing, and the only tidying left is a set day the narrowed weekdays

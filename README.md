@@ -18,7 +18,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - `/free` to tick your days off inside Discord, for the people who never click links
 - Saved timetables, so your next plan starts already filled in
 - A compare view that colours days by how many people are free, with a slider for how many you'll let miss out
-- Two ways to reschedule: move the day yourself, or clear it and go back out for everyone's dates
+- Changes named after what you came wanting: the day, the time, the name, who's on it, or going back out for different dates altogether
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
 - A quiet switch for putting a mistake right: everyone's DM is corrected where it sits, nobody is told it changed
 - Yes/no confirmations you can close and reopen without anybody losing their answer
@@ -37,11 +37,13 @@ Anyone who would rather not click the link can run `/free` in the plan's thread 
 
 If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, cancelling, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want.
 
-### Moving a day that is already set
+### Changing a plan that is already running
 
-There are two ways, and the compare page keeps them apart because they are not the same errand. **Move it yourself** is for when you already know: type the new day, a time and a note, everyone is told and nothing else about the plan changes. It never asks anybody anything, so it works on a plan nobody has filled in, which is the usual state of one you have just reopened. **Ask everyone for new days** is for when you don't: it clears the day, opens the plan back up and DMs everyone to go over their dates, and you pick again off the grid once the answers are in. Nobody loses what they had already saved either way.
+Everything you can do to a plan lives under **Change the plan** on the compare page, and each one is named after the reason you came rather than after what the app has to do about it. **The day is wrong** opens the grid with the day you are on ringed in green, and you pick the new one off it. **The time is wrong**, **The note or description is wrong**, **The name is wrong** and **Someone else should be on it** are each a small form and cost nobody their answer. Whether a change means people have to look again is worked out from the change itself, so it is said on the button that does it instead of being filed under a scarier heading.
 
-The grid itself is still there once a day is set, folded away behind **Is there a better day?**, with the day you are on ringed in green. That is the one to open when somebody says no and you want to see what else would have worked.
+The one that does ask everybody again is **None of these days work**. That opens the create form over again on the plan you already have, with last time's window, weekdays, crowd and repeat filled in, and one press changes the lot: everyone goes back over their dates, keeping whatever they had already saved, and the thread gets a single message about it rather than one per thing you moved.
+
+The grid is the only way to a day, whether or not anyone has answered yet. Every day in the window is clickable, and a day nobody is free on says why it looks dim and lets you set it anyway.
 
 ### Fixing things without a fuss
 
@@ -53,11 +55,11 @@ Two things it cannot do, both because Discord pings people the moment they are a
 
 Asking everyone to confirm is a switch rather than a one-shot round. Close it and every yes and no stays on record; open it again and the same message in the thread comes back to life with the tally intact, rather than a second poll appearing below the first. Nothing clears people's answers except the day itself actually moving.
 
-If the two ever drift apart anyway, because somebody deleted the pinned post or Discord was down when an announcement went out, **Fix up Discord** on the compare page rewrites the lot and puts back whatever is missing. It sends nothing and pings nobody, so it is safe to press whenever something looks wrong.
+If the two ever drift apart anyway, because somebody deleted the pinned post or Discord was down when an announcement went out, **Discord has gone wrong** on the compare page rewrites the lot and puts back whatever is missing. It sends nothing and pings nobody, so it is safe to press whenever something looks wrong.
 
 ### Plans that come round again
 
-A plan can be set to repeat every week, every other week or every four weeks, either when you start it or later from the compare page. Weeks rather than months on purpose: shifting a date by a multiple of seven lands on the same weekday, so "every other Thursday" stays on Thursdays and a plan pinned to weekends stays on weekends. Picking an interval on the compare page shows you the dates it would actually land on before you save it, worked out by the same code that makes the next plan, so what you are shown is what you get.
+A plan can be set to repeat every week, every other week or every four weeks, either when you start it or later from the compare page. Weeks rather than months on purpose: shifting a date by a multiple of seven lands on the same weekday, so "every other Thursday" stays on Thursdays and a plan pinned to weekends stays on weekends. Picking an interval draws the dates it would actually land on, a month at a time with arrows, before you save anything. They are worked out by the same code that makes the next plan, so what you are shown is what you get.
 
 Nothing is scheduled ahead. The next plan is only made once the current one's day has been and gone, so there is never more than one of a series live at a time, and the new one is a real plan of its own with its own thread and its own history rather than a second date bolted onto the old one. That also means cancelling a plan ends the series without any separate way of saying so, and stopping it is always a button on whichever plan is currently live.
 

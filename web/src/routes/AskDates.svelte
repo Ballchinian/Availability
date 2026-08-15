@@ -3,7 +3,7 @@
     import { push } from 'svelte-spa-router';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { isoFromNow } from '../lib/calendar.js';
+    import { isoFromNow, isWeekdayAllowed } from '../lib/calendar.js';
     import { formatDate } from '../lib/format.js';
     import type { CompareScreen, Member } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
@@ -62,6 +62,16 @@
     });
     const reopening = $derived(movedWindow || opensADay);
 
+    /*
+        Whether the day this plan is on survives the change. A reopened round drops it, and
+        so does narrowing the weekdays past the one it sits on, which is the case that looks
+        harmless: every answer stands and the day still goes. Read before the save, since
+        after it there is nothing left to read.
+    */
+    const keepsDay = $derived(
+        Boolean(data?.plan.chosenDate) && !reopening && isWeekdayAllowed(data!.plan.chosenDate!, chosenWeekdays)
+    );
+
     onMount(async () => {
         await loadMe();
         if (!auth.user || !params.planId) {
@@ -107,7 +117,11 @@
                     dm
                 })
             });
-            //Straight back, since the compare page is where the answers to this land
+            /*
+                Straight back, since the compare page is where the answers to this land.
+                saving deliberately stays on: the button must not flash back to life while
+                the route is changing under it.
+            */
             push(`/plan/${params.planId}/compare`);
             return;
         } catch (err) {
@@ -149,7 +163,8 @@
             <MemberPicker {members} bind:selectedIds />
         </div>
 
-        <RepeatField bind:weeks={repeatWeeks} from={data.plan.chosenDate} time={data.plan.chosenTime} />
+        <!--Counted off the day only while the day is still going to be there afterwards-->
+        <RepeatField bind:weeks={repeatWeeks} from={keepsDay ? data.plan.chosenDate : null} time={data.plan.chosenTime} />
 
         <input type="text" bind:value={note} placeholder="Optional note for the message (e.g. added another weekend)" maxlength="200" />
 
@@ -163,6 +178,10 @@
                 Everyone goes back over their dates, and their saved days stay put for them to change.
             {:else}
                 Nobody has to answer again, the days people have already filled in still stand.
+            {/if}
+            <!--The quiet one: nobody is asked anything, and the day still goes-->
+            {#if data.plan.chosenDate && !keepsDay}
+                {formatDate(data.plan.chosenDate)} comes off, since it is not a day this asks about any more.
             {/if}
             {#if adding}
                 {adding === 1 ? '1 person is' : `${adding} people are`} being added and

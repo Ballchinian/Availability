@@ -669,7 +669,8 @@ router.post('/:planId/weekdays', requirePlanner, refuseCancelled, async (req, re
 /*
     Everything the "ask about different dates" screen sets, in one go: the window, which
     weekdays count, who is on it and whether it comes round again. The four routes it
-    stands in for are all still here for the panels that change one thing at a time.
+    stands in for are all still here, though range and weekdays have no caller on the site
+    any more, this being how a window moves now.
 
     Reopening reads the window first. A moved window always sends everyone back for their
     dates, since the days they answered about are not the days being asked any more. A

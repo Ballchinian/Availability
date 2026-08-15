@@ -511,6 +511,7 @@ Planner role only.
 ### Notes
 
 * `400` if there is no set date to undo.
+* No caller on the site. Putting a plan back to having no day at all, while keeping every answer, turned out not to be a thing anyone sat down wanting: a wrong day is either replaced off the grid, sent back out through `/dates`, or cancelled. The route remains.
 
 ---
 

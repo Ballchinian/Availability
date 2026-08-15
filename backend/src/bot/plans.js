@@ -770,10 +770,10 @@ export async function announceRangeChange(plan, cfg, { actorName, note, post = t
 
 /*
     One post for a change that moved several things at once: the window, which days count,
-    and anyone new on the list. announceRangeChange and announceWeekdaysChange are still
-    what the single-change panels send; this is what the dates screen sends instead, since
-    three of those arriving in the same thread within a second of each other reads as a
-    fault rather than as one decision.
+    and anyone new on the list. announceRangeChange and announceWeekdaysChange still answer
+    their own routes; this is what the dates screen sends instead, since three of those
+    arriving in the same thread within a second of each other reads as a fault rather than
+    as one decision.
 
     Anyone added is left out of the ids this writes to and handed to announceAddition
     instead: the invitation already carries the window and the days, so a second message
