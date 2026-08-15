@@ -1,7 +1,8 @@
 <script lang="ts">
     import { api } from '../api.js';
-    import { nextPlanShape, shiftDate } from '../calendar.js';
-    import { REPEAT_WEEKS, describeRepeat, formatDate, formatTime } from '../format.js';
+    import { repeatSeries } from '../calendar.js';
+    import { REPEAT_WEEKS, describeRepeat, formatDate } from '../format.js';
+    import RepeatDates from '../RepeatDates.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -36,16 +37,11 @@
         choice = repeatWeeks;
     }
 
-    /*
-        Where the picked interval would put the next one, worked out with the same function
-        the sweep uses. Read from two days past the set date, which is the earliest the sweep
-        can fire: it only looks once the day has been and gone, and asks for dates from its
-        own tomorrow. Reading from today instead would skip a window that has already started.
-    */
-    const next = $derived(
+    //Where the picked interval would take this plan, for drawing on the calendar below the buttons
+    const series = $derived(
         choice && chosenDate
-            ? nextPlanShape({ repeatWeeks: choice, dateRange: { start, end }, chosenDate, chosenTime }, shiftDate(chosenDate, 2))
-            : null
+            ? repeatSeries({ repeatWeeks: choice, dateRange: { start, end }, chosenDate, chosenTime })
+            : []
     );
 
     async function save() {
@@ -91,24 +87,21 @@
         </div>
 
         <!--The whole reason there is a step before saving: what "every other week" actually lands on-->
-        <p class="status small">
-            {#if !choice}
-                Nothing follows this one, it stands on its own.
-            {:else if !chosenDate}
-                Nothing is made while this plan has no day. Once you set one, the next plan follows
-                {describeRepeat(choice)} after it.
-            {:else if !next}
-                No date left in the series: {describeRepeat(choice)} on from {formatDate(chosenDate)} lands past
-                the two years anything here reaches. Pick a shorter interval or leave it as a one off.
-            {:else if next.set && next.chosen}
-                Once {formatDate(chosenDate)} has been, the next one goes out already set for
-                <strong>{formatDate(next.chosen.date)}</strong>{next.chosen.time ? ` at ${formatTime(next.chosen.time)}` : ''}.
-            {:else}
-                Once {formatDate(chosenDate)} has been, the next one goes out asking everyone about
-                <strong>{formatDate(next.dateRange.start)} to {formatDate(next.dateRange.end)}</strong>, and you pick
-                the day from that.
-            {/if}
-        </p>
+        {#if chosenDate && series.length}
+            <RepeatDates first={chosenDate} shapes={series} />
+        {:else}
+            <p class="status small">
+                {#if !choice}
+                    Nothing follows this one, it stands on its own.
+                {:else if !chosenDate}
+                    Nothing is made while this plan has no day. Once you set one, the next plan follows
+                    {describeRepeat(choice)} after it.
+                {:else}
+                    No date left in the series: {describeRepeat(choice)} on from {formatDate(chosenDate)} lands past
+                    the two years anything here reaches. Pick a shorter interval or leave it as a one off.
+                {/if}
+            </p>
+        {/if}
 
         <div class="btn-row">
             <button class="primary" onclick={save} disabled={panel.busy || choice === repeatWeeks}>
