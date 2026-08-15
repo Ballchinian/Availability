@@ -147,6 +147,17 @@ describe('the repeat dates calendar', () => {
         expect(draw({})).toContain('Thursday 3 September 2026');
     });
 
+    /*
+        What the screen after a plan is made draws for a one off: the month with its day on
+        it, and none of the furniture that only earns its place once there is a series.
+    */
+    it('marks the day on its own for a plan that does not repeat', () => {
+        const body = draw({ shapes: [] });
+        expect(body).toContain('Thursday 6 August 2026, this one');
+        expect(body).not.toContain('Later month');
+        expect(body).not.toContain('rkey');
+    });
+
     //A plan that collected dates comes back as a window, which reads as a stretch rather than a day
     it('names the days a following window asks about', () => {
         const body = draw({

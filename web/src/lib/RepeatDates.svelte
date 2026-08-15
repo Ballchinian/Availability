@@ -38,6 +38,7 @@
 
     //A window carries a key of its own, and only a plan that collected dates ever comes back as one
     const asksWindow = $derived(shapes.some((s) => !s.chosen));
+    const hasNext = $derived(shapes.some((s) => Boolean(s.chosen)));
 
     /*
         The same series in words, for anyone who cannot see the grid. Read off the shapes
@@ -61,9 +62,14 @@
 {#if shown}
     <div class="rcal">
         <div class="rcal-head">
-            <button class="ghost arrow" onclick={() => (at = index - 1)} disabled={index === 0} aria-label="Earlier month">&lsaquo;</button>
+            <!--A single month has nowhere to go, so it gets the heading on its own-->
+            {#if months.length > 1}
+                <button class="ghost arrow" onclick={() => (at = index - 1)} disabled={index === 0} aria-label="Earlier month">&lsaquo;</button>
+            {/if}
             <h4>{shown.label} {shown.year}</h4>
-            <button class="ghost arrow" onclick={() => (at = index + 1)} disabled={index >= months.length - 1} aria-label="Later month">&rsaquo;</button>
+            {#if months.length > 1}
+                <button class="ghost arrow" onclick={() => (at = index + 1)} disabled={index >= months.length - 1} aria-label="Later month">&rsaquo;</button>
+            {/if}
         </div>
 
         <div aria-hidden="true">
@@ -85,11 +91,14 @@
                     {/if}
                 {/each}
             </div>
-            <p class="rkey small">
-                <span class="rswatch first"></span> this one
-                <span class="rswatch next"></span> after it
-                {#if asksWindow}<span class="rswatch asks"></span> the days it asks about{/if}
-            </p>
+            <!--One filled day with nothing beside it needs no key, it is the only thing marked-->
+            {#if shapes.length}
+                <p class="rkey small">
+                    <span class="rswatch first"></span> this one
+                    {#if hasNext}<span class="rswatch next"></span> after it{/if}
+                    {#if asksWindow}<span class="rswatch asks"></span> the days it asks about{/if}
+                </p>
+            {/if}
         </div>
 
         <p class="offscreen">{spoken}</p>

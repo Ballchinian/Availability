@@ -249,7 +249,9 @@
     {:else if result}
         <div class="result">
             {#if result.set}
-                <p>Done. <strong>{planName}</strong> is set{setDate ? ` for ${formatDate(setDate)}` : ''}. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}{announceProbe ? ' with a yes/no so you know who is coming' : ''}.</p>
+                <p>Done. <strong>{planName}</strong> is set. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}{announceProbe ? ' with a yes/no so you know who is coming' : ''}.</p>
+                <!--The date it is set for, and where a repeat takes it, drawn rather than said-->
+                {#if setDate}<RepeatDates first={setDate} shapes={repeatDates} />{/if}
             {:else}
                 <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{collectDm ? " and DM'd them" : ''}.</p>
             {/if}
