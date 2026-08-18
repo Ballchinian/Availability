@@ -1006,6 +1006,14 @@ a.ghost:hover {
 }
 
 /*
+    The yes/no switch under the box that says which day it is. Its own gap, since with
+    nothing to say about old answers it is a bare button and sat hard against that box.
+*/
+.confirms {
+    margin-top: 12px;
+}
+
+/*
     The attendance board on the compare page. Three columns on a desktop, two on
     a narrow screen, one on a phone, so the headings stay readable everywhere.
 */
