@@ -25,8 +25,9 @@
 
         Four sections: where it stands, what changes it, what has happened, and ending it.
         Only the first is open on arrival, since the rest are errands. Everyone's days
-        leads the page while the day is still being found and folds into the change
-        section once it is set, where all it answers is whether a better day exists.
+        leads the page while the day is still being found and is gone once it is set: the
+        question it answers has been answered, and the screen that changes the day carries
+        its own copy for the one case that still wants it.
     */
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -37,8 +38,6 @@
 
     //Held here rather than left on the <details>, which a reload would destroy and refold
     let changing = $state(false);
-    //Whether the grid is unfolded on a plan whose day is already set
-    let betterDay = $state(false);
 
     /*
         Quiet: nothing done from this page pings anybody. The pin, the confirmation and
@@ -282,38 +281,16 @@
                 <summary>Change the plan</summary>
 
                 <div class="tools">
-                    <!--Only once a day is set. While it is still open the grid above is where the day
-                        is picked, and this would be a second way to do the same thing.-->
-                    {#if chosen}
-                        <!--The grid is the only way to a different day, so it is offered whether or
-                            not anybody has answered-->
-                        <div class="better" class:wide={betterDay}>
-                            {#if !betterDay}
-                                <button class="ghost" onclick={() => (betterDay = true)}>The day is wrong</button>
-                            {:else}
-                                <p class="muted small">The day it is set for is ringed in green.</p>
-                                <DayCompare
-                                    planId={params.planId}
-                                    start={data.plan.start}
-                                    end={data.plan.end}
-                                    allowedWeekdays={data.plan.allowedWeekdays}
-                                    freeByDate={data.freeByDate}
-                                    participants={data.participants}
-                                    confirmedCount={data.confirmedCount}
-                                    totalParticipants={data.totalParticipants}
-                                    probeActive={Boolean(data.plan.probeActive)}
-                                    timeZone={data.plan.timeZone}
-                                    {chosen}
-                                    {quiet}
-                                    bind:selectedDate
-                                    onsaved={refresh}
-                                />
-                                <div class="btn-row">
-                                    <button class="ghost" onclick={() => (betterDay = false)}>Close the grid</button>
-                                </div>
-                            {/if}
-                        </div>
+                    <!--A screen rather than a panel: it is the create form again, both of its modes,
+                        and the only way to a day outside the window. Named for where the plan stands,
+                        since "the day is wrong" says nothing on one that has no day yet.-->
+                    <a class="ghost" href="#/plan/{params.planId}/dates">
+                        {chosen ? 'The day is wrong' : 'None of these days work'}
+                    </a>
 
+                    <!--Only on a plan that has a day. The one small edit that costs nobody their
+                        answer, which is why it stays a panel rather than joining the screen above.-->
+                    {#if chosen}
                         <WhenPanel
                             planId={params.planId}
                             chosenDate={chosen.date}
@@ -347,10 +324,6 @@
                         {quiet}
                         onadded={refresh}
                     />
-
-                    <!--A screen rather than a panel: it is the create form again, and the only one
-                        of these that can cost everyone their answer-->
-                    <a class="ghost" href="#/plan/{params.planId}/dates">None of these days work</a>
 
                     <RepeatPanel
                         planId={params.planId}
