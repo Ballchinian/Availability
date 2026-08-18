@@ -90,6 +90,18 @@ describe('picking a day nobody has answered about', () => {
     thing worth asserting here.
 */
 describe('what setting a day says it will do', () => {
+    const onPlan: Participant[] = ['a', 'b', 'c'].map((userId) => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: true,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        sureUntil: null
+    }));
+
     const draw = (props: Record<string, unknown> = {}) =>
         render(PickPanel, {
             props: {
@@ -119,9 +131,34 @@ describe('what setting a day says it will do', () => {
 
     //A day staying put keeps every answer, which is the opposite of what moving one does
     it('says what stands when only the time or note is changing', () => {
-        const body = draw({ chosen: { date: '2026-08-12', time: '', note: '' } });
+        const body = draw({ participants: onPlan, chosen: { date: '2026-08-12', time: '', note: '' } });
         expect(body).toContain('DMs 3 people to say what changed');
         expect(body).toContain('Every answer and the invite list stand.');
+    });
+
+    /*
+        The list is not touched by an edit to the day it is already on, so the people free
+        on that day are not a narrowing. Counting them as one had it promise fewer DMs than
+        it sends, in the same breath as saying the list stands.
+    */
+    it('counts everyone still invited on an edit, not just whoever is free that day', () => {
+        const body = draw({
+            participants: onPlan,
+            confirmedCount: 1,
+            freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] },
+            chosen: { date: '2026-08-12', time: '', note: '' }
+        });
+        expect(body).toContain('DMs 3 people to say what changed');
+        expect(body).not.toContain('come off the list');
+    });
+
+    //Narrowed once already, so an edit reaches the two left on the list rather than all three
+    it('counts the list as it already stands when some are off it', () => {
+        const body = draw({
+            participants: [onPlan[0], onPlan[1], { ...onPlan[2], invited: false }],
+            chosen: { date: '2026-08-12', time: '', note: '' }
+        });
+        expect(body).toContain('DMs 2 people to say what changed');
     });
 
     it('tells nobody about a quiet edit to a day that is staying put', () => {

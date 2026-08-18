@@ -108,11 +108,20 @@
     */
     const canNarrow = $derived(attendIds.length > 0);
 
-    //How many the invite list would lose if it were narrowed to the people who fit
-    const dropping = $derived(canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - attendIds.length) : 0);
-
     //The day the plan is already on, so the button edits the time and note rather than moving anything
     const isUpdate = $derived(Boolean(chosen && selectedDate === chosen.date));
+
+    /*
+        How many the invite list would lose if it were narrowed to the people who fit. Nought
+        on the day the plan is already on: that edit never touches the list, so counting a
+        narrowing there had the line naming fewer people than it goes on to DM.
+    */
+    const dropping = $derived(
+        !isUpdate && canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - attendIds.length) : 0
+    );
+
+    //Who an edit to a day that is staying put reaches: the list as it already stands, narrowed or not
+    const invitedNow = $derived(participants.filter((p) => p.invited !== false).length);
 
     //Whether the picked day, time and note all already match what the plan is set for
     const sameDetails = $derived(Boolean(isUpdate && time === chosen!.time && note.trim() === chosen!.note));
@@ -151,7 +160,7 @@
         if (isUpdate) {
             const said = quiet
                 ? 'Rewrites the pinned post and the DMs everyone already holds, and tells nobody'
-                : `Rewrites the pinned post and DMs ${invited} to say what changed`;
+                : `Rewrites the pinned post and DMs ${people(invitedNow)} to say what changed`;
             return `${said}. Every answer and the invite list stand.`;
         }
 
