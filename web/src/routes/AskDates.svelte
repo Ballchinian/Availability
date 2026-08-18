@@ -166,7 +166,10 @@
         <!--Counted off the day only while the day is still going to be there afterwards-->
         <RepeatField bind:weeks={repeatWeeks} from={keepsDay ? data.plan.chosenDate : null} time={data.plan.chosenTime} />
 
-        <input type="text" bind:value={note} placeholder="Optional note for the message (e.g. added another weekend)" maxlength="200" />
+        <div class="field">
+            <label for="asknote">Anything to say with it? (optional)</label>
+            <input id="asknote" type="text" bind:value={note} placeholder="e.g. added another weekend" maxlength="200" />
+        </div>
 
         <label class="check"><input type="checkbox" bind:checked={post} /> Post the change in the thread</label>
         <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone</label>
