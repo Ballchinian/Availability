@@ -9,7 +9,7 @@ import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
 import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
-import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
+import { today, maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
@@ -588,20 +588,53 @@ router.post('/:planId/remind', requirePlanner, refuseCancelled, async (req, res)
 router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { start, end, allowedWeekdays, participantIds, repeatWeeks, note } = req.body || {};
+    const { start, end, allowedWeekdays, participantIds, repeatWeeks, note, date, time } = req.body || {};
     const { quiet, post, dm } = loudness(req.body);
 
+    //Naming the day outright rather than asking about a window, the fork the create form takes
+    const setMode = typeof date === 'string' && date.length > 0;
     const shape = /^\d{4}-\d{2}-\d{2}$/;
-    if (!shape.test(start || '') || !shape.test(end || '')) {
-        return res.status(400).json({ error: 'Pick a valid start and end date.' });
-    }
-    if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
-    if (end < today()) return res.status(400).json({ error: 'That whole range is in the past.' });
-    if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
 
-    const weekdays = cleanWeekdays(allowedWeekdays);
-    if (weekdays && !allowedDaysInRange(start, end, weekdays).length) {
-        return res.status(400).json({ error: 'None of those days fall inside that range.' });
+    let window;
+    let weekdays;
+
+    if (setMode) {
+        if (!shape.test(date)) return res.status(400).json({ error: 'Pick a valid date.' });
+        if (date < today()) return res.status(400).json({ error: 'That date is in the past.' });
+        if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
+
+        /*
+            Stretched to reach the day rather than replaced by it, which is what makes a day
+            outside the window pickable at all. The rest of the window is left alone so the
+            dates people already gave are still about something.
+        */
+        window = {
+            start: date < plan.dateRange.start ? date : plan.dateRange.start,
+            end: date > plan.dateRange.end ? date : plan.dateRange.end
+        };
+
+        /*
+            A day named by hand joins the set the plan asks about. Left out, the plan would sit
+            on a day its own weekday rule says it never collects, and every path that reads the
+            two together treats that as a day to be dropped.
+        */
+        weekdays = plan.allowedWeekdays || null;
+        if (weekdays && !weekdayAllowed(date, weekdays)) {
+            weekdays = [...new Set([...weekdays, weekdayOf(date)])].sort((a, b) => a - b);
+        }
+    } else {
+        if (!shape.test(start || '') || !shape.test(end || '')) {
+            return res.status(400).json({ error: 'Pick a valid start and end date.' });
+        }
+        if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
+        if (end < today()) return res.status(400).json({ error: 'That whole range is in the past.' });
+        if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
+
+        window = { start, end };
+        weekdays = cleanWeekdays(allowedWeekdays);
+        if (weekdays && !allowedDaysInRange(start, end, weekdays).length) {
+            return res.status(400).json({ error: 'None of those days fall inside that range.' });
+        }
     }
 
     const wanted = repeatWeeks == null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
@@ -615,32 +648,106 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
     }
     const toAdd = asked.length ? await realMembers(ctx.guild, asked) : [];
 
-    const movedWindow = start !== plan.dateRange.start || end !== plan.dateRange.end;
+    const movedWindow = window.start !== plan.dateRange.start || window.end !== plan.dateRange.end;
     const { same: sameDays, opensADay } = weekdayChange(plan.allowedWeekdays, weekdays);
     const movedRepeat = wanted !== (plan.repeatWeeks || null);
+    const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
+    //A day is new when the plan had none, moved when it had a different one
+    const movedDay = setMode && date !== plan.chosenDate;
+    const movedTime = setMode && cleanTime !== (plan.chosenTime || null);
 
-    if (!movedWindow && sameDays && !movedRepeat && toAdd.length === 0) {
-        return res.status(400).json({ error: 'Nothing changed there. Move the window, the days, the people or the repeat.' });
+    if (!movedWindow && sameDays && !movedRepeat && !movedDay && !movedTime && toAdd.length === 0) {
+        return res.status(400).json({
+            error: setMode
+                ? 'Nothing changed there. Move the day, the time, the people or the repeat.'
+                : 'Nothing changed there. Move the window, the days, the people or the repeat.'
+        });
     }
 
-    //Shares the range cooldown rather than taking one of its own, since it is the same ask
+    //Shares one cooldown with the other ways a window moves, since it is the same ask
     const rl = await takeAction(req.user.id, plan.guildId, 'extend', DAILY_LIMIT);
     if (!rl.allowed) {
         return res.status(429).json({ error: `You have changed the dates ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
     const cleanNote = String(note || '').trim().slice(0, 200) || null;
-    const reopen = movedWindow || opensADay;
+    /*
+        Only asking again sends people back over their dates. Naming a day asks nobody
+        anything, so every answer already given stands however far the window stretched
+        to reach it.
+    */
+    const reopen = !setMode && (movedWindow || opensADay);
 
-    let updated = await setPlanDates(plan.planId, { start, end, allowedWeekdays: weekdays, repeatWeeks: wanted, reopen });
+    let updated = await setPlanDates(plan.planId, {
+        start: window.start,
+        end: window.end,
+        allowedWeekdays: weekdays,
+        repeatWeeks: wanted,
+        reopen
+    });
     if (toAdd.length) updated = await addParticipants(plan.planId, toAdd);
+
+    if (setMode) {
+        /*
+            The same two halves the choose route has. A day that is staying put is an edit to
+            the time, which costs nobody their answer; a day that moved starts the round again.
+        */
+        if (movedDay) {
+            updated = await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null);
+            const event = { type: plan.chosenDate ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: false };
+            if (plan.chosenDate) event.from = plan.chosenDate;
+            await addPlanEvent(plan.planId, event);
+        } else {
+            updated = await setPlanWhen(plan.planId, cleanTime, plan.chosenNote || null);
+            await addPlanEvent(plan.planId, {
+                type: 'when',
+                by: req.user.id,
+                byName: ctx.member.displayName,
+                time: cleanTime,
+                quiet
+            });
+        }
+
+        const settled = updated;
+        const wasTime = plan.chosenTime || null;
+        announceAfter('dates day post', async () => {
+            if (movedDay) {
+                await announceOutcome(settled, ctx.cfg, {
+                    changed: Boolean(plan.chosenDate),
+                    actorName: ctx.member.displayName,
+                    quiet: quiet || !post,
+                    added: toAdd
+                });
+            } else {
+                await announceWhenEdit(settled, ctx.cfg, {
+                    actorName: ctx.member.displayName,
+                    was: { time: wasTime, note: plan.chosenNote || null },
+                    quiet: quiet || !dm
+                });
+                if (toAdd.length) await announceAddition(settled, toAdd, ctx.member.displayName, { dm });
+            }
+        });
+
+        return res.json({
+            ok: true,
+            start: window.start,
+            end: window.end,
+            allowedWeekdays: weekdays,
+            repeatWeeks: wanted,
+            added: toAdd.length,
+            chosenDate: date,
+            chosenTime: cleanTime,
+            set: true,
+            quiet
+        });
+    }
 
     await addPlanEvent(plan.planId, {
         type: 'dates',
         by: req.user.id,
         byName: ctx.member.displayName,
-        start,
-        end,
+        start: window.start,
+        end: window.end,
         allowedWeekdays: weekdays,
         added: toAdd.length,
         reopened: reopen
@@ -658,7 +765,7 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
         })
     );
 
-    res.json({ ok: true, start, end, allowedWeekdays: weekdays, repeatWeeks: wanted, added: toAdd.length, reopened: reopen, quiet });
+    res.json({ ok: true, start: window.start, end: window.end, allowedWeekdays: weekdays, repeatWeeks: wanted, added: toAdd.length, reopened: reopen, quiet });
 });
 
 /*

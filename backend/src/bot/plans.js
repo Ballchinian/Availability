@@ -589,8 +589,17 @@ export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
     confirmation still has to exist as a message to carry its buttons, so that one goes up
     unmentioned rather than not at all.
 */
-export async function announceOutcome(plan, cfg, { changed, actorName, probe = false, quiet = false }) {
-    const ids = invitedOnly(plan).map((p) => p.userId);
+export async function announceOutcome(plan, cfg, { changed, actorName, probe = false, quiet = false, added = [] }) {
+    /*
+        Anyone arriving with the day is left out of this and handed to announceAddition:
+        their invitation already carries the day, so being pinged about it changing is
+        about a plan they have never seen.
+    */
+    const isNew = new Set(added);
+    const ids = invitedOnly(plan).map((p) => p.userId).filter((id) => !isNew.has(id));
+
+    //Ahead of every branch below, quiet included: this is what puts them in the thread at all
+    if (added.length) await announceAddition(plan, added, actorName, { dm: !quiet });
     const when = whenLine(plan);
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';

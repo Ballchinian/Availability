@@ -594,4 +594,89 @@ describe('going back out for different dates', () => {
         expect(await res.json()).toMatchObject({ added: 1 });
         expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['newbie']);
     });
+
+    /*
+        The other half of the same screen: naming the day rather than asking about a window.
+        Nobody is asked anything, so the window only ever stretches to reach the day and every
+        answer already given stands.
+    */
+    describe('naming the day instead', () => {
+        it('sets the day without sending anyone back for their dates', async () => {
+            const res = await dates({ date: ahead(40) });
+
+            expect(res.status).toBe(200);
+            expect(await res.json()).toMatchObject({ set: true, chosenDate: ahead(40) });
+            expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reopen: false }));
+            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), null, null);
+        });
+
+        //A day inside the window needs no stretching, so the window it already had comes back
+        it('leaves a window that already reaches the day alone', async () => {
+            await dates({ date: ahead(40) });
+            expect(db.setPlanDates).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({ start: window.start, end: window.end })
+            );
+        });
+
+        it('stretches the end out to reach a day past the window', async () => {
+            const res = await dates({ date: ahead(100) });
+            expect(await res.json()).toMatchObject({ start: window.start, end: ahead(100) });
+        });
+
+        it('stretches the start back to reach a day before the window', async () => {
+            const res = await dates({ date: ahead(5) });
+            expect(await res.json()).toMatchObject({ start: ahead(5), end: window.end });
+        });
+
+        /*
+            A day named by hand joins the weekdays the plan asks about. Left out, the plan would
+            sit on a day its own rule says it never collects, which setPlanDates reads as a day
+            to drop.
+        */
+        it('opens the weekday a hand-picked day falls on', async () => {
+            plans.set('ab12cd34ef', standing({ allowedWeekdays: [0, 6] }));
+            await dates({ date: iso(monday) });
+            expect(db.setPlanDates).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({ allowedWeekdays: [0, 1, 6] })
+            );
+        });
+
+        it('takes the time along with the day', async () => {
+            await dates({ date: ahead(40), time: '19:00' });
+            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), '19:00', null);
+        });
+
+        //The same fork the choose route takes: a day staying put is an edit, and keeps every answer
+        it('edits the time rather than moving the day when the day is the same', async () => {
+            plans.set('ab12cd34ef', standing({ status: 'closed', chosenDate: ahead(40), chosenTime: '19:00' }));
+            await dates({ date: ahead(40), time: '20:00' });
+
+            expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', null);
+            expect(db.setPlanChosen).not.toHaveBeenCalled();
+        });
+
+        it('refuses a day that has already been', async () => {
+            const res = await dates({ date: '2020-01-01' });
+            expect(res.status).toBe(400);
+            expect((await res.json()).error).toMatch(/in the past/);
+        });
+
+        it('refuses a request that moves neither the day nor anything else', async () => {
+            plans.set('ab12cd34ef', standing({ status: 'closed', chosenDate: ahead(40) }));
+            const res = await dates({ date: ahead(40) });
+            expect(res.status).toBe(400);
+            expect((await res.json()).error).toMatch(/Nothing changed/);
+        });
+
+        //One press, one post, the same promise the window half of this screen makes
+        it('announces the day once', async () => {
+            await dates({ date: ahead(40) });
+            expect(announceAfter).toHaveBeenCalledTimes(1);
+            await announceAfter.mock.calls.at(-1)[1]();
+            expect(announceOutcome).toHaveBeenCalledTimes(1);
+            expect(announcePlanDates).not.toHaveBeenCalled();
+        });
+    });
 });
