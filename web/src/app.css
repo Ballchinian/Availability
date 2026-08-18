@@ -822,23 +822,11 @@ code {
     padding: 2px 0;
 }
 
-/* Also on the h3s inside a section, which name a change the same way a summary does */
+/* The aside in a summary, saying what is folded away under it */
 .group .hint {
     color: var(--muted);
     font-size: 13px;
     font-weight: normal;
-}
-
-/* What a change is about, inside the section that holds all of them */
-.group h3 {
-    color: var(--heading);
-    font-size: 15px;
-    font-weight: 600;
-    margin: 24px 0 0;
-}
-
-.group h3:first-of-type {
-    margin-top: 14px;
 }
 
 /* The rule the first panel draws for itself would land right under the group's own */
