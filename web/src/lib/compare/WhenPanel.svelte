@@ -9,15 +9,11 @@
         only that. Goes through the same choose endpoint as moving the day, which sees the
         day it is already on and edits in place: no answer is cleared, the confirmation
         stands and the invite list stays as it is.
-
-        The note is sent back exactly as it stands. Choose takes the pair together, so
-        leaving it out is how the note gets wiped by an edit that was never about it.
     */
-    let { planId, chosenDate, time = '', note = '', quiet = false, onsaved }: {
+    let { planId, chosenDate, time = '', quiet = false, onsaved }: {
         planId: string;
         chosenDate: string;
         time?: string;
-        note?: string;
         quiet?: boolean;
         onsaved: () => Promise<void>;
     } = $props();
@@ -38,7 +34,7 @@
         await panel.run(async () => {
             await api(`/plans/${planId}/choose`, {
                 method: 'POST',
-                body: JSON.stringify({ date: chosenDate, time: newTime || null, note: note || null, quiet })
+                body: JSON.stringify({ date: chosenDate, time: newTime || null, quiet })
             });
             panel.open = false;
             const said = newTime ? `It starts at ${formatTime(newTime)} now.` : 'There is no set time any more.';

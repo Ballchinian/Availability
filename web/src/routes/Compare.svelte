@@ -318,7 +318,6 @@
                             planId={params.planId}
                             chosenDate={chosen.date}
                             time={chosen.time}
-                            note={chosen.note}
                             {quiet}
                             onsaved={refresh}
                         />
@@ -328,9 +327,8 @@
                         planId={params.planId}
                         name={data.plan.name}
                         description={data.plan.description}
-                        chosenDate={data.plan.chosenDate}
-                        time={chosen?.time ?? ''}
                         note={chosen?.note ?? ''}
+                        chosenDate={data.plan.chosenDate}
                         {quiet}
                         onsaved={refresh}
                     />

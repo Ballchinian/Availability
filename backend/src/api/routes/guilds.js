@@ -127,7 +127,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, announce, date, time, note, dm, probe, allowedWeekdays, repeatWeeks } = req.body || {};
+    const { name, description, start, end, participantIds, announce, date, time, dm, probe, allowedWeekdays, repeatWeeks } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
@@ -147,7 +147,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     /*
         Two ways to start a plan. The usual one collects availability over a date
         range. The set-plan one already knows the day, so it takes a single date
-        (plus an optional time and note) and is announced as decided, no collecting.
+        (plus an optional time) and is announced as decided, no collecting.
     */
     const setMode = announce === true;
     let dateRange;
@@ -160,9 +160,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
         if (date < today()) return res.status(400).json({ error: 'That date is in the past.' });
         if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
         const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
-        const cleanNote = String(note || '').trim().slice(0, 200) || null;
         dateRange = { start: date, end: date };
-        chosen = { date, time: cleanTime, note: cleanNote };
+        chosen = { date, time: cleanTime };
     } else {
         const rangeError = checkRange(start, end);
         if (rangeError) return res.status(400).json({ error: rangeError });
@@ -213,7 +212,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
         if (setMode) {
             //Record the date straight away, then announce it as decided. DM defaults on,
             //the confirmation probe is opt in.
-            plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, chosen.note);
+            plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, null);
             announceAfter('set-plan announce', () =>
                 announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true })
             );

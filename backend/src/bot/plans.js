@@ -697,6 +697,28 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
 }
 
 /*
+    What the plan says it is about has changed on a plan whose day is already set. The pin
+    and every card carry it, so they are rewritten either way; the DM on top is because
+    this one field now holds what the day's own note used to, and "meet at the pub, not the
+    station" reaching nobody is the whole reason that note spoke up when it changed.
+
+    Nothing goes in the thread. A plan still out looking for a day says nothing at all:
+    there is no arrangement yet for a correction to be about.
+*/
+export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false, rename = false }) {
+    await syncPlan(plan, { cfg, rename }).catch((err) => console.error('[plans] details sync failed:', err));
+    if (quiet || !plan.chosenDate) return;
+
+    const ids = invitedOnly(plan).map((p) => p.userId);
+    if (!ids.length) return;
+
+    const about = plan.description ? `\n${plan.description}` : '\nThere is nothing written about it now.';
+    await dmEach(ids,
+        banner('PLAN UPDATED') +
+        `${actorName} changed what "${plan.name}" in ${cfg.guildName} says it is about, on ${whenLine(plan)}:${about}`);
+}
+
+/*
     Open or close the confirmation on a set day. A switch: no answer is touched either way,
     so one closed by accident comes back with every yes and no still on it.
 

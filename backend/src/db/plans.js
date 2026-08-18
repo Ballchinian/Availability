@@ -397,8 +397,14 @@ export async function setPlanOpener(planId, messageId) {
 }
 
 //Change a plan's title and description, leaving everything else (dates, guests) alone
+/*
+    The name and what the plan is about. chosenNote goes with them: the day used to carry
+    a line of its own alongside the description, always rendered on the next line down and
+    never tellable apart from it, so the two are one field now. Saving here is where a plan
+    that still holds an old note lets go of it, the form having offered both joined up.
+*/
 export async function setPlanDetails(planId, name, description) {
-    await col(collections.plans).updateOne({ planId }, { $set: { name, description } });
+    await col(collections.plans).updateOne({ planId }, { $set: { name, description, chosenNote: null } });
     return getPlan(planId);
 }
 

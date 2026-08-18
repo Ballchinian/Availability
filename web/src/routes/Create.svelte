@@ -37,10 +37,10 @@
     const chosenWeekdays = $derived(chosenDays(dayOn));
 
     /*
-        Set-plan mode: a single day plus an optional time, and how to announce it. The note
-        that hangs off the day itself is not here, it only reads as a second description
-        alongside one. It goes on beside the time on the compare page, where a day exists
-        for it to be about.
+        Set-plan mode: a single day plus an optional time, and how to announce it. Anything
+        people need on the day goes in the description above, which is the one field for
+        what a plan is about: a day used to carry a line of its own and the two were never
+        tellable apart.
     */
     let setDate = $state('');
     let setTime = $state('');

@@ -9,8 +9,8 @@
 
     /*
         The picked day: who it works for, and the controls that set the plan to it.
-        Stays mounted while nothing is picked so the time and note survive clicking
-        around the grid, which is how a planner compares two days.
+        Stays mounted while nothing is picked so the time survives clicking around the
+        grid, which is how a planner compares two days.
     */
     let {
         planId,
@@ -48,7 +48,6 @@
         it never costs them what they typed for the first.
     */
     let time = $state(untrack(() => chosen?.time || ''));
-    let note = $state(untrack(() => chosen?.note || ''));
     //Only ever starts one. A confirmation already running is ConfirmPanel's, since a box
     //captured at mount cannot show a state that moves under it.
     let probe = $state(false);
@@ -108,7 +107,7 @@
     */
     const canNarrow = $derived(attendIds.length > 0);
 
-    //The day the plan is already on, so the button edits the time and note rather than moving anything
+    //The day the plan is already on, so the button edits the time rather than moving anything
     const isUpdate = $derived(Boolean(chosen && selectedDate === chosen.date));
 
     /*
@@ -123,8 +122,8 @@
     //Who an edit to a day that is staying put reaches: the list as it already stands, narrowed or not
     const invitedNow = $derived(participants.filter((p) => p.invited !== false).length);
 
-    //Whether the picked day, time and note all already match what the plan is set for
-    const sameDetails = $derived(Boolean(isUpdate && time === chosen!.time && note.trim() === chosen!.note));
+    //Whether the picked day and time both already match what the plan is set for
+    const sameDetails = $derived(Boolean(isUpdate && time === chosen!.time));
 
     /*
         Asking for a confirmation is a change in its own right, so the button cannot grey
@@ -137,8 +136,8 @@
 
     /*
         An edited DM makes no sound, so a day moved quietly never reaches anyone who read
-        the old one. Editing a time or note on a day that is staying put is what quiet mode
-        is for and goes without this.
+        the old one. Editing the time on a day that is staying put is what quiet mode is
+        for and goes without this.
     */
     let owned = $state(false);
     const risky = $derived(quiet && !isUpdate);
@@ -185,7 +184,6 @@
                 body: JSON.stringify({
                     date: selectedDate,
                     time: time || null,
-                    note: note.trim() || null,
                     inviteMode: canNarrow ? inviteMode : 'all',
                     attendingIds: attendIds,
                     probe,
@@ -249,9 +247,6 @@
 
         <label class="lbl" for="when">Time (optional)</label>
         <input id="when" type="time" bind:value={time} />
-
-        <label class="lbl" for="cnote">Note (optional)</label>
-        <input id="cnote" type="text" bind:value={note} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
 
         <!--Both only make sense for a day that is moving. On the day the plan is already on
             there is no invite list to redraw, and the confirmation belongs to ConfirmPanel.-->

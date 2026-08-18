@@ -217,7 +217,7 @@ Planner role only.
 * The people to invite
 * For a collect-availability plan: a start and end date
 * `allowedWeekdays` (optional, collect plans only): the weekdays people can mark, as numbers 0 (Sunday) to 6, e.g. `[0, 6]` for weekends. Left out, or all seven, means the whole range.
-* For a set plan: `announce` set to true, a single `date`, and an optional `time` and `note`
+* For a set plan: `announce` set to true, a single `date`, and an optional `time`
 * `dm` (optional, default true): whether to DM the invited people
 * `post` (optional, default true, set plans only): whether the thread's opening post pings everyone
 * `repeatWeeks` (optional): `1`, `2` or `4` to have this come round again that many weeks after its day has been. Anything else, including left out, is a one off.
@@ -252,7 +252,7 @@ Everything the availability page needs to draw the grid.
 ### Returns
 
 * The plan: name, description, date range, status, server name, any weekday restriction, and the clock the server runs on
-* The day it ended up set for, with its time and note, all null while one is still being found. Nothing private: the same day is on their landing page and in the DM they were sent, and the page needs it to stop asking for dates once there is nothing left to ask.
+* The day it ended up set for, with its time and any note an older plan still carries, all null while one is still being found. Nothing private: the same day is on their landing page and in the DM they were sent, and the page needs it to stop asking for dates once there is nothing left to ask.
 * Whether the requester is a participant, and whether they have confirmed
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled
@@ -362,14 +362,14 @@ Planner role only.
 
 ## POST `/api/plans/:planId/choose` (session)
 
-Lock in the winning date and announce it, or edit the time and note on the day it is already on.
+Lock in the winning date and announce it, or edit the time on the day it is already on.
 
 Planner role only.
 
 ### Input
 
 * Date (must sit inside the plan range)
-* Time and note (both optional)
+* Time (optional)
 * `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list.
 * `attendingIds`: who can make the day, worked out by the compare page
 * `probe` (optional): whether to ask everyone to confirm they are coming with yes/no buttons
@@ -377,7 +377,7 @@ Planner role only.
 
 ### Two things, decided by the date
 
-Picking the day the plan is **already set for** is an edit to the time and note and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` and `probe` are ignored, since neither has anything to decide. Everyone's DM and the pinned post are rewritten where they sit, and unless `quiet` is set the people still invited get a DM naming what moved, with the yes/no buttons again if the time is what changed. Answers `edited: true`.
+Picking the day the plan is **already set for** is an edit to the time and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` and `probe` are ignored, since neither has anything to decide. Everyone's DM and the pinned post are rewritten where they sit, and unless `quiet` is set the people still invited get a DM naming what moved, with the yes/no buttons again. Answers `edited: true`.
 
 Picking **any other day** is a set or a move, and behaves as it always has, below. This split is the fix for an update having wiped a confirmation round that was halfway through.
 
@@ -391,7 +391,8 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 ### Notes
 
 * `409` if the plan was cancelled.
-* `400` on an edit that changes neither the time nor the note.
+* `400` on an edit that does not move the time.
+* No `note` is read. What a plan is about is one field, edited on `/details`; a note an older plan still carries is passed through untouched here rather than wiped by an edit that was never about it.
 * Capped at a high daily backstop per person, since it pings and DMs everyone. An edit spends the same allowance: it is quieter, but it still rewrites a DM per person.
 
 ---
@@ -556,7 +557,7 @@ Planner role only.
 
 ## POST `/api/plans/:planId/details` (session)
 
-Change a plan's title and description.
+Change a plan's title and what it says it is about.
 
 Planner role only.
 
@@ -564,19 +565,23 @@ Planner role only.
 
 * Name
 * Description
+* `quiet` (optional): rewrite everything in place and tell nobody
 
 ### Effects
 
-* Updates the stored title and description.
+* Updates the stored title and description, and clears any `chosenNote` the plan still carries.
 * Renames the thread to the new title.
-* Rewrites the pinned opening message so it shows the new title and description.
+* Rewrites the pinned opening message and every DM card so they show the new title and description.
+* On a plan whose day is already set, DMs everyone still invited to say what it is about has changed, unless `quiet`.
 
 ### Notes
 
-* Quiet on purpose, no DM and no thread post.
-* Same rules as creating a plan: both are required, the name caps at 90 characters and the description at 280.
+* Nothing goes in the thread either way.
+* The description is the one field for what a plan is about. A day used to carry a `chosenNote` beside it, drawn on the next line down in every message and never tellable apart from it on screen, so the two are one field now: the site hands both back joined up and saving stores them as one. Plans made before that keep rendering their note until the next save here.
+* A plan still collecting says nothing at all, since there is no arrangement yet for a correction to be about.
+* Same rules as creating a plan: the name is required and caps at 90 characters, the description at 280.
 * `409` if the plan was cancelled.
-* A no-op edit, where nothing actually changed, is rejected.
+* A no-op edit, where nothing changed and there is no note to fold in, is rejected.
 * The thread rename is best effort, since Discord rate limits renames hard.
 
 ---

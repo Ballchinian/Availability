@@ -6,7 +6,7 @@ import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, s
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -334,7 +334,7 @@ router.get('/:planId/template', requirePlanner, (req, res) => {
 router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { date, time, note, inviteMode, attendingIds, probe, quiet } = req.body || {};
+    const { date, time, inviteMode, attendingIds, probe, quiet } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -343,9 +343,14 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         return res.status(400).json({ error: 'That day is not one this plan asked about.' });
     }
 
-    //Time and note are both optional, the time only sticks if it looks like HH:MM
+    //The time is optional and only sticks if it looks like HH:MM
     const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
-    const cleanNote = String(note || '').trim().slice(0, 200) || null;
+    /*
+        Carried through rather than taken from the caller. What a plan is about is one field
+        now, edited on details, and a day being moved is not a reason to lose the line an
+        older plan still holds beside it.
+    */
+    const cleanNote = plan.chosenNote || null;
 
     //A high daily backstop on locking in or moving a date, since it pings and DMs everyone
     const rl = await takeAction(req.user.id, plan.guildId, 'choose', DAILY_LIMIT);
@@ -354,19 +359,19 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     }
 
     /*
-        The day it is already on, so this edits the time or the note and nothing else. Every
-        vote, the confirmation and the invite list all stand, since nobody answered about a
-        different day. This used to run through setPlanChosen and wipe the lot.
+        The day it is already on, so this edits the time and nothing else. Every vote, the
+        confirmation and the invite list all stand, since nobody answered about a different
+        day. This used to run through setPlanChosen and wipe the lot.
 
         The status half is belt and braces: going back out for dates nulls the day and
         reopens in one write, so a collecting plan never has a day to be already on.
     */
     if (plan.status === 'closed' && plan.chosenDate === date) {
-        if (cleanTime === (plan.chosenTime || null) && cleanNote === (plan.chosenNote || null)) {
-            return res.status(400).json({ error: 'Nothing changed there. Edit the time or the note to update it.' });
+        if (cleanTime === (plan.chosenTime || null)) {
+            return res.status(400).json({ error: 'Nothing changed there. Move the time to update it.' });
         }
 
-        const was = { time: plan.chosenTime || null, note: plan.chosenNote || null };
+        const was = { time: plan.chosenTime || null, note: cleanNote };
         const updated = await setPlanWhen(plan.planId, cleanTime, cleanNote);
 
         await addPlanEvent(plan.planId, {
@@ -656,11 +661,19 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
     res.json({ ok: true, start, end, allowedWeekdays: weekdays, repeatWeeks: wanted, added: toAdd.length, reopened: reopen, quiet });
 });
 
-//Edit a plan's title and description. Renames the thread and rewrites the pinned opener, quietly.
+/*
+    A plan's title and what it is about. Renaming reaches into Discord and renames the
+    thread with it; the description is rewritten wherever it already sits.
+
+    One field now holds what the description and the day's own note held between them,
+    which is why a plan with a day set DMs everyone about a change here. Saving also lets
+    go of any note still stored, the form having handed both back joined up.
+*/
 router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
     const { name, description } = req.body || {};
+    const quiet = req.body?.quiet === true;
 
     //Same shape as creating a plan: a name (required) and a description (optional), both capped
     const cleanName = String(name || '').trim();
@@ -670,7 +683,8 @@ router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res
     const cleanDescription = String(description || '').trim();
     if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
 
-    if (cleanName === plan.name && cleanDescription === (plan.description || '')) {
+    //The note counts as changed too, since saving is what folds it into the description
+    if (cleanName === plan.name && cleanDescription === (plan.description || '') && !plan.chosenNote) {
         return res.status(400).json({ error: 'Nothing changed there. Edit the title or the description to update it.' });
     }
 
@@ -680,10 +694,11 @@ router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res
 
     await addPlanEvent(plan.planId, { type: 'details', by: req.user.id, byName: ctx.member.displayName, renamed });
 
-    //The thread post and everyone's DM both carry the description, so both are rewritten
-    announceAfter('details sync', () => syncPlan(updated, { cfg: ctx.cfg, rename: renamed }));
+    announceAfter('details edit', () =>
+        announceDetailsEdit(updated, ctx.cfg, { actorName: ctx.member.displayName, quiet, rename: renamed })
+    );
 
-    res.json({ ok: true, name: cleanName, description: cleanDescription });
+    res.json({ ok: true, name: cleanName, description: cleanDescription, quiet });
 });
 
 //Cancel a plan: mark it cancelled, ping and DM everyone, leave the thread to be deleted by hand

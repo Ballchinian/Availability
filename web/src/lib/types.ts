@@ -56,6 +56,8 @@ export interface Plan {
     //What the plan ended up set for, all null while the day is still being found
     chosenDate: string | null;
     chosenTime: string | null;
+    //Only ever read. A plan made before the description became the one field still has one,
+    //and saving what it is about is what folds it in and drops it.
     chosenNote: string | null;
     //The server's clock, which the plan's days and its set time are all read on
     timeZone: string;
