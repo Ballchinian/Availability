@@ -103,11 +103,13 @@ export type PlanEvent =
     | (EventBase & { type: 'created' })
     | (EventBase & { type: 'chosen'; date: string; time: string | null; probe: boolean })
     | (EventBase & { type: 'moved'; date: string; time: string | null; probe: boolean; from: string })
+    //The next three are only ever read: nothing writes them since the dates screen took
+    //over the routes that did, and plans they were used on still carry them
     | (EventBase & { type: 'voided'; from: string; reason: string | null })
     | (EventBase & { type: 'range'; start: string; end: string })
+    | (EventBase & { type: 'weekdays'; allowedWeekdays: number[] | null })
     //The window, the days, the crowd and the repeat moved together, from the ask-again screen
     | (EventBase & { type: 'dates'; start: string; end: string; allowedWeekdays: number[] | null; added: number; reopened: boolean })
-    | (EventBase & { type: 'weekdays'; allowedWeekdays: number[] | null })
     | (EventBase & { type: 'details'; renamed: boolean })
     | (EventBase & { type: 'added'; count: number })
     | (EventBase & { type: 'left' })

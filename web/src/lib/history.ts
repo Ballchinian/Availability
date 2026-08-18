@@ -29,6 +29,12 @@ export function hasActor(event: PlanEvent): boolean {
     return event.type !== 'repeated';
 }
 
+/*
+    Three of these, voided, range and weekdays, are events nothing writes any more: the
+    routes that recorded them are gone, the dates screen having taken all three over.
+    They are read, not written, so they stay: a plan those were used on still has them
+    stored, and dropping the case here would leave that line blank in its history.
+*/
 export function describeEvent(event: PlanEvent): string {
     switch (event.type) {
         case 'created':

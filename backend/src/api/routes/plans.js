@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, voidPlanChoice, setReminded, setVoteReminded, setPlanRange, setPlanWeekdays, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceRangeChange, announceWeekdaysChange, announcePlanDates, announceCancel, leavePlan, announceAddition, announceVoid, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { today, maxEnd, shiftDate, weekdayAllowed, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -358,8 +358,8 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         vote, the confirmation and the invite list all stand, since nobody answered about a
         different day. This used to run through setPlanChosen and wipe the lot.
 
-        The status half is belt and braces: voiding and moving the range both null the date
-        and reopen in one write, so a collecting plan never has a day to be already on.
+        The status half is belt and braces: going back out for dates nulls the day and
+        reopens in one write, so a collecting plan never has a day to be already on.
     */
     if (plan.status === 'closed' && plan.chosenDate === date) {
         if (cleanTime === (plan.chosenTime || null) && cleanNote === (plan.chosenNote || null)) {
@@ -388,7 +388,7 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         Who is still invited once the date is set. "attending" narrows the plan to
         the people the site worked out can make the day, so only they get pinged,
         DMed and counted in the confirmation tally. Anything else keeps everyone on
-        the list, and voiding or moving the date invites everyone back too.
+        the list, and moving the date invites everyone back too.
     */
     let invitedIds = null;
     if (inviteMode === 'attending' && Array.isArray(attendingIds)) {
@@ -421,7 +421,7 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
 /*
     Open or close the confirmation on a set date. A switch, so neither direction touches an
     answer: one closed by mistake comes back with every yes and no still on it. Only a day
-    moving clears answers, which is choose, void, range and days, not this.
+    moving clears answers, which is choose and dates, not this.
 
     No rate limit: opening revives a message rather than sending one, so there is no volume.
 */
@@ -508,22 +508,6 @@ router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, 
     res.json({ ok: true });
 });
 
-//Undo a confirmed date and reschedule. DMs everyone (no thread post), planner only.
-router.post('/:planId/void', requirePlanner, refuseCancelled, async (req, res) => {
-    const { plan, ctx } = req;
-    if (!plan.chosenDate) return res.status(400).json({ error: 'There is no set date to undo.' });
-
-    const reason = String(req.body?.reason || '').trim().slice(0, 200) || null;
-    const updated = await voidPlanChoice(plan.planId);
-
-    await addPlanEvent(plan.planId, { type: 'voided', by: req.user.id, byName: ctx.member.displayName, from: plan.chosenDate, reason });
-
-    const { quiet, dm } = loudness(req.body);
-    announceAfter('void announce', () => announceVoid(updated, ctx.cfg, ctx.member.displayName, reason, { dm }));
-
-    res.json({ ok: true, quiet });
-});
-
 /*
     Turn repeating on or off. Nothing is scheduled by saying yes: the next plan is only
     made once this one's day has been and gone, so this is a standing instruction on the
@@ -581,96 +565,11 @@ router.post('/:planId/remind', requirePlanner, refuseCancelled, async (req, res)
     res.json({ ok: true, pinged, kind });
 });
 
-//Set a fresh start and end on the range, reopen, and tell everyone to refill the new window
-router.post('/:planId/range', requirePlanner, refuseCancelled, async (req, res) => {
-    const { plan, ctx } = req;
-
-    const { start, end, note } = req.body || {};
-    const { quiet, post, dm } = loudness(req.body);
-    const shape = /^\d{4}-\d{2}-\d{2}$/;
-    if (!shape.test(start || '') || !shape.test(end || '')) {
-        return res.status(400).json({ error: 'Pick a valid start and end date.' });
-    }
-    if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
-    if (end < today()) return res.status(400).json({ error: 'That whole range is in the past.' });
-    if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
-    if (start === plan.dateRange.start && end === plan.dateRange.end) {
-        return res.status(400).json({ error: 'That is already the range. Move the start or the end to change it.' });
-    }
-    //A weekday-pinned plan needs at least one of its days to survive inside the new window
-    if (plan.allowedWeekdays && !allowedDaysInRange(start, end, plan.allowedWeekdays).length) {
-        return res.status(400).json({ error: 'None of the days this plan asks about fall inside that new range.' });
-    }
-
-    const cleanNote = String(note || '').trim().slice(0, 200) || null;
-
-    //A high daily backstop on changing the range, since each one pings and DMs everyone
-    const rl = await takeAction(req.user.id, plan.guildId, 'extend', DAILY_LIMIT);
-    if (!rl.allowed) {
-        return res.status(429).json({ error: `You have changed the dates ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
-    }
-
-    const updated = await setPlanRange(plan.planId, start, end);
-
-    await addPlanEvent(plan.planId, { type: 'range', by: req.user.id, byName: ctx.member.displayName, start, end });
-
-    announceAfter('range post', () =>
-        announceRangeChange(updated, ctx.cfg, { actorName: ctx.member.displayName, note: cleanNote, post, dm })
-    );
-
-    res.json({ ok: true, start, end, quiet });
-});
-
-//Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new days
-router.post('/:planId/weekdays', requirePlanner, refuseCancelled, async (req, res) => {
-    const { plan, ctx } = req;
-
-    const { allowedWeekdays, note } = req.body || {};
-    const { quiet, post, dm } = loudness(req.body);
-    const weekdays = cleanWeekdays(allowedWeekdays);
-
-    //The new set has to leave at least one day inside the plan's current range
-    if (weekdays && !allowedDaysInRange(plan.dateRange.start, plan.dateRange.end, weekdays).length) {
-        return res.status(400).json({ error: 'None of those days fall inside the plan range.' });
-    }
-    const { same, opensADay } = weekdayChange(plan.allowedWeekdays, weekdays);
-
-    //Nothing to do if it lands on the same set the plan already has
-    if (same) {
-        return res.status(400).json({ error: 'Those are already the days this plan asks about.' });
-    }
-
-    const cleanNote = String(note || '').trim().slice(0, 200) || null;
-
-    //A high daily backstop, since changing the days pings and DMs everyone like a range change
-    const rl = await takeAction(req.user.id, plan.guildId, 'weekdays', DAILY_LIMIT);
-    if (!rl.allowed) {
-        return res.status(429).json({ error: `You have changed the days ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
-    }
-
-    const updated = await setPlanWeekdays(plan.planId, weekdays, { reopen: opensADay });
-
-    await addPlanEvent(plan.planId, { type: 'weekdays', by: req.user.id, byName: ctx.member.displayName, allowedWeekdays: weekdays });
-
-    announceAfter('weekdays post', () =>
-        announceWeekdaysChange(updated, ctx.cfg, {
-            actorName: ctx.member.displayName,
-            daysLabel: describeWeekdays(weekdays),
-            reopened: opensADay,
-            note: cleanNote,
-            post,
-            dm
-        })
-    );
-
-    res.json({ ok: true, allowedWeekdays: weekdays, reopened: opensADay, quiet });
-});
-
 /*
     Everything the "ask about different dates" screen sets, in one go: the window, which
-    weekdays count, who is on it and whether it comes round again. The four routes it
-    stands in for are all still here, though range and weekdays have no caller on the site
-    any more, this being how a window moves now.
+    weekdays count, who is on it and whether it comes round again. The window, the days
+    and undoing a set date each had a route of their own before this, and each put its
+    own message in the thread.
 
     Reopening reads the window first. A moved window always sends everyone back for their
     dates, since the days they answered about are not the days being asked any more. A

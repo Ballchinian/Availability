@@ -736,44 +736,10 @@ export async function applyConfirmations(plan, active, { cfg = null, mention = t
 }
 
 /*
-    Tells everyone the date range moved and they need to look at the new window.
-    When post is on it pings the thread, when dm is on it DMs everyone. actorName
-    is whoever changed it.
-*/
-export async function announceRangeChange(plan, cfg, { actorName, note, post = true, dm = true }) {
-    //Every card carries the range, so they are all wrong until this runs
-    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] range sync failed:', err));
-
-    const ids = plan.participants.map((p) => p.userId);
-    const url = planUrl(plan.planId);
-    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
-    const extra = note ? `\n${note}` : '';
-
-    if (post && plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            await thread.send({
-                content: banner('DATE RANGE CHANGED') +
-                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} changed the dates for **${plan.name}** to ${range}. Add your availability here: ${url}${extra}`,
-                allowedMentions: { users: ids }
-            });
-        }
-    }
-
-    if (dm) {
-        await dmEach(ids,
-            banner('DATES CHANGED') +
-            `${actorName} changed the dates for "${plan.name}" in ${cfg.guildName} to ${range}. Add your availability here: ${url}${extra}`);
-    }
-}
-
-/*
     One post for a change that moved several things at once: the window, which days count,
-    and anyone new on the list. announceRangeChange and announceWeekdaysChange still answer
-    their own routes; this is what the dates screen sends instead, since three of those
-    arriving in the same thread within a second of each other reads as a fault rather than
-    as one decision.
+    and anyone new on the list. The window and the days used to move down separate routes
+    with a post each, which put three messages in the thread within a second of each other
+    and read as a fault rather than as one decision.
 
     Anyone added is left out of the ids this writes to and handed to announceAddition
     instead: the invitation already carries the window and the days, so a second message
@@ -811,67 +777,6 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
     }
 
     if (added.length) await announceAddition(plan, added, actorName, { dm });
-}
-
-/*
-    Tells everyone the plan now asks about a different set of days. When reopened is on
-    the change opened a new day, so people are asked to look again and fill it in; when
-    it is off the plan only narrowed, so their saved days still stand and there is
-    nothing to do. When post is on it pings the thread, when dm is on it DMs everyone.
-    daysLabel is the plain-English set of days, like "weekends and Mondays". actorName
-    is whoever changed it.
-*/
-export async function announceWeekdaysChange(plan, cfg, { actorName, daysLabel, reopened, note, post = true, dm = true }) {
-    //A change that opened a day drops any set date with it, so the cards go back to asking
-    //for availability and the pin has to stop saying the plan is set
-    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] weekdays sync failed:', err));
-
-    const ids = plan.participants.map((p) => p.userId);
-    const url = planUrl(plan.planId);
-    const extra = note ? `\n${note}` : '';
-    //A new day opened means fill it in, a narrowing means nothing to do
-    const tail = reopened ? `Add your availability here: ${url}` : `Nothing to do, your saved days still stand.`;
-
-    if (post && plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            await thread.send({
-                content: banner('DAYS CHANGED') +
-                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} changed which days count for **${plan.name}** to ${daysLabel}. ${tail}${extra}`,
-                allowedMentions: { users: ids }
-            });
-        }
-    }
-
-    if (dm) {
-        await dmEach(ids,
-            banner('DAYS CHANGED') +
-            `${actorName} changed which days count for "${plan.name}" in ${cfg.guildName} to ${daysLabel}. ${tail}${extra}`);
-    }
-}
-
-/*
-    The planner has called off a date that was set and is rescheduling. This one is
-    DM only, no thread post, with an optional reason. The DM is optional too, dm off
-    just clears the date quietly. Everyone's saved dates stay put so they can tweak
-    them for the new pick. actorName is whoever voided it.
-*/
-export async function announceVoid(plan, cfg, actorName, reason, { dm = true } = {}) {
-    //Ahead of the dm branch, since a date that is gone has to come off the pin and every
-    //card whether or not anybody is being told about it
-    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] void sync failed:', err));
-    if (!dm) return;
-
-    const ids = plan.participants.map((p) => p.userId);
-    const url = planUrl(plan.planId);
-    const why = reason ? `\nReason: ${reason}` : '';
-
-    await dmEach(ids,
-        banner('RESCHEDULING') +
-        `${actorName} called off the date for "${plan.name}" in ${cfg.guildName} and is sorting out a new one. ` +
-        `Nothing is locked in for now.${why}\n` +
-        `Your dates are still saved, tweak them here if you need to: ${url}`);
 }
 
 /*

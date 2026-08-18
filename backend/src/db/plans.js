@@ -319,17 +319,6 @@ export async function setPlanWhen(planId, time, note) {
     return getPlan(planId);
 }
 
-//Undo a confirmed date and reopen the plan so a fresh day can be picked. The date is
-//gone, so any confirmation votes for it go with it.
-export async function voidPlanChoice(planId) {
-    const { set } = clearedProbe();
-    await col(collections.plans).updateOne(
-        { planId },
-        { $set: { chosenDate: null, chosenTime: null, chosenNote: null, status: 'collecting', ...set } }
-    );
-    return getPlan(planId);
-}
-
 /*
     Mark a plan cancelled. We leave the document and its thread in place, the
     thread getting deleted by hand is what finally clears the plan, so a cancelled
@@ -352,95 +341,14 @@ export async function setVoteReminded(planId) {
 }
 
 /*
-    Set a fresh start and end on the plan and reopen it. Everyone's confirmed flag
-    is reset so they all take another look at the new window, but their saved
-    availability is left alone, so anyone whose timetable already reaches the new
-    dates just needs a quick glance. Any date that had been picked is cleared too,
-    since the window moved out from under it.
-*/
-export async function setPlanRange(planId, start, end) {
-    //The window moved, so any date and its votes are gone too, start the round clean
-    const { set } = clearedProbe();
-    await col(collections.plans).updateOne(
-        { planId },
-        {
-            $set: {
-                'dateRange.start': start,
-                'dateRange.end': end,
-                status: 'collecting',
-                chosenDate: null,
-                chosenTime: null,
-                chosenNote: null,
-                ...unconfirmAll,
-                ...set,
-                //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
-                lastRemindedAt: null,
-                allInNotifiedAt: null
-            }
-        }
-    );
-    return getPlan(planId);
-}
-
-/*
-    Change which weekdays a plan asks about. Saved availability is always left alone.
-
-    reopen is set when the change opens a day nobody has been asked about yet (a pure
-    addition, or a swap that brings in a new day). Then it behaves like moving the
-    range: everyone's confirmed flag is reset so they take another look, and any picked
-    date is dropped, since the shape of a good day just changed.
-
-    A pure narrowing (only taking days away) leaves confirmations standing, so nobody
-    has to redo anything. The one thing it still has to tidy is a picked date that now
-    lands on a day the plan no longer collects: that date is cleared and the plan
-    reopens so a new one can be chosen, but the confirmations stay.
-*/
-export async function setPlanWeekdays(planId, allowedWeekdays, { reopen }) {
-    const set = { allowedWeekdays: allowedWeekdays || null };
-    //Only the narrowing case has anything to decide, and what it reads is the date, not the guest list
-    const plan = reopen ? null : await getPlan(planId);
-
-    if (reopen) {
-        Object.assign(set, {
-            status: 'collecting',
-            chosenDate: null,
-            chosenTime: null,
-            chosenNote: null,
-            ...unconfirmAll,
-            ...clearedProbe().set,
-            //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
-            lastRemindedAt: null,
-            allInNotifiedAt: null
-        });
-    } else if (plan.chosenDate && !weekdayAllowed(plan.chosenDate, allowedWeekdays)) {
-        //Narrowing knocked out the day the date sat on, so drop the date and reopen, but the
-        //confirmations (and everyone's saved availability) still stand
-        Object.assign(set, {
-            status: 'collecting',
-            chosenDate: null,
-            chosenTime: null,
-            chosenNote: null,
-            ...clearedProbe().set,
-            allInNotifiedAt: null
-        });
-    }
-
-    await col(collections.plans).updateOne({ planId }, { $set: set });
-    return getPlan(planId);
-}
-
-/*
     The window, the weekdays and the repeat in one write, for the screen that goes back
-    out for different dates, which is the only way the site moves a window now. The three
-    setters above still answer their own routes; this is what a caller reaching for all of
-    them at once goes through, so three changes are one write and one announcement rather
-    than three of each landing in the thread together.
+    out for different dates, which is the only way the site moves any of them. They used
+    to have a setter each, so three changes meant three writes and three announcements
+    landing in the thread together.
 
     reopen sends everyone back for their dates. Without it a pure narrowing leaves every
     confirmation standing, and the only tidying left is a set day the narrowed weekdays
-    no longer collect, which is dropped on its own. Both branches match setPlanRange and
-    setPlanWeekdays exactly: a plan that came through here has to be in the same state as
-    one that came through them.
+    no longer collect, which is dropped on its own.
 */
 export async function setPlanDates(planId, { start, end, allowedWeekdays, repeatWeeks, reopen }) {
     const set = {

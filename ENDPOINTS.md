@@ -429,7 +429,7 @@ Planner role only.
 
 ### Effects
 
-* A switch, not a round. Neither direction touches a single answer, so a confirmation closed by mistake reopens with every yes and no still on it and the attendance board never loses what it knew. Only a day actually moving clears answers, which is the choose, void, range and days routes.
+* A switch, not a round. Neither direction touches a single answer, so a confirmation closed by mistake reopens with every yes and no still on it and the attendance board never loses what it knew. Only a day actually moving clears answers, which is the choose and dates routes.
 * Opening revives the confirmation message already in the thread wherever it survives, rather than posting a second one. Only a plan that has never had one gets a fresh post, and only that post carries mentions.
 * Every card is rewritten with it, so the buttons appear in people's DMs when it opens and come off when it closes.
 
@@ -492,29 +492,6 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/void` (session)
-
-Undo a date that was already locked in, so the plan can be rescheduled.
-
-Planner role only.
-
-### Input
-
-* Reason (optional)
-* `dm` (optional, default true): whether to DM everyone that you are rescheduling
-
-### Effects
-
-* Clears the chosen date.
-* DMs everyone unless `dm` is off, no thread post.
-
-### Notes
-
-* `400` if there is no set date to undo.
-* No caller on the site. Putting a plan back to having no day at all, while keeping every answer, turned out not to be a thing anyone sat down wanting: a wrong day is either replaced off the grid, sent back out through `/dates`, or cancelled. The route remains.
-
----
-
 ## POST `/api/plans/:planId/remind` (session)
 
 Nudge whoever the plan is waiting on.
@@ -539,63 +516,6 @@ Planner role only.
 
 ---
 
-## POST `/api/plans/:planId/range` (session)
-
-Set a fresh start and end on the plan, reopen it, and tell everyone to refill the new window.
-
-Planner role only.
-
-### Input
-
-* New start and end date
-* Note (optional)
-* `post` (optional, default true): whether to ping the new dates in the thread
-* `dm` (optional, default true): whether to DM everyone the new dates
-
-### Effects
-
-* Moves the date range.
-* Pings and DMs everyone about the new window.
-
-### Notes
-
-* The new range has to be valid, not entirely in the past, within two years, and actually different from the current one.
-* A weekday-pinned plan needs at least one of its days to still fall inside the new range.
-* Capped at a high daily backstop per person, since each change pings and DMs everyone.
-
----
-
-## POST `/api/plans/:planId/weekdays` (session)
-
-Change which weekdays the plan asks about, reopen it, and tell everyone to fill in the new set.
-
-Planner role only.
-
-### Input
-
-* `allowedWeekdays`: the weekdays people can mark, as numbers 0 (Sunday) to 6, or `null`/all seven for the whole range
-* Note (optional)
-* `post` (optional, default true): whether to ping the change in the thread
-* `dm` (optional, default true): whether to DM everyone
-
-### Effects
-
-* Sets the plan's weekdays. Saved availability is always left alone.
-* If the change opens a day nobody has been asked about (a pure addition, or a swap that brings a new day in), it reopens the plan and resets everyone's confirmed flag so they take another look, and clears any picked date.
-* If the change only takes days away, confirmations stand and nobody has to redo anything. The one exception is a picked date that now lands on a dropped day: that date is cleared and the plan reopens, but the confirmations stay.
-* Pings and DMs everyone unless those are turned off. The message asks people to fill in the new day when one opened, or tells them there is nothing to do when the plan only narrowed.
-
-### Returns
-
-* `reopened`: whether a new day was opened, so confirmations were reset
-
-### Notes
-
-* The new set has to leave at least one day inside the plan's current range, and be different from what it already asks about.
-* Capped at a high daily backstop per person, since each change can ping and DM everyone.
-
----
-
 ## POST `/api/plans/:planId/dates` (session)
 
 Go back out for different dates: the window, the weekdays, the guest list and the repeat, all in one press.
@@ -605,7 +525,7 @@ Planner role only.
 ### Input
 
 * New start and end date
-* `allowedWeekdays` (optional): as on the weekdays route, `null` or all seven for the whole range
+* `allowedWeekdays` (optional): the weekdays people can mark, as numbers 0 (Sunday) to 6, or `null`/all seven for the whole range
 * `participantIds` (optional): the full guest list as the screen has it
 * `repeatWeeks` (optional): 1, 2, 4, or `null` for a one off
 * Note (optional)
@@ -629,8 +549,8 @@ Planner role only.
 * Nobody is ever taken off here. A list arriving short of someone already on the plan means the picker did not know about them, not that they are meant to go.
 * At least one of the picked weekdays has to fall inside the new window.
 * The request has to change something: the same window, days, people and repeat is refused.
-* Shares the range route's daily backstop rather than taking one of its own, since it is the same ask.
-* `/add` and `/repeat` are still reached on their own from the compare page, since adding a person and turning a repeat on are their own reasons to be there. `/range` and `/weekdays` no longer have a caller on the site, this route being how the window and the days move now, but both remain.
+* Shares the daily backstop the create form's window changes count against, rather than taking one of its own, since it is the same ask.
+* `/add` and `/repeat` are still reached on their own from the compare page, since adding a person and turning a repeat on are their own reasons to be there. The window and the days had a route each before this one, and each put its own message in the thread.
 
 ---
 

@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announceRangeChange, announcePlanDates, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -43,11 +43,8 @@ vi.mock('../../src/db/plans.js', () => ({
         'confirmParticipant',
         'setPlanChosen',
         'setPlanWhen',
-        'voidPlanChoice',
         'setReminded',
         'setVoteReminded',
-        'setPlanRange',
-        'setPlanWeekdays',
         'setPlanDates',
         'addParticipants',
         'setPlanDetails',
@@ -85,13 +82,10 @@ vi.mock('../../src/bot/plans.js', () =>
         'applyConfirmations',
         'remindStragglers',
         'remindVoters',
-        'announceRangeChange',
-        'announceWeekdaysChange',
         'announcePlanDates',
         'announceCancel',
         'leavePlan',
         'announceAddition',
-        'announceVoid',
         'notifyCreatorIfAllIn',
         'syncPlan',
         'applyAttendanceMove',
@@ -157,7 +151,7 @@ const post = (path, body = {}) =>
     });
 
 //The routes that refuse to touch a cancelled plan, which is all of them bar the three below
-const changing = ['/choose', '/attendance', '/void', '/repeat', '/remind', '/range', '/weekdays', '/dates', '/details', '/add'];
+const changing = ['/choose', '/attendance', '/repeat', '/remind', '/dates', '/details', '/add'];
 
 describe('the plan gate', () => {
     /*
@@ -379,23 +373,23 @@ describe('choosing the day a plan is already on', () => {
 describe('quiet mode', () => {
     const flagsOf = (fn) => fn.mock.calls.at(-1).at(-1);
 
-    it('silences the range change both ways', async () => {
-        await post('/ab12cd34ef/range', { start: '2026-08-02', end: '2026-08-20', quiet: true });
+    it('silences a window moving both ways', async () => {
+        await post('/ab12cd34ef/dates', { start: '2026-08-02', end: '2026-08-20', quiet: true });
         announceAfter.mock.calls.at(-1)[1]();
-        expect(flagsOf(announceRangeChange)).toMatchObject({ post: false, dm: false });
+        expect(flagsOf(announcePlanDates)).toMatchObject({ post: false, dm: false });
     });
 
     //A ticked box and quiet mode cannot both win, or the page and the server disagree
     it('beats a box the panel left ticked', async () => {
-        await post('/ab12cd34ef/range', { start: '2026-08-02', end: '2026-08-20', quiet: true, post: true, dm: true });
+        await post('/ab12cd34ef/dates', { start: '2026-08-02', end: '2026-08-20', quiet: true, post: true, dm: true });
         announceAfter.mock.calls.at(-1)[1]();
-        expect(flagsOf(announceRangeChange)).toMatchObject({ post: false, dm: false });
+        expect(flagsOf(announcePlanDates)).toMatchObject({ post: false, dm: false });
     });
 
     it('leaves a request that says nothing about it as loud as ever', async () => {
-        await post('/ab12cd34ef/range', { start: '2026-08-02', end: '2026-08-20' });
+        await post('/ab12cd34ef/dates', { start: '2026-08-02', end: '2026-08-20' });
         announceAfter.mock.calls.at(-1)[1]();
-        expect(flagsOf(announceRangeChange)).toMatchObject({ post: true, dm: true });
+        expect(flagsOf(announcePlanDates)).toMatchObject({ post: true, dm: true });
     });
 
     it('silences a cancel when it is asked to', async () => {
