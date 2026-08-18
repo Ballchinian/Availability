@@ -829,11 +829,9 @@ code {
     font-weight: normal;
 }
 
-/* The rule the first panel draws for itself would land right under the group's own */
+/* One gap under a heading whatever the first panel asks for, since they do not agree */
 .group > div:first-of-type {
     margin-top: 12px;
-    padding-top: 0;
-    border-top: none;
 }
 
 /* Compare view */
