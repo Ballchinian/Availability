@@ -102,9 +102,13 @@
     }
 
     /*
-        A quiet refetch for small changes like a board move, no loading flash. Quiet
-        stops at a session that has gone or a role taken away: nothing forces a full
-        load, so every panel on this page would go on looking like it worked.
+        A quiet refetch for everything a panel does, no loading flash. The flash is not
+        only cosmetic: it swaps the whole page out and back, which builds every panel
+        again from nothing, so the line one had just written about who was DMed went
+        with it. Only cancelling still takes the full load, since it needs the banner.
+
+        Quiet stops at a session that has gone or a role taken away: nothing forces a
+        full load, so every panel on this page would go on looking like it worked.
     */
     async function refresh() {
         try {
@@ -316,7 +320,7 @@
                             time={chosen.time}
                             note={chosen.note}
                             {quiet}
-                            onsaved={load}
+                            onsaved={refresh}
                         />
                     {/if}
 
@@ -328,14 +332,14 @@
                         time={chosen?.time ?? ''}
                         note={chosen?.note ?? ''}
                         {quiet}
-                        onsaved={load}
+                        onsaved={refresh}
                     />
 
                     <EditDetails
                         planId={params.planId}
                         name={data.plan.name}
                         description={data.plan.description}
-                        onsaved={load}
+                        onsaved={refresh}
                     />
 
                     <AddPeople
@@ -343,7 +347,7 @@
                         guildId={data.plan.guildId}
                         participants={data.participants}
                         {quiet}
-                        onadded={load}
+                        onadded={refresh}
                     />
 
                     <!--A screen rather than a panel: it is the create form again, and the only one
@@ -359,7 +363,7 @@
                         end={data.plan.end}
                         chosenDate={data.plan.chosenDate}
                         chosenTime={data.plan.chosenTime}
-                        onchanged={load}
+                        onchanged={refresh}
                     />
 
                     <RepairPanel planId={params.planId} />
