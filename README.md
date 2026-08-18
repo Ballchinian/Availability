@@ -39,11 +39,13 @@ If the day is already decided, the planner can skip all that and announce a set 
 
 ### Changing a plan that is already running
 
-Everything you can do to a plan lives under **Change the plan** on the compare page, and each one is named after the reason you came rather than after what the app has to do about it. **The day is wrong** opens the grid with the day you are on ringed in green, and you pick the new one off it. **The time is wrong**, **The note or description is wrong**, **The name is wrong** and **Someone else should be on it** are each a small form and cost nobody their answer. Whether a change means people have to look again is worked out from the change itself, so it is said on the button that does it instead of being filed under a scarier heading.
+Everything you can do to a plan lives under **Change the plan** on the compare page, and each one is named after the reason you came rather than after what the app has to do about it. **The time is wrong**, **What it is about is wrong**, **The name is wrong** and **Someone else should be on it** are each a small form and cost nobody their answer. Whether a change means people have to look again is worked out from the change itself, so it is said on the button that does it instead of being filed under a scarier heading.
 
-The one that does ask everybody again is **None of these days work**. That opens the create form over again on the plan you already have, with last time's window, weekdays, crowd and repeat filled in, and one press changes the lot: everyone goes back over their dates, keeping whatever they had already saved, and the thread gets a single message about it rather than one per thing you moved.
+The big one is **The day is wrong**, called **None of these days work** on a plan that has not got a day yet. Both open the same screen, which is the create form over again on the plan you already have: last time's window, weekdays, crowd and repeat filled in, and the same two choices you had at the start. Say which day it is on, or ask everyone which days work. Naming a day tells people and costs nobody their answer; asking again sends everyone back over their dates, keeping whatever they had already saved. Either way the thread gets a single message rather than one per thing you moved.
 
-The grid is the only way to a day, whether or not anyone has answered yet. Every day in the window is clickable, and a day nobody is free on says why it looks dim and lets you set it anyway.
+Naming a day is not held to the window the plan asked about. Pick something outside it and the window simply stretches to reach it, so a plan that went out asking about August can still land on the first weekend of September without anybody having to answer anything again.
+
+The grid is the only way to a day you are picking off what people said, whether or not anyone has answered yet. Every day in the window is clickable, and a day nobody is free on says why it looks dim and lets you set it anyway. It leads the compare page while the day is still being found, and moves onto the **when is it** screen once there is one, which is the only place it is still worth a look.
 
 ### Fixing things without a fuss
 
