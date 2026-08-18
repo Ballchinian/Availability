@@ -27,6 +27,20 @@
     let desc = $state('');
     let dayNote = $state('');
 
+    //A plan still out looking for a day has no note to edit, so the button cannot offer one
+    const hasNote = $derived(Boolean(chosenDate));
+
+    /*
+        How far a save reaches, which nothing on screen shows. The description is rewritten
+        where it already sits and stops there; the note is the half that sends a fresh DM,
+        and quiet is what stops that one.
+    */
+    const reach = $derived(
+        hasNote && !quiet
+            ? "The pinned post and everyone's DM are rewritten in place, and a changed note DMs everyone still invited."
+            : "The pinned post and everyone's DM are rewritten in place. Nobody is pinged."
+    );
+
     //Prefilled on open rather than at load, so a cancel leaves no half-typed edit behind
     function open() {
         panel.show();
@@ -41,7 +55,7 @@
         const noteMoved = Boolean(chosenDate) && wantNote !== (note || '');
 
         if (!descMoved && !noteMoved) {
-            panel.reject('Nothing changed there. Edit the description or the note to update it.');
+            panel.reject(hasNote ? 'Nothing changed there. Edit the description or the note to update it.' : 'Nothing changed there. Edit the description to update it.');
             return;
         }
 
@@ -68,11 +82,12 @@
 
 <div class="edit" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>The note or description is wrong</button>
+        <button class="ghost" onclick={open}>{hasNote ? 'The note or description is wrong' : 'The description is wrong'}</button>
     {:else}
+        <p class="muted small">{reach}</p>
         <label class="lbl" for="adesc">What it is about</label>
         <textarea id="adesc" bind:value={desc} maxlength="280" rows="2" placeholder="A line or two so people know what they are signing up for."></textarea>
-        {#if chosenDate}
+        {#if hasNote}
             <label class="lbl" for="anote">Note on the day</label>
             <input id="anote" type="text" bind:value={dayNote} placeholder="e.g. meet at the station, bring boots" maxlength="200" />
         {/if}
