@@ -519,38 +519,62 @@ Planner role only.
 
 ## POST `/api/plans/:planId/dates` (session)
 
-Go back out for different dates: the window, the weekdays, the guest list and the repeat, all in one press.
+When is it: the day, or a fresh round of dates, plus the guest list and the repeat, all in one press.
+
+Two modes, the same two the create form has, picked by whether a `date` is sent. Naming a day sets the plan to it; leaving it out asks everyone about a window instead.
 
 Planner role only.
 
 ### Input
 
-* New start and end date
-* `allowedWeekdays` (optional): the weekdays people can mark, as numbers 0 (Sunday) to 6, or `null`/all seven for the whole range
+Shared by both modes:
+
 * `participantIds` (optional): the full guest list as the screen has it
 * `repeatWeeks` (optional): 1, 2, 4, or `null` for a one off
-* Note (optional)
 * `post` (optional, default true): whether to ping the change in the thread
 * `dm` (optional, default true): whether to DM everyone
+* `quiet` (optional): forces both of the above off
+
+Naming the day:
+
+* `date`: the day the plan is on, which does **not** have to fall inside the window
+* `time` (optional): `HH:MM`
+
+Asking about a window:
+
+* New start and end date
+* `allowedWeekdays` (optional): the weekdays people can mark, as numbers 0 (Sunday) to 6, or `null`/all seven for the whole range
+* Note (optional): carried into the message that goes out
 
 ### Effects
 
-* Sets the window, the weekdays and the repeat in a single write, then adds anyone new to the guest list.
+Both modes set the window, the weekdays and the repeat in a single write, then add anyone new to the guest list, and send one thread post and one round of DMs for the whole change. Anyone added gets the ordinary invitation instead, since it already carries the day or the new window.
+
+Naming a day:
+
+* Stretches the window to reach the day when it falls outside, leaving the rest of it alone, and adds the day's weekday to the set the plan asks about when a restriction would have excluded it.
+* Nobody is asked anything, so nothing is reopened and every answer already given stands.
+* A day that moved clears the confirmation round and invites everyone back, the same as `/choose`. A day that stayed put is an edit to the time and costs nobody their answer.
+
+Asking about a window:
+
 * Reopens the plan and resets everyone's confirmed flag when the window moved, or when the weekdays opened a day nobody has been asked about. A window that stayed put falls back to the weekday rule, so a pure narrowing leaves every answer standing.
-* Sends one thread post and one round of DMs for the whole change, rather than the three the single-change routes would each have sent.
-* Anyone added gets the ordinary invitation instead, since it already carries the new window and days.
 
 ### Returns
 
-* `reopened`: whether everyone was sent back for their dates
+* `set`: present and true when a day was named
+* `chosenDate` and `chosenTime`, when a day was named
+* `reopened`: whether everyone was sent back for their dates, when a window was asked about
+* `start`, `end`, `allowedWeekdays`, `repeatWeeks`: the plan as it now stands
 * `added`: how many people were new to the plan
 
 ### Notes
 
 * Nobody is ever taken off here. A list arriving short of someone already on the plan means the picker did not know about them, not that they are meant to go.
+* Stretching is the only way to a day the plan never asked about. `/choose`, which the grid uses, still holds a date to the window, since a day picked off the grid can only be one that is drawn on it.
 * At least one of the picked weekdays has to fall inside the new window.
-* The request has to change something: the same window, days, people and repeat is refused.
-* Shares the daily backstop the create form's window changes count against, rather than taking one of its own, since it is the same ask.
+* The request has to change something: the same day, time, window, days, people and repeat is refused.
+* Shares one daily backstop with the other ways a window moves, since it is the same ask.
 * `/add` and `/repeat` are still reached on their own from the compare page, since adding a person and turning a repeat on are their own reasons to be there. The window and the days had a route each before this one, and each put its own message in the thread.
 
 ---
