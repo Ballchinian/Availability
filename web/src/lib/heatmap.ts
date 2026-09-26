@@ -1,4 +1,4 @@
-import { luminance } from './contrast.js';
+import { contrast } from './contrast.js';
 
 /*
     The heat used by both grids: a month heading, a day shaded by how many hours
@@ -49,17 +49,16 @@ export function fillColor(filled: number, total: number): string {
 }
 
 /*
-    Text to sit on top of a fill. The white the grids default to disappears at the
-    yellow end of the ramp, so past a point the page background takes over. 0.2 is
-    that point, where white and the page read equally well, which is where the
-    worst cell on the ramp comes out best: around 4.2 to 1 either way, and higher
-    everywhere else. The shadow goes with the swap, a dark glow under dark text
-    smudges rather than lifts.
+    Text to sit on top of a fill, white or black, whichever reads better on it. The
+    closest the two come is 13 hours, white at 4.61:1. The page background standing
+    in for black left 14 hours at 4.28:1. The shadow goes with the swap, a dark glow
+    under dark text smudges rather than lifts.
 */
 export function fillTextStyle(filled: number, total: number): string {
-    const [r, g, b] = ramp(filled, total);
-    if (luminance([r, g, b]) <= 0.2) return `background:rgb(${r},${g},${b})`;
-    return `background:rgb(${r},${g},${b});color:#16171d;text-shadow:none`;
+    const fill = ramp(filled, total);
+    const [r, g, b] = fill;
+    if (contrast([255, 255, 255], fill) >= contrast([0, 0, 0], fill)) return `background:rgb(${r},${g},${b})`;
+    return `background:rgb(${r},${g},${b});color:#000;text-shadow:none`;
 }
 
 /*

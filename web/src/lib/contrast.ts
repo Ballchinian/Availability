@@ -1,7 +1,7 @@
 export type Rgb = [number, number, number];
 
 //Relative luminance, the sRGB one contrast is actually judged on
-export function luminance([r, g, b]: Rgb): number {
+function luminance([r, g, b]: Rgb): number {
     const channel = (c: number) => {
         const s = c / 255;
         return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;

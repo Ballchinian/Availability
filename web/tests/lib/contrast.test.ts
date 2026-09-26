@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { css, value } from '../css.js';
 import { contrast, type Rgb } from '../../src/lib/contrast.js';
-import { fillColor } from '../../src/lib/heatmap.js';
+import { fillColor, fillTextStyle } from '../../src/lib/heatmap.js';
 import { HOUR_COUNT } from '../../src/lib/hours.js';
 
 /*
@@ -103,5 +103,16 @@ describe('controls', () => {
         ".horizon-row input[type='date']"
     ])('%s is edged in --control-border', (selector) => {
         expect(value(selector, 'border')).toContain('var(--control-border)');
+    });
+});
+
+//Every step a day can take on either grid, since both shade by whole hours out of 24
+describe('text on the heatmap', () => {
+    it.each(Array.from({ length: HOUR_COUNT + 1 }, (_, h) => h))('reads at %i hours', (hours) => {
+        const style = fillTextStyle(hours, HOUR_COUNT);
+        const fill = paint(style.match(/background:([^;]+)/)![1]);
+        //White is what both grids draw unless the style says otherwise
+        const text = paint(style.match(/;color:([^;]+)/)?.[1] ?? '#fff');
+        expect(contrast(text, fill)).toBeGreaterThanOrEqual(TEXT);
     });
 });
