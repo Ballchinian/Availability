@@ -992,8 +992,10 @@ a.primary {
     margin-top: 10px;
 }
 
+/* Capped, or a long label like "Comes round every other week, change it" runs off a 320px screen rather than wrapping */
 .tools > * {
     flex: 0 0 auto;
+    max-width: 100%;
     margin: 0;
 }
 
@@ -1011,9 +1013,11 @@ a.primary {
     margin-bottom: 6px;
 }
 
+/* Chrome's own 2px either side of a range input takes it past 100% on a narrow screen */
 .miss input[type='range'] {
     width: 260px;
     max-width: 100%;
+    margin-inline: 0;
 }
 
 .legend {

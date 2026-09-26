@@ -40,3 +40,14 @@ describe('picked states', () => {
         expect(Number(value(selector, 'font-weight'))).toBeGreaterThanOrEqual(600);
     });
 });
+
+//Measured at 320px wide, where these were the only two things that ran past the panel
+describe('reflow', () => {
+    it('keeps a row of tools inside the panel, however long a label', () => {
+        expect(value('.tools > *', 'max-width')).toBe('100%');
+    });
+
+    it("takes Chrome's own margin off the miss slider", () => {
+        expect(value(".miss input[type='range']", 'margin-inline')).toBe('0');
+    });
+});
