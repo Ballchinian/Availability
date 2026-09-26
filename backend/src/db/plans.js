@@ -141,6 +141,8 @@ export async function createPlan({
         repeatedInto: null,
         participants: participantIds.map((userId) => freshParticipant(userId)),
         threadId: null,
+        //The channel the thread was made under, which can outlive a /setup that moved to a new one
+        threadParentId: null,
         openerMessageId: null,
         status: 'collecting',
         chosenDate: null,
@@ -402,8 +404,8 @@ export async function setPlanDates(planId, { start, end, allowedWeekdays, repeat
     return getPlan(planId);
 }
 
-export async function setPlanThread(planId, threadId) {
-    await col(collections.plans).updateOne({ planId }, { $set: { threadId } });
+export async function setPlanThread(planId, threadId, threadParentId) {
+    await col(collections.plans).updateOne({ planId }, { $set: { threadId, threadParentId } });
 }
 
 //Remember which message opened the thread, so a later edit can rewrite that pinned post
@@ -431,6 +433,20 @@ export async function deletePlan(planId) {
 export async function deletePlansForGuild(guildId) {
     const plans = await col(collections.plans).find({ guildId }).toArray();
     await col(collections.plans).deleteMany({ guildId });
+    return plans;
+}
+
+/*
+    Remove the plans whose threads went with a deleted channel, returning them first.
+    Plans threaded before threadParentId was stored have none, and unknownParent takes
+    those too: only right when the channel is the one the server's plans are made under.
+*/
+export async function deletePlansUnderChannel(guildId, channelId, { unknownParent = false } = {}) {
+    const under = [{ threadParentId: channelId }];
+    //null matches a missing field as well as a stored null
+    if (unknownParent) under.push({ threadId: { $ne: null }, threadParentId: null });
+    const plans = await col(collections.plans).find({ guildId, $or: under }).toArray();
+    if (plans.length) await col(collections.plans).deleteMany({ planId: { $in: plans.map((p) => p.planId) } });
     return plans;
 }
 

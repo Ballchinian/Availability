@@ -419,7 +419,7 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
 
     //Thread names cap at 100 characters
     const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
-    await setPlanThread(plan.planId, thread.id);
+    await setPlanThread(plan.planId, thread.id, channel.id);
 
     const ids = plan.participants.map((p) => p.userId);
     await addToThread(thread, ids);
@@ -461,7 +461,7 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
     const guild = await client.guilds.fetch(plan.guildId);
     const channel = await guild.channels.fetch(cfg.plansChannelId);
     const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
-    await setPlanThread(plan.planId, thread.id);
+    await setPlanThread(plan.planId, thread.id, channel.id);
     await addToThread(thread, ids);
 
     //No @ here, adding people to the thread already pings them

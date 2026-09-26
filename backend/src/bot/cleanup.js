@@ -1,6 +1,6 @@
 import { client } from './client.js';
 import { getGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
-import { getPlanByThread, deletePlan, deletePlansForGuild, removeUserFromGuildPlans } from '../db/plans.js';
+import { getPlanByThread, deletePlan, deletePlansForGuild, deletePlansUnderChannel, removeUserFromGuildPlans } from '../db/plans.js';
 import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel } from './util.js';
@@ -33,9 +33,22 @@ export async function onThreadDelete(thread) {
     await syncPlanCards({ ...plan, deleted: true }).catch((err) => console.error('[cleanup] retiring cards failed:', err));
 }
 
+/*
+    Discord does not promise a thread delete for every thread a channel takes with it, so
+    their plans are cleared here as well. Not only for the channel the server is set up
+    with: a /setup that could not reach the old channel made a new one, and the old one
+    can still hold plan threads when it goes later.
+*/
 export async function onChannelDelete(channel) {
     const cfg = await getGuildConfig(channel.guildId);
-    if (!cfg || cfg.plansChannelId !== channel.id) return;
+    const current = Boolean(cfg && cfg.plansChannelId === channel.id);
+
+    const gone = await deletePlansUnderChannel(channel.guildId, channel.id, { unknownParent: current });
+    for (const plan of gone) {
+        await syncPlanCards({ ...plan, deleted: true }, cfg).catch((err) => console.error('[cleanup] retiring cards failed:', err));
+    }
+
+    if (!current) return;
 
     await markSetupBroken(channel.guildId);
 
