@@ -6,6 +6,7 @@
     import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
+    import { measureBar } from '../lib/actionbar.js';
     import type { PlanScreen, SavedForPlan, LeftPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
@@ -291,7 +292,7 @@
 
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
             and whatever the last save said are all in reach of a two year page-->
-        <div class="actionbar">
+        <div class="actionbar" {@attach measureBar}>
             <div class="bar-row">
                 <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
                 <button class="primary" onclick={confirm} disabled={submitting}>

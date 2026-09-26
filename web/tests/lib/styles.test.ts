@@ -74,3 +74,15 @@ describe('plan cards', () => {
         expect(px(rule('.card .action'), 'min-height')).toBeGreaterThanOrEqual(24);
     });
 });
+
+describe('the sticky save bar', () => {
+    //Without the room, a day brought into view by Tab can stop underneath the bar
+    it('leaves room for itself at the bottom of the page', () => {
+        expect(value('html', 'scroll-padding-bottom')).toContain('var(--actionbar');
+    });
+
+    it('lets go on a short screen, where pinned it would cover most of it', () => {
+        const short = css.slice(css.indexOf('@media (max-height: 500px)'));
+        expect(short.slice(0, short.indexOf('\n}'))).toMatch(/\.actionbar \{\s*position: static;/);
+    });
+});

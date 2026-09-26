@@ -42,6 +42,15 @@ body {
     min-height: 100svh;
 }
 
+/*
+    Room under whatever the keyboard brings into view, so a day with focus stops above
+    the sticky save bar rather than under it. --actionbar is the bar's height, measured
+    while one is on the page; the 8px keeps a focus ring clear of it as well.
+*/
+html {
+    scroll-padding-bottom: calc(var(--actionbar, 0px) + 8px);
+}
+
 .page {
     max-width: 1100px;
     margin: 0 auto;
@@ -870,6 +879,17 @@ a.primary {
 
 .actionbar .msg:not(.silent) {
     margin-top: 8px;
+}
+
+/* Pinned on a screen this short it hides most of it, 72% at 400% zoom, so it stays where it is drawn */
+@media (max-height: 500px) {
+    .actionbar {
+        position: static;
+    }
+
+    html {
+        scroll-padding-bottom: 8px;
+    }
 }
 
 .pad {
