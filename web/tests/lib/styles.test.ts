@@ -12,6 +12,13 @@ describe('the hours clock', () => {
     });
 });
 
+//The small buttons, whose padding alone came to 15 to 22px
+describe('small targets', () => {
+    it.each(['.link-btn', '.quick', '.move-row .ghost', '.uninvited .ghost'])('%s is at least 24px tall', (selector) => {
+        expect(px(rule(selector), 'min-height')).toBeGreaterThanOrEqual(24);
+    });
+});
+
 describe('opacity', () => {
     /*
         It fades the text inside along with everything else, which is how a dim compare

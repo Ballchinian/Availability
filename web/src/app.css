@@ -264,7 +264,11 @@ code {
     font-size: 16px;
 }
 
+/* inline-flex so the 24px floor takes on an <a> too, which ignores min-height inline */
 .link-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     background: none;
     border: none;
     color: var(--muted);
@@ -396,6 +400,7 @@ code {
     border-radius: 999px;
     color: var(--text);
     padding: 4px 12px;
+    min-height: 24px;
     font-size: 13px;
     cursor: pointer;
 }
@@ -1235,6 +1240,7 @@ a.ghost:hover {
 
 .move-row .ghost {
     padding: 4px 9px;
+    min-height: 24px;
     font-size: 12px;
 }
 
@@ -1271,6 +1277,7 @@ a.ghost:hover {
 
 .uninvited .ghost {
     padding: 3px 9px;
+    min-height: 24px;
     font-size: 12px;
 }
 
