@@ -18,11 +18,20 @@
     holds the range and validation half, web/src/lib/calendar.ts the grid layout.
 */
 
-//Turns a stored YYYY-MM-DD into the day-month-year we show people
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+//"Sat 12 Sep", for where the year goes without saying, like a /free option label
+export function formatDay(iso) {
+    if (!iso) return '';
+    const [, m, d] = iso.split('-');
+    return `${WEEKDAY_SHORT[weekdayOf(iso)]} ${Number(d)} ${MONTH_SHORT[Number(m) - 1]}`;
+}
+
+//"Sat 12 Sep 2026", how every date reads to people, never 12/09/2026
 export function formatDate(iso) {
     if (!iso) return '';
-    const [y, m, d] = iso.split('-');
-    return `${d}/${m}/${y}`;
+    return `${formatDay(iso)} ${iso.slice(0, 4)}`;
 }
 
 //Turns a stored HH:MM into a friendly 7:30pm style label, blank if there is no time

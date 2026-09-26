@@ -11,16 +11,16 @@ describe('describeEvent', () => {
 
     it('reads a set day, with and without a time', () => {
         expect(describeEvent({ ...base, type: 'chosen', date: '2026-08-12', time: '19:30', probe: false })).toBe(
-            'set the day to 12/08/2026 at 7:30pm'
+            'set the day to Wed 12 Aug 2026 at 7:30pm'
         );
         expect(describeEvent({ ...base, type: 'chosen', date: '2026-08-12', time: null, probe: false })).toBe(
-            'set the day to 12/08/2026'
+            'set the day to Wed 12 Aug 2026'
         );
     });
 
     it('mentions the confirmation round when one was started with it', () => {
         expect(describeEvent({ ...base, type: 'chosen', date: '2026-08-12', time: null, probe: true })).toBe(
-            'set the day to 12/08/2026, and asked everyone to confirm'
+            'set the day to Wed 12 Aug 2026, and asked everyone to confirm'
         );
     });
 
@@ -28,19 +28,19 @@ describe('describeEvent', () => {
     it('names the day a move came off', () => {
         expect(
             describeEvent({ ...base, type: 'moved', from: '2026-08-12', date: '2026-08-19', time: null, probe: false })
-        ).toBe('moved the day from 12/08/2026 to 19/08/2026');
+        ).toBe('moved the day from Wed 12 Aug 2026 to Wed 19 Aug 2026');
     });
 
     it('carries a reason for calling a day off, and copes without one', () => {
         expect(describeEvent({ ...base, type: 'voided', from: '2026-08-12', reason: 'the venue fell through' })).toBe(
-            'called off 12/08/2026, because the venue fell through'
+            'called off Wed 12 Aug 2026, because the venue fell through'
         );
-        expect(describeEvent({ ...base, type: 'voided', from: '2026-08-12', reason: null })).toBe('called off 12/08/2026');
+        expect(describeEvent({ ...base, type: 'voided', from: '2026-08-12', reason: null })).toBe('called off Wed 12 Aug 2026');
     });
 
     it('reads a range change', () => {
         expect(describeEvent({ ...base, type: 'range', start: '2026-08-01', end: '2026-08-31' })).toBe(
-            'changed the dates to 01/08/2026 to 31/08/2026'
+            'changed the dates to Sat 1 Aug 2026 to Mon 31 Aug 2026'
         );
     });
 
@@ -48,10 +48,10 @@ describe('describeEvent', () => {
     it('reads a trip back out for dates as a single line', () => {
         const went = { ...base, type: 'dates' as const, start: '2026-09-01', end: '2026-09-30', reopened: true };
         expect(describeEvent({ ...went, allowedWeekdays: null, added: 0 })).toBe(
-            'went back out for dates, 01/09/2026 to 30/09/2026'
+            'went back out for dates, Tue 1 Sep 2026 to Wed 30 Sep 2026'
         );
         expect(describeEvent({ ...went, allowedWeekdays: [0, 6], added: 2 })).toBe(
-            'went back out for dates, 01/09/2026 to 30/09/2026, weekends only, and added 2 people'
+            'went back out for dates, Tue 1 Sep 2026 to Wed 30 Sep 2026, weekends only, and added 2 people'
         );
     });
 
@@ -150,7 +150,7 @@ describe('timeAgo', () => {
 
     //Past a week a count of days stops being something anyone can place
     it('gives the date itself once it is over a week old', () => {
-        expect(ago(8 * 86_400_000)).toMatch(/^on \d{2}\/\d{2}\/\d{4}$/);
+        expect(ago(8 * 86_400_000)).toMatch(/^on (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2} \d{4}$/);
     });
 
     it('does not go negative on a stamp a moment in the future', () => {

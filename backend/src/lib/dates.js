@@ -11,7 +11,7 @@ import { describeWeekdays as describeDays, weekdayAllowed, isoDate, maxEnd, shif
 */
 
 export {
-    formatDate, formatTime, weekdayOf, weekdayAllowed, REPEAT_WEEKS, describeRepeat,
+    formatDay, formatDate, formatTime, weekdayOf, weekdayAllowed, REPEAT_WEEKS, describeRepeat,
     isoDate, tomorrow, maxEnd, shiftDate, daysBetween, nextInSeries, nextPlanShape
 } from '../../../shared/dates.js';
 

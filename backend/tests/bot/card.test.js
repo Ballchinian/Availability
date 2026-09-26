@@ -36,7 +36,7 @@ describe('planCard while a plan is still collecting', () => {
         const { content, components } = planCard(collecting, nobody, { guildName: 'The server', actorName: 'Ali' });
         expect(content).toContain('INVITED TO A PLAN');
         expect(content).toContain('Ali added you to the plan "Camping" in The server');
-        expect(content).toContain('01/08/2026 to 30/08/2026');
+        expect(content).toContain('Sat 1 Aug 2026 to Sun 30 Aug 2026');
         expect(content).toContain('a weekend away');
         expect(content).toContain('#/plan/ab12cd34ef');
         expect(content).toContain('/channels/g1/t1');
@@ -80,7 +80,7 @@ describe('planCard once a day is set', () => {
         const { content, components } = planCard(set, nobody, { guildName: 'The server', actorName: 'Ali' });
         expect(content).toContain('DATE SET');
         expect(content).toContain('Ali set the plan "Camping" in The server for');
-        expect(content).toContain('12/08/2026');
+        expect(content).toContain('Wed 12 Aug 2026');
         expect(content).toContain('7pm');
         expect(content).toContain('meet at the station');
         expect(content).toContain('a weekend away');

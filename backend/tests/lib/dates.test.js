@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     isoDate,
+    formatDay,
     formatDate,
     formatTime,
     checkRange,
@@ -28,9 +29,32 @@ describe('isoDate', () => {
     });
 });
 
+describe('formatDay', () => {
+    it('reads as a day someone can recognise', () => {
+        expect(formatDay('2026-08-12')).toBe('Wed 12 Aug');
+        expect(formatDay('2026-01-01')).toBe('Thu 1 Jan');
+        expect(formatDay('2026-12-31')).toBe('Thu 31 Dec');
+    });
+
+    it('drops the leading zero a stored date carries', () => {
+        expect(formatDay('2026-08-05')).toBe('Wed 5 Aug');
+    });
+
+    //Every /free option label is one of these, and Discord caps those at 100 characters
+    it('stays well inside what an option can hold', () => {
+        expect(formatDay('2026-09-30').length).toBeLessThanOrEqual(100);
+    });
+
+    it('is blank when there is no date', () => {
+        expect(formatDay('')).toBe('');
+        expect(formatDay(null)).toBe('');
+    });
+});
+
 describe('formatDate', () => {
-    it('reads a stored date back as day-month-year', () => {
-        expect(formatDate('2026-08-05')).toBe('05/08/2026');
+    it('reads a stored date back with its weekday, month name and year', () => {
+        expect(formatDate('2026-08-05')).toBe('Wed 5 Aug 2026');
+        expect(formatDate('2027-01-01')).toBe('Fri 1 Jan 2027');
     });
 
     it('is blank when there is no date', () => {

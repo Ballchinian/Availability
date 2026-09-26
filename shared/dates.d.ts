@@ -4,6 +4,7 @@
     site imports these through web/src/lib, which is where they get their names.
 */
 
+export function formatDay(iso?: string | null): string;
 export function formatDate(iso?: string | null): string;
 export function formatTime(t?: string | null): string;
 export function weekdayOf(date: string): number;

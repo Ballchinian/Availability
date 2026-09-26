@@ -4,7 +4,7 @@ import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange } from '../db/availability.js';
 import { notifyCreatorIfAllIn } from './plans.js';
 import { planUrl } from './util.js';
-import { allowedDaysInRange, weekdayOf } from '../lib/dates.js';
+import { allowedDaysInRange, formatDay } from '../lib/dates.js';
 
 /*
     Filling in your dates without leaving Discord, for the people who never click the
@@ -26,16 +26,6 @@ import { allowedDaysInRange, weekdayOf } from '../lib/dates.js';
 const PER_SELECT = 25;
 const MAX_SELECTS = 4;
 const MAX_DAYS = PER_SELECT * MAX_SELECTS;
-
-//Short forms, only used on the option labels, where a select is a few hundred pixels wide
-const SHORT_WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-//"Wed 12 Aug", which is what someone picking a day actually reads it by
-export function dayLabel(date) {
-    const [, m, d] = date.split('-');
-    return `${SHORT_WEEKDAY[weekdayOf(date)]} ${Number(d)} ${SHORT_MONTH[Number(m) - 1]}`;
-}
 
 /*
     The days this plan asks about, split into the runs one select can hold. Chunks are
@@ -84,11 +74,11 @@ export function pickerComponents(plan, chunks, freeSet) {
     const span = `${every[0]}|${every[every.length - 1]}`;
     const rows = chunks.map((chunk, index) => {
         const options = chunk.map((date) =>
-            new StringSelectMenuOptionBuilder().setLabel(dayLabel(date)).setValue(date).setDefault(freeSet.has(date))
+            new StringSelectMenuOptionBuilder().setLabel(formatDay(date)).setValue(date).setDefault(freeSet.has(date))
         );
         const select = new StringSelectMenuBuilder()
             .setCustomId(`free|day|${plan.planId}|${index}|${chunk[0]}|${chunk[chunk.length - 1]}`)
-            .setPlaceholder(`${dayLabel(chunk[0])} to ${dayLabel(chunk[chunk.length - 1])}`)
+            .setPlaceholder(`${formatDay(chunk[0])} to ${formatDay(chunk[chunk.length - 1])}`)
             //Zero so a list can be emptied, which is how somebody says they are free on none of these
             .setMinValues(0)
             .setMaxValues(options.length)

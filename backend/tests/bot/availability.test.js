@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dayLabel, dayChunks, pickerComponents, pickerText } from '../../src/bot/availability.js';
+import { dayChunks, pickerComponents, pickerText } from '../../src/bot/availability.js';
 import { weekdayOf } from '../../src/lib/dates.js';
 
 /*
@@ -12,23 +12,6 @@ const plan = (start, end, allowedWeekdays = null) => ({
     name: 'Board games',
     dateRange: { start, end },
     allowedWeekdays
-});
-
-describe('dayLabel', () => {
-    it('reads as a day someone can recognise', () => {
-        expect(dayLabel('2026-08-12')).toBe('Wed 12 Aug');
-        expect(dayLabel('2026-01-01')).toBe('Thu 1 Jan');
-        expect(dayLabel('2026-12-31')).toBe('Thu 31 Dec');
-    });
-
-    it('drops the leading zero a stored date carries', () => {
-        expect(dayLabel('2026-08-05')).toBe('Wed 5 Aug');
-    });
-
-    //Every label goes on a select option, which Discord caps at 100 characters
-    it('stays well inside what an option can hold', () => {
-        expect(dayLabel('2026-09-30').length).toBeLessThanOrEqual(100);
-    });
 });
 
 describe('dayChunks', () => {

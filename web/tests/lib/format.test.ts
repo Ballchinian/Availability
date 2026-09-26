@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { formatDate, formatLong, formatTime, describeWeekdays } from '../../src/lib/format.js';
 
 describe('formatDate', () => {
-    it('reads a stored date back as day-month-year', () => {
-        expect(formatDate('2026-08-05')).toBe('05/08/2026');
+    it('reads a stored date back with its weekday and month name', () => {
+        expect(formatDate('2026-08-05')).toBe('Wed 5 Aug 2026');
+        expect(formatDate('2026-12-31')).toBe('Thu 31 Dec 2026');
     });
 
     it('is blank when there is no date', () => {
