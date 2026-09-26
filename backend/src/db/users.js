@@ -69,8 +69,15 @@ export async function getUsersInGuild(guildId) {
     return col(collections.users).find({ guilds: guildId }).toArray();
 }
 
-export async function deleteUser(userId) {
-    await col(collections.users).deleteOne({ userId });
+/*
+    Everything about them goes except the version their sessions are checked against.
+    Deleting the whole record read as "nothing to check", so a cookie from before a
+    logout started working again. One write, so a logout landing alongside is not lost.
+*/
+export async function forgetUser(userId) {
+    await col(collections.users).updateOne({ userId }, [
+        { $replaceWith: { userId: '$userId', tokenVersion: { $ifNull: ['$tokenVersion', 0] } } }
+    ]);
 }
 
 /*

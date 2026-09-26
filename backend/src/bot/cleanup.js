@@ -1,7 +1,7 @@
 import { client } from './client.js';
 import { getGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
 import { getPlanByThread, deletePlan, deletePlansForGuild, removeUserFromGuildPlans } from '../db/plans.js';
-import { getUserById, deleteUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
+import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel } from './util.js';
 
@@ -16,7 +16,7 @@ async function forgetIfOrphaned(userId) {
     const user = await getUserById(userId);
     if (user && (!user.guilds || user.guilds.length === 0)) {
         await deleteAllForUser(userId);
-        await deleteUser(userId);
+        await forgetUser(userId);
     }
 }
 
