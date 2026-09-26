@@ -274,7 +274,7 @@ code {
     text-decoration: underline;
 }
 
-/* Landing page: one card per server you share with the bot */
+/* Plans on My plans and Past plans */
 .cards {
     list-style: none;
     margin: 10px 0 0;
@@ -448,6 +448,40 @@ code {
 .primary:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+a.primary {
+    display: inline-block;
+    text-decoration: none;
+}
+
+/* A planner's way to a new plan, between the heading and their list */
+.start {
+    margin-bottom: 18px;
+}
+
+.start > .primary {
+    margin-top: 0;
+}
+
+/* Pills rather than cards, so the choices under the button do not read as more plans */
+.start-in > p {
+    margin: 12px 0 8px;
+    font-size: 14px;
+}
+
+.start-in ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.start-in a.ghost {
+    border-color: var(--control-border);
+    font-size: 14px;
 }
 
 .error {

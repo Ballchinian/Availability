@@ -8,9 +8,10 @@ import DayGrid from '../../src/lib/DayGrid.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
+import StartPlan from '../../src/lib/StartPlan.svelte';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate } from '../../src/lib/format.js';
-import type { Participant, UserPlan } from '../../src/lib/types.js';
+import type { Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
@@ -372,5 +373,39 @@ describe('a plan card', () => {
         expect(body).toContain(`was set for ${formatDate(day)}`);
         expect(body).toContain('Look back at it');
         expect(body).not.toContain('See who is coming');
+    });
+});
+
+//My plans shows no list of servers, so this button is the only way a planner starts a plan from the site
+describe('the start a plan button', () => {
+    const guild = (guildId: string, over: Partial<UserGuild> = {}): UserGuild => ({
+        guildId,
+        guildName: `Server ${guildId}`,
+        iconUrl: null,
+        setupComplete: true,
+        isPlanner: true,
+        ...over
+    });
+    const draw = (guilds: UserGuild[]) => render(StartPlan, { props: { guilds } }).body;
+
+    it('is not there for someone who plans nowhere', () => {
+        const body = draw([guild('1', { isPlanner: false }), guild('2', { setupComplete: false })]);
+        expect(body).not.toContain('Start a plan');
+    });
+
+    it('goes straight to the form when there is one server to plan in', () => {
+        const body = draw([guild('1'), guild('2', { isPlanner: false })]);
+        expect(body).toMatch(/<a [^>]*href="#\/g\/1"[^>]*>Start a plan<\/a>/);
+        expect(body).not.toContain('<button');
+        expect(body).not.toContain('Server 2');
+    });
+
+    it('asks which server first when there are several, and starts closed', () => {
+        const body = draw([guild('1'), guild('2'), guild('3', { setupComplete: false })]);
+        expect(body).toMatch(/<button [^>]*aria-expanded="false"[^>]*aria-controls="start-in"/);
+        expect(body).toMatch(/<div id="start-in"[^>]* hidden/);
+        expect(body).toContain('href="#/g/1"');
+        expect(body).toContain('href="#/g/2"');
+        expect(body).not.toContain('Server 3');
     });
 });

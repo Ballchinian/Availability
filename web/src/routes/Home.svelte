@@ -3,6 +3,7 @@
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import PlanCards from '../lib/PlanCards.svelte';
+    import StartPlan from '../lib/StartPlan.svelte';
     import type { UserGuild, UserPlan } from '../lib/types.js';
 
     /*
@@ -43,13 +44,6 @@
         loading = false;
     });
 
-    //Whether a server can be planned in at all, and if so whether by this person
-    function serverNote(g: UserGuild) {
-        if (!g.setupComplete) return 'Nobody has run /setup here yet, so planning is not switched on.';
-        if (!g.isPlanner) return 'You need the planner role here to start a plan. Ask an admin for it.';
-        return '';
-    }
-
     function rank(p: UserPlan) {
         if (p.status !== 'collecting') return 2;
         return p.inIt && !p.filledIn ? 0 : 1;
@@ -61,13 +55,13 @@
 
 <section class="screen">
     {#if loading}
-        <p class="muted">Loading your servers and plans...</p>
+        <p class="muted">Loading your plans...</p>
     {:else if !auth.user}
         <h1>When is everyone free?</h1>
         <p>Work out when a group is actually free, without the twenty message back and forth.</p>
         <p class="muted">
-            Log in above and you will see the servers you share with the bot and the plans you are part of. If you have not met
-            the bot yet, someone in your server needs to invite it and run <code>/setup</code>.
+            Log in above to see the plans you are part of. If you have not met the bot yet, someone in your server needs to
+            invite it and run <code>/setup</code>.
         </p>
     {:else if loadError}
         <h1>My plans</h1>
@@ -75,35 +69,8 @@
     {:else}
         <h1>My plans</h1>
 
-        <h2>Your servers</h2>
-        {#if guilds.length === 0}
-            <p class="muted">
-                You are not in any server the bot is in. Once someone invites it to yours and runs <code>/setup</code>, it turns
-                up here.
-            </p>
-        {:else}
-            <ul class="cards">
-                {#each guilds as g (g.guildId)}
-                    <li class="card">
-                        {#if g.iconUrl}
-                            <img class="icon" src={g.iconUrl} alt="" width="40" height="40" />
-                        {:else}
-                            <span class="icon blank" aria-hidden="true">{g.guildName.slice(0, 1)}</span>
-                        {/if}
-                        <div class="body">
-                            <span class="name">{g.guildName}</span>
-                            {#if serverNote(g)}
-                                <span class="muted note">{serverNote(g)}</span>
-                            {:else}
-                                <a class="action" href="#/g/{g.guildId}">Start a plan</a>
-                            {/if}
-                        </div>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
+        <StartPlan {guilds} />
 
-        <h2>Your plans</h2>
         {#if plans.length === 0}
             <p class="muted">
                 Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.

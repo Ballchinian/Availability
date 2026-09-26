@@ -177,7 +177,7 @@ export interface GuildInfo {
     isPlanner: boolean;
 }
 
-//GET /me/guilds, a server on the landing page
+//GET /me/guilds, a server Start a plan can offer
 export interface UserGuild {
     guildId: string;
     guildName: string;

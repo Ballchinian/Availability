@@ -126,6 +126,7 @@ Each server, sorted by name, with:
 
 * Read from the list stored on the user, which is written at login and kept current as people join and leave servers. A user saved without one has it worked out and stored on the first request.
 * A server the bot has since been removed from, or that the requester has left, is dropped from the list rather than returned.
+* The site uses it for the Start a plan button on My plans, which only offers the servers that have run `/setup` and where the requester is a planner.
 
 ---
 
