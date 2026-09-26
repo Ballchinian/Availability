@@ -3,6 +3,7 @@
     import { buildMonths, isoOf, isoFromNow, stepDay, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT, formatHours } from './hours.js';
+    import { refocus } from './focus.js';
     import { Press, fromKeyboard } from './paint.svelte.js';
     import TimePicker from './TimePicker.svelte';
 
@@ -281,7 +282,12 @@
         date={editingDate}
         bind:hours={() => selection[editingDate] || [], (v) => (selection = { ...selection, [editingDate]: v })}
         onclose={(empty) => {
-            if (empty) unmark(editingDate);
+            const date = editingDate;
+            //The clock focus came back to goes with the day, so the day takes it instead
+            if (empty) {
+                unmark(date);
+                refocus(() => wrap.querySelector<HTMLElement>(`[data-date="${date}"]`));
+            }
             editingDate = '';
         }}
     />

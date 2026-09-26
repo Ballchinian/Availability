@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { refocus } from './focus.js';
     import type { Member } from './types.js';
 
     /*
@@ -14,6 +15,7 @@
 
     let search = $state('');
     const uid = $props.id();
+    let root = $state<HTMLDivElement>();
 
     const selectedSet = $derived(new Set(selectedIds));
 
@@ -29,10 +31,24 @@
 
     const chosen = $derived(members.filter((m) => selectedSet.has(m.id)));
 
+    /*
+        A chip pressed crosses to the other list, so focus stays in the list it left, on the
+        next person down, and goes to the search box once that list is empty. Pressing on
+        down a list invites one after another.
+    */
+    function stayIn(list: Member[], id: string) {
+        const at = list.findIndex((m) => m.id === id);
+        const next = list[at + 1] ?? list[at - 1];
+        refocus(() => root?.querySelector<HTMLElement>(next ? `[data-member="${next.id}"]` : '.search'));
+    }
+
     function add(id: string) {
-        if (!selectedSet.has(id)) selectedIds = [...selectedIds, id];
+        if (selectedSet.has(id)) return;
+        stayIn(pool, id);
+        selectedIds = [...selectedIds, id];
     }
     function remove(id: string) {
+        stayIn(chosen, id);
         selectedIds = selectedIds.filter((x) => x !== id);
     }
 
@@ -40,9 +56,11 @@
     //invite a group of people in one go
     function addAll() {
         selectedIds = [...selectedIds, ...pool.map((m) => m.id)];
+        refocus(() => root?.querySelector<HTMLElement>('.search'));
     }
     function clearAll() {
         selectedIds = [];
+        refocus(() => root?.querySelector<HTMLElement>('.search'));
     }
 
     function onDragStart(e: DragEvent, id: string) {
@@ -59,7 +77,7 @@
     }
 </script>
 
-<div class="picker">
+<div class="picker" bind:this={root}>
     <div class="col">
         <div class="col-head">
             <span id="{uid}-pool">Members ({pool.length})</span>
@@ -76,6 +94,7 @@
                 <li>
                     <button
                         class="chip"
+                        data-member={m.id}
                         draggable="true"
                         ondragstart={(e) => onDragStart(e, m.id)}
                         onclick={() => add(m.id)}
@@ -112,6 +131,7 @@
                 <li>
                     <button
                         class="chip selected"
+                        data-member={m.id}
                         draggable="true"
                         ondragstart={(e) => onDragStart(e, m.id)}
                         onclick={() => remove(m.id)}

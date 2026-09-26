@@ -6,6 +6,7 @@
     import { describeZone } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import { measureBar } from '../lib/actionbar.js';
+    import { refocus } from '../lib/focus.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import Status, { invalidIf } from '../lib/Status.svelte';
@@ -89,6 +90,12 @@
             : ''
     );
 
+    //The button goes once pressed, so the date it cleared takes focus
+    function clearSure() {
+        sureUntil = '';
+        refocus(() => document.getElementById('sure'));
+    }
+
     async function save() {
         saveError = '';
         saved = null;
@@ -168,7 +175,7 @@
             <div class="horizon-row">
                 <label class="lbl" for="sure">Sure up to (optional)</label>
                 <input id="sure" type="date" bind:value={sureUntil} min={minStart} max={maxDate} />
-                {#if sureUntil}<button class="link-btn" onclick={() => (sureUntil = '')}>clear</button>{/if}
+                {#if sureUntil}<button class="link-btn" onclick={clearSure}>clear</button>{/if}
             </div>
             <p class="muted small">
                 Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,

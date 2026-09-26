@@ -41,7 +41,7 @@
                 method: 'POST',
                 body: JSON.stringify({ name: title.trim(), description: description || '' })
             });
-            panel.open = false;
+            panel.close();
             await onsaved();
         });
     }
@@ -49,7 +49,7 @@
 
 <div class="edit" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>The name is wrong</button>
+        <button class="ghost" onclick={open} {@attach panel.opener}>The name is wrong</button>
     {:else}
         <p class="muted small">The thread gets renamed with it and its pinned post rewritten. Nobody is pinged or DMed.</p>
         <label class="lbl" for="ename">Name</label>
@@ -58,7 +58,7 @@
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Save the name'}
             </button>
-            <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+            <button class="ghost" onclick={() => panel.close()}>Cancel</button>
         </div>
     {/if}
     <Status class="status small" msg={panel.msg} error={panel.failed} />

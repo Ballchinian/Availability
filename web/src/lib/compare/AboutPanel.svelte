@@ -57,7 +57,7 @@
                 method: 'POST',
                 body: JSON.stringify({ name, description: want, quiet })
             });
-            panel.open = false;
+            panel.close();
             await onsaved();
             return chosenDate && !quiet ? "Saved. Everyone still invited has been DM'd." : 'Saved. Nobody was pinged.';
         });
@@ -66,7 +66,7 @@
 
 <div class="edit" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>What it is about is wrong</button>
+        <button class="ghost" onclick={open} {@attach panel.opener}>What it is about is wrong</button>
     {:else}
         <p class="muted small">{reach}</p>
         <label class="lbl" for="adesc">What it is about</label>
@@ -75,7 +75,7 @@
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Save it'}
             </button>
-            <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+            <button class="ghost" onclick={() => panel.close()}>Cancel</button>
         </div>
     {/if}
     <Status class="status small" msg={panel.msg} error={panel.failed} />

@@ -49,7 +49,7 @@
     async function save() {
         await panel.run(async () => {
             await api(`/plans/${planId}/repeat`, { method: 'POST', body: JSON.stringify({ repeatWeeks: choice }) });
-            panel.open = false;
+            panel.close();
             //Held before the reload, since that is what replaces the date it reads off
             const said = !choice
                 ? 'Stopped. This one stands on its own now.'
@@ -70,7 +70,7 @@
             to change or stop the repeat.
         </p>
     {:else if !panel.open}
-        <button class="ghost" onclick={open}>
+        <button class="ghost" onclick={open} {@attach panel.opener}>
             {repeatWeeks ? `Comes round ${describeRepeat(repeatWeeks)}, change it` : 'It should come round again'}
         </button>
     {:else}
@@ -109,7 +109,7 @@
             <button class="primary" onclick={save} disabled={panel.busy || choice === repeatWeeks}>
                 {#if panel.busy}Saving...{:else if choice === repeatWeeks}Already {choice ? describeRepeat(choice) : 'a one off'}{:else if choice}Repeat {describeRepeat(choice)}{:else}Stop repeating{/if}
             </button>
-            <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+            <button class="ghost" onclick={() => panel.close()}>Cancel</button>
         </div>
     {/if}
 

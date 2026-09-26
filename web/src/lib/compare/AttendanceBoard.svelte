@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api } from '../api.js';
     import type { Participant } from '../types.js';
+    import { refocus } from '../focus.js';
     import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
@@ -20,6 +21,7 @@
     let picked = $state<string | null>(null);
     //One row of moves is open at a time, so one id does for every chip
     const uid = $props.id();
+    let root = $state<HTMLDivElement>();
 
     const board = $derived.by(() => {
         if (!chosenDate) return null;
@@ -51,20 +53,28 @@
         return all.filter((t) => t.key !== from);
     }
 
-    async function move(userId: string, status: string) {
+    /*
+        The buttons pressed to move someone go with them, so focus goes on to whoever was
+        next in the list they left, and to the person themselves once that list is empty.
+    */
+    async function move(p: Participant, to: { key: string; label: string }, from: Participant[]) {
+        const at = from.findIndex((q) => q.userId === p.userId);
+        const next = from[at + 1] ?? from[at - 1] ?? p;
         await panel.run(async () => {
             await api(`/plans/${planId}/attendance`, {
                 method: 'POST',
-                body: JSON.stringify({ userId, status })
+                body: JSON.stringify({ userId: p.userId, status: to.key })
             });
             picked = null;
             await onmoved();
+            refocus(() => root?.querySelector<HTMLElement>(`[data-user="${next.userId}"]`));
+            return `Marked ${p.displayName} as ${to.label}.`;
         });
     }
 </script>
 
 {#if board && chosenDate}
-    <div class="votes">
+    <div class="votes" bind:this={root}>
         <div class="board">
             {#each [
                 { key: 'coming', title: 'Coming', people: board.coming },
@@ -78,6 +88,7 @@
                             <li>
                                 <button
                                     class="bchip"
+                                    data-user={p.userId}
                                     class:picked={picked === p.userId}
                                     aria-expanded={picked === p.userId}
                                     aria-controls={picked === p.userId ? `${uid}-moves` : undefined}
@@ -90,7 +101,7 @@
                                 {#if picked === p.userId}
                                     <div class="move-row" id="{uid}-moves">
                                         {#each moveTargets(colDef.key) as t (t.key)}
-                                            <button class="ghost" disabled={panel.busy} onclick={() => move(p.userId, t.key)}>Mark as {t.label}</button>
+                                            <button class="ghost" disabled={panel.busy} onclick={() => move(p, t, colDef.people)}>Mark as {t.label}</button>
                                         {/each}
                                         <!--The one thing the columns cannot show, said where the move is made-->
                                         <span class="muted small aside">They are not told, and answering later replaces this.</span>
@@ -112,7 +123,7 @@
                     {#each board.uninvited as p (p.userId)}
                         <li>
                             <span>{p.displayName}</span>
-                            <button class="ghost" disabled={panel.busy} onclick={() => move(p.userId, 'coming')}>Let them come</button>
+                            <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, { key: 'coming', label: 'coming' }, board.uninvited)}>Let them come</button>
                         </li>
                     {/each}
                 </ul>

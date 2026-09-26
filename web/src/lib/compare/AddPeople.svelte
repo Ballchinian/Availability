@@ -50,7 +50,7 @@
             });
             selectedIds = [];
             members = [];
-            panel.open = false;
+            panel.close();
             await onadded();
             return dm && !quiet
                 ? `Added ${res.added} ${res.added === 1 ? 'person' : 'people'} and let them know.`
@@ -61,7 +61,7 @@
 
 <div class="add" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>Someone else should be on it</button>
+        <button class="ghost" onclick={open} {@attach panel.opener}>Someone else should be on it</button>
     {:else}
         <p class="muted small">Pick anyone in the server to pull into this plan. They get added to the thread, and a DM with the link if you leave the box ticked.</p>
         {#if listing}
@@ -81,7 +81,7 @@
                 <button class="primary" onclick={add} disabled={panel.busy}>
                     {panel.busy ? 'Adding...' : 'Add to the plan'}
                 </button>
-                <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+                <button class="ghost" onclick={() => panel.close()}>Cancel</button>
             </div>
         {/if}
     {/if}

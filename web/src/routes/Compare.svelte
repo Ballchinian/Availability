@@ -5,6 +5,7 @@
     import { formatDate, formatTime } from '../lib/format.js';
     import type { CompareScreen } from '../lib/types.js';
     import { todayIn } from '../lib/zone.js';
+    import { refocus } from '../lib/focus.js';
     import ClockNote from '../lib/ClockNote.svelte';
     import AboutPanel from '../lib/compare/AboutPanel.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
@@ -121,6 +122,23 @@
         }
     }
 
+    /*
+        Setting a day takes the grid away and calling the plan off takes every control, so
+        focus goes to the line that says what just happened.
+    */
+    let standing = $state<HTMLElement>();
+    let calledOff = $state<HTMLElement>();
+
+    async function daySet() {
+        await refresh();
+        refocus(() => standing);
+    }
+
+    async function afterCancel() {
+        await load();
+        refocus(() => calledOff);
+    }
+
     onMount(async () => {
         await loadMe();
         if (!auth.user) {
@@ -146,7 +164,7 @@
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else}
         {#if cancelled}
-            <p class="prompt good">
+            <p class="prompt good" bind:this={calledOff}>
                 This plan has been called off and everyone has been told, so nothing here can be changed now. What people
                 said is below. Delete its thread in Discord when you are ready to clear it for good.
             </p>
@@ -195,7 +213,7 @@
                 <!--A box rather than one paragraph: the clock note is a paragraph of its own that
                     says nothing at all when everyone shares a clock, and hanging it off a <br />
                     left an empty line in the box for everybody who does-->
-                <div class="prompt good">
+                <div class="prompt good" bind:this={standing}>
                     <p>
                         <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
                         {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
@@ -253,7 +271,7 @@
                         {chosen}
                         {quiet}
                         bind:selectedDate
-                        onsaved={refresh}
+                        onsaved={daySet}
                     />
                 {:else}
                     <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
@@ -337,7 +355,7 @@
             <section class="group">
                 <h2>End this plan</h2>
                 <!--A reload rather than the local flag, so status and banner cannot disagree-->
-                <CancelPanel planId={params.planId} {quiet} oncancelled={load} />
+                <CancelPanel planId={params.planId} {quiet} oncancelled={afterCancel} />
             </section>
         {/if}
     {/if}

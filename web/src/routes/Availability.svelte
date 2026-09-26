@@ -7,6 +7,7 @@
     import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import { measureBar } from '../lib/actionbar.js';
+    import { refocus } from '../lib/focus.js';
     import type { PlanScreen, SavedForPlan, LeftPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
@@ -160,6 +161,20 @@
         submitting = false;
     }
 
+    //The button goes once pressed, so the date it cleared takes focus
+    function clearSure() {
+        sureUntil = '';
+        refocus(() => document.getElementById('sure'));
+    }
+
+    let dropButton = $state<HTMLButtonElement>();
+    let leftLine = $state<HTMLElement>();
+
+    function keepPlan() {
+        leaveArmed = false;
+        refocus(() => dropButton);
+    }
+
     async function leave() {
         leaveError = '';
         leaving = true;
@@ -167,6 +182,7 @@
             //An older backend answers without the names, which reads as nobody told
             const res = await api<Partial<LeftPlan>>(`/plans/${params.planId}/leave`, { method: 'POST' });
             left = { told: res.told ?? [], missed: res.missed ?? [] };
+            refocus(() => leftLine);
         } catch (err) {
             leaveError = errorText(err);
         }
@@ -181,13 +197,13 @@
 {#snippet dropOut()}
     <div class="danger">
         {#if !leaveArmed}
-            <button class="ghost danger-btn" onclick={() => (leaveArmed = true)}>Drop out of this plan</button>
+            <button class="ghost danger-btn" onclick={() => (leaveArmed = true)} bind:this={dropButton}>Drop out of this plan</button>
         {:else}
             <span class="small">Drop out of this plan? You come off the guest list, and I'll DM whoever set it up.</span>
             <button class="ghost danger-btn" onclick={leave} disabled={leaving}>
                 {leaving ? 'Dropping out...' : 'Yes, drop me out'}
             </button>
-            <button class="ghost" onclick={() => (leaveArmed = false)}>No</button>
+            <button class="ghost" onclick={keepPlan}>No</button>
         {/if}
     </div>
     <!--Outside the row above, where an empty line would still take a gap-->
@@ -212,7 +228,7 @@
     {:else if loadError || !data}
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else if left}
-        <p class="prompt good">
+        <p class="prompt good" bind:this={leftLine}>
             You have dropped out of <strong>{data.plan.name}</strong>, and you will not get any more nudges about it.
             {#if left.told.length}I DMed {left.told.join(', ')} to say so.{/if}
             {#if left.missed.length}I could not DM {left.missed.join(', ')}, so let them know yourself.{/if}
@@ -273,7 +289,7 @@
             <div class="horizon-row">
                 <label class="lbl" for="sure">Sure up to (optional)</label>
                 <input id="sure" type="date" bind:value={sureUntil} min={todayIso} max={maxDate} />
-                {#if sureUntil}<button class="link-btn" onclick={() => (sureUntil = '')}>clear</button>{/if}
+                {#if sureUntil}<button class="link-btn" onclick={clearSure}>clear</button>{/if}
             </div>
             <p class="muted small">
                 Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,

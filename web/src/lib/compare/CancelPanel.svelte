@@ -37,7 +37,7 @@
 
 <div class="danger">
     {#if !panel.open}
-        <button class="ghost danger-btn" onclick={() => panel.show()}>Call it off</button>
+        <button class="ghost danger-btn" onclick={() => panel.show()} {@attach panel.opener}>Call it off</button>
     {:else}
         <div class="confirm">
             <p class="small">Call this plan off? The thread stays until you delete it by hand in Discord.</p>
@@ -56,7 +56,7 @@
                 <button class="ghost danger-btn" onclick={doCancel} disabled={panel.busy || blocked}>
                     {panel.busy ? 'Calling it off...' : quiet ? 'Yes, call it off quietly' : 'Yes, call it off'}
                 </button>
-                <button class="ghost" onclick={() => (panel.open = false)}>No</button>
+                <button class="ghost" onclick={() => panel.close()}>No</button>
             </div>
         </div>
     {/if}

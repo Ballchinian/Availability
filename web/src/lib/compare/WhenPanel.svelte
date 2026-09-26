@@ -37,7 +37,7 @@
                 method: 'POST',
                 body: JSON.stringify({ date: chosenDate, time: newTime || null, quiet })
             });
-            panel.open = false;
+            panel.close();
             const said = newTime ? `It starts at ${formatTime(newTime)} now.` : 'There is no set time any more.';
             await onsaved();
             return `${said}${quiet ? ' Nobody was told.' : " Everyone still invited has been DM'd."}`;
@@ -47,7 +47,7 @@
 
 <div class="edit" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={open}>The time is wrong</button>
+        <button class="ghost" onclick={open} {@attach panel.opener}>The time is wrong</button>
     {:else}
         <label class="lbl" for="wtime">Time</label>
         <input id="wtime" type="time" bind:value={newTime} />
@@ -58,7 +58,7 @@
             <button class="primary" onclick={save} disabled={panel.busy}>
                 {panel.busy ? 'Saving...' : 'Update the time'}
             </button>
-            <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+            <button class="ghost" onclick={() => panel.close()}>Cancel</button>
         </div>
     {/if}
     <Status class="status small" msg={panel.msg} error={panel.failed} />

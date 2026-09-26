@@ -17,7 +17,7 @@
                 `/plans/${planId}/repair`,
                 { method: 'POST' }
             );
-            panel.open = false;
+            panel.close();
             const thread = res.thread ? 'Thread post and yes/no message put right. ' : '';
             if (!res.holders) return `${thread}Nobody is holding a DM about this plan, so there was none to correct.`;
             //Named rather than glossed: the gap is people who binned their DM or have them closed
@@ -30,7 +30,7 @@
 
 <div class="repair" class:wide={panel.open || Boolean(panel.msg)}>
     {#if !panel.open}
-        <button class="ghost" onclick={() => panel.show()}>Discord has gone wrong</button>
+        <button class="ghost" onclick={() => panel.show()} {@attach panel.opener}>Discord has gone wrong</button>
     {:else}
         <p class="muted small">
             Out of step with Discord? This rewrites the pinned post, the yes/no message and everyone's DM
@@ -41,7 +41,7 @@
             <button class="primary" onclick={repair} disabled={panel.busy}>
                 {panel.busy ? 'Fixing up...' : 'Fix it up'}
             </button>
-            <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
+            <button class="ghost" onclick={() => panel.close()}>Cancel</button>
         </div>
     {/if}
     <Status class="status small" msg={panel.msg} error={panel.failed} />

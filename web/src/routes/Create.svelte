@@ -2,6 +2,7 @@
     import { onMount, tick } from 'svelte';
     import { router } from 'svelte-spa-router';
     import { api, errorText } from '../lib/api.js';
+    import { refocus } from '../lib/focus.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow, repeatSeries } from '../lib/calendar.js';
     import type { CreatedPlan, GuildInfo, Member, PlanTemplate } from '../lib/types.js';
@@ -75,6 +76,8 @@
     let fault = $state('');
     let errorLine = $state<Status>();
     let result = $state<CreatedPlan | null>(null);
+    //The form goes once the plan is made, so what was made takes focus in its place
+    let resultLine = $state<HTMLElement>();
     let copied = $state(false);
 
     /*
@@ -178,6 +181,7 @@
                 method: 'POST',
                 body: JSON.stringify(body)
             });
+            refocus(() => resultLine);
         } catch (err) {
             fail('', errorText(err));
         }
@@ -211,6 +215,7 @@
         //Cleared with the rest of it: a standing arrangement is about the plan that made it,
         //and inheriting one silently is how a one off ends up coming round every fortnight
         repeatWeeks = null;
+        refocus(() => document.getElementById('planName'));
     }
 </script>
 
@@ -232,7 +237,7 @@
     {:else if !guildInfo?.isPlanner}
         <p class="muted">You need the planner role in {guildInfo.guildName} to start a plan. Ask an admin to give it to you.</p>
     {:else if result}
-        <div class="result">
+        <div class="result" bind:this={resultLine}>
             {#if result.set}
                 <p>Done. <strong>{planName}</strong> is set. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked and DM'd them a yes/no so you know who is coming.</p>
                 <!--The date it is set for, and where a repeat takes it, drawn rather than said-->
