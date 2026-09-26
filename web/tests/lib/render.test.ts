@@ -635,11 +635,13 @@ describe('the miss slider', () => {
     });
 });
 
+//Svelte's markers for where a block starts and ends, which say nothing about what shows
+const bare = (html: string) => html.replace(/<!--[^>]*-->/g, '');
 //Both regions there and both empty
 const silent = /<p class="[^"]*silent"[^>]*><span role="alert"><\/span><span role="status"><\/span><\/p>/;
 
 describe('a status line', () => {
-    const draw = (props: Record<string, unknown>) => render(Status, { props: { class: 'status', ...props } }).body;
+    const draw = (props: Record<string, unknown>) => bare(render(Status, { props: { class: 'status', ...props } }).body);
 
     it('reads an error out straight away', () => {
         const body = draw({ msg: 'That went wrong.', error: true });
@@ -695,6 +697,33 @@ describe('the status line on each panel', () => {
     ];
 
     it.each(panels)('%s', (_, draw) => {
-        expect(draw()).toMatch(silent);
+        expect(bare(draw())).toMatch(silent);
+    });
+});
+
+//Picking a day on the grid leaves focus on the grid, so the panel's first line is read out from there
+describe('the line a picked day opens with', () => {
+    const draw = (selectedDate: string | null) =>
+        bare(
+            render(PickPanel, {
+                props: {
+                    planId: 'ab12cd34ef',
+                    selectedDate,
+                    confirmedCount: 1,
+                    totalParticipants: 1,
+                    freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] },
+                    onsaved: async () => {}
+                }
+            }).body
+        );
+
+    it('is being watched before any day is picked', () => {
+        const body = draw(null);
+        expect(body).toMatch(silent);
+        expect(body).not.toContain('pick-panel');
+    });
+
+    it('says what the day comes to from inside that region', () => {
+        expect(draw('2026-08-12')).toMatch(/<span role="status">\s*<strong>[^<]+<\/strong> works for 1 of 1, common time <strong>all day<\/strong>\.\s*<\/span>/);
     });
 });

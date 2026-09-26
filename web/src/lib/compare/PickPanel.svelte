@@ -177,35 +177,40 @@
     }
 </script>
 
-{#if sel && selectedDate}
-    <div class="pick-panel">
+{#snippet lead()}
+    {#if sel && selectedDate}
         {#if sel.ev.viable}
-            <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>{sel.ev.windowSize < HOUR_COUNT ? ` (${sel.ev.windowSize}h)` : ''}.</p>
+            <strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>{sel.ev.windowSize < HOUR_COUNT ? ` (${sel.ev.windowSize}h)` : ''}.
         {:else}
             <!--Says which of the two dim days this is, since the grid can only say that it is one.
                 The title attribute carried this and never showed up on a phone.-->
-            <p>
-                <strong>{formatDate(selectedDate)}</strong>
-                <!--Told apart from the horizon case below, which also counts nobody. On a plan
-                    nobody has answered yet every day lands here, and blaming it on sure-up-to
-                    dates nobody has set reads as a fault.-->
-                {#if confirmedCount === 0}
-                    has nothing to weigh it against yet, since nobody has filled their dates in.
-                {:else if sel.reason?.block === 'nobody'}
-                    is past everyone's sure-up-to date, so nobody is counted on it.
-                {:else if sel.reason?.block === 'missing'}
-                    is dim because {sel.missing.length} of {sel.counted} did not mark it free, and you are
-                    {missAllowed ? `only willing to miss ${missAllowed}` : 'not willing to miss anyone'}.
-                {:else}
-                    is dim because the {sel.free.length} people free on it share no hour between them.
-                {/if}
-                {#if sel.reason?.needMiss != null}
-                    Willing to miss {sel.reason.needMiss}? Then it works.
-                {/if}
-                You can still set it.
-            </p>
+            <strong>{formatDate(selectedDate)}</strong>
+            <!--Told apart from the horizon case below, which also counts nobody. On a plan
+                nobody has answered yet every day lands here, and blaming it on sure-up-to
+                dates nobody has set reads as a fault.-->
+            {#if confirmedCount === 0}
+                has nothing to weigh it against yet, since nobody has filled their dates in.
+            {:else if sel.reason?.block === 'nobody'}
+                is past everyone's sure-up-to date, so nobody is counted on it.
+            {:else if sel.reason?.block === 'missing'}
+                is dim because {sel.missing.length} of {sel.counted} did not mark it free, and you are
+                {missAllowed ? `only willing to miss ${missAllowed}` : 'not willing to miss anyone'}.
+            {:else}
+                is dim because the {sel.free.length} people free on it share no hour between them.
+            {/if}
+            {#if sel.reason?.needMiss != null}
+                Willing to miss {sel.reason.needMiss}? Then it works.
+            {/if}
+            You can still set it.
         {/if}
+    {/if}
+{/snippet}
 
+<!--Mounted with nothing picked, so the line saying what a day comes to is already being
+    watched when one is, and gets read out rather than turning up in silence-->
+<div class:pick-panel={Boolean(sel)}>
+    <Status children={sel ? lead : undefined} />
+    {#if sel && selectedDate}
         <ul class="who">
             {#each sel.free as f (f.userId)}
                 <li class:dropped={sel.droppedSet.has(f.userId)}>
@@ -251,5 +256,5 @@
         <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
             {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Set it to {formatDate(selectedDate)}{/if}
         </button>
-    </div>
-{/if}
+    {/if}
+</div>
