@@ -68,3 +68,9 @@ describe('the hours in common', () => {
         expect(cells).toContain('aspect-ratio: auto');
     });
 });
+
+describe('plan cards', () => {
+    it('gives the links under a card a 24px floor', () => {
+        expect(px(rule('.card .action'), 'min-height')).toBeGreaterThanOrEqual(24);
+    });
+});

@@ -339,10 +339,18 @@ legend {
     overflow-wrap: anywhere;
 }
 
-/* The line under a card's title, and any link that follows it */
-.card .note,
-.card .action {
+/* The line under a card's title */
+.card .note {
     display: block;
+    margin-top: 2px;
+    font-size: 13px;
+}
+
+/* Any link under that. Flex for a 24px floor with the text centred on it: two stacked 13px links were 20px each */
+.card .action {
+    display: flex;
+    align-items: center;
+    min-height: 24px;
     margin-top: 2px;
     font-size: 13px;
 }
