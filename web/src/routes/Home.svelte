@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText, icsHref } from '../lib/api.js';
+    import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
@@ -101,10 +101,6 @@
                         <a class="action" href="#/plan/{p.planId}/compare">
                             {p.status === 'collecting' ? "Compare everyone's dates" : over ? 'Look back at it' : 'See who is coming'}
                         </a>
-                    {/if}
-                    <!--No calendar link on a day that has already been-->
-                    {#if !over && p.status === 'closed' && p.chosenDate}
-                        <a class="action" href={icsHref(p.planId)}>Add to your calendar</a>
                     {/if}
                 </div>
             </li>

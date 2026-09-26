@@ -7,8 +7,7 @@ import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
 import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
-import { threadUrl, planUrl } from '../../bot/util.js';
-import { buildIcs, icsFileName } from '../../lib/ics.js';
+import { threadUrl } from '../../bot/util.js';
 import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone, todayIn } from '../../lib/zones.js';
@@ -57,8 +56,8 @@ async function requirePlanner(req, res, next) {
 /*
     Nothing about a cancelled plan can be changed. The routes that go without it are the
     ones worth noticing: compare still reads one back, cancel quietly says yes again, and
-    the two that check the guest list first keep the refusal in the handler so a stranger
-    is turned away before being told anything about the plan.
+    saving availability checks the guest list first and keeps the refusal in the handler,
+    so a stranger is turned away before being told anything about the plan.
 */
 function refuseCancelled(req, res, next) {
     if (req.plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
@@ -194,26 +193,6 @@ router.post('/:planId/availability', async (req, res) => {
         savedDays,
         confirmedPlans
     });
-});
-
-/*
-    The set date as a calendar file, so it goes into a calendar rather than being copied
-    across by hand. Same gate as the plan itself: the guest list, plus whoever is running
-    it, since nothing makes a planner invite themselves to their own plan.
-*/
-router.get('/:planId/calendar.ics', async (req, res) => {
-    const { plan } = req;
-
-    const onIt = plan.participants.some((p) => p.userId === req.user.id) || plan.createdBy === req.user.id;
-    if (!onIt) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
-    if (!plan.chosenDate) return res.status(400).json({ error: 'No day has been set for this plan yet.' });
-
-    const cfg = await getGuildConfig(plan.guildId);
-
-    res.type('text/calendar');
-    res.set('Content-Disposition', `attachment; filename="${icsFileName(plan)}"`);
-    res.send(buildIcs(plan, { guildName: cfg?.guildName || '', url: planUrl(plan.planId) }));
 });
 
 //Everything the compare page needs: who is in, and how many are free each day

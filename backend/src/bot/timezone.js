@@ -7,8 +7,8 @@ import { announceToServer } from './util.js';
 
 /*
     The server's clock: what "Wednesday" and "8pm" mean for everyone here. Set at
-    /setup and changed with /timezone, and read by the compare grid, the calendar
-    file and every stamp the bot posts.
+    /setup and changed with /timezone, and read by the compare grid and every stamp
+    the bot posts.
 
     People are not asked for their own clock anywhere: the site takes that from the
     browser, which already knows. This is only the shared one, which no device can
@@ -178,5 +178,5 @@ export function clockMovedLine(moved, to) {
 //What /setup says about the clock once it has saved one
 export function setupZoneLine(zone, picked) {
     if (picked) return `\n\nI have this server on **${describeZone(zone)}**, so that is what a plan set for 8pm means.`;
-    return `\n\nI have this server on **${describeZone(zone)}**, which is just my default. If that is wrong, run \`/timezone\` to change it, otherwise calendar files land an hour or two out.`;
+    return `\n\nI have this server on **${describeZone(zone)}**, which is just my default. If that is wrong, run \`/timezone\` to change it, otherwise the times I show in each person's own clock land an hour or two out.`;
 }

@@ -1,7 +1,6 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, icsUrl, threadUrl, reviveThread, pinMessage } from './util.js';
-import { googleCalendarUrl } from '../lib/ics.js';
+import { createThread, planUrl, compareUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
@@ -88,17 +87,6 @@ function whenLine(plan) {
 //The "what it is about" line, dropped entirely when a plan has no description
 function aboutLine(plan) {
     return plan.description ? `What it is about: ${plan.description}\n` : '';
-}
-
-/*
-    The two ways into a calendar with the day already filled in, added wherever a set
-    date is announced. Both, because they fail in opposite places: the download is the
-    one every calendar takes but it asks for a login, and the Google link asks for
-    nothing at all, which is what someone reading a DM on their phone actually has.
-*/
-function calendarLines(plan) {
-    if (!plan.chosenDate) return '';
-    return `\nAdd it to your calendar: ${googleCalendarUrl(plan)}\nOr download it: ${icsUrl(plan.planId)}`;
 }
 
 /*
@@ -250,8 +238,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
         return {
             content: banner('CAN YOU MAKE IT?') +
                 `**${plan.name}** is set for ${when}.${about}${note}${aside}\n` +
-                `${line} Tap the other button if that changes.` +
-                (vote === 'yes' ? `\n${calendarLines(plan)}` : ''),
+                `${line} Tap the other button if that changes.`,
             components: [votedDmRow(plan.planId, vote)]
         };
     }
@@ -265,7 +252,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
 
     return {
         content: banner(again ? 'ROUND AGAIN' : wasMoved ? 'PLAN CHANGED' : 'DATE SET') +
-            lead + about + note + aside + '\n' + calendarLines(plan),
+            lead + about + note + aside,
         components: []
     };
 }
@@ -343,8 +330,7 @@ function openerText(plan) {
         const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
         const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
         return banner(again ? 'ROUND AGAIN' : 'PLAN SET') +
-            `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}\n` +
-            calendarLines(plan);
+            `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}`;
     }
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     return banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
@@ -683,13 +669,11 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
     if (!bits.length) return;
 
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
-    //Only worth re-offering when the moment itself moved, since the file carries the time
-    const calendar = timeMoved ? `\n${calendarLines(plan)}` : '';
     const recheck = plan.probeActive && timeMoved ? `\n\nIf that no longer works, change your answer below.` : '';
 
     await dmEach(ids,
         banner('PLAN UPDATED') +
-        `${actorName} updated "${plan.name}" in ${cfg.guildName} on ${whenLine(plan)}: ${bits.join(', and ')}.${about}${calendar}${recheck}`,
+        `${actorName} updated "${plan.name}" in ${cfg.guildName} on ${whenLine(plan)}: ${bits.join(', and ')}.${about}${recheck}`,
         plan.probeActive && timeMoved ? [probeRow(plan.planId)] : []);
 }
 
@@ -1053,17 +1037,14 @@ async function respondStale(interaction, message) {
 */
 async function ackVote(interaction, plan, vote) {
     const line = vote === 'yes' ? "You're down as coming." : "You're down as not coming.";
-    //Only worth offering to someone who has just said they are coming, which is also the
-    //first moment the day is really theirs rather than a question they have been asked
-    const calendar = vote === 'yes' ? `\n${calendarLines(plan)}` : '';
 
     if (interaction.inGuild()) {
-        await interaction.reply({ content: `${line} Tap the buttons again any time to change it.${calendar}`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `${line} Tap the buttons again any time to change it.`, flags: MessageFlags.Ephemeral });
         //A tap in the thread leaves their own DM still asking the question, so it is brought into line
         await syncPlanCards(plan, null, { only: [interaction.user.id] }).catch(() => {});
     } else {
         await interaction.update({
-            content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.${calendar}`,
+            content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.`,
             components: [votedDmRow(plan.planId, vote)]
         });
     }

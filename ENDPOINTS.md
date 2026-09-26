@@ -26,7 +26,7 @@ Dates are `YYYY-MM-DD` and times are `HH:MM`, both plain readings with no zone w
 
 A time has to be a real one, `00:00` to `23:59`. Anything else, `25:99` say, comes back as a 400 rather than being quietly dropped.
 
-Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compare`, which reads everyone's hours onto the server's clock so they can be compared, and in the calendar file, which turns a plan's reading into a real moment.
+Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compare`, which reads everyone's hours onto the server's clock so they can be compared.
 
 ## What the bot is holding for a plan
 
@@ -294,25 +294,6 @@ Participants only.
 * No thread post, a confirmation is kept quiet.
 * On a weekday-pinned plan, days off those weekdays are ignored, and only the pinned days are rewritten so the person's saved availability on other days is left alone.
 * `409` if the plan was cancelled.
-
----
-
-## GET `/api/plans/:planId/calendar.ics` (session)
-
-The plan's set day as a calendar file, so it can go straight into a calendar.
-
-Participants only, plus whoever started the plan.
-
-### Returns
-
-An iCalendar (`text/calendar`) download, named after the plan, holding one event: the day, the time if one was set, and the description, note, server and plan link gathered into the event's own description.
-
-### Notes
-
-* `400` if no day has been set for the plan yet, `409` if it was cancelled.
-* A plan with no time is a whole-day event. A plan with one runs two hours from it, since no end time is ever stored.
-* A timed event is written in UTC, worked out from the plan's own clock, so it lands at the right hour wherever the file is opened. Not a `TZID`, which would have to come with a `VTIMEZONE` block spelling out that zone's daylight saving rules and which a calendar can refuse without one. A whole-day event stays a bare date and picks up no clock at all.
-* The DMs that announce a set day carry this link alongside a Google Calendar link, which needs no login at all.
 
 ---
 

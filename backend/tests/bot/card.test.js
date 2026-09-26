@@ -76,7 +76,7 @@ describe('planCard while a plan is still collecting', () => {
 });
 
 describe('planCard once a day is set', () => {
-    it('states the day, the time and the note, and offers the calendar', () => {
+    it('states the day, the time and the note, with no calendar links', () => {
         const { content, components } = planCard(set, nobody, { guildName: 'The server', actorName: 'Ali' });
         expect(content).toContain('DATE SET');
         expect(content).toContain('Ali set the plan "Camping" in The server for');
@@ -84,7 +84,7 @@ describe('planCard once a day is set', () => {
         expect(content).toContain('7pm');
         expect(content).toContain('meet at the station');
         expect(content).toContain('a weekend away');
-        expect(content).toContain('calendar');
+        expect(content).not.toMatch(/calendar\.google|\.ics/);
         expect(components).toEqual([]);
     });
 
@@ -114,19 +114,17 @@ describe('planCard once a day is set', () => {
     read as the bot forgetting what they said.
 */
 describe('planCard for somebody who has already answered', () => {
-    it('keeps a yes on the card, with the calendar and a way to change it', () => {
+    it('keeps a yes on the card, with a way to change it and no calendar links', () => {
         const card = planCard({ ...set, probeActive: true }, { vote: 'yes' }, { actorName: 'Ali' });
         expect(card.content).toContain("You're down as coming.");
         expect(card.content).not.toContain('Can you make it? Tap below.');
-        expect(card.content).toContain('calendar');
+        expect(card.content).not.toMatch(/calendar\.google|\.ics/);
         expect(ids(card)).toEqual(['vote|yes|ab12cd34ef', 'vote|no|ab12cd34ef']);
     });
 
-    //Nothing to put in a calendar for somebody who is not coming
-    it('keeps a no on the card without offering the calendar', () => {
+    it('keeps a no on the card', () => {
         const card = planCard({ ...set, probeActive: true }, { vote: 'no' }, { actorName: 'Ali' });
         expect(card.content).toContain("You're down as not coming.");
-        expect(card.content).not.toContain('calendar');
     });
 
     //A closed confirmation leaves nobody holding a live button, which is what a stale tap was

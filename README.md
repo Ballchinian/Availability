@@ -71,7 +71,7 @@ If the service is off for a while, a repeat that missed its turn comes back once
 
 Two clocks, and they do different jobs. **You** have one, taken from whatever device you open the site on, and it is what your own days and hours mean: mark 8pm and you mean 8pm where you are. **The server** has one too, picked at `/setup` or changed later with `/timezone`, and that is the clock a plan's day and its set time are written on, so "Wednesday at 8" means one thing for the whole group.
 
-Nothing is stored converted. Your availability is kept exactly as you wrote it, and everyone's is read onto the server's clock at the moment the compare view lines you all up, which is why moving abroad re-reads your calendar as local to where you are now rather than leaving it behind. On a server where everyone shares a clock none of this shows up anywhere: the pages only mention a zone when it is not the one you are on. Where a time goes out over Discord it goes with a timestamp beside it, which Discord redraws in each reader's own clock, and calendar files carry a real moment so they land at the right hour wherever they are opened.
+Nothing is stored converted. Your availability is kept exactly as you wrote it, and everyone's is read onto the server's clock at the moment the compare view lines you all up, which is why moving abroad re-reads your calendar as local to where you are now rather than leaving it behind. On a server where everyone shares a clock none of this shows up anywhere: the pages only mention a zone when it is not the one you are on. Where a time goes out over Discord it goes with a timestamp beside it, which Discord redraws in each reader's own clock.
 
 ## Commands
 

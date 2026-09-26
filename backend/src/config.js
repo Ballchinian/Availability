@@ -51,7 +51,7 @@ export const config = {
         The clock a server runs on before anyone picks one, and what a person's own
         hours are read as until their browser tells us better. Only the guild half is
         ever visible: a plan set for 8pm means 8pm here, so a server that leaves this
-        alone and is not actually in this zone puts the wrong hour in calendar files.
+        alone and is not actually in this zone puts the wrong hour on every Discord stamp.
         /setup asks, and /timezone changes it after the fact.
     */
     defaultTimeZone: safeZone(process.env.DEFAULT_TIME_ZONE, 'Europe/London'),

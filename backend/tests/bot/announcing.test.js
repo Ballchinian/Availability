@@ -114,6 +114,14 @@ describe('announcing a plan with its day already set', () => {
         expect(dms.map((d) => d.userId).sort()).toEqual(guests);
         for (const dm of dms) expect(buttons(dm)).toEqual(['vote|yes|p1', 'vote|no|p1']);
     });
+
+    it('links no calendar in the thread or the DMs', async () => {
+        await announceSetPlan(store.plan, cfg, 'Ali');
+
+        const text = [...posts, ...dms].map((m) => m.content || '').join('\n');
+        expect(text).toContain('Board games');
+        expect(text).not.toMatch(/calendar\.google|\.ics/);
+    });
 });
 
 describe('announcing a plan that is collecting dates', () => {

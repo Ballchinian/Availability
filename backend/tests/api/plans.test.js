@@ -58,7 +58,7 @@ vi.mock('../../src/db/plans.js', () => ({
 }));
 
 vi.mock('../../src/api/announce.js', () => stubs('announceAfter'));
-vi.mock('../../src/bot/util.js', () => stubs('threadUrl', 'planUrl'));
+vi.mock('../../src/bot/util.js', () => stubs('threadUrl'));
 vi.mock('../../src/db/ratelimits.js', () => ({
     takeAction: vi.fn(async () => ({ allowed: true })),
     refundAction: vi.fn()
@@ -263,14 +263,6 @@ describe('the plan gate', () => {
         sessionUser = stranger;
         const res = await get('/ab12cd34ef');
         expect(res.status).toBe(403);
-    });
-
-    //The one path where the id is not the last thing in it, so the param has to still be found
-    it('finds the plan behind the calendar file too', async () => {
-        sessionUser = stranger;
-        const res = await get('/ab12cd34ef/calendar.ics');
-        expect(res.status).toBe(403);
-        expect(lookups).toEqual(['ab12cd34ef']);
     });
 });
 

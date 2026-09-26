@@ -171,7 +171,6 @@ export function retimeDay(fromZone, toZone, date, hours = []) {
 /*
     The moment a plan actually happens, from the day and time as the server's clock
     reads them. Null when no time is set, which is a whole day rather than a moment.
-    The calendar file and the Discord stamp both come off this, so they cannot drift.
 */
 export function planInstant(zone, date, time) {
     if (!date || !time || !/^\d{2}:\d{2}$/.test(time)) return null;

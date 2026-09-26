@@ -183,7 +183,7 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             //No more intro thread, the intro lives in the channel itself now
             introThreadId: null,
             introMessageId: intro.id,
-            //What "Wednesday" and "8pm" mean here, for the grid, the calendar file and every stamp
+            //What "Wednesday" and "8pm" mean here, for the grid and every stamp
             timeZone,
             setupBy: interaction.user.id,
             setupComplete: true

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText, icsHref } from '../lib/api.js';
+    import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime, describeWeekdays } from '../lib/format.js';
     import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
@@ -203,7 +203,6 @@
             </p>
             {#if data.plan.chosenTime}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
             {#if data.plan.chosenNote}<p>{data.plan.chosenNote}</p>{/if}
-            {#if !beenAndGone}<p><a href={icsHref(params.planId)}>Add it to your calendar</a></p>{/if}
         </div>
 
         <p class="muted small">

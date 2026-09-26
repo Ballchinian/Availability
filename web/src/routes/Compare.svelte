@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText, icsHref, isAuthError } from '../lib/api.js';
+    import { api, errorText, isAuthError } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
     import type { CompareScreen } from '../lib/types.js';
@@ -200,9 +200,6 @@
                     </p>
                     {#if chosen.time}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
                     {#if chosen.note}<p>{chosen.note}</p>{/if}
-                    {#if !cancelled}
-                        <p><a href={icsHref(params.planId)}>Add it to your calendar</a></p>
-                    {/if}
                 </div>
 
                 {#if !cancelled}
