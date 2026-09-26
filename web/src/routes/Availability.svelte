@@ -6,7 +6,7 @@
     import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
-    import type { PlanScreen, SavedForPlan } from '../lib/types.js';
+    import type { PlanScreen, SavedForPlan, LeftPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
 
@@ -30,7 +30,7 @@
 
     let leaveArmed = $state(false);
     let leaving = $state(false);
-    let left = $state(false);
+    let left = $state<LeftPlan | null>(null);
     let leaveError = $state('');
 
     /*
@@ -144,8 +144,9 @@
         leaveError = '';
         leaving = true;
         try {
-            await api(`/plans/${params.planId}/leave`, { method: 'POST' });
-            left = true;
+            //An older backend answers without the names, which reads as nobody told
+            const res = await api<Partial<LeftPlan>>(`/plans/${params.planId}/leave`, { method: 'POST' });
+            left = { told: res.told ?? [], missed: res.missed ?? [] };
         } catch (err) {
             leaveError = errorText(err);
         }
@@ -162,7 +163,7 @@
         {#if !leaveArmed}
             <button class="ghost danger-btn" onclick={() => (leaveArmed = true)}>Drop out of this plan</button>
         {:else}
-            <span class="small">Drop out of this plan? The group gets told and you come off the guest list.</span>
+            <span class="small">Drop out of this plan? You come off the guest list, and I'll DM whoever set it up.</span>
             <button class="ghost danger-btn" onclick={leave} disabled={leaving}>
                 {leaving ? 'Dropping out...' : 'Yes, drop me out'}
             </button>
@@ -184,7 +185,11 @@
     {:else if loadError || !data}
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else if left}
-        <p class="prompt good">You have dropped out of <strong>{data.plan.name}</strong>. The group has been told, and you will not get any more nudges about it.</p>
+        <p class="prompt good">
+            You have dropped out of <strong>{data.plan.name}</strong>, and you will not get any more nudges about it.
+            {#if left.told.length}I DMed {left.told.join(', ')} to say so.{/if}
+            {#if left.missed.length}I could not DM {left.missed.join(', ')}, so let them know yourself.{/if}
+        </p>
     {:else if data.plan.status === 'cancelled'}
         <p class="prompt">This plan was called off, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
     {:else if data.plan.status === 'closed'}

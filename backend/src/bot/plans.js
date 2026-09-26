@@ -18,14 +18,17 @@ import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from
     set of components rides along so a DM can carry a button, like drop out.
 */
 async function dmEach(ids, text, components = []) {
+    const reached = [];
     await fanOut(ids, async (id) => {
         try {
             const user = await client.users.fetch(id);
             await user.send(components.length ? { content: text, components } : text);
+            reached.push(id);
         } catch {
             //DMs off, the thread ping still reaches them
         }
     });
+    return reached;
 }
 
 /*
@@ -306,13 +309,13 @@ export async function updateProbeMessage(plan) {
 }
 
 //Best effort display name for someone in a guild, falling back when they have left
-async function memberName(guildId, userId) {
+async function memberName(guildId, userId, fallback = 'Someone') {
     try {
         const guild = await client.guilds.fetch(guildId);
         const member = await guild.members.fetch(userId);
         return member.displayName;
     } catch {
-        return 'Someone';
+        return fallback;
     }
 }
 
@@ -1221,14 +1224,19 @@ async function notifyCreatorVoteNo(plan, userId, reason) {
         `The vote is still going. To move the date, run \`/overview\` in the thread or here: ${compareUrl(plan.planId)}`);
 }
 
-//Let the creator know someone bowed out, with their reason if they left one
-async function notifyCreatorDropped(plan, userId, reason) {
-    if (userId === plan.createdBy) return;
+/*
+    Let the creator know someone bowed out, with their reason if they left one. Hands back
+    the names of who heard and who the DM could not reach, so the site can say which.
+*/
+export async function notifyCreatorDropped(plan, userId, reason) {
+    if (userId === plan.createdBy) return { told: [], missed: [] };
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const name = await memberName(plan.guildId, userId);
     const why = reason ? `\nReason: ${reason}` : '';
-    await dmEach([plan.createdBy], banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${why}`);
+    const reached = await dmEach([plan.createdBy], banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${why}`);
+    const creator = await memberName(plan.guildId, plan.createdBy, 'whoever set it up');
+    return reached.length ? { told: [creator], missed: [] } : { told: [], missed: [creator] };
 }
 
 //Let the creator know someone who had dropped out is back on the plan

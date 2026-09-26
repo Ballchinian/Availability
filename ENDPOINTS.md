@@ -644,6 +644,20 @@ Drop yourself out of a plan you were invited to. This is the website side of the
 
 Participants only.
 
+### Effects
+
+* Takes them off the guest list, and leaves them in the thread.
+* DMs whoever set the plan up, the same message the DM's drop out sends, just without a reason. A creator dropping out of their own plan tells nobody.
+
+### Returns
+
+* `told`: the names of the people that DM reached
+* `missed`: the names of the people it could not reach, usually because their DMs are closed
+
+### Notes
+
+* A creator who has since left the server comes back as "whoever set it up", since there is no server nickname left to read.
+
 ---
 
 # Availability

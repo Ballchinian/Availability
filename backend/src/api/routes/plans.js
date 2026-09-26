@@ -6,7 +6,7 @@ import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, s
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -825,7 +825,8 @@ router.post('/:planId/leave', async (req, res) => {
         return res.status(500).json({ error: 'Could not drop you out of the plan.' });
     }
 
-    res.json({ ok: true });
+    const { told, missed } = await notifyCreatorDropped(plan, req.user.id, null).catch(() => ({ told: [], missed: [] }));
+    res.json({ ok: true, told, missed });
 });
 
 export default router;

@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 
 /*
@@ -86,6 +86,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'announcePlanDates',
         'announceCancel',
         'leavePlan',
+        'notifyCreatorDropped',
         'announceAddition',
         'notifyCreatorIfAllIn',
         'syncPlan',
@@ -774,5 +775,41 @@ describe('going back out for different dates', () => {
             expect(announceOutcome).toHaveBeenCalledTimes(1);
             expect(announcePlanDates).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('dropping out on the site', () => {
+    beforeEach(() => (sessionUser = guest));
+
+    it('DMs whoever set it up, the same as the button in the DM', async () => {
+        notifyCreatorDropped.mockResolvedValueOnce({ told: ['Ali'], missed: [] });
+        const res = await post('/ab12cd34ef/leave');
+
+        expect(res.status).toBe(200);
+        expect(leavePlan).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', 'Bo');
+        expect(notifyCreatorDropped).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', null);
+        expect(await res.json()).toEqual({ ok: true, told: ['Ali'], missed: [] });
+    });
+
+    it('says who the DM could not reach', async () => {
+        notifyCreatorDropped.mockResolvedValueOnce({ told: [], missed: ['Ali'] });
+        const res = await post('/ab12cd34ef/leave');
+        expect(await res.json()).toEqual({ ok: true, told: [], missed: ['Ali'] });
+    });
+
+    it('claims nobody was told when telling them fell over', async () => {
+        notifyCreatorDropped.mockRejectedValueOnce(new Error('no database'));
+        const res = await post('/ab12cd34ef/leave');
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true, told: [], missed: [] });
+    });
+
+    it('tells nobody about someone who was never on it', async () => {
+        sessionUser = stranger;
+        const res = await post('/ab12cd34ef/leave');
+
+        expect(res.status).toBe(403);
+        expect(notifyCreatorDropped).not.toHaveBeenCalled();
     });
 });
