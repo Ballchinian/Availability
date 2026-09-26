@@ -163,7 +163,7 @@ export async function getPlan(planId) {
     return col(collections.plans).findOne({ planId });
 }
 
-//Find the plan that owns a given thread, used by /compare run inside a thread
+//Find the plan that owns a given thread, used by /overview run inside a thread
 export async function getPlanByThread(threadId) {
     return col(collections.plans).findOne({ threadId });
 }

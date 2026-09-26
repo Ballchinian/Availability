@@ -1,6 +1,6 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, threadUrl, reviveThread, pinMessage } from './util.js';
+import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
@@ -11,7 +11,6 @@ import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
 import { formatDate, formatTime } from '../lib/dates.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
-import { config } from '../config.js';
 
 /*
     Sends the same line to a list of people by DM, best effort, since some have
@@ -339,7 +338,7 @@ function openerText(plan) {
         `Choose the dates you are free here: ${planUrl(plan.planId)}\n` +
         //The link is the fuller thing, so it stays first, but a lot of people will only ever use this
         `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
-        `A planner can run \`/compare\` any time to see where things stand, even before everyone is in.`;
+        `A planner can run \`/overview\` any time to see where things stand, even before everyone is in.`;
 }
 
 /*
@@ -363,8 +362,8 @@ export async function notifyCreatorIfAllIn(plan) {
     await dmEach([plan.createdBy],
         banner('EVERYONE IS IN') +
         `Everyone is in for "${plan.name}"${where}. ${count} filled their availability, so you can compare and lock in a day now.\n` +
-        `Compare here: ${compareUrl(plan.planId)}\n` +
-        `Or run \`/compare\` in the plan's thread.`);
+        `Open the overview here: ${compareUrl(plan.planId)}\n` +
+        `Or run \`/overview\` in the plan's thread.`);
 }
 
 /*
@@ -431,7 +430,7 @@ export async function announcePlan(plan, cfg, actorName) {
 
 /*
     The announce-a-set-plan path: the planner already knows the date, so there is
-    nothing to collect. The thread is always opened, same as a normal plan, so /compare
+    nothing to collect. The thread is always opened, same as a normal plan, so /overview
     keeps working and the plan can be reached and managed later. Adding people to a
     private thread already pings them, so the opener goes up quietly. Everyone is asked
     whether they can make it, in the thread and by DM. actorName is whoever set it up.
@@ -1207,7 +1206,7 @@ export async function applyAttendanceMove(plan, status) {
 
 /*
     When someone says they cannot make it, let the creator know who and why, privately,
-    the thread never names them. The vote stays open, so we point them at compare in case
+    the thread never names them. The vote stays open, so we point them at the overview in case
     they want to move the date. We skip it when the creator is the one who voted.
 */
 async function notifyCreatorVoteNo(plan, userId, reason) {
@@ -1219,7 +1218,7 @@ async function notifyCreatorVoteNo(plan, userId, reason) {
     await dmEach([plan.createdBy],
         banner('SOMEONE CANNOT MAKE IT') +
         `${name} cannot make "${plan.name}"${where} on ${whenLine(plan)}.${why}\n` +
-        `The vote is still going. To move the date, run \`/compare\` in the thread or here: ${compareUrl(plan.planId)}`);
+        `The vote is still going. To move the date, run \`/overview\` in the thread or here: ${compareUrl(plan.planId)}`);
 }
 
 //Let the creator know someone bowed out, with their reason if they left one
@@ -1242,10 +1241,11 @@ async function notifyCreatorUndropped(plan, userId) {
 }
 
 /*
-    The /compare slash command. Run inside a plan's thread, it hands the planner
-    the link to that plan's compare page. Locked to people with the planner role.
+    The /overview slash command. Run inside a plan's thread, it hands back the link
+    to that plan's overview. Planner role only, although the pinned intro already
+    offers it to anyone on the plan.
 */
-export async function handleCompare(interaction) {
+export async function handleOverview(interaction) {
     if (!interaction.inGuild()) {
         return interaction.reply({ content: 'Run this inside a server.', flags: MessageFlags.Ephemeral });
     }
@@ -1262,11 +1262,11 @@ export async function handleCompare(interaction) {
 
     const plan = await getPlanByThread(interaction.channelId);
     if (!plan) {
-        return interaction.reply({ content: "Run this inside a plan's thread to get its compare link.", flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "Run this inside a plan's thread to get its overview link.", flags: MessageFlags.Ephemeral });
     }
 
     return interaction.reply({
-        content: `Compare the dates for **${plan.name}**: ${config.baseUrl}/#/plan/${plan.planId}/compare`,
+        content: `The overview for **${plan.name}**: ${compareUrl(plan.planId)}`,
         flags: MessageFlags.Ephemeral
     });
 }
@@ -1290,10 +1290,10 @@ export async function handleMyLink(interaction) {
     return interaction.reply({ content: `Your plans here:\n${lines}`, flags: MessageFlags.Ephemeral });
 }
 
-//Hands back the link to the general, plan-free availability page
-export async function handleMyAvailability(interaction) {
+//Hands back the link to the calendar, the page not tied to any one plan
+export async function handleMyCalendar(interaction) {
     return interaction.reply({
-        content: `Set your general availability here: ${config.baseUrl}/#/availability`,
+        content: `Your calendar: ${calendarUrl()}`,
         flags: MessageFlags.Ephemeral
     });
 }

@@ -16,9 +16,14 @@ export function planUrl(planId) {
     return `${config.baseUrl}/#/plan/${planId}`;
 }
 
-//Link a planner opens to compare everyone's dates and pick the winner
+//The plan's overview, whose route still carries the old /compare name
 export function compareUrl(planId) {
     return `${config.baseUrl}/#/plan/${planId}/compare`;
+}
+
+//Everyone's own calendar, not tied to any one plan
+export function calendarUrl() {
+    return `${config.baseUrl}/#/availability`;
 }
 
 //The plan's thread back in Discord, the way out of the site and into the conversation
@@ -255,19 +260,26 @@ export function welcomeText() {
 //Posted and pinned in the read-only info channel once setup finishes
 export function introText(guildId, plannerRoleId) {
     return [
-        'This is the plan bot info channel. It is read only, I post here and every plan gets its own thread off this channel.',
+        "Every plan gets its own thread off this channel. `/overview` and `/cancel` only work inside a plan's thread.",
         '',
-        `Start a plan here: ${createUrl(guildId)}`,
+        `**Your calendar:** ${calendarUrl()}`,
+        `**Your plans:** ${config.baseUrl}/#/`,
+        `**Start a plan** (planners): ${createUrl(guildId)}`,
         '',
-        'Pick a date range, say what the plan is about, and choose who is coming. I will open a thread for it and nudge everyone to drop the dates they are free.',
-        'Not one for clicking links? Run `/free` in a plan thread and tick your days right here instead.',
-        'Lost the DM with your link in it? `/mylink` lists the plans you are in here and hands them all back.',
-        "Once everyone has filled theirs in I will DM whoever started the plan. To find a day that works for the group, run `/compare` in that plan's thread, any time, even before everyone is in. `/cancel` in the same place calls the plan off, and asks before it does.",
+        '**Commands**',
+        "- `/free`: tick off the days you're free without leaving Discord",
+        "- `/mylink`: your link for every plan you're in here",
+        '- `/mycalendar`: the link to your calendar',
+        "- `/overview`: the plan's overview, for anyone on it",
+        '- `/cancel`: call the plan off, for whoever runs it',
+        "- `/timezone`: the clock this server's plans run on (planners change it)",
         '',
-        `Want to set your availability ahead of time? Do it here any time: ${config.baseUrl}/#/availability`,
-        'Or run `/myavailability` anywhere in the server and I will hand you that link.',
-        '',
-        `Heads up: only people with the <@&${plannerRoleId}> role can start, confirm, change the dates, cancel or send reminders for a plan. Everyone gets a DM when one of those happens.`,
-        'When a plan is confirmed or cancelled its thread stays put until someone deletes it by hand, and deleting a plan thread clears the plan for good.'
+        whoCanPlan(plannerRoleId),
+        'Deleting a plan thread clears the plan for good.'
     ].join('\n');
+}
+
+//Shared by the pinned intro and the /setup reply, which have to say the same thing
+export function whoCanPlan(plannerRoleId) {
+    return `Anyone with <@&${plannerRoleId}> can start a plan and pick who runs it with them.`;
 }

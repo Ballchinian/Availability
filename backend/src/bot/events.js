@@ -3,7 +3,7 @@ import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
 import { handleTimeZone, handleZoneAutocomplete } from './timezone.js';
 import { handleFree, handleFreeComponent } from './availability.js';
-import { handleCompare, handleMyLink, handleMyAvailability, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
+import { handleOverview, handleMyLink, handleMyCalendar, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
@@ -62,8 +62,8 @@ export function attachEvents(client) {
             if (interaction.isChatInputCommand() && interaction.commandName === 'timezone') {
                 return await handleTimeZone(interaction);
             }
-            if (interaction.isChatInputCommand() && interaction.commandName === 'compare') {
-                return await handleCompare(interaction);
+            if (interaction.isChatInputCommand() && interaction.commandName === 'overview') {
+                return await handleOverview(interaction);
             }
             if (interaction.isChatInputCommand() && interaction.commandName === 'free') {
                 return await handleFree(interaction);
@@ -71,8 +71,8 @@ export function attachEvents(client) {
             if (interaction.isChatInputCommand() && interaction.commandName === 'mylink') {
                 return await handleMyLink(interaction);
             }
-            if (interaction.isChatInputCommand() && interaction.commandName === 'myavailability') {
-                return await handleMyAvailability(interaction);
+            if (interaction.isChatInputCommand() && interaction.commandName === 'mycalendar') {
+                return await handleMyCalendar(interaction);
             }
             if (interaction.isChatInputCommand() && interaction.commandName === 'cancel') {
                 return await handleCancel(interaction);

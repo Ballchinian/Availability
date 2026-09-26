@@ -6,7 +6,7 @@ import {
     MessageFlags
 } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
-import { plannerRoleFor, freeRoleName, buttonLabel, placeIntro, pinMessage, introText, announceToServer } from './util.js';
+import { plannerRoleFor, freeRoleName, buttonLabel, placeIntro, pinMessage, introText, whoCanPlan, announceToServer } from './util.js';
 import { readZoneOption, setupZoneLine, describeZone } from './timezone.js';
 import { safeZone } from '../lib/zones.js';
 import { config } from '../config.js';
@@ -205,7 +205,7 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
 
         const pinNote = pinned
             ? ''
-            : '\n\n(Heads up: I could not pin the intro. Give me the Manage Messages permission and rerun /setup if you want it pinned.)';
+            : '\n\nI could not pin the intro. Give me the Manage Messages permission and rerun `/setup` if you want it pinned.';
 
         //A rerun has to say what it actually did, since the answer is now "nothing to the channel"
         const opening = madeChannel
@@ -213,7 +213,7 @@ async function finalize(interaction, plannerRoleId, zone, keptRole = false) {
             : `All set. ${channel} was already there, so I left it and its plan threads alone and brought the pinned intro up to date.`;
 
         return interaction.editReply({
-            content: `${opening} The planner role is <@&${plannerRoleId}>. Anyone with that role can start, confirm, change the dates, cancel or send reminders for a plan, and each plan gets its own thread off that channel.${setupZoneLine(timeZone, Boolean(zone) || Boolean(prev?.timeZone))}${pinNote}`,
+            content: `${opening} ${whoCanPlan(plannerRoleId)}${setupZoneLine(timeZone, Boolean(zone) || Boolean(prev?.timeZone))}${pinNote}`,
             allowedMentions: { parse: [] }
         });
     } catch (err) {

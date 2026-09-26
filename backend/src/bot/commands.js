@@ -28,8 +28,8 @@ export const commands = [
         .addStringOption(zoneOption)
         .toJSON(),
     new SlashCommandBuilder()
-        .setName('compare')
-        .setDescription("Get the compare link for the plan in this thread")
+        .setName('overview')
+        .setDescription("Get the overview link for the plan in this thread")
         .toJSON(),
     new SlashCommandBuilder()
         .setName('free')
@@ -40,8 +40,8 @@ export const commands = [
         .setDescription('List your links for the plans you are in here')
         .toJSON(),
     new SlashCommandBuilder()
-        .setName('myavailability')
-        .setDescription('Get the link to set your general availability')
+        .setName('mycalendar')
+        .setDescription('Get the link to your calendar')
         .toJSON(),
     new SlashCommandBuilder()
         .setName('cancel')

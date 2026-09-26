@@ -83,8 +83,8 @@ Seven of them, and they sort into three lots: two for setting the server up, thr
 | `/timezone` | Shows the clock this server's plans run on, or changes it. Planner role only to change it. |
 | `/free` | Tick the days you're free without leaving Discord. Run it in a plan's thread and it knows which plan you mean. |
 | `/mylink` | Lists the plans you're in on this server and hands you your link for each one. Handy when the DM has scrolled away. |
-| `/myavailability` | Hands you the link to your general availability, the timetable that isn't tied to any one plan. |
-| `/compare` | Run inside a plan's thread, hands the planner that plan's compare link. Planner role only. |
+| `/mycalendar` | Hands you the link to your calendar, the one that isn't tied to any one plan. |
+| `/overview` | Run inside a plan's thread, hands you that plan's overview link. Planner role only. |
 | `/cancel` | Run inside a plan's thread to call the whole thing off. Asks you to confirm first, then tells everyone. Planner role only. |
 
 ## Tech stack
@@ -100,7 +100,7 @@ Seven of them, and they sort into three lots: two for setting the server up, thr
 3. The bot spins up a private thread, pulls those people in, and pings them.
 4. Everyone opens their link and marks the days they're free, down to certain hours if they want.
 5. The thread keeps a running count as people confirm.
-6. Once everyone's in, the planner opens the compare view (or runs `/compare`), reads the colours, and locks a day in.
+6. Once everyone's in, the planner opens the plan's overview (or runs `/overview`), reads the colours, and locks a day in.
 
 ## How this is deployed
 

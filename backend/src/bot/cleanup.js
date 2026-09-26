@@ -56,7 +56,7 @@ export async function onChannelDelete(channel) {
     const fallback = guild ? findWritableChannel(guild) : null;
     if (fallback) {
         await fallback
-            .send('Heads up, the plan bot info channel I made got deleted, so planning is paused. Run `/setup` and I will make a fresh one.')
+            .send('The plan bot info channel I made got deleted, so planning is paused. Run `/setup` and I will make a fresh one.')
             .catch(() => {});
     }
     if (cfg.setupBy) {
