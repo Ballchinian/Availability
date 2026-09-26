@@ -69,7 +69,7 @@
                 { key: 'cant', title: "Can't make it", people: board.cant }
             ] as colDef (colDef.key)}
                 <div class="bcol">
-                    <h4>{colDef.title} ({colDef.people.length})</h4>
+                    <h3>{colDef.title} ({colDef.people.length})</h3>
                     <ul>
                         {#each colDef.people as p (p.userId)}
                             <li>

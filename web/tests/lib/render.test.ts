@@ -4,6 +4,7 @@ import ClockNote from '../../src/lib/ClockNote.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
+import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import TimePicker from '../../src/lib/TimePicker.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
@@ -278,7 +279,9 @@ describe('the repeat dates calendar', () => {
 
     //A month at a time is the whole reason there are arrows on it
     it('draws one month, not the whole series', () => {
-        expect(draw({})).not.toContain('<h4>September 2026</h4>');
+        const body = draw({});
+        expect(body).toContain('<p class="month">August 2026</p>');
+        expect(body).not.toContain('<p class="month">September 2026</p>');
     });
 
     it('says the series out loud for anyone who cannot see the grid', () => {
@@ -450,5 +453,35 @@ describe('the start a plan button', () => {
         expect(body).toContain('href="#/g/1"');
         expect(body).toContain('href="#/g/2"');
         expect(body).not.toContain('Server 3');
+    });
+});
+
+describe('the attendance board', () => {
+    const person = (userId: string, vote: Participant['vote']): Participant => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: true,
+        vote,
+        voteReason: null,
+        override: null,
+        invited: true,
+        sureUntil: null
+    });
+    const draw = () =>
+        render(AttendanceBoard, {
+            props: {
+                planId: 'ab12cd34ef',
+                chosenDate: '2026-08-12',
+                participants: [person('a', 'yes'), person('b', null)],
+                onmoved: async () => {}
+            }
+        }).body;
+
+    //Under the page's "Where it stands", so a level down from it rather than two
+    it('heads each column one level under the section it sits in', () => {
+        const body = draw();
+        expect(body).toContain('<h3>Coming (1)</h3>');
+        expect(body).not.toContain('<h4');
     });
 });

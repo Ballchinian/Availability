@@ -62,11 +62,12 @@
 {#if shown}
     <div class="rcal">
         <div class="rcal-head">
-            <!--A single month has nowhere to go, so it gets the heading on its own-->
+            <!--A single month has nowhere to go, so it gets the line on its own. Not a heading:
+                the grid it names is hidden from screen readers, who get the dates in words below-->
             {#if months.length > 1}
                 <button class="ghost arrow" onclick={() => (at = index - 1)} disabled={index === 0} aria-label="Earlier month">&lsaquo;</button>
             {/if}
-            <h4>{shown.label} {shown.year}</h4>
+            <p class="month">{shown.label} {shown.year}</p>
             {#if months.length > 1}
                 <button class="ghost arrow" onclick={() => (at = index + 1)} disabled={index >= months.length - 1} aria-label="Later month">&rsaquo;</button>
             {/if}
