@@ -105,10 +105,10 @@
     }
 </script>
 
-<svelte:head><title>Your calendar</title></svelte:head>
+<svelte:head><title>My calendar</title></svelte:head>
 
 <section class="screen">
-    <h1>Your calendar</h1>
+    <h1>My calendar</h1>
 
     {#if loading}
         <p class="muted">Loading your calendar...</p>

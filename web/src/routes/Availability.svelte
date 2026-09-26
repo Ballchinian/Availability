@@ -210,7 +210,7 @@
         <p class="prompt">This plan was called off, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
     {:else if data.plan.status === 'closed'}
         <!--The day is picked, so asking which days suit is asking about a question that has been
-            answered. This is where the plans on the landing page that are over end up too.-->
+            answered. This is where the plans under Past plans end up too.-->
         {#if data.plan.guildName}<p class="muted">In {data.plan.guildName}</p>{/if}
         {#if data.plan.description}
             <p class="muted small">{data.plan.description}</p>

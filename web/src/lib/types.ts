@@ -186,7 +186,7 @@ export interface UserGuild {
     isPlanner: boolean;
 }
 
-//GET /me/plans, a plan on the landing page, said from where this person stands in it
+//GET /me/plans, a plan on My plans or Past plans, said from where this person stands in it
 export interface UserPlan {
     planId: string;
     name: string;

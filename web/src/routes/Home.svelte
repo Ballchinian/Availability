@@ -2,8 +2,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate, formatTime } from '../lib/format.js';
-    import { browserZone, clocksAgree } from '../lib/zone.js';
+    import PlanCards from '../lib/PlanCards.svelte';
     import type { UserGuild, UserPlan } from '../lib/types.js';
 
     /*
@@ -16,9 +15,6 @@
     let loadError = $state('');
     let guilds = $state<UserGuild[]>([]);
     let plans = $state<UserPlan[]>([]);
-    let past = $state<UserPlan[]>([]);
-
-    const mine = browserZone();
 
     /*
         Anything still waiting on them first, then the rest of the open ones, then
@@ -37,11 +33,10 @@
         try {
             const [g, p] = await Promise.all([
                 api<{ guilds: UserGuild[] }>('/me/guilds'),
-                api<{ plans: UserPlan[]; past: UserPlan[] }>('/me/plans')
+                api<{ plans: UserPlan[] }>('/me/plans')
             ]);
             guilds = g.guilds;
             plans = p.plans;
-            past = p.past;
         } catch (err) {
             loadError = errorText(err);
         }
@@ -59,54 +54,10 @@
         if (p.status !== 'collecting') return 2;
         return p.inIt && !p.filledIn ? 0 : 1;
     }
-
-    //What this plan is waiting on, said from where this person stands in it
-    function planNote(p: UserPlan, over: boolean) {
-        const where = p.guildName ? `${p.guildName} · ` : '';
-        if (p.status === 'cancelled') return `${where}called off`;
-        if (p.status !== 'collecting') {
-            /*
-                This list spans servers, which need not run on one clock, so a time gets the
-                clock named after it when that is not the reader's own. A plan with no time
-                needs nothing: a day is a day.
-            */
-            const elsewhere = p.chosenTime && mine && !clocksAgree(p.timeZone, mine) ? ` ${p.timeZone}` : '';
-            const when = over ? 'was set for' : 'set for';
-            return `${where}${when} ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}${elsewhere}` : ''}`;
-        }
-        if (!p.inIt) return `${where}yours to run · ${formatDate(p.start)} to ${formatDate(p.end)}`;
-        const state = p.filledIn ? 'your dates are in' : 'waiting on your dates';
-        return `${where}${state} · ${formatDate(p.start)} to ${formatDate(p.end)}`;
-    }
 </script>
 
 <!--The front door keeps the name the bot's links carry until there is somebody to name it for-->
-<svelte:head><title>{auth.user ? "What you've got on" : 'Plan a meetup'}</title></svelte:head>
-
-<!--Both lists of plans are the same card, so the live ones and the ones that are over share it-->
-{#snippet planCards(list: UserPlan[], over: boolean)}
-    <ul class="cards">
-        {#each list as p (p.planId)}
-            <li class="card">
-                <div class="body">
-                    <a class="name" href={p.inIt ? `#/plan/${p.planId}` : `#/plan/${p.planId}/compare`}>{p.name}</a>
-                    <span class="muted note">{planNote(p, over)}</span>
-                    <!--Every way on named out loud. The title above is a link too, and where it
-                        lands depends on whether they are in the plan or only running it, which
-                        is not something a card can show by looking at it.-->
-                    {#if p.inIt && p.status === 'collecting'}
-                        <a class="action" href="#/plan/{p.planId}">{p.filledIn ? 'Change your dates' : 'Fill in your dates'}</a>
-                    {/if}
-                    {#if p.mine}
-                        <a class="action" href="#/plan/{p.planId}/compare">
-                            {p.status === 'collecting' ? 'Overview' : over ? 'Look back at it' : 'See who is coming'}
-                        </a>
-                    {/if}
-                </div>
-            </li>
-        {/each}
-    </ul>
-{/snippet}
+<svelte:head><title>{auth.user ? 'My plans' : 'Plan a meetup'}</title></svelte:head>
 
 <section class="screen">
     {#if loading}
@@ -119,10 +70,10 @@
             the bot yet, someone in your server needs to invite it and run <code>/setup</code>.
         </p>
     {:else if loadError}
-        <h1>What you've got on</h1>
+        <h1>My plans</h1>
         <p class="status error">{loadError}</p>
     {:else}
-        <h1>What you've got on</h1>
+        <h1>My plans</h1>
 
         <h2>Your servers</h2>
         {#if guilds.length === 0}
@@ -158,24 +109,7 @@
                 Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
             </p>
         {:else}
-            {@render planCards(sortedPlans, false)}
+            <PlanCards plans={sortedPlans} />
         {/if}
-
-        {#if past.length}
-            <details class="group">
-                <summary>Been and gone <span class="hint">days that have passed, and plans that were called off</span></summary>
-                <p class="muted small">
-                    Nothing here can be changed. If you ran one of these, its overview still has who said what and
-                    everything that happened along the way, until you delete the thread in Discord.
-                </p>
-                {@render planCards(past, true)}
-            </details>
-        {/if}
-
-        <h2>Your calendar</h2>
-        <p class="muted">
-            Mark the days you are free ahead of time and every plan you are invited to starts already filled in.
-            <a href="#/availability">Open your calendar</a>.
-        </p>
     {/if}
 </section>

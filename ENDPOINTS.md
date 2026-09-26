@@ -108,7 +108,7 @@ Return the logged-in person, or `null` if nobody is.
 
 # You
 
-What the landing page runs on. Everywhere else the link says which server or plan it is about, so these are the only routes that answer from the session alone.
+What My plans and Past plans run on. Everywhere else the link says which server or plan it is about, so these are the only routes that answer from the session alone.
 
 ## GET `/api/me/guilds` (session)
 
@@ -164,7 +164,7 @@ Two lists, the live plans and the ones behind them, each plan with:
 ### Notes
 
 * The live list covers plans still collecting dates and set plans whose day has not passed.
-* The second list is what has finished: cancelled plans, and set ones whose day has been and gone. Newest first and capped at a dozen, so the compare page behind a finished plan, and everything it remembers, still has a way in from the site.
+* The second list is what has finished: cancelled plans, and set ones whose day has been and gone. Newest first and capped at a dozen. The site shows it under Past plans, so the compare page behind a finished plan, and everything it remembers, still has a way in.
 * A plan set for today counts as live, so the two lists never overlap and nothing falls between them.
 * Plans the requester started count as well as plans they are in, since nothing makes a planner invite themselves to their own plan.
 * A set plan the requester was left off the invite list for is left out too.

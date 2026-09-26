@@ -17,6 +17,8 @@
         body text needs, so links get a lifted one and the fills keep the brand.
     */
     --link: #8891f5;
+    /* --border is 1.36:1, too faint to find a control by, and this is 3.83:1 on the page and 3.47:1 on a panel */
+    --control-border: #70747f;
 
     /* The page gutter and the panel's own padding, which the sticky bar has to undo to reach its edges */
     --gutter: 24px;
@@ -134,11 +136,11 @@ code {
     font-size: 13px;
 }
 
-/* The one bar above every screen: home, your own dates, and who you are */
+/* The one bar above every screen: your plans, your calendar, and who you are */
 .site-head {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 12px 18px;
     flex-wrap: wrap;
     margin-bottom: 18px;
 }
@@ -172,12 +174,46 @@ code {
     white-space: nowrap;
 }
 
-/* Takes the slack so the badge sits at the far end however many links there are */
-.site-nav {
+/* Takes the slack so the badge sits at the far end */
+.tabs {
     margin-right: auto;
     display: flex;
-    gap: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tabs a {
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: var(--text);
     font-size: 14px;
+    text-decoration: none;
+}
+
+.tabs a:hover {
+    border-color: var(--accent);
+}
+
+/* Bold as well as filled, so the page you are on is not told by colour alone */
+.tabs a[aria-current='page'] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--heading);
+    font-weight: 600;
+}
+
+/* The tabs get a row of their own under the name and the badge */
+@media (max-width: 600px) {
+    .site-head .brand {
+        margin-right: auto;
+    }
+
+    .tabs {
+        order: 1;
+        flex-basis: 100%;
+        margin-right: 0;
+    }
 }
 
 /*
@@ -832,9 +868,8 @@ code {
 
 /*
     A section of a page, foldable when it is a <details>. The compare page comes in five,
-    where the plan stands, everyone's days, the history, what changes it and what ends it,
-    and the landing page keeps the plans that are over in one. What folds is always the
-    part you did not come for.
+    where the plan stands, everyone's days, the history, what changes it and what ends it.
+    What folds is always the part you did not come for.
 */
 .group {
     margin-top: 26px;

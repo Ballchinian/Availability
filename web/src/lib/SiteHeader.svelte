@@ -1,13 +1,21 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { router } from 'svelte-spa-router';
     import { loadMe } from './auth.svelte.js';
     import UserBadge from './UserBadge.svelte';
 
     /*
         The one bar that sits above every screen, so wherever a Discord link drops
-        you there is a way home and a way to your own dates. It asks who is logged
+        you there is a way to your plans and your calendar. It asks who is logged
         in itself, since the legal pages and the not-found screen never do.
     */
+
+    //The calendar keeps /availability, which old DMs link to
+    const tabs = [
+        { path: '/', label: 'My plans' },
+        { path: '/availability', label: 'My calendar' },
+        { path: '/past', label: 'Past plans' }
+    ];
 
     onMount(loadMe);
 
@@ -21,8 +29,10 @@
 <header class="site-head">
     <a class="skip" href="#content" onclick={skip}>Skip to content</a>
     <a class="brand" href="#/">Availability</a>
-    <nav class="site-nav">
-        <a href="#/availability">My availability</a>
+    <nav class="tabs">
+        {#each tabs as tab (tab.path)}
+            <a href="#{tab.path}" aria-current={router.location === tab.path ? 'page' : undefined}>{tab.label}</a>
+        {/each}
     </nav>
     <UserBadge />
 </header>

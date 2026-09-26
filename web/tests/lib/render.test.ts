@@ -7,8 +7,10 @@ import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
+import PlanCards from '../../src/lib/PlanCards.svelte';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
-import type { Participant } from '../../src/lib/types.js';
+import { formatDate } from '../../src/lib/format.js';
+import type { Participant, UserPlan } from '../../src/lib/types.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
@@ -336,5 +338,39 @@ describe('the clock note', () => {
     it('says nothing to someone already on the plan clock', () => {
         device.zone = 'Europe/London';
         expect(draw({ date: '2026-09-12', time: '19:00' })).not.toContain('<p');
+    });
+});
+
+//My plans and Past plans draw the same card, and only Past plans says it in the past tense
+describe('a plan card', () => {
+    const day = isoFromNow(3, 'day');
+    const plan: UserPlan = {
+        planId: 'ab12cd34ef',
+        name: 'Pub quiz',
+        guildName: 'Friends',
+        status: 'closed',
+        start: day,
+        end: day,
+        chosenDate: day,
+        chosenTime: null,
+        timeZone: 'Europe/London',
+        inIt: true,
+        filledIn: true,
+        mine: true
+    };
+    const draw = (over: boolean) => render(PlanCards, { props: { plans: [plan], over } }).body;
+
+    it('says a day still to come is set and offers who is coming', () => {
+        const body = draw(false);
+        expect(body).toContain(`set for ${formatDate(day)}`);
+        expect(body).not.toContain('was set for');
+        expect(body).toContain('See who is coming');
+    });
+
+    it('says a day that is over was set and offers a look back', () => {
+        const body = draw(true);
+        expect(body).toContain(`was set for ${formatDate(day)}`);
+        expect(body).toContain('Look back at it');
+        expect(body).not.toContain('See who is coming');
     });
 });
