@@ -17,6 +17,8 @@
 
     const panel = new Panel();
     let picked = $state<string | null>(null);
+    //One row of moves is open at a time, so one id does for every chip
+    const uid = $props.id();
 
     const board = $derived.by(() => {
         if (!chosenDate) return null;
@@ -73,13 +75,19 @@
                     <ul>
                         {#each colDef.people as p (p.userId)}
                             <li>
-                                <button class="bchip" class:picked={picked === p.userId} onclick={() => (picked = picked === p.userId ? null : p.userId)}>
+                                <button
+                                    class="bchip"
+                                    class:picked={picked === p.userId}
+                                    aria-expanded={picked === p.userId}
+                                    aria-controls={picked === p.userId ? `${uid}-moves` : undefined}
+                                    onclick={() => (picked = picked === p.userId ? null : p.userId)}
+                                >
                                     {p.displayName}
                                     {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
                                     {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
                                 </button>
                                 {#if picked === p.userId}
-                                    <div class="move-row">
+                                    <div class="move-row" id="{uid}-moves">
                                         {#each moveTargets(colDef.key) as t (t.key)}
                                             <button class="ghost" disabled={panel.busy} onclick={() => move(p.userId, t.key)}>Mark as {t.label}</button>
                                         {/each}

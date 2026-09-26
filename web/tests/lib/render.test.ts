@@ -495,6 +495,13 @@ describe('the attendance board', () => {
         expect(body).toContain('<h3>Coming (1)</h3>');
         expect(body).not.toContain('<h4');
     });
+
+    //A chip opens a row of moves under it, so it says whether that row is showing
+    it('says a chip opens something, and starts shut', () => {
+        const body = draw();
+        expect(body.match(/<button[^>]*class="bchip"[^>]*aria-expanded="false"/g)).toHaveLength(2);
+        expect(body).not.toContain('move-row');
+    });
 });
 
 describe('the member picker', () => {
@@ -506,6 +513,14 @@ describe('the member picker', () => {
         const body = draw(['bob']);
         expect(body).toContain('Members (2)');
         expect(body).toContain('Invited (1)');
+    });
+
+    //The name alone does not say which way a press sends them
+    it('names each chip for what pressing it does', () => {
+        const body = draw(['bob']);
+        expect(body).toContain('aria-label="Add ANN"');
+        expect(body).toContain('aria-label="Remove BOB"');
+        expect(body).not.toContain('title=');
     });
 });
 

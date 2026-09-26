@@ -76,7 +76,7 @@
                         draggable="true"
                         ondragstart={(e) => onDragStart(e, m.id)}
                         onclick={() => add(m.id)}
-                        title="Add to the plan"
+                        aria-label="Add {m.displayName}"
                     >
                         <img src={m.avatarUrl} alt="" width="24" height="24" />
                         <span>{m.displayName}</span>
@@ -111,7 +111,7 @@
                         draggable="true"
                         ondragstart={(e) => onDragStart(e, m.id)}
                         onclick={() => remove(m.id)}
-                        title="Remove from the plan"
+                        aria-label="Remove {m.displayName}"
                     >
                         <img src={m.avatarUrl} alt="" width="24" height="24" />
                         <span>{m.displayName}</span>
