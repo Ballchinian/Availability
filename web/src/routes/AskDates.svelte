@@ -15,9 +15,9 @@
     /*
         When is it: the create form again, opened on the plan that already exists. The same
         two modes, because they are the same two questions. Name the day yourself, or go
-        back out and ask everyone which days work. The window, the days, the crowd and the
-        repeat all come in filled, and one press sends the lot to /dates so the thread gets
-        one message however many of them moved.
+        back out and ask everyone which days work. The days, the crowd and the repeat come in
+        filled, and so does the window while the plan is still collecting. One press sends the
+        lot to /dates so the thread gets one message however many of them moved.
 
         Naming a day is not held to the window: the route stretches it to reach whatever is
         picked, so a day the plan never asked about is a day you can simply choose. The grid
@@ -79,9 +79,9 @@
     });
     const reopening = $derived(mode === 'ask' && (movedWindow || opensADay));
 
-    //Naming a day never asks anyone anything, so the window only ever stretches to reach it
+    //Naming a day never asks anyone anything, so a collecting plan's window only ever stretches to reach it
     const stretching = $derived.by(() => {
-        if (mode !== 'set' || !setDate || !data) return '';
+        if (mode !== 'set' || !setDate || !data || data.plan.chosenDate) return '';
         if (setDate < data.plan.start) return `${formatDate(setDate)} is before the dates this plan asks about, so the window stretches back to reach it.`;
         if (setDate > data.plan.end) return `${formatDate(setDate)} is past the dates this plan asks about, so the window stretches out to reach it.`;
         return '';
@@ -117,8 +117,11 @@
             loadError = errorText(err);
         }
         if (data) {
-            startDate = data.plan.start;
-            endDate = data.plan.end;
+            //A set plan's stored window is its one day, or the dates it was found in, so asking again starts blank
+            if (!data.plan.chosenDate) {
+                startDate = data.plan.start;
+                endDate = data.plan.end;
+            }
             dayOn = dayOn.map((_, i) => !data!.plan.allowedWeekdays || data!.plan.allowedWeekdays.includes(i));
             selectedIds = data.participants.map((p) => p.userId);
             repeatWeeks = data.plan.repeatWeeks;
@@ -237,25 +240,28 @@
             {#if stretching}<p class="status small">{stretching}</p>{/if}
 
             <!--Read only: the day is set by the button at the bottom with everything else, not
-                by a panel of its own halfway up the form-->
-            <div class="field">
-                <span class="group-label">Who is free when?</span>
-                <DayCompare
-                    planId={params.planId}
-                    start={data.plan.start}
-                    end={data.plan.end}
-                    allowedWeekdays={data.plan.allowedWeekdays}
-                    freeByDate={data.freeByDate}
-                    participants={data.participants}
-                    confirmedCount={data.confirmedCount}
-                    totalParticipants={data.totalParticipants}
-                    timeZone={data.plan.timeZone}
-                    chosen={data.plan.chosenDate ? { date: data.plan.chosenDate, time: '', note: '' } : null}
-                    readOnly
-                    bind:selectedDate={setDate}
-                    onsaved={async () => {}}
-                />
-            </div>
+                by a panel of its own halfway up the form. A plan set from the start has nobody's
+                days to show and a window one day long, so it only draws once someone has answered.-->
+            {#if !data.plan.chosenDate || data.confirmedCount > 0}
+                <div class="field">
+                    <span class="group-label">Who is free when?</span>
+                    <DayCompare
+                        planId={params.planId}
+                        start={data.plan.start}
+                        end={data.plan.end}
+                        allowedWeekdays={data.plan.allowedWeekdays}
+                        freeByDate={data.freeByDate}
+                        participants={data.participants}
+                        confirmedCount={data.confirmedCount}
+                        totalParticipants={data.totalParticipants}
+                        timeZone={data.plan.timeZone}
+                        chosen={data.plan.chosenDate ? { date: data.plan.chosenDate, time: '', note: '' } : null}
+                        readOnly
+                        bind:selectedDate={setDate}
+                        onsaved={async () => {}}
+                    />
+                </div>
+            {/if}
         {:else}
             <RangeField bind:start={startDate} bind:end={endDate} min={todayIso} />
 

@@ -60,6 +60,9 @@
     */
     const collecting = $derived(Boolean(data && data.plan.status === 'collecting'));
 
+    //Only while collecting: a plan set from the start stores its one day as the range
+    const range = $derived(collecting && data ? ` · ${formatDate(data.plan.start)} to ${formatDate(data.plan.end)}` : '');
+
     /*
         Chasing dates only makes sense while they are still being collected, a plan with
         a day already locked in is waiting on answers instead. Held here rather than
@@ -150,8 +153,7 @@
         {/if}
 
         <p class="muted">
-            <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''} ·
-            {formatDate(data.plan.start)} to {formatDate(data.plan.end)}
+            <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''}{range}
         </p>
         {#if data.plan.description}
             <p class="muted small">{data.plan.description}</p>
