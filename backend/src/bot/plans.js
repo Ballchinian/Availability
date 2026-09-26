@@ -7,6 +7,7 @@ import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
+import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
 import { formatDate, formatTime } from '../lib/dates.js';
@@ -833,12 +834,11 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
     plan slot back since the plan never really ran. actorName is whoever cancelled it.
 */
 export async function cancelPlan(plan, actorId, actorName, { post = true, dm = true } = {}) {
-    //The cancelled copy, not the one read before it: what the cards say is read off the status
-    const cancelled = await markPlanCancelled(plan.planId);
-    if (!cancelled) return false;
+    if (!(await markPlanCancelled(plan.planId))) return false;
     await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
     await addPlanEvent(plan.planId, { type: 'cancelled', by: actorId, byName: actorName }).catch(() => {});
-    await announceCancel(cancelled, actorName, { post, dm });
+    //In the queue the site's saves wait in, or a cancel from here lands in the middle of one of their announcements
+    await announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, actorName, { post, dm }), { cancel: true });
     return true;
 }
 
