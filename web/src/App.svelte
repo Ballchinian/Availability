@@ -29,12 +29,14 @@
     };
 </script>
 
-<main>
+<div class="page">
     <SiteHeader />
-    <Router {routes} />
-
+    <!--Focused by the skip link in the header-->
+    <main id="content" tabindex="-1">
+        <Router {routes} />
+    </main>
     <footer class="site-foot">
         <a href="#/terms">Terms of Service</a>
         <a href="#/privacy">Privacy Policy</a>
     </footer>
-</main>
+</div>

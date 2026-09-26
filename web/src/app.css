@@ -40,10 +40,15 @@ body {
     min-height: 100svh;
 }
 
-main {
+.page {
     max-width: 1100px;
     margin: 0 auto;
     padding: var(--gutter);
+}
+
+/* Only ever focused by the skip link, and a ring round the whole page says nothing */
+#content:focus {
+    outline: none;
 }
 
 /* Two lots of padding either side costs a phone a third of its width */
@@ -142,6 +147,29 @@ code {
     color: var(--heading);
     font-weight: 600;
     text-decoration: none;
+}
+
+/* The first thing a keyboard reaches, and out of sight until then */
+.skip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    background: var(--accent);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.skip:not(:focus) {
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 /* Takes the slack so the badge sits at the far end however many links there are */
