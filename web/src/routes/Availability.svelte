@@ -290,7 +290,7 @@
                 <p class="status msg error" aria-live="polite">{saveError}</p>
             {:else if saved}
                 <p class="status msg good" aria-live="polite">
-                    Saved. That is {saved.confirmedCount} of {saved.totalParticipants} on this plan with their dates in.
+                    Saved. I'll DM you when a day is picked.
                     {#if saved.confirmedPlans?.length}These also answered: {saved.confirmedPlans.join(', ')}.{/if}
                 </p>
             {/if}
