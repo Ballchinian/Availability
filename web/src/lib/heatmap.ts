@@ -1,3 +1,5 @@
+import { luminance } from './contrast.js';
+
 /*
     The heat used by both grids: a month heading, a day shaded by how many hours
     it keeps, a compare cell shaded by the common window. Filled is how much of
@@ -46,15 +48,6 @@ export function fillColor(filled: number, total: number): string {
     return `rgb(${r},${g},${b})`;
 }
 
-//Relative luminance, the sRGB one contrast is actually judged on
-function luminance(r: number, g: number, b: number): number {
-    const channel = (c: number) => {
-        const s = c / 255;
-        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-    };
-    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
-
 /*
     Text to sit on top of a fill. The white the grids default to disappears at the
     yellow end of the ramp, so past a point the page background takes over. 0.2 is
@@ -65,7 +58,7 @@ function luminance(r: number, g: number, b: number): number {
 */
 export function fillTextStyle(filled: number, total: number): string {
     const [r, g, b] = ramp(filled, total);
-    if (luminance(r, g, b) <= 0.2) return `background:rgb(${r},${g},${b})`;
+    if (luminance([r, g, b]) <= 0.2) return `background:rgb(${r},${g},${b})`;
     return `background:rgb(${r},${g},${b});color:#16171d;text-shadow:none`;
 }
 
