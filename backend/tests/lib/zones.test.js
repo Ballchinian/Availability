@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { isValidZone, instantToWall, wallToInstant, clocksAgree, retimeDay, planInstant, todayIn } from '../../src/lib/zones.js';
+import { isValidZone, instantToWall, wallToInstant, clocksAgree, retimeDay, planInstant, todayIn, zoneOffsetLabel } from '../../src/lib/zones.js';
 import { suggestZones } from '../../src/bot/timezone.js';
 
 /*
@@ -70,6 +70,21 @@ describe('clocksAgree', () => {
         expect(clocksAgree('Europe/London', 'UTC', new Date('2026-01-12T12:00:00Z'))).toBe(true);
         expect(clocksAgree('Europe/London', 'UTC', new Date('2026-08-12T12:00:00Z'))).toBe(false);
         expect(clocksAgree('Europe/London', 'Europe/Dublin', new Date('2026-08-12T12:00:00Z'))).toBe(true);
+    });
+});
+
+describe('zoneOffsetLabel', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('names the offset in force on the day', () => {
+        expect(zoneOffsetLabel('Europe/London', new Date('2026-08-12T12:00:00Z'))).toBe('GMT+1');
+        expect(zoneOffsetLabel('Europe/London', new Date('2026-01-12T12:00:00Z'))).toBe('GMT');
+    });
+
+    //What a newer ICU says for London in winter, faked so an older runtime checks it too
+    it('writes a zero offset as plain GMT whichever ICU is running', () => {
+        vi.spyOn(Intl.DateTimeFormat.prototype, 'formatToParts').mockReturnValue([{ type: 'timeZoneName', value: 'GMT+0' }]);
+        expect(zoneOffsetLabel('Europe/London', new Date('2026-01-12T12:00:00Z'))).toBe('GMT');
     });
 });
 

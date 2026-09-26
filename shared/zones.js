@@ -103,7 +103,9 @@ export function clocksAgree(a, b, instant = new Date()) {
 //What the clock there is called right now, like "GMT+1", for putting beside the zone name
 export function zoneOffsetLabel(zone, instant = new Date()) {
     const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(instant);
-    return parts.find((p) => p.type === 'timeZoneName')?.value || '';
+    const label = parts.find((p) => p.type === 'timeZoneName')?.value || '';
+    //Newer ICU writes a zero offset as "GMT+0", older ICU as "GMT"
+    return label === 'GMT+0' ? 'GMT' : label;
 }
 
 //An hour of a day as one number, so two readings can be compared and subtracted
