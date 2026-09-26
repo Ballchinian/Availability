@@ -61,6 +61,7 @@ describe('the palette', () => {
 describe('rules drawing their own colours', () => {
     it.each([
         ['.rday', 'color', panel, TEXT],
+        ['.day.out', 'color', page, TEXT],
         ['.cday.dim', 'color', page, TEXT],
         ['.cday.dim', 'border', page, EDGE],
         ['.day.far', 'border-color', page, EDGE],

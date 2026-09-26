@@ -766,9 +766,10 @@ a.primary {
     cursor: crosshair;
 }
 
+/* Told apart by having no edge, not by fading: as text rather than a control it gets no pass on 4.5:1 */
 .day.out {
     border-color: transparent;
-    color: #4a4d57;
+    color: var(--muted);
     cursor: default;
 }
 
