@@ -61,7 +61,7 @@
 <div class="picker">
     <div class="col">
         <div class="col-head">
-            <span>Members</span>
+            <span>Members ({pool.length})</span>
             <input class="search" type="text" placeholder="Search..." bind:value={search} />
         </div>
         <ul

@@ -5,6 +5,7 @@ import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
+import MemberPicker from '../../src/lib/MemberPicker.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import TimePicker from '../../src/lib/TimePicker.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
@@ -13,7 +14,7 @@ import PlanCards from '../../src/lib/PlanCards.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong } from '../../src/lib/format.js';
-import type { Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
+import type { Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
@@ -483,5 +484,17 @@ describe('the attendance board', () => {
         const body = draw();
         expect(body).toContain('<h3>Coming (1)</h3>');
         expect(body).not.toContain('<h4');
+    });
+});
+
+describe('the member picker', () => {
+    const members: Member[] = ['ann', 'bob', 'cat'].map((id) => ({ id, username: id, displayName: id.toUpperCase(), avatarUrl: '' }));
+    const draw = (selectedIds: string[]) => render(MemberPicker, { props: { members, selectedIds } }).body;
+
+    //Which column someone is in says whether they are invited, so both say how many they hold
+    it('counts both columns in words', () => {
+        const body = draw(['bob']);
+        expect(body).toContain('Members (2)');
+        expect(body).toContain('Invited (1)');
     });
 });

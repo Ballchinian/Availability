@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { css, rule, px } from '../css.js';
+import { css, rule, px, value } from '../css.js';
 
 describe('the hours clock', () => {
     it('is a target of at least 24px', () => {
@@ -32,5 +32,11 @@ describe('opacity', () => {
             return plain.slice(before + 1, open).trim();
         });
         expect(faded.filter((s) => !s.split(',').every((part) => part.trim().endsWith(':disabled')))).toEqual([]);
+    });
+});
+
+describe('picked states', () => {
+    it.each([".tabs a[aria-current='page']", '.wday.on', '.repeat-row .ghost.on'])('%s is bold as well as coloured', (selector) => {
+        expect(Number(value(selector, 'font-weight'))).toBeGreaterThanOrEqual(600);
     });
 });

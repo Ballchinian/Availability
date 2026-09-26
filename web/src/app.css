@@ -432,10 +432,12 @@ code {
     cursor: pointer;
 }
 
+/* Bold as well, like the tabs, so a picked day is not told by colour alone */
 .wday.on {
     background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--text);
+    font-weight: 600;
 }
 
 .primary {
@@ -1348,6 +1350,7 @@ a.ghost:hover {
     background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--text);
+    font-weight: 600;
 }
 
 /* Repeat dates calendar. One month, the same 258px block the availability grid uses */
