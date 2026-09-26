@@ -241,6 +241,9 @@
     <TimePicker
         date={editingDate}
         bind:hours={() => selection[editingDate] || [], (v) => (selection = { ...selection, [editingDate]: v })}
-        onclose={() => (editingDate = '')}
+        onclose={(empty) => {
+            if (empty) unmark(editingDate);
+            editingDate = '';
+        }}
     />
 {/if}

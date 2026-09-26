@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DAY_HOURS, HOUR_COUNT, hourLabel, hoursOf, formatHours } from '../../src/lib/hours.js';
+import { DAY_HOURS, HOUR_COUNT, hourLabel, hoursOf, formatHours, storedHours, withHour } from '../../src/lib/hours.js';
 
 describe('hourLabel', () => {
     it('reads midnight and noon as 12', () => {
@@ -87,5 +87,31 @@ describe('formatHours', () => {
 
     it('drops anything that is not an hour of the day', () => {
         expect(formatHours([99, 8, 9])).toBe('8am to 10am');
+    });
+});
+
+describe('storedHours', () => {
+    it('stores every hour kept as all day', () => {
+        expect(storedHours(DAY_HOURS)).toEqual([]);
+    });
+
+    it('stores part of a day as it is', () => {
+        expect(storedHours([17, 18])).toEqual([17, 18]);
+    });
+});
+
+describe('withHour', () => {
+    it('takes one hour off a day free all day', () => {
+        const left = withHour(hoursOf([]), 17, false);
+        expect(left).toHaveLength(HOUR_COUNT - 1);
+        expect(left).not.toContain(17);
+    });
+
+    it('keeps display order whatever order the hours came in', () => {
+        expect(withHour([1, 22, 5], 23, true)).toEqual([5, 22, 23, 1]);
+    });
+
+    it('leaves nothing once the last hour goes', () => {
+        expect(withHour([9], 9, false)).toEqual([]);
     });
 });

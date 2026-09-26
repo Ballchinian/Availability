@@ -5,6 +5,7 @@ import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
+import TimePicker from '../../src/lib/TimePicker.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
@@ -230,6 +231,24 @@ describe('the fill-in grid', () => {
         expect(clock.shown).toBe('');
         expect(clock.name).toBe(`Set hours for ${formatLong(day)}, free all day`);
         expect(clock.drawn).toBe(true);
+    });
+});
+
+//Drawn as it opens, since showModal and every tap after it need a browser
+describe('the hours picker', () => {
+    const draw = (hours: number[]) => render(TimePicker, { props: { date: '2026-08-05', hours } }).body;
+    const lit = (body: string) => (body.match(/aria-pressed="true"/g) || []).length;
+
+    it('lights every hour on a day free all day', () => {
+        const body = draw([]);
+        expect(lit(body)).toBe(24);
+        expect(body).toContain('Free all day. Tap or drag across hours to take them off.');
+    });
+
+    it('lights only the hours kept on part of a day', () => {
+        const body = draw([17, 18]);
+        expect(lit(body)).toBe(2);
+        expect(body).toContain('Free 5pm to 7pm.');
     });
 });
 

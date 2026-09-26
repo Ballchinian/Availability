@@ -25,6 +25,16 @@ export function hoursOf(hours?: number[]): number[] {
     return hours && hours.length ? hours : DAY_HOURS;
 }
 
+//The way back: every hour kept is stored as none, the one way all day is written down
+export function storedHours(lit: number[]): number[] {
+    return lit.length === HOUR_COUNT ? [] : lit;
+}
+
+//One hour switched on or off, with the rest kept in display order
+export function withHour(lit: number[], h: number, on: boolean): number[] {
+    return DAY_HOURS.filter((x) => (x === h ? on : lit.includes(x)));
+}
+
 //Groups a set of hours into readable runs, e.g. "8am to 11am, 1pm to 3pm"
 export function formatHours(hours?: number[]): string {
     if (!hours || !hours.length || hours.length === HOUR_COUNT) return 'all day';
