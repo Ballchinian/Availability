@@ -38,6 +38,7 @@ describe('planCard while a plan is still collecting', () => {
         expect(content).toContain('Ali added you to the plan "Camping" in The server');
         expect(content).toContain('Sat 1 Aug 2026 to Sun 30 Aug 2026');
         expect(content).toContain('a weekend away');
+        expect(content).toContain('Fill in your dates here: ');
         expect(content).toContain('#/plan/ab12cd34ef');
         expect(content).toContain('/channels/g1/t1');
         expect(ids({ components })).toEqual(['drop|ab12cd34ef']);

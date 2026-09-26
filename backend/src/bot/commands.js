@@ -45,7 +45,7 @@ export const commands = [
         .toJSON(),
     new SlashCommandBuilder()
         .setName('cancel')
-        .setDescription('Cancel the plan in this thread')
+        .setDescription('Call off the plan in this thread')
         .toJSON()
 ];
 

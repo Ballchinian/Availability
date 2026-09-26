@@ -99,7 +99,7 @@
                     {/if}
                     {#if p.mine}
                         <a class="action" href="#/plan/{p.planId}/compare">
-                            {p.status === 'collecting' ? "Compare everyone's dates" : over ? 'Look back at it' : 'See who is coming'}
+                            {p.status === 'collecting' ? 'Overview' : over ? 'Look back at it' : 'See who is coming'}
                         </a>
                     {/if}
                 </div>
@@ -165,17 +165,17 @@
             <details class="group">
                 <summary>Been and gone <span class="hint">days that have passed, and plans that were called off</span></summary>
                 <p class="muted small">
-                    Nothing here can be changed. If you ran one of these, its compare page still has who said what and
+                    Nothing here can be changed. If you ran one of these, its overview still has who said what and
                     everything that happened along the way, until you delete the thread in Discord.
                 </p>
                 {@render planCards(past, true)}
             </details>
         {/if}
 
-        <h2>Your availability</h2>
+        <h2>Your calendar</h2>
         <p class="muted">
             Mark the days you are free ahead of time and every plan you are invited to starts already filled in.
-            <a href="#/availability">Set your general availability</a>.
+            <a href="#/availability">Open your calendar</a>.
         </p>
     {/if}
 </section>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
+import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
@@ -276,5 +277,14 @@ describe('the repeat picker', () => {
 
     it('draws no calendar for a one off', () => {
         expect(draw({ weeks: null, from: '2026-08-06' })).not.toContain('rcal');
+    });
+});
+
+//"Call it off" is the one name for this, on the site and in Discord alike
+describe('the call it off panel', () => {
+    it('names the button for what it does', () => {
+        const body = render(CancelPanel, { props: { planId: 'ab12cd34ef', oncancelled: () => {} } }).body;
+        expect(body).toContain('Call it off</button>');
+        expect(body).not.toContain('It is off');
     });
 });

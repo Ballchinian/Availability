@@ -90,7 +90,7 @@ describe('describeEvent', () => {
     it('covers coming and going', () => {
         expect(describeEvent({ ...base, type: 'left' })).toBe('dropped out');
         expect(describeEvent({ ...base, type: 'rejoined' })).toBe('came back to the plan');
-        expect(describeEvent({ ...base, type: 'cancelled' })).toBe('cancelled the plan');
+        expect(describeEvent({ ...base, type: 'cancelled' })).toBe('called the plan off');
     });
 
     it('reads a repeat being set and being stopped', () => {

@@ -36,24 +36,24 @@
 
 <div class="danger">
     {#if !panel.open}
-        <button class="ghost danger-btn" onclick={() => panel.show()}>It is off</button>
+        <button class="ghost danger-btn" onclick={() => panel.show()}>Call it off</button>
     {:else}
         <div class="confirm">
-            <p class="small">Cancel this plan? The thread stays until you delete it by hand in Discord.</p>
+            <p class="small">Call this plan off? The thread stays until you delete it by hand in Discord.</p>
             {#if quiet}
                 <p class="status error small">
                     Quiet mode is on, so nothing goes in the thread and nobody is DMed. Everyone's DM
                     will say the plan is off, but nothing will tell them to look, so anyone who has
                     already read theirs could still turn up.
                 </p>
-                <label class="check"><input type="checkbox" bind:checked={owned} /> I know, cancel it quietly anyway</label>
+                <label class="check"><input type="checkbox" bind:checked={owned} /> I know, call it off quietly anyway</label>
             {:else}
                 <label class="check"><input type="checkbox" bind:checked={post} /> Post the cancellation in the thread</label>
                 <label class="check"><input type="checkbox" bind:checked={dm} /> DM everyone</label>
             {/if}
             <div class="btn-row">
                 <button class="ghost danger-btn" onclick={doCancel} disabled={panel.busy || blocked}>
-                    {panel.busy ? 'Cancelling...' : quiet ? 'Yes, cancel it quietly' : 'Yes, cancel it'}
+                    {panel.busy ? 'Calling it off...' : quiet ? 'Yes, call it off quietly' : 'Yes, call it off'}
                 </button>
                 <button class="ghost" onclick={() => (panel.open = false)}>No</button>
             </div>

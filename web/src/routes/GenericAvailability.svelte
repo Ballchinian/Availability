@@ -105,15 +105,15 @@
     }
 </script>
 
-<svelte:head><title>Your availability</title></svelte:head>
+<svelte:head><title>Your calendar</title></svelte:head>
 
 <section class="screen">
-    <h1>Your availability</h1>
+    <h1>Your calendar</h1>
 
     {#if loading}
-        <p class="muted">Loading your timetable...</p>
+        <p class="muted">Loading your calendar...</p>
     {:else if !auth.user}
-        <p class="muted">Log in above to set your availability.</p>
+        <p class="muted">Log in above to fill in your calendar.</p>
     {:else if loadError}
         <p class="status error">{loadError}</p>
     {:else}

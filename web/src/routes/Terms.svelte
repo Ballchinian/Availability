@@ -6,8 +6,8 @@
     <p>
         Availability ("the Service") is a free, hobby-run tool: this website plus a Discord bot that
         helps a group work out when they're all free. A planner picks a date range and who to invite,
-        the bot opens a private thread, everyone marks the days they can make on the site, and a compare
-        view shows the days that suit the most people. By using the website or adding the bot to a
+        the bot opens a private thread, everyone marks the days they can make on the site, and an
+        overview shows the days that suit the most people. By using the website or adding the bot to a
         Discord server, you agree to these terms.
     </p>
 

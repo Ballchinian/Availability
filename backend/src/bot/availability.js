@@ -122,7 +122,7 @@ async function pickerPayload(plan, userId, note = '') {
 async function usablePlan(interaction, planId) {
     const plan = await getPlan(planId);
     if (!plan) return { error: 'That plan is no longer around.' };
-    if (plan.status === 'cancelled') return { error: 'That plan was cancelled, so there is nothing to fill in.' };
+    if (plan.status === 'cancelled') return { error: 'That plan was called off, so there is nothing to fill in.' };
     if (!plan.participants.some((p) => p.userId === interaction.user.id)) {
         return { error: 'You are not on the guest list for that plan.' };
     }

@@ -202,7 +202,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
             content: banner(again ? 'ROUND AGAIN' : 'INVITED TO A PLAN') +
                 `${lead}\n` +
                 aboutLine(plan) +
-                `Add the dates you are free here: ${planUrl(plan.planId)}\n` +
+                `Fill in your dates here: ${planUrl(plan.planId)}\n` +
                 `${jump}\n` +
                 `Hit "Drop out" below to leave the plan`,
             components: [dropRow(plan.planId)]
@@ -335,7 +335,7 @@ function openerText(plan) {
     return banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
         (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
         aboutLine(plan) +
-        `Choose the dates you are free here: ${planUrl(plan.planId)}\n` +
+        `Fill in your dates here: ${planUrl(plan.planId)}\n` +
         //The link is the fuller thing, so it stays first, but a lot of people will only ever use this
         `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
         `A planner can run \`/overview\` any time to see where things stand, even before everyone is in.`;
@@ -361,7 +361,7 @@ export async function notifyCreatorIfAllIn(plan) {
     const count = ids.length === 1 ? '1 person has' : `all ${ids.length} people have`;
     await dmEach([plan.createdBy],
         banner('EVERYONE IS IN') +
-        `Everyone is in for "${plan.name}"${where}. ${count} filled their availability, so you can compare and lock in a day now.\n` +
+        `Everyone is in for "${plan.name}"${where}. ${count} filled in their dates, so you can pick a day now.\n` +
         `Open the overview here: ${compareUrl(plan.planId)}\n` +
         `Or run \`/overview\` in the plan's thread.`);
 }
@@ -757,7 +757,7 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     const days = daysLabel ? `, ${daysLabel} only` : '';
     //A round reopened means fill it in, anything narrower means nothing to do
-    const tail = reopened ? `Add your availability here: ${url}` : 'Nothing to do, your saved days still stand.';
+    const tail = reopened ? `Fill in your dates here: ${url}` : 'Nothing to do, your saved days still stand.';
     const extra = note ? `\n${note}` : '';
 
     if (post && plan.threadId) {
@@ -811,14 +811,14 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
                 content:
                     banner('PLAN CANCELLED') +
                     `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` +
-                    `${actorName} cancelled **${plan.name}**. Nothing more to fill in.\n` +
+                    `${actorName} called off **${plan.name}**. Nothing more to fill in.\n` +
                     `This thread stays until someone deletes it by hand, and deleting it clears the plan for good.`,
                 allowedMentions: { users: ids }
             });
         }
     }
 
-    if (dm) await dmEach(ids, banner('PLAN CANCELLED') + `${actorName} cancelled the plan "${plan.name}".`);
+    if (dm) await dmEach(ids, banner('PLAN CANCELLED') + `${actorName} called off "${plan.name}".`);
 }
 
 /*
@@ -913,7 +913,7 @@ export async function handleUndrop(interaction) {
         return interaction.update({ content: 'That plan is no longer around.', components: [] });
     }
     if (plan.status === 'cancelled') {
-        return interaction.update({ content: `"${plan.name}" was cancelled, so there is nothing to rejoin.`, components: [] });
+        return interaction.update({ content: `"${plan.name}" was called off, so there is nothing to rejoin.`, components: [] });
     }
     if (dayHasPassed(plan)) {
         return interaction.update({ content: `"${plan.name}" was on ${formatDate(plan.chosenDate)}, so there is nothing to rejoin.`, components: [] });
@@ -1116,7 +1116,7 @@ async function offerBlockDay(interaction, plan) {
     if (!free.length) return;
     await interaction.followUp({
         content: banner('KEEP THAT DAY CLEAR?') +
-            `Since you are coming to "${plan.name}" on ${whenLine(plan)}, I can mark that day unavailable in your general availability so other plans do not count you as free then.`,
+            `Since you are coming to "${plan.name}" on ${whenLine(plan)}, I can mark that day unavailable in your calendar so other plans do not count you as free then.`,
         components: [blockOfferRow(plan.planId)]
     });
 }
@@ -1134,7 +1134,7 @@ export async function handleBlockDay(interaction) {
     }
 
     if (choice === 'no') {
-        return interaction.update({ content: 'No problem, I left your availability as it is.', components: [] });
+        return interaction.update({ content: 'No problem, I left your calendar as it is.', components: [] });
     }
 
     const theirs = await theirDayFor(plan, interaction.user.id);
@@ -1144,7 +1144,7 @@ export async function handleBlockDay(interaction) {
 
     return interaction.update({
         content: banner('DAY BLOCKED OFF') +
-            `Done, I marked ${formatDate(theirs)} as unavailable in your general availability. Other plans will not see you free that day.\n\nChanged your mind? Hit undo below.`,
+            `Done, I marked ${formatDate(theirs)} as unavailable in your calendar. Other plans will not see you free that day.\n\nChanged your mind? Hit undo below.`,
         components: [blockedRow(planId, mask)]
     });
 }
@@ -1166,7 +1166,7 @@ export async function handleUnblockDay(interaction) {
 
     return interaction.update({
         content: banner('BACK TO FREE') +
-            `Put ${formatDate(theirs)} back as free in your general availability.`,
+            `Put ${formatDate(theirs)} back as free in your calendar.`,
         components: [reblockRow(planId)]
     });
 }
@@ -1312,14 +1312,14 @@ export async function handleCancel(interaction) {
     }
 
     const plan = await getPlanByThread(interaction.channelId);
-    if (!plan) return interaction.reply({ content: 'Run this inside a plan thread to cancel it.', flags: MessageFlags.Ephemeral });
+    if (!plan) return interaction.reply({ content: 'Run this inside a plan thread to call it off.', flags: MessageFlags.Ephemeral });
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`cancel|yes|${plan.planId}`).setLabel('Yes, cancel it').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`cancel|yes|${plan.planId}`).setLabel('Yes, call it off').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('cancel|no').setLabel('Keep it').setStyle(ButtonStyle.Secondary)
     );
     return interaction.reply({
-        content: `Cancel **${plan.name}**? Everyone gets told, and the thread stays until you delete it by hand.`,
+        content: `Call off **${plan.name}**? Everyone gets told, and the thread stays until you delete it by hand.`,
         components: [row],
         flags: MessageFlags.Ephemeral
     });
@@ -1332,7 +1332,7 @@ export async function handlePlanComponent(interaction) {
 
     if (action === 'no') return interaction.update({ content: 'Kept it.', components: [] });
 
-    await interaction.update({ content: 'Cancelling the plan...', components: [] });
+    await interaction.update({ content: 'Calling it off...', components: [] });
     const plan = await getPlan(planId);
     const actorName = interaction.member?.displayName || interaction.user.username;
     if (!plan || !(await cancelPlan(plan, interaction.user.id, actorName))) {
@@ -1352,8 +1352,8 @@ export async function remindStragglers(plan, actorName) {
     const url = planUrl(plan.planId);
     await dmEach(pending,
         banner('REMINDER') +
-        `${actorName} has asked for your availability for "${plan.name}". ` +
-        `Please fill it in when you are next free, or just confirm if you already have the dates filled in: ${url}\n` +
+        `${actorName} has asked you to fill in your dates for "${plan.name}". ` +
+        `Do it when you are next free, or just confirm if they are already filled in: ${url}\n` +
         //The people this reaches are the ones who have not clicked the link, so the other way is worth saying
         `Or run \`/free\` in the plan's thread and tick your days off there.`);
 

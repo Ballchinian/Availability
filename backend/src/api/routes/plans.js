@@ -776,7 +776,7 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
         await addPlanEvent(plan.planId, { type: 'cancelled', by: req.user.id, byName: ctx.member.displayName });
     } catch (err) {
         console.error('[plans] cancel failed:', err);
-        return res.status(500).json({ error: 'Could not cancel the plan.' });
+        return res.status(500).json({ error: 'Could not call the plan off.' });
     }
 
     announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, ctx.member.displayName, { post, dm }), { cancel: true });

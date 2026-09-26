@@ -130,21 +130,21 @@
 
 <!--The plan's name first, since two of these open at once is the whole reason for the title
     and a tab cuts off the end-->
-<svelte:head><title>{data ? `${data.plan.name} · compare dates` : 'Compare dates'}</title></svelte:head>
+<svelte:head><title>{data ? `${data.plan.name} · overview` : 'Overview'}</title></svelte:head>
 
 <section class="screen">
-    <h1>Compare dates</h1>
+    <h1>Overview</h1>
 
     {#if loading}
         <p class="muted">Loading everyone's dates...</p>
     {:else if !auth.user}
-        <p class="muted">Log in above to compare.</p>
+        <p class="muted">Log in above to see the overview.</p>
     {:else if loadError || !data}
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else}
         {#if cancelled}
             <p class="prompt good">
-                This plan has been cancelled and everyone has been told, so nothing here can be changed now. What people
+                This plan has been called off and everyone has been told, so nothing here can be changed now. What people
                 said is below. Delete its thread in Discord when you are ready to clear it for good.
             </p>
         {/if}

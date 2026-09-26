@@ -90,12 +90,12 @@
         }
         //What to do with the grid is said under it either way, so this only says where they stand
         if (!data.lastFilled) {
-            return 'First time filling in your timetable, so nothing is marked yet.';
+            return 'First time filling in your calendar, so nothing is marked yet.';
         }
         const parts = [];
-        if (stale) parts.push('It has been over a month since you last updated your availability.');
+        if (stale) parts.push('It has been over a month since you last updated your calendar.');
         if (newFrom) parts.push(`You have not touched anything past ${formatDate(data.lastFilled)}. The days from there are highlighted below.`);
-        if (!parts.length) parts.push('Your timetable already covers this range. Give it a once-over and save.');
+        if (!parts.length) parts.push('Your calendar already covers this range. Give it a once-over and save.');
         return parts.join(' ');
     });
 
@@ -186,7 +186,7 @@
     {:else if left}
         <p class="prompt good">You have dropped out of <strong>{data.plan.name}</strong>. The group has been told, and you will not get any more nudges about it.</p>
     {:else if data.plan.status === 'cancelled'}
-        <p class="prompt">This plan was cancelled, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
+        <p class="prompt">This plan was called off, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
     {:else if data.plan.status === 'closed'}
         <!--The day is picked, so asking which days suit is asking about a question that has been
             answered. This is where the plans on the landing page that are over end up too.-->
@@ -206,8 +206,8 @@
         </div>
 
         <p class="muted small">
-            Your saved days are still yours to change for everything else:
-            <a href="#/availability">set your general availability</a>.
+            Your saved days are still yours to change for everything else, in
+            <a href="#/availability">your calendar</a>.
         </p>
 
         {#if !beenAndGone}{@render dropOut()}{/if}
@@ -253,9 +253,9 @@
         <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Count these as my answer on any other plan they fully cover</label>
 
         <p class="muted small">
-            These dates save to your availability everywhere, not just this plan, so every other plan sees them too.
+            These dates save to your calendar, not just this plan, so every other plan sees them too.
             For days outside {formatDate(data.plan.start)} to {formatDate(data.plan.end)},
-            <a href="#/availability">set your general availability</a>.
+            <a href="#/availability">open your calendar</a>.
         </p>
 
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button

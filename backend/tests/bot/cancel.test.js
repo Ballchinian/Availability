@@ -74,7 +74,7 @@ describe('the /cancel button', () => {
         await done;
         expect(outcome).not.toHaveBeenCalled();
         expect(sends.map((s) => s.userId).sort()).toEqual(['bo', 'cass']);
-        expect(sends[0].payload).toMatch(/Ali cancelled the plan "Board games"/);
+        expect(sends[0].payload).toMatch(/Ali called off "Board games"/);
         expect(click.editReply).toHaveBeenCalledWith({ content: expect.stringMatching(/^Done/) });
     });
 
