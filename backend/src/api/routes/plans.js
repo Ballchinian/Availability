@@ -820,6 +820,8 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
     let cancelled;
     try {
         cancelled = await markPlanCancelled(plan.planId);
+        //Cancelled by something else since this request read the plan, which has told everyone already
+        if (!cancelled) return res.json({ ok: true, quiet });
         await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
         await addPlanEvent(plan.planId, { type: 'cancelled', by: req.user.id, byName: ctx.member.displayName });
     } catch (err) {
@@ -829,7 +831,7 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
 
     //The cancelled copy, since what the pin and everyone's DM end up saying is read off the status
     announceAfter('cancel announce', () =>
-        announceCancel(cancelled || plan, ctx.member.displayName, { post, dm })
+        announceCancel(cancelled, ctx.member.displayName, { post, dm })
     );
 
     res.json({ ok: true, quiet });

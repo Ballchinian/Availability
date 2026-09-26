@@ -4,6 +4,7 @@ import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
 import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
+import { refundAction } from '../../src/db/ratelimits.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -39,6 +40,8 @@ vi.mock('../../src/db/plans.js', () => ({
         lookups.push(planId);
         return plans.get(planId) || null;
     }),
+    //The real one comes back null when the plan was already cancelled by the time it wrote
+    markPlanCancelled: vi.fn(async (planId) => ({ ...plans.get(planId), status: 'cancelled' })),
     ...stubs(
         'confirmParticipant',
         'setPlanChosen',
@@ -49,7 +52,6 @@ vi.mock('../../src/db/plans.js', () => ({
         'addParticipants',
         'setPlanDetails',
         'setAttendanceOverride',
-        'markPlanCancelled',
         'setPlanRepeat',
         'addPlanEvent'
     )
@@ -221,6 +223,14 @@ describe('the plan gate', () => {
         const res = await post('/ab12cd34ef/cancel');
         expect(res.status).toBe(200);
         expect(db.markPlanCancelled).not.toHaveBeenCalled();
+    });
+
+    it('tells nobody and refunds nothing when another cancel got there first', async () => {
+        db.markPlanCancelled.mockResolvedValueOnce(null);
+        const res = await post('/ab12cd34ef/cancel');
+        expect(res.status).toBe(200);
+        expect(announceAfter).not.toHaveBeenCalled();
+        expect(refundAction).not.toHaveBeenCalled();
     });
 
     /*

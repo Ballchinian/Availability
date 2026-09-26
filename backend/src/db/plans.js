@@ -332,10 +332,16 @@ export async function setPlanWhen(planId, time, note) {
     Mark a plan cancelled. We leave the document and its thread in place, the
     thread getting deleted by hand is what finally clears the plan, so a cancelled
     plan just drops out of the open lists in the meantime.
+
+    Null when it was already cancelled, so of two cancels landing together (the site and
+    /cancel at once) only one goes on to refund and tell everyone.
 */
 export async function markPlanCancelled(planId) {
-    await col(collections.plans).updateOne({ planId }, { $set: { status: 'cancelled' } });
-    return getPlan(planId);
+    return col(collections.plans).findOneAndUpdate(
+        { planId, status: { $ne: 'cancelled' } },
+        { $set: { status: 'cancelled' } },
+        { returnDocument: 'after' }
+    );
 }
 
 //Note when the stragglers were last nudged, so /remind cannot be spammed

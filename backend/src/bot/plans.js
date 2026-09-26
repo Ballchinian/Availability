@@ -819,9 +819,11 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
 export async function cancelPlan(plan, actorId, actorName, { post = true, dm = true } = {}) {
     //The cancelled copy, not the one read before it: what the cards say is read off the status
     const cancelled = await markPlanCancelled(plan.planId);
+    if (!cancelled) return false;
     await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
     await addPlanEvent(plan.planId, { type: 'cancelled', by: actorId, byName: actorName }).catch(() => {});
-    await announceCancel(cancelled || plan, actorName, { post, dm });
+    await announceCancel(cancelled, actorName, { post, dm });
+    return true;
 }
 
 //The telling-everyone half, split off so the site can send it after it has responded
@@ -1355,9 +1357,9 @@ export async function handlePlanComponent(interaction) {
 
     await interaction.update({ content: 'Cancelling the plan...', components: [] });
     const plan = await getPlan(planId);
-    if (plan) {
-        const actorName = interaction.member?.displayName || interaction.user.username;
-        await cancelPlan(plan, interaction.user.id, actorName);
+    const actorName = interaction.member?.displayName || interaction.user.username;
+    if (!plan || !(await cancelPlan(plan, interaction.user.id, actorName))) {
+        return interaction.editReply({ content: 'It was already called off, so I left everyone be.' });
     }
     return interaction.editReply({ content: 'Done, everyone has been told. Delete this thread when you are ready to clear the plan for good.' });
 }
