@@ -2,7 +2,7 @@
     import { untrack } from 'svelte';
     import { api } from '../api.js';
     import { formatDate } from '../format.js';
-    import { formatHours } from '../hours.js';
+    import { HOUR_COUNT, formatHours } from '../hours.js';
     import { evaluateDay, explainDay, type FreePerson } from '../overlap.js';
     import type { Participant } from '../types.js';
     import { Panel } from './panel.svelte.js';
@@ -179,7 +179,7 @@
 {#if sel && selectedDate}
     <div class="pick-panel">
         {#if sel.ev.viable}
-            <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>.</p>
+            <p><strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>{sel.ev.windowSize < HOUR_COUNT ? ` (${sel.ev.windowSize}h)` : ''}.</p>
         {:else}
             <!--Says which of the two dim days this is, since the grid can only say that it is one.
                 The title attribute carried this and never showed up on a phone.-->

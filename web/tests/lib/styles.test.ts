@@ -59,3 +59,12 @@ describe('the compare grid', () => {
         expect(css.indexOf('\n.cday:focus-visible {')).toBeGreaterThan(css.indexOf('\n.cday.chosen {'));
     });
 });
+
+//The compare grid's third line, and what a fixed height does to a square cell
+describe('the hours in common', () => {
+    it('gets a cell tall enough for three lines, without widening the month', () => {
+        const cells = rule('.days.with-hours > *');
+        expect(px(cells, 'height')).toBeGreaterThanOrEqual(48);
+        expect(cells).toContain('aspect-ratio: auto');
+    });
+});

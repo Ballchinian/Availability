@@ -90,7 +90,7 @@
             <div class="weekdays">
                 {#each WEEKDAYS as w (w)}<span>{w}</span>{/each}
             </div>
-            <div class="days">
+            <div class="days with-hours">
                 {#each month.cells as cell, i (i)}
                     {#if !cell}
                         <span class="pad"></span>
@@ -110,6 +110,7 @@
                         >
                             <span class="num">{cell.day}{#if chosenDate === cell.date}<svg class="tick" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 6.5l2.5 2.5L10 3.5" /></svg>{/if}</span>
                             <span class="count">{ev.freeCount || ''}</span>
+                            <span class="shared">{ev.viable ? `${ev.windowSize}h` : ''}</span>
                         </button>
                     {/if}
                 {/each}

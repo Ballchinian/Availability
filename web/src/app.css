@@ -1059,7 +1059,17 @@ a.primary {
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
-/* Both lines set solid, so a day number over a head count still clears a square cell */
+/*
+    A third line for the hours in common, so how long a day works is not told by
+    brightness alone. aspect-ratio off, or a 48px height makes every day 48px wide too
+    and the month runs into the next one.
+*/
+.days.with-hours > * {
+    height: 48px;
+    aspect-ratio: auto;
+}
+
+/* Every line set solid, so the date, the head count and the hours all clear the cell */
 .cday .num {
     font-size: 14px;
     line-height: 1.1;
@@ -1067,6 +1077,11 @@ a.primary {
 
 .cday .count {
     font-size: 12px;
+    line-height: 1.1;
+}
+
+.cday .shared {
+    font-size: 11px;
     line-height: 1.1;
 }
 

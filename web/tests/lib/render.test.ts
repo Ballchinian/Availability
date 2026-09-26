@@ -69,6 +69,17 @@ describe('picking a day nobody has answered about', () => {
         });
         expect(body).toContain('Just the people who can make it');
     });
+
+    //The grid gives the hours as a number now too, so the line under it says the same one
+    it('counts the hours in common beside when they are', () => {
+        const body = draw({ confirmedCount: 1, totalParticipants: 3, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] } });
+        expect(body).toContain('<strong>5pm to 8pm</strong> (3h).');
+    });
+
+    it('lets "all day" say it on its own', () => {
+        const body = draw({ confirmedCount: 1, totalParticipants: 3, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
+        expect(body).toContain('<strong>all day</strong>.');
+    });
 });
 
 /*
@@ -204,6 +215,12 @@ describe('the compare grid', () => {
 
     it('keeps every day on a grid that is only looked back at', () => {
         expect(buttons(draw({ today: null }))).toBe(14);
+    });
+
+    it('gives the hours in common on each day that has any', () => {
+        const body = draw({ freeByDate: { '2026-08-05': [{ userId: 'a', hours: [17, 18] }] } });
+        expect(body).toContain('<span class="shared">2h</span>');
+        expect(body.match(/<span class="shared"><\/span>/g)).toHaveLength(13);
     });
 
     //A title the same as the name gets read out a second time as the description
