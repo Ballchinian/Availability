@@ -257,6 +257,7 @@
                         timeZone={data.plan.timeZone}
                         chosen={data.plan.chosenDate ? { date: data.plan.chosenDate, time: '', note: '' } : null}
                         readOnly
+                        level={2}
                         bind:selectedDate={setDate}
                         onsaved={async () => {}}
                     />

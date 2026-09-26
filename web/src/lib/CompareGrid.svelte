@@ -23,6 +23,7 @@
         unsureByDate = {},
         chosenDate = null,
         today = null,
+        level = 3,
         selectedDate = $bindable(null)
     }: {
         start: string;
@@ -36,6 +37,8 @@
         chosenDate?: string | null;
         //Days before it are out. Null keeps every day, for a grid that is only looked back at.
         today?: string | null;
+        //One under whatever heads the section the grid sits in
+        level?: 2 | 3;
         selectedDate?: string | null;
     } = $props();
 
@@ -86,7 +89,7 @@
 <div class="grid-wrap">
     {#each months as month (month.year + '-' + month.month)}
         <section class="cal">
-            <h3>{month.label} {month.year}</h3>
+            <svelte:element this={`h${level}`}>{month.label} {month.year}</svelte:element>
             <div class="weekdays">
                 {#each WEEKDAYS as w (w)}<span>{w}</span>{/each}
             </div>

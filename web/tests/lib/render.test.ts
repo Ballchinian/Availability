@@ -227,6 +227,12 @@ describe('the compare grid', () => {
     it('says each day once', () => {
         expect(draw({})).not.toContain('title=');
     });
+
+    //Under "Everyone's days" on the compare page, straight under the h1 on the dates screen
+    it('heads its months one level under wherever it sits', () => {
+        expect(draw({})).toMatch(/<h3>August 2026(<!---->)?<\/h3>/);
+        expect(draw({ level: 2 })).toMatch(/<h2>August 2026(<!---->)?<\/h2>/);
+    });
 });
 
 //Counted off today, since the grid reads the clock itself
@@ -236,6 +242,13 @@ describe('the fill-in grid', () => {
 
     it('locks the days already gone', () => {
         expect(buttons(draw())).toBe(4);
+    });
+
+    //Both pages it is on have only their h1 above it
+    it('heads its months at h2', () => {
+        const body = draw();
+        expect(body).toMatch(/<h2 style="[^"]*">/);
+        expect(body).not.toContain('<h3');
     });
 
     //A clock button rides on every free day, so one clock means the day gone is not drawn as free

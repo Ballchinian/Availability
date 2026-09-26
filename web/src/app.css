@@ -693,13 +693,16 @@ a.primary {
     width: 258px;
 }
 
+/* h2 straight under a page's h1, h3 under a section's h2. Either way the text colour, not a heading's */
+.cal h2,
 .cal h3 {
     margin: 0 0 8px;
     font-size: 18px;
+    color: inherit;
 }
 
 /* How full the month is in figures, since its heading colour says the same thing in a way not everyone sees */
-.cal h3 .tally {
+.cal .tally {
     color: var(--muted);
     font-size: 12px;
     font-weight: normal;

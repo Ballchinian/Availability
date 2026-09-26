@@ -29,6 +29,7 @@
         chosen = null,
         quiet = false,
         readOnly = false,
+        level = 3,
         selectedDate = $bindable(null),
         onsaved
     }: {
@@ -45,6 +46,8 @@
         quiet?: boolean;
         //A cancelled plan, where the grid is only there to look back at
         readOnly?: boolean;
+        //The month headings' level, 2 on a page with nothing between them and its h1
+        level?: 2 | 3;
         selectedDate?: string | null;
         onsaved: () => Promise<void>;
     } = $props();
@@ -155,6 +158,7 @@
     today={readOnly ? null : todayIn(timeZone)}
     {unsureByDate}
     {missAllowed}
+    {level}
     bind:selectedDate
 />
 

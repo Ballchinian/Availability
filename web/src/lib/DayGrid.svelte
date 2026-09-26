@@ -184,9 +184,9 @@
     {#each months as month (monthKey(month))}
         {@const tally = view.tallies[monthKey(month)]}
         <section class="cal">
-            <h3 style="color: {headingColor(tally.filled, tally.asked)}">
+            <h2 style="color: {headingColor(tally.filled, tally.asked)}">
                 {month.label} {month.year} <span class="tally">{tally.filled}/{tally.asked}</span>
-            </h3>
+            </h2>
             <div class="weekdays">
                 {#each WEEKDAYS as w (w)}<span>{w}</span>{/each}
             </div>
