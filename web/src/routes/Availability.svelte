@@ -206,7 +206,7 @@
                 {formatDate(data.plan.chosenDate)}{data.plan.chosenTime ? ` at ${formatTime(data.plan.chosenTime)}` : ''},
                 so there is nothing left to fill in here.
             </p>
-            {#if data.plan.chosenTime}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
+            {#if data.plan.chosenTime}<ClockNote zone={data.plan.timeZone} date={data.plan.chosenDate} time={data.plan.chosenTime} />{/if}
             {#if data.plan.chosenNote}<p>{data.plan.chosenNote}</p>{/if}
         </div>
 

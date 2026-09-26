@@ -198,7 +198,7 @@
                         <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
                         {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
                     </p>
-                    {#if chosen.time}<ClockNote zone={data.plan.timeZone} what="That time is" />{/if}
+                    {#if chosen.time}<ClockNote zone={data.plan.timeZone} date={chosen.date} time={chosen.time} />{/if}
                     {#if chosen.note}<p>{chosen.note}</p>{/if}
                 </div>
 

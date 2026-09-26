@@ -13,8 +13,9 @@ import { api } from './api.js';
 */
 
 import { zoneOffsetLabel, safeZone, instantToWall } from '../../../shared/zones.js';
+import { formatDate, formatTime } from '../../../shared/dates.js';
 
-export { clocksAgree } from '../../../shared/zones.js';
+export { clocksAgree, planInstant } from '../../../shared/zones.js';
 
 //Today on a plan's clock, the date the server refuses anything before
 export function todayIn(zone: string): string {
@@ -55,9 +56,16 @@ export async function syncZone(): Promise<void> {
     await api('/me/timezone', { method: 'PUT', body: JSON.stringify({ timeZone: zone }) }).catch(() => {});
 }
 
-//"Europe/London (GMT+1)", the form the pages name a clock in
-export function describeZone(zone: string): string {
+//"Europe/London (GMT+1)", the form the pages name a clock in, read now unless handed a moment
+export function describeZone(zone: string, instant?: Date): string {
     if (!zone) return '';
-    const offset = zoneOffsetLabel(zone);
+    const offset = zoneOffsetLabel(zone, instant);
     return offset ? `${zone} (${offset})` : zone;
+}
+
+//A moment as a clock reads it, "2pm on Sat 12 Sep 2026"
+export function wallTime(zone: string, instant: Date): string {
+    const there = instantToWall(safeZone(zone), instant);
+    const hhmm = `${String(there.hour).padStart(2, '0')}:${String(there.minute).padStart(2, '0')}`;
+    return `${formatTime(hhmm)} on ${formatDate(there.date)}`;
 }

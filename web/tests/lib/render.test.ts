@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from 'svelte/server';
+import ClockNote from '../../src/lib/ClockNote.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
@@ -14,6 +15,13 @@ import type { Participant } from '../../src/lib/types.js';
     a string with no DOM and no new dependency, which is as close as this suite gets to
     looking at a screen. Not the compare page itself, which wants auth and the api behind it.
 */
+
+//The clock the device is on, which is all ClockNote asks the browser
+const device = vi.hoisted(() => ({ zone: 'America/New_York' }));
+vi.mock('../../src/lib/zone.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../src/lib/zone.js')>()),
+    browserZone: () => device.zone
+}));
 
 //Every day that can be picked or marked is a button, and a day that is out is a span
 const buttons = (body: string) => (body.match(/<button/g) || []).length;
@@ -286,5 +294,47 @@ describe('the call it off panel', () => {
         const body = render(CancelPanel, { props: { planId: 'ab12cd34ef', oncancelled: () => {} } }).body;
         expect(body).toContain('Call it off</button>');
         expect(body).not.toContain('It is off');
+    });
+});
+
+describe('the clock note', () => {
+    const draw = (props: Record<string, unknown>) => render(ClockNote, { props: { zone: 'Europe/London', ...props } }).body;
+
+    it('says what the set time comes to on the reader clock', () => {
+        device.zone = 'America/New_York';
+        const body = draw({ date: '2026-09-12', time: '19:00' });
+        expect(body).toContain('That is 7pm on');
+        expect(body).toContain('2pm on Sat 12 Sep 2026');
+        expect(body).not.toContain(' are on ');
+    });
+
+    it('carries the time over midnight onto the day it lands on', () => {
+        device.zone = 'Asia/Tokyo';
+        expect(draw({ date: '2026-09-12', time: '23:30' })).toContain('7:30am on Sun 13 Sep 2026');
+    });
+
+    //Reykjavik stays on GMT all year, so it agrees with London in January and not in July
+    it('asks the two clocks about the day itself', () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+        device.zone = 'Atlantic/Reykjavik';
+        try {
+            const body = draw({ date: '2026-07-12', time: '19:00' });
+            expect(body).toContain('Europe/London (GMT+1)');
+            expect(body).toContain('6pm on Sun 12 Jul 2026');
+            expect(draw({ date: '2027-01-10', time: '19:00' })).not.toContain('<p');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('still names the clock for a page of times', () => {
+        device.zone = 'America/New_York';
+        expect(draw({ what: 'The days and hours here' })).toContain('The days and hours here are on');
+    });
+
+    it('says nothing to someone already on the plan clock', () => {
+        device.zone = 'Europe/London';
+        expect(draw({ date: '2026-09-12', time: '19:00' })).not.toContain('<p');
     });
 });
