@@ -190,7 +190,7 @@
             <div class="weekdays">
                 {#each WEEKDAYS as w (w)}<span>{w}</span>{/each}
             </div>
-            <div class="days">
+            <div class="days with-clocks">
                 {#each month.cells as cell, i (i)}
                     {#if !cell}
                         <span class="pad"></span>
@@ -220,6 +220,7 @@
                                     title="Set specific hours"
                                     aria-label={clockLabel(cell.date)}
                                     onpointerdown={(e) => e.stopPropagation()}
+                                    onpointerenter={() => press.enter(cell.date)}
                                     onclick={() => (editingDate = cell.date)}
                                 >
                                     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">

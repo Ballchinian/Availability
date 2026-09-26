@@ -23,5 +23,9 @@ export default defineConfig({
         fs: {
             allow: ['..']
         }
+    },
+    test: {
+        //Stylesheets come through empty in tests unless named here, even with ?raw
+        css: { include: [/app\.css/] }
     }
 });

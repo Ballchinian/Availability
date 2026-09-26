@@ -688,9 +688,18 @@ a.primary {
     padding-bottom: 2px;
 }
 
+/*
+    Every day on the fill-in grid is as tall as a day with its clock under it, so
+    marking one never moves a row that a drag is crossing.
+*/
+.days.with-clocks > * {
+    height: 58px;
+}
+
 .cell {
-    position: relative;
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .day {
@@ -733,6 +742,14 @@ a.primary {
     color: #fff;
     border-color: rgba(255, 255, 255, 0.3);
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+.days.with-clocks .day {
+    aspect-ratio: auto;
+    flex: 1;
+    min-height: 0;
+    align-items: flex-start;
+    padding-top: 8px;
 }
 
 /* Days past the front edge of their timetable, the bit they have not looked at */
@@ -814,20 +831,13 @@ a.primary {
     display: block;
 }
 
-/*
-    Still under the 24px a target wants, but the day underneath it is the main
-    one and a bigger badge would swallow the cell. Do not shrink it again.
-*/
+/* 24px tall, the least a target can be, and under the day rather than on its corner so neither covers the other */
 .clock {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 4px;
+    flex: none;
+    height: 24px;
+    padding: 0;
     font-size: 11px;
-    line-height: 20px;
-    border-radius: 10px;
+    border-radius: 6px;
     border: none;
     background: var(--accent);
     color: #fff;
@@ -835,12 +845,12 @@ a.primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 1px;
 }
 
 .clock svg {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     flex: none;
     fill: none;
     stroke: currentColor;
