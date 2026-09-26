@@ -23,8 +23,8 @@
         we know when your saved availability is still needed by anyone.
         <br />
         <strong>Plans:</strong> a plan's name, optional description, date range, who's invited, who has
-        confirmed, the chosen date, time and any note, and, when a planner asks people to confirm a set
-        date, each person's yes or no plus any short reason given for a no.
+        confirmed, the chosen date, time and any note, and, once a plan has a set date, each person's
+        yes or no plus any short reason given for a no.
         <br />
         <strong>Server settings:</strong> for each server, which channel is the plans channel, which role
         can drive the bot, and the intro message the bot pinned.

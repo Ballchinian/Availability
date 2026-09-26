@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const edits = [];
 const dms = [];
-const made = [];
 
 vi.mock('../../src/bot/client.js', () => ({
     client: {
@@ -19,28 +18,6 @@ vi.mock('../../src/bot/client.js', () => ({
                     messages: { fetch: async (id) => ({ id, edit: async (payload) => edits.push({ userId, id, payload }) }) }
                 })
             })
-        },
-        guilds: {
-            fetch: async () => ({
-                name: 'The server',
-                channels: {
-                    fetch: async (channelId) => ({
-                        id: channelId,
-                        threads: {
-                            create: async ({ name }) => {
-                                const thread = {
-                                    id: `t${made.length + 1}`,
-                                    name,
-                                    members: { add: async () => {} },
-                                    send: async () => ({ id: 'opener' })
-                                };
-                                made.push(thread);
-                                return thread;
-                            }
-                        }
-                    })
-                }
-            })
         }
     }
 }));
@@ -48,8 +25,6 @@ vi.mock('../../src/bot/client.js', () => ({
 const store = vi.hoisted(() => ({ cfg: null, gone: [] }));
 const db = vi.hoisted(() => ({
     deletePlansUnderChannel: vi.fn(async () => store.gone),
-    setPlanThread: vi.fn(async () => {}),
-    setPlanOpener: vi.fn(async () => {}),
     clearPlanCard: vi.fn(async () => {})
 }));
 const guilds = vi.hoisted(() => ({
@@ -60,7 +35,6 @@ vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }))
 vi.mock('../../src/db/guilds.js', async (real) => ({ ...(await real()), ...guilds }));
 
 const { onChannelDelete } = await import('../../src/bot/cleanup.js');
-const { announcePlan, announceSetPlan } = await import('../../src/bot/plans.js');
 
 const plan = (planId, holders) => ({
     planId,
@@ -80,7 +54,6 @@ beforeEach(() => {
     vi.clearAllMocks();
     edits.length = 0;
     dms.length = 0;
-    made.length = 0;
     store.cfg = { guildName: 'The server', plansChannelId: 'c2', setupBy: 'owner' };
     store.gone = [plan('p1', [['ali', 'm1']]), plan('p2', [['bo', 'm2'], ['cass', null]])];
 });
@@ -128,20 +101,5 @@ describe('deleting a channel in a server that was never set up', () => {
         expect(db.deletePlansUnderChannel).toHaveBeenCalledWith('g1', 'c9', { unknownParent: false });
         expect(edits).toEqual([]);
         expect(guilds.markSetupBroken).not.toHaveBeenCalled();
-    });
-});
-
-describe('opening a plan thread', () => {
-    const cfg = { guildName: 'The server', plansChannelId: 'c2' };
-
-    it('stores the channel the thread was made under', async () => {
-        await announcePlan(plan('p3', [['ali', null]]), cfg, 'Ali', { dm: false });
-        expect(db.setPlanThread).toHaveBeenCalledWith('p3', 't1', 'c2');
-    });
-
-    it('does the same for a plan announced with its day already set', async () => {
-        const set = { ...plan('p4', [['ali', null]]), status: 'closed', chosenDate: '2026-08-08' };
-        await announceSetPlan(set, cfg, 'Ali', { dm: false });
-        expect(db.setPlanThread).toHaveBeenCalledWith('p4', 't1', 'c2');
     });
 });

@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, applyConfirmations, syncPlan } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 
 /*
@@ -81,7 +81,6 @@ vi.mock('../../src/bot/plans.js', () =>
     stubs(
         'announceOutcome',
         'announceWhenEdit',
-        'applyConfirmations',
         'remindStragglers',
         'remindVoters',
         'announcePlanDates',
@@ -400,6 +399,20 @@ describe('choosing the day a plan is already on', () => {
     it never turns off is the rewriting, which is why a quiet fix still leaves everyone
     holding a correct DM.
 */
+//A set day always asks who can make it, so no request can set one without asking or stop the asking
+describe('asking who can make it', () => {
+    it('records a new day as asked about, whatever the request says', async () => {
+        await post('/ab12cd34ef/choose', { date: inWindow, probe: false });
+        expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', expect.objectContaining({ type: 'chosen', probe: true }));
+    });
+
+    it('has no way to stop asking', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: true }));
+        const res = await post('/ab12cd34ef/confirmations', { active: false });
+        expect(res.status).toBe(404);
+    });
+});
+
 describe('quiet mode', () => {
     const flagsOf = (fn) => fn.mock.calls.at(-1).at(-1);
 
@@ -439,14 +452,6 @@ describe('quiet mode', () => {
         await post('/ab12cd34ef/choose', { date: inWindow, time: '20:00', quiet: true });
         runQueued();
         expect(flagsOf(announceWhenEdit)).toMatchObject({ quiet: true });
-    });
-
-    //The confirmation reads it as "do not mention anyone", since the poll itself still has to exist
-    it('stops a first confirmation mentioning the invite list', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: false }));
-        applyConfirmations.mockResolvedValue({ revived: false });
-        await post('/ab12cd34ef/confirmations', { active: true, quiet: true });
-        expect(applyConfirmations.mock.calls.at(-1).at(-1)).toMatchObject({ mention: false });
     });
 });
 
@@ -702,6 +707,11 @@ describe('going back out for different dates', () => {
             expect(await res.json()).toMatchObject({ set: true, chosenDate: ahead(40) });
             expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reopen: false }));
             expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), null, null);
+        });
+
+        it('records the day as asked about, the same as picking it off the grid', async () => {
+            await dates({ date: ahead(40) });
+            expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', expect.objectContaining({ type: 'chosen', probe: true }));
         });
 
         //A day inside the window needs no stretching, so the window it already had comes back

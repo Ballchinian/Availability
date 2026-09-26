@@ -28,25 +28,18 @@
     let endDate = $state('');
     let selectedIds = $state<string[]>([]);
 
-    //Collect mode notifies through the thread always, the DM is the optional extra
-    let collectDm = $state(true);
-
     //Which weekdays a collect plan asks about, indexed Sunday (0) to Saturday (6). All on
     //means the whole range, the default and how plans always were.
     let dayOn = $state<boolean[]>([true, true, true, true, true, true, true]);
     const chosenWeekdays = $derived(chosenDays(dayOn));
 
     /*
-        Set-plan mode: a single day plus an optional time, and how to announce it. Anything
-        people need on the day goes in the description above, which is the one field for
-        what a plan is about: a day used to carry a line of its own and the two were never
-        tellable apart.
+        Set-plan mode: a single day plus an optional time. Anything people need on the day
+        goes in the description above, which is the one field for what a plan is about: a
+        day used to carry a line of its own and the two were never tellable apart.
     */
     let setDate = $state('');
     let setTime = $state('');
-    let announceDm = $state(true);
-    //Opt in to asking everyone to confirm they can make the date with yes/no buttons
-    let announceProbe = $state(false);
 
     /*
         Whether this comes round again once its day has been. Shared by both modes, since
@@ -157,8 +150,6 @@
                           date: setDate,
                           time: setTime || null,
                           participantIds: selectedIds,
-                          dm: announceDm,
-                          probe: announceProbe,
                           repeatWeeks
                       }
                     : {
@@ -167,7 +158,6 @@
                           start: startDate,
                           end: endDate,
                           participantIds: selectedIds,
-                          dm: collectDm,
                           //All seven days is no restriction, so send nothing then
                           allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays,
                           repeatWeeks
@@ -231,11 +221,11 @@
     {:else if result}
         <div class="result">
             {#if result.set}
-                <p>Done. <strong>{planName}</strong> is set. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{announceDm ? " and DM'd them" : ''}{announceProbe ? ' with a yes/no so you know who is coming' : ''}.</p>
+                <p>Done. <strong>{planName}</strong> is set. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked and DM'd them a yes/no so you know who is coming.</p>
                 <!--The date it is set for, and where a repeat takes it, drawn rather than said-->
                 {#if setDate}<RepeatDates first={setDate} shapes={repeatDates} />{/if}
             {:else}
-                <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked{collectDm ? " and DM'd them" : ''}.</p>
+                <p>Done. I opened a thread for <strong>{planName}</strong> and pinged the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked and DM'd them.</p>
             {/if}
             {#if result.dropped > 0}
                 <p class="status">{result.dropped} {result.dropped === 1 ? 'person was' : 'people were'} no longer in the server, so I left them out.</p>
@@ -302,16 +292,6 @@
             <span class="group-label" id="whoLabel">Who is coming?</span>
             <MemberPicker {members} bind:selectedIds />
         </div>
-
-        {#if mode === 'collect'}
-            <label class="check"><input type="checkbox" bind:checked={collectDm} /> Also DM everyone the link</label>
-        {:else}
-            <label class="check"><input type="checkbox" bind:checked={announceDm} /> DM everyone the date</label>
-            <label class="check"><input type="checkbox" bind:checked={announceProbe} /> Ask everyone if they can make it</label>
-            {#if announceProbe}
-                <p class="muted small">The yes/no buttons go in the thread{announceDm ? ' and in their DMs' : ''}, and I'll DM you when everyone is in or if someone can't make it.</p>
-            {/if}
-        {/if}
 
         <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
         <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />

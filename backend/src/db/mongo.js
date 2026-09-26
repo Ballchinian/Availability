@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
 import { config } from '../config.js';
+import { todayIn, dayHasPassed } from '../lib/zones.js';
 
 /*
     Thin wrapper around the mongo driver. One client for the whole process, a
@@ -39,6 +40,8 @@ export async function connectMongo() {
         await attempt.connect();
         const database = attempt.db(config.mongoDb);
         await ensureIndexes(database);
+        //A missed pass is caught on the next boot, and is no reason to go without a database
+        await askOnSetDays(database).catch((err) => console.error('[mongo] turning on yes/no for set days failed:', err));
         client = attempt;
         db = database;
     } catch (err) {
@@ -125,6 +128,25 @@ async function ensureIndexes(database) {
     await database.collection(collections.plans).createIndex({ needsRepair: 1 }, { partialFilterExpression: { needsRepair: true } });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
+}
+
+/*
+    Every set day asks who can make it. Plans set before that was so, with asking left off,
+    get it turned on, but only for a day still to come on the plan's own clock: a day that
+    has been has nobody left to ask. Runs every boot and finds nothing once it has.
+*/
+export async function askOnSetDays(database) {
+    const plans = database.collection(collections.plans);
+    //Nowhere is further behind than UTC-12, so no day still to come is before its today
+    const found = await plans
+        .find(
+            { status: 'closed', probeActive: { $ne: true }, chosenDate: { $gte: todayIn('Etc/GMT+12') } },
+            { projection: { planId: 1, chosenDate: 1, timeZone: 1 } }
+        )
+        .toArray();
+    const due = found.filter((plan) => !dayHasPassed(plan)).map((plan) => plan.planId);
+    if (due.length) await plans.updateMany({ planId: { $in: due } }, { $set: { probeActive: true } });
+    return due.length;
 }
 
 export async function closeMongo() {

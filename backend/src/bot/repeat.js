@@ -100,9 +100,9 @@ async function repeatOne(plan) {
     try {
         if (shape.set) {
             next = await setPlanChosen(next.planId, shape.chosen.date, shape.chosen.time, shape.chosen.note);
-            await announceSetPlan(next, cfg, '', { dm: true, probe: false });
+            await announceSetPlan(next, cfg, '');
         } else {
-            await announcePlan(next, cfg, '', { dm: true });
+            await announcePlan(next, cfg, '');
         }
     } catch (err) {
         console.error(`[repeat] ${nextId} was made but not announced, repairing it next sweep:`, err);
@@ -126,8 +126,8 @@ async function repairOne(plan) {
     }
 
     if (plan.threadId) await syncPlan(plan, { cfg });
-    else if (plan.status === 'closed') await announceSetPlan(plan, cfg, '', { dm: true, probe: false });
-    else await announcePlan(plan, cfg, '', { dm: true });
+    else if (plan.status === 'closed') await announceSetPlan(plan, cfg, '');
+    else await announcePlan(plan, cfg, '');
 
     await setNeedsRepair(plan.planId, false);
     console.log(`[repeat] ${plan.planId} repaired`);

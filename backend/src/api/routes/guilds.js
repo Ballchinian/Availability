@@ -127,7 +127,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, announce, date, time, dm, probe, allowedWeekdays, repeatWeeks } = req.body || {};
+    const { name, description, start, end, participantIds, announce, date, time, allowedWeekdays, repeatWeeks } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
@@ -211,16 +211,13 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             ever meant sitting on "Setting it up...". If it stumbles the plan still exists.
         */
         if (setMode) {
-            //Record the date straight away, then announce it as decided. DM defaults on,
-            //the confirmation probe is opt in.
+            //Record the date straight away, then announce it as decided
             plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, null);
-            announceAfter(plan.planId, 'set-plan announce', (current) =>
-                announceSetPlan(current, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true })
-            );
+            announceAfter(plan.planId, 'set-plan announce', (current) => announceSetPlan(current, ctx.cfg, ctx.member.displayName));
             return res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped, set: true });
         }
 
-        announceAfter(plan.planId, 'announce', (current) => announcePlan(current, ctx.cfg, ctx.member.displayName, { dm: dm !== false }));
+        announceAfter(plan.planId, 'announce', (current) => announcePlan(current, ctx.cfg, ctx.member.displayName));
 
         res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped });
     } catch (err) {

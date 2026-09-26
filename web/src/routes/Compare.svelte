@@ -10,7 +10,6 @@
     import AddPeople from '../lib/compare/AddPeople.svelte';
     import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
     import CancelPanel from '../lib/compare/CancelPanel.svelte';
-    import ConfirmPanel from '../lib/compare/ConfirmPanel.svelte';
     import DayCompare from '../lib/compare/DayCompare.svelte';
     import EditDetails from '../lib/compare/EditDetails.svelte';
     import HistoryPanel from '../lib/compare/HistoryPanel.svelte';
@@ -207,14 +206,6 @@
                 </div>
 
                 {#if !cancelled}
-                    <ConfirmPanel
-                        planId={params.planId}
-                        active={Boolean(data.plan.probeActive)}
-                        participants={data.participants}
-                        {quiet}
-                        onchanged={refresh}
-                    />
-
                     <AttendanceBoard
                         planId={params.planId}
                         participants={data.participants}
@@ -258,7 +249,6 @@
                         participants={data.participants}
                         confirmedCount={data.confirmedCount}
                         totalParticipants={data.totalParticipants}
-                        probeActive={Boolean(data.plan.probeActive)}
                         timeZone={data.plan.timeZone}
                         readOnly={cancelled}
                         {chosen}

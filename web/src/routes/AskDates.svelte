@@ -299,7 +299,10 @@
                 {adding === 1 ? '1 person is' : `${adding} people are`} being added and
                 {adding === 1 ? 'gets' : 'get'} the invitation instead.
             {/if}
-            {#if !post && !dm}
+            <!--A new day always asks, and the yes/no needs a message in the thread to carry its buttons-->
+            {#if !post && !dm && dayMoved}
+                Only the yes/no goes in the thread, pinging nobody, and everyone's DM is corrected where it sits.
+            {:else if !post && !dm}
                 Nothing goes out, though everyone's DM is still corrected where it sits.
             {/if}
         </p>

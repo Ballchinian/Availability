@@ -6,7 +6,7 @@ import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, s
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
 import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -334,7 +334,7 @@ router.get('/:planId/template', requirePlanner, (req, res) => {
 router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { date, time, inviteMode, attendingIds, probe, quiet } = req.body || {};
+    const { date, time, inviteMode, attendingIds, quiet } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -407,7 +407,7 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
     await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
 
-    const event = { type: changed ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: probe === true };
+    const event = { type: changed ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: true };
     //The day it moved off, which is the whole point of recording a move rather than a set
     if (changed) event.from = plan.chosenDate;
     await addPlanEvent(plan.planId, event);
@@ -416,41 +416,11 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         announceOutcome(current, ctx.cfg, {
             changed,
             actorName: ctx.member.displayName,
-            probe: probe === true,
             quiet: quiet === true
         })
     );
 
     res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed, quiet: quiet === true });
-});
-
-/*
-    Open or close the confirmation on a set date. A switch, so neither direction touches an
-    answer: one closed by mistake comes back with every yes and no still on it. Only a day
-    moving clears answers, which is choose and dates, not this.
-
-    No rate limit: opening revives a message rather than sending one, so there is no volume.
-*/
-router.post('/:planId/confirmations', requirePlanner, refuseCancelled, async (req, res) => {
-    const { plan, ctx } = req;
-    if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then ask people to confirm it.' });
-
-    const { active } = req.body || {};
-    if (typeof active !== 'boolean') return res.status(400).json({ error: 'Say whether confirmations are on or off.' });
-    if (active === Boolean(plan.probeActive)) {
-        return res.json({ ok: true, active, revived: false, unchanged: true });
-    }
-
-    const { revived } = await applyConfirmations(plan, active, { cfg: ctx.cfg, mention: req.body?.quiet !== true });
-
-    await addPlanEvent(plan.planId, {
-        type: 'confirmations',
-        by: req.user.id,
-        byName: ctx.member.displayName,
-        active
-    });
-
-    res.json({ ok: true, active, revived });
 });
 
 /*
@@ -696,7 +666,7 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
         */
         if (movedDay) {
             await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null);
-            const event = { type: plan.chosenDate ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: false };
+            const event = { type: plan.chosenDate ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: true };
             if (plan.chosenDate) event.from = plan.chosenDate;
             await addPlanEvent(plan.planId, event);
         } else {

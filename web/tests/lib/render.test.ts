@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
-import ConfirmPanel from '../../src/lib/compare/ConfirmPanel.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
-import type { Answer, Participant } from '../../src/lib/types.js';
+import type { Participant } from '../../src/lib/types.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
@@ -17,39 +16,6 @@ import type { Answer, Participant } from '../../src/lib/types.js';
 
 //Every day that can be picked or marked is a button, and a day that is out is a span
 const buttons = (body: string) => (body.match(/<button/g) || []).length;
-
-describe('the confirmation switch', () => {
-    const person = (userId: string, invited: boolean, vote: Answer | null): Participant => ({
-        userId,
-        displayName: userId.toUpperCase(),
-        avatarUrl: '',
-        confirmed: true,
-        vote,
-        voteReason: null,
-        override: null,
-        invited,
-        sureUntil: null
-    });
-    const people = [person('a', true, 'yes'), person('b', true, null), person('c', false, null)];
-    const draw = (props: Record<string, unknown>) =>
-        render(ConfirmPanel, { props: { planId: 'ab12cd34ef', participants: people, onchanged: async () => {}, ...props } }).body;
-
-    //Only the invite list counts, so the uninvited third person is not being waited on
-    it('counts answers against the people still invited', () => {
-        expect(draw({ active: true })).toContain('1 of 2 have answered');
-    });
-
-    it('offers to close a running one', () => {
-        expect(draw({ active: true })).toContain('Stop asking');
-    });
-
-    //The whole point of the switch: a closed one still has the answers behind it
-    it('says old answers are still there when it is closed', () => {
-        const body = draw({ active: false });
-        expect(body).toContain('Ask everyone if they can make it');
-        expect(body).toContain('asking again brings them back');
-    });
-});
 
 /*
     The grid is the only way to a date now, so it has to hold up on a plan nobody has
@@ -89,9 +55,9 @@ describe('picking a day nobody has answered about', () => {
 });
 
 /*
-    The line above the set button. Three switches decide who hears about a date and how,
-    and no two of them are next to each other, so what they come to together is the only
-    thing worth asserting here.
+    The line above the set button. Quiet mode and the invite list decide who hears about a
+    date and how, and they are nowhere near each other, so what they come to together is
+    the only thing worth asserting here.
 */
 describe('what setting a day says it will do', () => {
     const onPlan: Participant[] = ['a', 'b', 'c'].map((userId) => ({
@@ -118,19 +84,25 @@ describe('what setting a day says it will do', () => {
             }
         }).body;
 
-    it('names the thread post and the DMs on a plain set', () => {
-        expect(draw()).toContain('Posts in the thread, pings 3 people and DMs them.');
+    it('names the yes/no in the thread and the DMs on a plain set', () => {
+        expect(draw()).toContain('Posts the yes/no in the thread, pings 3 people and DMs them the same buttons.');
+    });
+
+    //A set day always asks, so there is nothing to tick
+    it('never offers to leave the yes/no out', () => {
+        expect(draw()).not.toContain('Ask everyone if they can make it');
     });
 
     //The default narrows the list, so the people it takes off get counted before it happens
     it('counts who comes off the list when it narrows', () => {
         const body = draw({ confirmedCount: 1, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
-        expect(body).toContain('pings 1 person and DMs them.');
+        expect(body).toContain('pings 1 person and DMs them the same buttons.');
         expect(body).toContain('2 people come off the list and hear no more about it.');
     });
 
-    it('says nothing goes out at all under quiet mode', () => {
-        expect(draw({ quiet: true })).toContain('Sends nothing.');
+    //The buttons need a message to sit on, so quiet still posts the yes/no, just without the pings
+    it('still posts the yes/no under quiet mode, pinging nobody', () => {
+        expect(draw({ quiet: true })).toContain('Posts the yes/no in the thread pinging nobody');
     });
 
     //A day staying put keeps every answer, which is the opposite of what moving one does

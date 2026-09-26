@@ -408,12 +408,10 @@ export async function autoConfirmCoveredPlans(userId, start, end) {
 /*
     When a plan is created on the site this is the Discord side of it: open a
     private thread named after the plan, pull the invited people in, and ping them
-    in the thread. The thread is the workspace so it always opens. The DM, with the
-    range, what the plan is about, a jump to the thread and a drop out button, is
-    optional: dm off means people only hear about it through the thread ping.
-    actorName is whoever started it.
+    in the thread. Everyone also gets a DM with the range, what the plan is about, a
+    jump to the thread and a drop out button. actorName is whoever started it.
 */
-export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
+export async function announcePlan(plan, cfg, actorName) {
     const guild = await client.guilds.fetch(plan.guildId);
     const channel = await guild.channels.fetch(cfg.plansChannelId);
 
@@ -433,16 +431,14 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     await setPlanOpener(plan.planId, opener.id);
 
     //The thread id is only in the database yet, so it is patched on or the card has no jump link
-    if (dm) {
-        const withThread = { ...plan, threadId: thread.id };
-        //A repeat has no actor: nobody did this, it just came round, so the card says that instead
-        const sent = await dmCards(ids, (id) =>
-            planCard(withThread, plan.participants.find((p) => p.userId === id) || {}, {
-                guildName: guild.name,
-                actorName: plan.repeatedFrom ? '' : actorName
-            }));
-        await setPlanCards(plan.planId, sent, { actorName: plan.repeatedFrom ? '' : actorName });
-    }
+    const withThread = { ...plan, threadId: thread.id };
+    //A repeat has no actor: nobody did this, it just came round, so the card says that instead
+    const sent = await dmCards(ids, (id) =>
+        planCard(withThread, plan.participants.find((p) => p.userId === id) || {}, {
+            guildName: guild.name,
+            actorName: plan.repeatedFrom ? '' : actorName
+        }));
+    await setPlanCards(plan.planId, sent, { actorName: plan.repeatedFrom ? '' : actorName });
 
     return thread;
 }
@@ -451,11 +447,10 @@ export async function announcePlan(plan, cfg, actorName, { dm = true } = {}) {
     The announce-a-set-plan path: the planner already knows the date, so there is
     nothing to collect. The thread is always opened, same as a normal plan, so /compare
     keeps working and the plan can be reached and managed later. Adding people to a
-    private thread already pings them, so the opener goes up quietly. dm says whether
-    everyone also gets a DM, probe says whether to ask everyone to confirm with yes/no
-    buttons. actorName is whoever set it up.
+    private thread already pings them, so the opener goes up quietly. Everyone is asked
+    whether they can make it, in the thread and by DM. actorName is whoever set it up.
 */
-export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe = false } = {}) {
+export async function announceSetPlan(plan, cfg, actorName) {
     const ids = plan.participants.map((p) => p.userId);
 
     const guild = await client.guilds.fetch(plan.guildId);
@@ -471,24 +466,20 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
 
     /*
         The confirmation probe rides on top: a thread message everyone can vote on, and
-        the same buttons in each DM when DMs go out. We mark the probe live and remember
-        the thread message so its tally can be kept current.
+        the same buttons in each DM. The thread message is remembered so its tally can be
+        kept current.
     */
-    if (probe) {
-        const probeMsg = await thread.send({ content: probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { parse: [] } });
-        plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
-    }
+    const probeMsg = await thread.send({ content: probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { parse: [] } });
+    plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
 
     //Off the plan setProbe handed back, or the cards go out without the buttons
-    if (dm) {
-        const who = plan.repeatedFrom ? '' : actorName;
-        const sent = await dmCards(ids, (id) =>
-            planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
-                guildName: cfg.guildName,
-                actorName: who
-            }));
-        await setPlanCards(plan.planId, sent, { actorName: who });
-    }
+    const who = plan.repeatedFrom ? '' : actorName;
+    const sent = await dmCards(ids, (id) =>
+        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+            guildName: cfg.guildName,
+            actorName: who
+        }));
+    await setPlanCards(plan.planId, sent, { actorName: who });
 }
 
 /*
@@ -592,16 +583,17 @@ export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
     Once a planner locks the winning date the plan closes. The outcome always lands
     in the thread, pinging the people still invited, and those same people always get
     a DM, so nobody who is meant to be there can miss it. Anyone the planner left off
-    the invite list hears nothing. The headline and DM both name who set or moved it.
+    the invite list hears nothing. The DM names who set or moved it.
+
+    The thread post is the yes/no itself, a set day always asking who can make it.
 
     The DM becomes their card, so a later change to the time or note rewrites it in place.
 
-    quiet sends nothing and mentions nobody. Everyone's card is rewritten where it sits
-    instead, so their DM quietly becomes the new day and the thread gains no post. A
-    confirmation still has to exist as a message to carry its buttons, so that one goes up
-    unmentioned rather than not at all.
+    quiet sends no DM and mentions nobody. Everyone's card is rewritten where it sits
+    instead, so their DM quietly becomes the new day. The yes/no still has to exist as a
+    message to carry its buttons, so it goes up unmentioned rather than not at all.
 */
-export async function announceOutcome(plan, cfg, { changed, actorName, probe = false, quiet = false, added = [] }) {
+export async function announceOutcome(plan, cfg, { changed, actorName, quiet = false, added = [] }) {
     /*
         Anyone arriving with the day is left out of this and handed to announceAddition:
         their invitation already carries the day, so being pinged about it changing is
@@ -615,40 +607,19 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
     //Sent back out for dates since this was queued, which announces itself
     if (!plan.chosenDate) return;
 
-    const when = whenLine(plan);
-    const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
-    const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
-
-    if (plan.threadId && (probe || !quiet)) {
+    if (plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             const lead = ids.length && !quiet ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
-            if (probe) {
-                /*
-                    With a probe on, the outcome post is the confirmation itself: the date
-                    and the yes/no buttons in one. We remember the message so its tally
-                    can be kept current as votes come in.
-                */
-                const probeMsg = await thread.send({
-                    content: lead + probeText(plan),
-                    components: [probeRow(plan.planId)],
-                    allowedMentions: quiet ? { parse: [] } : { users: ids }
-                });
-                plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
-            } else {
-                const headline = changed
-                    ? `${banner('PLAN CHANGED')}${lead}Change of plan: ${actorName} moved **${plan.name}** to ${when}.${about}${note}`
-                    : `${banner('DATE SET')}${lead}${actorName} set **${plan.name}** for ${when}.${about}${note}`;
-                await thread.send({ content: `${headline}\n${calendarLines(plan)}`, allowedMentions: { users: ids } });
-            }
+            //Remembered so its tally can be kept current as votes come in
+            const probeMsg = await thread.send({
+                content: lead + probeText(plan),
+                components: [probeRow(plan.planId)],
+                allowedMentions: quiet ? { parse: [] } : { users: ids }
+            });
+            plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
         }
-    }
-
-    //A probe with no thread to post in still needs marking live so DM votes are accepted,
-    //even though there is no thread message to tally
-    if (probe && !plan.probeActive) {
-        plan = await setProbe(plan.planId, { active: true, threadMessageId: null });
     }
 
     /*
@@ -666,7 +637,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
     }
 
     //Anyone whose horizon sits before the date never really answered for it, so their card says so
-    const prefs = probe ? await getPlanningPrefs(ids).catch(() => ({})) : {};
+    const prefs = await getPlanningPrefs(ids).catch(() => ({}));
     const nudge = '\nThis lands past the date you said you could plan up to, so it is worth a proper look.';
 
     const sent = await dmCards(ids, (id) =>

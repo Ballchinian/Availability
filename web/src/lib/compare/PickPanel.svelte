@@ -21,7 +21,6 @@
         participants = [],
         confirmedCount = 0,
         totalParticipants = 0,
-        probeActive = false,
         chosen = null,
         quiet = false,
         onsaved
@@ -34,7 +33,6 @@
         participants?: Participant[];
         confirmedCount?: number;
         totalParticipants?: number;
-        probeActive?: boolean;
         quiet?: boolean;
         chosen?: { date: string; time: string; note: string } | null;
         onsaved: () => Promise<void>;
@@ -48,9 +46,6 @@
         it never costs them what they typed for the first.
     */
     let time = $state(untrack(() => chosen?.time || ''));
-    //Only ever starts one. A confirmation already running is ConfirmPanel's, since a box
-    //captured at mount cannot show a state that moves under it.
-    let probe = $state(false);
     //Who stays invited once the date is set: just the people who fit, or everyone
     let inviteMode = $state('attending');
 
@@ -123,16 +118,7 @@
     const invitedNow = $derived(participants.filter((p) => p.invited !== false).length);
 
     //Whether the picked day and time both already match what the plan is set for
-    const sameDetails = $derived(Boolean(isUpdate && time === chosen!.time));
-
-    /*
-        Asking for a confirmation is a change in its own right, so the button cannot grey
-        out on it. Only offered on a day that is moving, since ConfirmPanel owns a
-        confirmation on the day the plan is already on.
-    */
-    const probeWanted = $derived(probe && !probeActive && !isUpdate);
-
-    const isCurrent = $derived(sameDetails && !probeWanted);
+    const isCurrent = $derived(Boolean(isUpdate && time === chosen!.time));
 
     /*
         An edited DM makes no sound, so a day moved quietly never reaches anyone who read
@@ -144,9 +130,9 @@
     const blocked = $derived(risky && !owned);
 
     /*
-        What pressing the button does to people, given the switches as they stand. Quiet,
-        the yes/no box and the invite radio each pull it a different way, and what the three
-        of them add up to is the one thing about this panel nothing else on screen shows.
+        What pressing the button does to people, given the switches as they stand. Quiet
+        and the invite radio each pull it a different way, and what they add up to is the
+        one thing about this panel nothing else on screen shows.
 
         Takes a thread for granted the same way the invite list does: a plan whose thread has
         gone is what the repair panel is for.
@@ -155,7 +141,6 @@
         const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
         const invited = people(totalParticipants - dropping);
 
-        //Setting a day clears the confirmation, so only the box decides whether one is running
         if (isUpdate) {
             const said = quiet
                 ? 'Rewrites the pinned post and the DMs everyone already holds, and tells nobody'
@@ -168,13 +153,9 @@
             : '';
 
         if (quiet) {
-            return probe
-                ? `Posts the yes/no in the thread pinging nobody, and quietly rewrites the DMs everyone already holds.${off}`
-                : `Sends nothing. Quietly rewrites the DMs everyone already holds to the new day.${off}`;
+            return `Posts the yes/no in the thread pinging nobody, and quietly rewrites the DMs everyone already holds.${off}`;
         }
-        return probe
-            ? `Posts the yes/no in the thread, pings ${invited} and DMs them the same buttons. I'll DM you when everyone is in, or if someone can't make it.${off}`
-            : `Posts in the thread, pings ${invited} and DMs them.${off}`;
+        return `Posts the yes/no in the thread, pings ${invited} and DMs them the same buttons. I'll DM you when everyone is in, or if someone can't make it.${off}`;
     });
 
     async function lockIn() {
@@ -186,7 +167,6 @@
                     time: time || null,
                     inviteMode: canNarrow ? inviteMode : 'all',
                     attendingIds: attendIds,
-                    probe,
                     quiet
                 })
             });
@@ -248,19 +228,14 @@
         <label class="lbl" for="when">Time (optional)</label>
         <input id="when" type="time" bind:value={time} />
 
-        <!--Both only make sense for a day that is moving. On the day the plan is already on
-            there is no invite list to redraw, and the confirmation belongs to ConfirmPanel.-->
-        {#if !isUpdate}
-            {#if canNarrow}
-                <div role="radiogroup" aria-labelledby="invitelabel">
-                    <span class="lbl" id="invitelabel">Who is still invited?</span>
-                    <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
-                    <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
-                </div>
-            {/if}
-            {#if !probeActive}
-                <label class="check"><input type="checkbox" bind:checked={probe} /> Ask everyone if they can make it (yes/no)</label>
-            {/if}
+        <!--Only for a day that is moving. On the day the plan is already on there is no
+            invite list to redraw.-->
+        {#if !isUpdate && canNarrow}
+            <div role="radiogroup" aria-labelledby="invitelabel">
+                <span class="lbl" id="invitelabel">Who is still invited?</span>
+                <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+                <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
+            </div>
         {/if}
 
         <!--Said before it happens rather than found afterwards on the board, since the switches

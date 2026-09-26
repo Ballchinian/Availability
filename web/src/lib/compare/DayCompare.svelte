@@ -25,7 +25,6 @@
         participants = [],
         confirmedCount = 0,
         totalParticipants = 0,
-        probeActive = false,
         timeZone = '',
         chosen = null,
         quiet = false,
@@ -41,7 +40,6 @@
         participants?: Participant[];
         confirmedCount?: number;
         totalParticipants?: number;
-        probeActive?: boolean;
         timeZone?: string;
         chosen?: { date: string; time: string; note: string } | null;
         quiet?: boolean;
@@ -171,7 +169,6 @@
         {participants}
         {confirmedCount}
         {totalParticipants}
-        {probeActive}
         {quiet}
         {onsaved}
     />

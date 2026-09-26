@@ -147,7 +147,7 @@ export async function createPlan({
         status: 'collecting',
         chosenDate: null,
         allInNotifiedAt: null,
-        //The confirmation probe: off until a planner asks people to confirm a set date
+        //The confirmation probe: off while collecting, and on from the moment a day is set
         probeActive: false,
         probeThreadMessageId: null,
         probeAllYesNotifiedAt: null,
@@ -306,15 +306,15 @@ export async function getPlansCoveredBy(userId, start, end) {
 
 /*
     Lock in the winning date (with an optional time and note) and close the plan off.
-    A new date means a fresh confirmation round, so any votes from a previous date are
-    wiped and the probe is reset, ready for a planner to ask people again. invitedIds
+    A new date means a fresh confirmation round: any votes from a previous date are
+    wiped and everyone is asked about this one, a set day always asking. invitedIds
     is who stays invited for this date, null keeps everyone on the list.
 */
 export async function setPlanChosen(planId, date, time = null, note = null, invitedIds = null) {
     const { set, options } = clearedProbe(invitedIds);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set } },
+        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set, probeActive: true } },
         options
     );
     return getPlan(planId);
