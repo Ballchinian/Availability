@@ -36,7 +36,7 @@ describe('opacity', () => {
 });
 
 describe('picked states', () => {
-    it.each([".tabs a[aria-current='page']", '.wday.on', '.repeat-row .ghost.on'])('%s is bold as well as coloured', (selector) => {
+    it.each([".tabs a[aria-current='page']", '.wday.on', '.repeat-row .ghost:has(:checked)'])('%s is bold as well as coloured', (selector) => {
         expect(Number(value(selector, 'font-weight'))).toBeGreaterThanOrEqual(600);
     });
 });

@@ -23,16 +23,20 @@
             ? repeatSeries({ repeatWeeks: weeks, dateRange: { start: from, end: from }, chosenDate: from, chosenTime: time })
             : []
     );
+
+    const group = $props.id();
 </script>
 
 <div class="repeat">
-    <span class="lbl">Does this come round again?</span>
-    <div class="repeat-row">
-        <button class="ghost" class:on={weeks === null} onclick={() => (weeks = null)}>one off</button>
-        {#each REPEAT_WEEKS as w (w)}
-            <button class="ghost" class:on={weeks === w} onclick={() => (weeks = w)}>{describeRepeat(w)}</button>
-        {/each}
-    </div>
+    <fieldset>
+        <legend class="lbl">Does this come round again?</legend>
+        <div class="repeat-row">
+            <label class="ghost"><input class="offscreen" type="radio" name={group} value={null} bind:group={weeks} />one off</label>
+            {#each REPEAT_WEEKS as w (w)}
+                <label class="ghost"><input class="offscreen" type="radio" name={group} value={w} bind:group={weeks} />{describeRepeat(w)}</label>
+            {/each}
+        </div>
+    </fieldset>
     {#if from && weeks}
         {#if series.length}
             <RepeatDates first={from} shapes={series} />

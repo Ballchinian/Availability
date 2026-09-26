@@ -103,6 +103,18 @@ code {
     color: var(--muted);
 }
 
+/* Only ever a group of controls under a legend, so none of the box a fieldset comes with */
+fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+legend {
+    padding: 0;
+}
+
 /* Terms of Service / Privacy Policy pages */
 .legal {
     max-width: 760px;
@@ -1349,8 +1361,19 @@ a.ghost:hover {
     margin-top: 6px;
 }
 
+/* Radios drawn as the buttons they replaced: the input is what is read out, the label is what shows */
+.repeat-row label.ghost {
+    display: inline-block;
+    line-height: normal;
+}
+
+.repeat-row .ghost:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 /* The picked interval, matching how a chosen weekday reads on the pickers above */
-.repeat-row .ghost.on {
+.repeat-row .ghost:has(:checked) {
     background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--text);

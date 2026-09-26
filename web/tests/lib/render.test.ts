@@ -10,6 +10,7 @@ import DayGrid from '../../src/lib/DayGrid.svelte';
 import TimePicker from '../../src/lib/TimePicker.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
+import WeekdayPicker from '../../src/lib/WeekdayPicker.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
@@ -336,6 +337,15 @@ describe('the repeat picker', () => {
     it('draws no calendar for a one off', () => {
         expect(draw({ weeks: null, from: '2026-08-06' })).not.toContain('rcal');
     });
+
+    //One of five, so a screen reader hears a group of radios and which one is picked
+    it('offers the intervals as radios under a legend', () => {
+        const body = draw({ weeks: 2 });
+        expect(body).toContain('<legend class="lbl">Does this come round again?</legend>');
+        expect(body.match(/type="radio"/g)).toHaveLength(4);
+        expect(body).toMatch(/value="2" checked[^>]*\/>every other week/);
+        expect(body).not.toContain('<button');
+    });
 });
 
 //"Call it off" is the one name for this, on the site and in Discord alike
@@ -496,5 +506,13 @@ describe('the member picker', () => {
         const body = draw(['bob']);
         expect(body).toContain('Members (2)');
         expect(body).toContain('Invited (1)');
+    });
+});
+
+describe('the weekday picker', () => {
+    it('says whether each day is on, since the colour is all that shows it', () => {
+        const body = render(WeekdayPicker, { props: { dayOn: [true, false, true, true, true, true, true] } }).body;
+        expect(body).toContain('aria-pressed="false">Mo</button>');
+        expect(body).toContain('aria-pressed="true">Tu</button>');
     });
 });

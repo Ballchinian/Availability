@@ -55,7 +55,7 @@
 </div>
 <div class="wdays">
     {#each ORDER as i (i)}
-        <button type="button" class="wday" class:on={dayOn[i]} onclick={() => toggle(i)}>{WEEKDAYS[i]}</button>
+        <button type="button" class="wday" class:on={dayOn[i]} aria-pressed={dayOn[i]} onclick={() => toggle(i)}>{WEEKDAYS[i]}</button>
     {/each}
 </div>
 {#if hint}<p class="muted small">{hint}</p>{/if}

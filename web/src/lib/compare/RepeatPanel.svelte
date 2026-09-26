@@ -28,6 +28,7 @@
     const panel = new Panel();
     //Held rather than saved on the press, so the dates below can be read before anything is stored
     let choice = $state<number | null>(null);
+    const group = $props.id();
 
     //Either chain note is a paragraph rather than a button, and cannot sit at a button's width
     const wide = $derived(panel.open || Boolean(panel.msg) || Boolean(repeatedFrom) || Boolean(repeatedInto));
@@ -76,15 +77,15 @@
             The next one is only made once this day has been and gone, with the same people, the same
             length of window and the same weekdays. Cancelling this plan stops it too.
         </p>
-        <span class="lbl">How often?</span>
-        <div class="repeat-row">
-            {#each REPEAT_WEEKS as weeks (weeks)}
-                <button class="ghost" class:on={choice === weeks} onclick={() => (choice = weeks)}>
-                    {describeRepeat(weeks)}
-                </button>
-            {/each}
-            <button class="ghost" class:on={choice === null} onclick={() => (choice = null)}>one off</button>
-        </div>
+        <fieldset>
+            <legend class="lbl">How often?</legend>
+            <div class="repeat-row">
+                {#each REPEAT_WEEKS as weeks (weeks)}
+                    <label class="ghost"><input class="offscreen" type="radio" name={group} value={weeks} bind:group={choice} />{describeRepeat(weeks)}</label>
+                {/each}
+                <label class="ghost"><input class="offscreen" type="radio" name={group} value={null} bind:group={choice} />one off</label>
+            </div>
+        </fieldset>
 
         <!--The whole reason there is a step before saving: what "every other week" actually lands on-->
         {#if chosenDate && series.length}
