@@ -160,6 +160,12 @@ const post = (path, body = {}) =>
         body: JSON.stringify(body)
     });
 
+//The announcement the last request queued, handed the plan the way the real queue rereads it
+const runQueued = () => {
+    const [planId, , run] = announceAfter.mock.calls.at(-1);
+    return run(plans.get(planId));
+};
+
 //The routes that refuse to touch a cancelled plan, which is all of them bar the three below
 const changing = ['/choose', '/attendance', '/repeat', '/remind', '/dates', '/details', '/add'];
 
@@ -397,39 +403,39 @@ describe('quiet mode', () => {
 
     it('silences a window moving both ways', async () => {
         await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), quiet: true });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(flagsOf(announcePlanDates)).toMatchObject({ post: false, dm: false });
     });
 
     //A ticked box and quiet mode cannot both win, or the page and the server disagree
     it('beats a box the panel left ticked', async () => {
         await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), quiet: true, post: true, dm: true });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(flagsOf(announcePlanDates)).toMatchObject({ post: false, dm: false });
     });
 
     it('leaves a request that says nothing about it as loud as ever', async () => {
         await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60) });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(flagsOf(announcePlanDates)).toMatchObject({ post: true, dm: true });
     });
 
     it('silences a cancel when it is asked to', async () => {
         await post('/ab12cd34ef/cancel', { quiet: true });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(flagsOf(announceCancel)).toMatchObject({ post: false, dm: false });
     });
 
     it('carries through to setting a day', async () => {
         await post('/ab12cd34ef/choose', { date: '2026-08-05', quiet: true });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(flagsOf(announceOutcome)).toMatchObject({ quiet: true });
     });
 
     it('carries through to an edit of the time or note', async () => {
         plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: '2026-08-05', chosenTime: '19:00' }));
         await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '20:00', quiet: true });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(flagsOf(announceWhenEdit)).toMatchObject({ quiet: true });
     });
 
@@ -439,6 +445,31 @@ describe('quiet mode', () => {
         applyConfirmations.mockResolvedValue({ revived: false });
         await post('/ab12cd34ef/confirmations', { active: true, quiet: true });
         expect(applyConfirmations.mock.calls.at(-1).at(-1)).toMatchObject({ mention: false });
+    });
+});
+
+/*
+    The request's own copy of the plan is out of date by the time a slow announcement ahead of
+    it finishes, so the queue hands over a fresh one and the route has to use that.
+*/
+describe('queued announcements', () => {
+    it('announce the plan they are handed rather than the one the request saw', async () => {
+        const range = { start: ahead(1), end: ahead(20) };
+        plans.set('ab12cd34ef', plan({ status: 'closed', dateRange: range, chosenDate: ahead(5), chosenTime: '19:00' }));
+        await post('/ab12cd34ef/choose', { date: ahead(5), time: '20:00' });
+
+        const [planId, label, run] = announceAfter.mock.calls.at(-1);
+        expect([planId, label]).toEqual(['ab12cd34ef', 'when edit']);
+
+        const later = plan({ status: 'closed', dateRange: range, chosenDate: ahead(5), chosenTime: '21:00' });
+        await run(later);
+        expect(announceWhenEdit.mock.calls.at(-1)[0]).toBe(later);
+    });
+
+    //Anything still waiting when a plan is cancelled gets dropped, so the cancel has to say what it is
+    it('let the cancel through on a cancelled plan', async () => {
+        await post('/ab12cd34ef/cancel');
+        expect(announceAfter.mock.calls.at(-1)).toEqual(['ab12cd34ef', 'cancel announce', expect.any(Function), { cancel: true }]);
     });
 });
 
@@ -614,13 +645,13 @@ describe('going back out for different dates', () => {
     it('announces the change once', async () => {
         await dates({ ...moved, allowedWeekdays: [0, 6] });
         expect(announceAfter).toHaveBeenCalledTimes(1);
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(announcePlanDates).toHaveBeenCalledTimes(1);
     });
 
     it('goes quiet on both the thread and the DMs when asked', async () => {
         await dates({ ...moved, quiet: true });
-        announceAfter.mock.calls.at(-1)[1]();
+        runQueued();
         expect(announcePlanDates.mock.calls.at(-1).at(-1)).toMatchObject({ post: false, dm: false });
     });
 
@@ -715,7 +746,7 @@ describe('going back out for different dates', () => {
         it('announces the day once', async () => {
             await dates({ date: ahead(40) });
             expect(announceAfter).toHaveBeenCalledTimes(1);
-            await announceAfter.mock.calls.at(-1)[1]();
+            await runQueued();
             expect(announceOutcome).toHaveBeenCalledTimes(1);
             expect(announcePlanDates).not.toHaveBeenCalled();
         });

@@ -498,6 +498,11 @@ export async function announceSetPlan(plan, cfg, actorName, { dm = true, probe =
     thread. actorName is the planner who added them.
 */
 export async function announceAddition(plan, newIds, actorName, { dm = true } = {}) {
+    //Anyone gone again by the time this runs would be invited to a plan they are not on
+    const still = new Set(plan.participants.map((p) => p.userId));
+    newIds = newIds.filter((id) => still.has(id));
+    if (!newIds.length) return;
+
     const guild = await client.guilds.fetch(plan.guildId);
 
     const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
@@ -606,6 +611,9 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
 
     //Ahead of every branch below, quiet included: this is what puts them in the thread at all
     if (added.length) await announceAddition(plan, added, actorName, { dm: !quiet });
+    //Sent back out for dates since this was queued, which announces itself
+    if (!plan.chosenDate) return;
+
     const when = whenLine(plan);
     const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
@@ -688,7 +696,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, probe = f
 */
 export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet = false }) {
     await syncPlan(plan, { cfg });
-    if (quiet) return;
+    if (quiet || !plan.chosenDate) return;
 
     const ids = invitedOnly(plan).map((p) => p.userId);
     if (!ids.length) return;
@@ -699,6 +707,8 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
     const bits = [];
     if (timeMoved) bits.push(plan.chosenTime ? `it starts at ${formatTime(plan.chosenTime)} now` : 'there is no set time any more');
     if (noteMoved) bits.push(plan.chosenNote ? `the note now reads "${plan.chosenNote}"` : 'the note is gone');
+    //A later save put it back how it was
+    if (!bits.length) return;
 
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
     //Only worth re-offering when the moment itself moved, since the file carries the time

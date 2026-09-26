@@ -214,13 +214,13 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             //Record the date straight away, then announce it as decided. DM defaults on,
             //the confirmation probe is opt in.
             plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, null);
-            announceAfter('set-plan announce', () =>
-                announceSetPlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true })
+            announceAfter(plan.planId, 'set-plan announce', (current) =>
+                announceSetPlan(current, ctx.cfg, ctx.member.displayName, { dm: dm !== false, probe: probe === true })
             );
             return res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped, set: true });
         }
 
-        announceAfter('announce', () => announcePlan(plan, ctx.cfg, ctx.member.displayName, { dm: dm !== false }));
+        announceAfter(plan.planId, 'announce', (current) => announcePlan(current, ctx.cfg, ctx.member.displayName, { dm: dm !== false }));
 
         res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped });
     } catch (err) {

@@ -13,6 +13,7 @@ const sends = [];
 
 vi.mock('../../src/bot/client.js', () => ({
     client: {
+        guilds: { fetch: async () => ({ name: 'The server' }) },
         channels: { fetch: async () => Promise.reject(new Error('no thread')) },
         users: {
             fetch: async (id) => {
@@ -52,7 +53,7 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ 
 
 vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
 
-const { syncPlanCards, announceOutcome } = await import('../../src/bot/plans.js');
+const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition } = await import('../../src/bot/plans.js');
 
 const person = (userId, over = {}) => ({
     userId,
@@ -207,5 +208,51 @@ describe('announceOutcome under quiet', () => {
 
         expect(sends).toHaveLength(1);
         expect(edits).toHaveLength(0);
+    });
+});
+
+/*
+    An announcement waits its turn behind any other for the same plan, then gets the plan as
+    it is by then, which a later save may have moved on from what it was queued to say.
+*/
+describe('announcing a plan that has moved on since', () => {
+    const cfg = { guildName: 'The server' };
+
+    it('says nothing about a day that has been taken back', async () => {
+        inbox.set('a', {});
+        const p = plan([person('a')], { status: 'collecting', chosenDate: null, chosenTime: null });
+
+        await announceOutcome(p, cfg, { changed: false, actorName: 'Ali' });
+
+        expect(sends).toHaveLength(0);
+        expect(db.setPlanCards).not.toHaveBeenCalled();
+    });
+
+    it('rewrites the cards but sends no update once a later save put the time back', async () => {
+        inbox.set('a', {});
+        const p = plan([person('a')]);
+
+        await announceWhenEdit(p, cfg, { actorName: 'Ali', was: { time: '19:00', note: 'meet at the station' } });
+
+        expect(sends).toHaveLength(0);
+        expect(edits).toHaveLength(1);
+    });
+
+    it('sends no time update for a plan with no day any more', async () => {
+        inbox.set('a', {});
+        const p = plan([person('a')], { status: 'collecting', chosenDate: null, chosenTime: null });
+
+        await announceWhenEdit(p, cfg, { actorName: 'Ali', was: { time: '19:00', note: null } });
+
+        expect(sends).toHaveLength(0);
+    });
+
+    it('leaves out anyone added who has left the plan again', async () => {
+        inbox.set('a', {});
+        inbox.set('b', {});
+
+        await announceAddition(plan([person('a', { cardMessageId: null })]), ['a', 'b'], 'Ali');
+
+        expect(sends.map((s) => s.userId)).toEqual(['a']);
     });
 });

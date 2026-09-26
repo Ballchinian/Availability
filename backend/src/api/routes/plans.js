@@ -372,7 +372,7 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         }
 
         const was = { time: plan.chosenTime || null, note: cleanNote };
-        const updated = await setPlanWhen(plan.planId, cleanTime, cleanNote);
+        await setPlanWhen(plan.planId, cleanTime, cleanNote);
 
         await addPlanEvent(plan.planId, {
             type: 'when',
@@ -382,8 +382,8 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
             quiet: quiet === true
         });
 
-        announceAfter('when edit', () =>
-            announceWhenEdit(updated, ctx.cfg, { actorName: ctx.member.displayName, was, quiet: quiet === true })
+        announceAfter(plan.planId, 'when edit', (current) =>
+            announceWhenEdit(current, ctx.cfg, { actorName: ctx.member.displayName, was, quiet: quiet === true })
         );
 
         return res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed: false, edited: true });
@@ -404,15 +404,15 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
 
     //If a date was already set and this is a different one, it is a reorganise
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
-    const updated = await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
+    await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
 
     const event = { type: changed ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: probe === true };
     //The day it moved off, which is the whole point of recording a move rather than a set
     if (changed) event.from = plan.chosenDate;
     await addPlanEvent(plan.planId, event);
 
-    announceAfter('outcome post', () =>
-        announceOutcome(updated, ctx.cfg, {
+    announceAfter(plan.planId, 'outcome post', (current) =>
+        announceOutcome(current, ctx.cfg, {
             changed,
             actorName: ctx.member.displayName,
             probe: probe === true,
@@ -679,14 +679,14 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
     */
     const reopen = !setMode && (movedWindow || opensADay);
 
-    let updated = await setPlanDates(plan.planId, {
+    await setPlanDates(plan.planId, {
         start: window.start,
         end: window.end,
         allowedWeekdays: weekdays,
         repeatWeeks: wanted,
         reopen
     });
-    if (toAdd.length) updated = await addParticipants(plan.planId, toAdd);
+    if (toAdd.length) await addParticipants(plan.planId, toAdd);
 
     if (setMode) {
         /*
@@ -694,12 +694,12 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
             the time, which costs nobody their answer; a day that moved starts the round again.
         */
         if (movedDay) {
-            updated = await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null);
+            await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null);
             const event = { type: plan.chosenDate ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: false };
             if (plan.chosenDate) event.from = plan.chosenDate;
             await addPlanEvent(plan.planId, event);
         } else {
-            updated = await setPlanWhen(plan.planId, cleanTime, plan.chosenNote || null);
+            await setPlanWhen(plan.planId, cleanTime, plan.chosenNote || null);
             await addPlanEvent(plan.planId, {
                 type: 'when',
                 by: req.user.id,
@@ -709,23 +709,22 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
             });
         }
 
-        const settled = updated;
         const wasTime = plan.chosenTime || null;
-        announceAfter('dates day post', async () => {
+        announceAfter(plan.planId, 'dates day post', async (current) => {
             if (movedDay) {
-                await announceOutcome(settled, ctx.cfg, {
+                await announceOutcome(current, ctx.cfg, {
                     changed: Boolean(plan.chosenDate),
                     actorName: ctx.member.displayName,
                     quiet: quiet || !post,
                     added: toAdd
                 });
             } else {
-                await announceWhenEdit(settled, ctx.cfg, {
+                await announceWhenEdit(current, ctx.cfg, {
                     actorName: ctx.member.displayName,
                     was: { time: wasTime, note: plan.chosenNote || null },
                     quiet: quiet || !dm
                 });
-                if (toAdd.length) await announceAddition(settled, toAdd, ctx.member.displayName, { dm });
+                if (toAdd.length) await announceAddition(current, toAdd, ctx.member.displayName, { dm });
             }
         });
 
@@ -754,8 +753,8 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
         reopened: reopen
     });
 
-    announceAfter('dates post', () =>
-        announcePlanDates(updated, ctx.cfg, {
+    announceAfter(plan.planId, 'dates post', (current) =>
+        announcePlanDates(current, ctx.cfg, {
             actorName: ctx.member.displayName,
             daysLabel: describeWeekdays(weekdays),
             reopened: reopen,
@@ -798,12 +797,12 @@ router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res
 
     //Only the title drives a thread rename, which Discord rate limits, so track it separately
     const renamed = cleanName !== plan.name;
-    const updated = await setPlanDetails(plan.planId, cleanName, cleanDescription);
+    await setPlanDetails(plan.planId, cleanName, cleanDescription);
 
     await addPlanEvent(plan.planId, { type: 'details', by: req.user.id, byName: ctx.member.displayName, renamed });
 
-    announceAfter('details edit', () =>
-        announceDetailsEdit(updated, ctx.cfg, { actorName: ctx.member.displayName, quiet, rename: renamed })
+    announceAfter(plan.planId, 'details edit', (current) =>
+        announceDetailsEdit(current, ctx.cfg, { actorName: ctx.member.displayName, quiet, rename: renamed })
     );
 
     res.json({ ok: true, name: cleanName, description: cleanDescription, quiet });
@@ -830,10 +829,7 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
         return res.status(500).json({ error: 'Could not cancel the plan.' });
     }
 
-    //The cancelled copy, since what the pin and everyone's DM end up saying is read off the status
-    announceAfter('cancel announce', () =>
-        announceCancel(cancelled, ctx.member.displayName, { post, dm })
-    );
+    announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, ctx.member.displayName, { post, dm }), { cancel: true });
 
     res.json({ ok: true, quiet });
 });
@@ -856,11 +852,11 @@ router.post('/:planId/add', requirePlanner, refuseCancelled, async (req, res) =>
     const toAdd = await realMembers(ctx.guild, userIds.filter((id) => !already.has(id)));
     if (toAdd.length === 0) return res.status(400).json({ error: 'Nobody new to add there.' });
 
-    const updated = await addParticipants(plan.planId, toAdd);
+    await addParticipants(plan.planId, toAdd);
 
     await addPlanEvent(plan.planId, { type: 'added', by: req.user.id, byName: ctx.member.displayName, count: toAdd.length });
 
-    announceAfter('add announce', () => announceAddition(updated, toAdd, ctx.member.displayName, { dm }));
+    announceAfter(plan.planId, 'add announce', (current) => announceAddition(current, toAdd, ctx.member.displayName, { dm }));
 
     res.json({ ok: true, added: toAdd.length, quiet });
 });
