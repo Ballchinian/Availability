@@ -7,13 +7,18 @@ import { Press, fromKeyboard, SLOP, HOLD_MS } from '../../src/lib/paint.svelte.j
 */
 function grid(start: number[] = []) {
     const on = new Set(start);
-    const press = new Press<number>({
-        isOn: (k) => on.has(k),
-        set: (k, v) => (v ? on.add(k) : on.delete(k)),
-        between: (a, b) => {
+    const press = new Press({
+        isOn: (k: number) => on.has(k),
+        set: (k: number, v: boolean) => (v ? on.add(k) : on.delete(k)),
+        between: (a: number, b: number) => {
             const keys = [];
             for (let k = Math.min(a, b); k <= Math.max(a, b); k++) keys.push(k);
             return keys;
+        },
+        save: () => new Set(on),
+        restore: (saved) => {
+            on.clear();
+            saved.forEach((k) => on.add(k));
         }
     });
     const lit = () => [...on].sort((a, b) => a - b);
@@ -164,6 +169,80 @@ describe('a finger', () => {
         press.up(finger({ pointerId: 8 }));
         expect(lit()).toEqual([]);
         expect(press.phase).toBe('waiting');
+    });
+});
+
+describe('taking a press back', () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('keeps a drag once the pointer lifts', () => {
+        const { press, lit } = grid([8]);
+        press.down(3, ev());
+        press.enter(4);
+        press.up(ev());
+        expect(press.revert()).toBe(false);
+        expect(lit()).toEqual([3, 4, 8]);
+    });
+
+    it('puts a drag back on escape', () => {
+        const { press, lit } = grid([8]);
+        press.down(3, ev());
+        press.enter(4);
+        expect(press.revert()).toBe(true);
+        press.enter(5);
+        press.up(ev());
+        expect(lit()).toEqual([8]);
+    });
+
+    it('puts a clearing drag back too', () => {
+        const { press, lit } = grid([3, 4, 5]);
+        press.down(3, ev());
+        press.enter(4);
+        press.cancel(ev());
+        expect(lit()).toEqual([3, 4, 5]);
+    });
+
+    it('stops escape doing anything else only when it took something back', () => {
+        const { press } = grid();
+        const esc = () => ({ key: 'Escape', preventDefault: vi.fn() }) as unknown as KeyboardEvent;
+        const idle = esc();
+        press.keydown(idle);
+        expect(idle.preventDefault).not.toHaveBeenCalled();
+        press.down(3, ev());
+        const mid = esc();
+        press.keydown(mid);
+        expect(mid.preventDefault).toHaveBeenCalled();
+    });
+
+    it('puts a finger back when the browser scrolls after all', () => {
+        const { press, lit } = grid();
+        press.down(3, finger());
+        vi.advanceTimersByTime(HOLD_MS);
+        press.enter(4);
+        press.cancel(finger());
+        expect(lit()).toEqual([]);
+    });
+
+    it('puts a shift stretch back', () => {
+        const { press, lit } = grid();
+        press.key(2, false);
+        press.down(6, ev({ shiftKey: true }));
+        expect(lit()).toEqual([2, 3, 4, 5, 6]);
+        press.revert();
+        expect(lit()).toEqual([2]);
+    });
+
+    it('ignores a cancel from some other pointer', () => {
+        const { press, lit } = grid();
+        press.down(3, ev());
+        press.cancel(ev({ pointerId: 9 }));
+        press.up(ev());
+        expect(lit()).toEqual([3]);
     });
 });
 

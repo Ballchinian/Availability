@@ -42,10 +42,12 @@
         return DAY_HOURS.slice(Math.min(i, j), Math.max(i, j) + 1);
     }
 
-    const press = new Press<number>({
-        isOn: (h) => set.has(h),
-        set: (h, on) => (on ? add(h) : remove(h)),
-        between: hoursBetween
+    const press = new Press({
+        isOn: (h: number) => set.has(h),
+        set: (h: number, on: boolean) => (on ? add(h) : remove(h)),
+        between: hoursBetween,
+        save: () => hours,
+        restore: (saved) => (hours = saved)
     });
 
     function allDay() {
@@ -60,6 +62,10 @@
     bind:this={dialog}
     aria-label={`Times free on ${formatLong(date)}`}
     onclose={onclose}
+    oncancel={(e) => {
+        //Escape mid-drag takes the drag back and leaves the picker open
+        if (press.revert()) e.preventDefault();
+    }}
     onclick={(e) => {
         if (e.target === dialog) dialog.close();
     }}

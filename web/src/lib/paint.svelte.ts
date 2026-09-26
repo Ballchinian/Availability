@@ -4,24 +4,30 @@
     first, by moving sideways or holding still, because a finger going up or down
     is someone scrolling past. A finger that lifts before either is a tap, and
     flips the one cell it landed on.
+
+    Nothing a press paints is kept until the pointer lifts. The browser taking the
+    pointer, or Escape, puts the cells back how the press found them.
 */
 export const SLOP = 10;
 export const HOLD_MS = 300;
 
-export interface Cells<K> {
+export interface Cells<K, S> {
     isOn(key: K): boolean;
     //Cells that cannot be marked ignore this
     set(key: K, on: boolean): void;
     //Every key from one to the other, both ends included, given in either order
     between(a: K, b: K): K[];
+    save(): S;
+    restore(saved: S): void;
 }
 
-export class Press<K> {
+export class Press<K, S> {
     phase = $state<'idle' | 'waiting' | 'painting'>('idle');
     //The last cell pressed, the far end a shift-click paints back to
     anchor: K | null = null;
 
-    #cells: Cells<K>;
+    #cells: Cells<K, S>;
+    #saved: S | undefined;
     #on = true;
     #pointer = -1;
     #first: K | null = null;
@@ -31,18 +37,13 @@ export class Press<K> {
     #y = 0;
     #timer: ReturnType<typeof setTimeout> | undefined;
 
-    constructor(cells: Cells<K>) {
+    constructor(cells: Cells<K, S>) {
         this.#cells = cells;
     }
 
     down(key: K, e: PointerEvent) {
         if (this.phase !== 'idle' || e.button !== 0) return;
         e.preventDefault();
-        if (e.shiftKey && this.anchor !== null) {
-            this.#stretch(key);
-            this.anchor = key;
-            return;
-        }
         //Mouse has no implicit capture, but release it for pen and touch so the
         //drag can cross into neighbouring cells
         try {
@@ -51,6 +52,13 @@ export class Press<K> {
             //Fine, nothing to release
         }
         this.#pointer = e.pointerId;
+        this.#saved = this.#cells.save();
+        if (e.shiftKey && this.anchor !== null) {
+            this.#stretch(key);
+            this.anchor = key;
+            this.phase = 'painting';
+            return;
+        }
         this.#first = key;
         this.#over = key;
         if (e.pointerType !== 'touch') {
@@ -87,7 +95,19 @@ export class Press<K> {
 
     //The browser took the pointer, most often to scroll the page
     cancel = (e: PointerEvent) => {
-        if (e.pointerId === this.#pointer) this.#end();
+        if (e.pointerId === this.#pointer) this.revert();
+    };
+
+    //True when there was paint to take back, so Escape can be kept from doing anything else
+    revert() {
+        const painted = this.phase === 'painting';
+        if (painted) this.#cells.restore(this.#saved as S);
+        this.#end();
+        return painted;
+    }
+
+    keydown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && this.revert()) e.preventDefault();
     };
 
     //Enter or space on a focused cell, where shift takes the run from the last one pressed
@@ -138,6 +158,7 @@ export class Press<K> {
         this.phase = 'idle';
         this.#pointer = -1;
         this.#first = null;
+        this.#saved = undefined;
     }
 }
 

@@ -19,7 +19,8 @@
         crosshair while you are dragging so it is obvious it is happening. On a
         phone a swipe up or down scrolls, so a finger paints once it moves sideways
         or holds still. Dragging is pointer only, so shift-click paints the same
-        stretch from the last day pressed, which is all a keyboard gets.
+        stretch from the last day pressed, which is all a keyboard gets. Escape
+        before letting go puts the days back.
     */
     let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, sureUntil = null }: {
         start: string;
@@ -89,14 +90,17 @@
         return dates;
     }
 
-    const press = new Press<string>({
+    //Every change makes a new selection object, so keeping the old one is the whole snapshot
+    const press = new Press({
         isOn: isFree,
-        set: (date, on) => {
+        set: (date: string, on: boolean) => {
             if (!selectable(date)) return;
             if (on) markFree(date);
             else unmark(date);
         },
-        between: datesBetween
+        between: datesBetween,
+        save: () => selection,
+        restore: (saved) => (selection = saved)
     });
 
     function keyToggle(e: MouseEvent, date: string) {
@@ -163,7 +167,7 @@
     });
 </script>
 
-<svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} />
+<svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} onkeydown={press.keydown} />
 
 <!--What the colours mean, which nothing said before: the same shading on the compare
     grid means something else entirely, and it has had a legend all along-->
