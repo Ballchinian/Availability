@@ -3,6 +3,7 @@
     import { repeatSeries } from '../calendar.js';
     import { REPEAT_WEEKS, describeRepeat, formatDate } from '../format.js';
     import RepeatDates from '../RepeatDates.svelte';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -118,5 +119,5 @@
             everything that happened last time still is.
         </p>
     {/if}
-    {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
+    <Status class="status small" msg={panel.msg} error={panel.failed} />
 </div>

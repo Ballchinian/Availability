@@ -9,6 +9,7 @@
     import type { PlanScreen, SavedForPlan, LeftPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
+    import Status from '../lib/Status.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
 
@@ -128,6 +129,12 @@
         loading = false;
     });
 
+    const savedText = $derived(
+        saved
+            ? `Saved. I'll DM you when a day is picked.${saved.confirmedPlans?.length ? ` These also answered: ${saved.confirmedPlans.join(', ')}.` : ''}`
+            : ''
+    );
+
     async function confirm() {
         saveError = '';
         saved = null;
@@ -179,8 +186,9 @@
             </button>
             <button class="ghost" onclick={() => (leaveArmed = false)}>No</button>
         {/if}
-        {#if leaveError}<p class="status error" aria-live="polite">{leaveError}</p>{/if}
     </div>
+    <!--Outside the row above, where an empty line would still take a gap-->
+    <Status class="status" msg={leaveError} error />
 {/snippet}
 
 <section class="screen">
@@ -282,18 +290,13 @@
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
             and whatever the last save said are all in reach of a two year page-->
         <div class="actionbar">
-            <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
-            <button class="primary" onclick={confirm} disabled={submitting}>
-                {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
-            </button>
-            {#if saveError}
-                <p class="status msg error" aria-live="polite">{saveError}</p>
-            {:else if saved}
-                <p class="status msg good" aria-live="polite">
-                    Saved. I'll DM you when a day is picked.
-                    {#if saved.confirmedPlans?.length}These also answered: {saved.confirmedPlans.join(', ')}.{/if}
-                </p>
-            {/if}
+            <div class="bar-row">
+                <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
+                <button class="primary" onclick={confirm} disabled={submitting}>
+                    {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
+                </button>
+            </div>
+            <Status class="status msg {saved ? 'good' : ''}" msg={saveError || savedText} error={Boolean(saveError)} />
         </div>
 
         {@render dropOut()}

@@ -2,6 +2,7 @@
     import { untrack } from 'svelte';
     import { api } from '../api.js';
     import { formatTime } from '../format.js';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -60,5 +61,5 @@
             <button class="ghost" onclick={() => (panel.open = false)}>Cancel</button>
         </div>
     {/if}
-    {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
+    <Status class="status small" msg={panel.msg} error={panel.failed} />
 </div>

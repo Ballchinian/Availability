@@ -9,6 +9,7 @@
     import RangeField from '../lib/RangeField.svelte';
     import RepeatDates from '../lib/RepeatDates.svelte';
     import RepeatField from '../lib/RepeatField.svelte';
+    import Status from '../lib/Status.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -296,9 +297,7 @@
         <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
         <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />
 
-        {#if formError}
-            <p class="status error" aria-live="polite">{formError}</p>
-        {/if}
+        <Status class="status" msg={formError} error />
 
         <button class="primary" onclick={submit} disabled={submitting}>
             {#if submitting}Setting it up...{:else if mode === 'announce'}Announce the plan{:else}Create plan{/if}

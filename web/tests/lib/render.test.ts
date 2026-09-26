@@ -3,6 +3,14 @@ import { render } from 'svelte/server';
 import ClockNote from '../../src/lib/ClockNote.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
+import AboutPanel from '../../src/lib/compare/AboutPanel.svelte';
+import AddPeople from '../../src/lib/compare/AddPeople.svelte';
+import EditDetails from '../../src/lib/compare/EditDetails.svelte';
+import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
+import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
+import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
+import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
+import Status from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
 import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
@@ -594,5 +602,46 @@ describe('the miss slider', () => {
         const body = draw();
         expect(body).toContain('aria-valuetext="nobody"');
         expect(body).toContain('<strong aria-hidden="true">0</strong>');
+    });
+});
+
+describe('a status line', () => {
+    const draw = (props: Record<string, unknown>) => render(Status, { props: { class: 'status', ...props } }).body;
+
+    it('reads an error out straight away', () => {
+        const body = draw({ msg: 'That went wrong.', error: true });
+        expect(body).toContain('<span role="alert">That went wrong.</span><span role="status"></span>');
+        expect(body).toMatch(/class="status error"/);
+    });
+
+    it('reads a result out once the reader is free', () => {
+        expect(draw({ msg: 'Saved.' })).toContain('<span role="alert"></span><span role="status">Saved.</span>');
+    });
+
+    it('is there with nothing to say, taking no room', () => {
+        const body = draw({});
+        expect(body).toContain('<p class="status silent"><span role="alert"></span><span role="status"></span></p>');
+    });
+});
+
+//A live region that arrives with its text already in it often goes unread, so each is there first
+describe('the status line on each panel', () => {
+    const planId = 'ab12cd34ef';
+    const done = async () => {};
+    const panels: [string, () => string][] = [
+        ['what it is about', () => render(AboutPanel, { props: { planId, onsaved: done } }).body],
+        ['adding people', () => render(AddPeople, { props: { planId, guildId: '1', onadded: done } }).body],
+        ['the board', () => render(AttendanceBoard, { props: { planId, chosenDate: '2026-08-12', onmoved: done } }).body],
+        ['calling it off', () => render(CancelPanel, { props: { planId, oncancelled: () => {} } }).body],
+        ['the name', () => render(EditDetails, { props: { planId, onsaved: done } }).body],
+        ['the picked day', () => render(PickPanel, { props: { planId, selectedDate: '2026-08-12', onsaved: done } }).body],
+        ['the nudge', () => render(RemindPanel, { props: { planId } }).body],
+        ['the repair', () => render(RepairPanel, { props: { planId } }).body],
+        ['the repeat', () => render(RepeatPanel, { props: { planId, onchanged: done } }).body],
+        ['the time', () => render(WhenPanel, { props: { planId, chosenDate: '2026-08-12', onsaved: done } }).body]
+    ];
+
+    it.each(panels)('%s', (_, draw) => {
+        expect(draw()).toContain('silent"><span role="alert"></span><span role="status"></span></p>');
     });
 });

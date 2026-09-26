@@ -148,6 +148,11 @@ legend {
     font-size: 13px;
 }
 
+/* A Status line with nothing to say: mounted, so a screen reader is already watching it, and no height at all */
+.silent {
+    margin: 0;
+}
+
 /* The one bar above every screen: your plans, your calendar, and who you are */
 .site-head {
     display: flex;
@@ -841,14 +846,18 @@ a.primary {
     position: sticky;
     bottom: 0;
     z-index: 2;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 14px;
     margin: 18px calc(var(--pad) * -1) 0;
     padding: 12px var(--pad);
     background: var(--panel);
     border-top: 1px solid var(--border);
+}
+
+/* The count and the button. The save's own line sits under this row rather than in it, where an empty one would still take a gap */
+.actionbar .bar-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
 }
 
 .actionbar .status {
@@ -859,9 +868,8 @@ a.primary {
     margin: 0 0 0 auto;
 }
 
-/* Whatever the last save said gets the width to itself, under the count and the button */
-.actionbar .msg {
-    flex: 1 1 100%;
+.actionbar .msg:not(.silent) {
+    margin-top: 8px;
 }
 
 .pad {
@@ -1146,12 +1154,6 @@ a.primary {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-}
-
-/* What the nudge just did, under the button rather than squeezed in beside it */
-.waiting > .said {
-    flex: 1 0 100%;
-    margin: 0;
 }
 
 .ghost {

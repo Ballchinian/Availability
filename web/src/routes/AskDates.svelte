@@ -10,6 +10,7 @@
     import MemberPicker from '../lib/MemberPicker.svelte';
     import RangeField from '../lib/RangeField.svelte';
     import RepeatField from '../lib/RepeatField.svelte';
+    import Status from '../lib/Status.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
     /*
@@ -314,9 +315,7 @@
             {/if}
         </p>
 
-        {#if formError}
-            <p class="status error" aria-live="polite">{formError}</p>
-        {/if}
+        <Status class="status" msg={formError} error />
 
         <div class="btn-row">
             <button class="primary" onclick={save} disabled={saving}>

@@ -5,6 +5,7 @@
     import { HOUR_COUNT, formatHours } from '../hours.js';
     import { evaluateDay, explainDay, type FreePerson } from '../overlap.js';
     import type { Participant } from '../types.js';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -246,7 +247,7 @@
             <p class="status error small">Anyone who has already read their DM keeps the old day, since nothing tells them to look again.</p>
             <label class="check"><input type="checkbox" bind:checked={owned} /> I know, set it quietly anyway</label>
         {/if}
-        {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
+        <Status class="status" msg={panel.msg} error={panel.failed} />
         <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
             {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Set it to {formatDate(selectedDate)}{/if}
         </button>

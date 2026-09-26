@@ -2,6 +2,7 @@
     import { api, errorText } from '../api.js';
     import MemberPicker from '../MemberPicker.svelte';
     import type { Member, Participant } from '../types.js';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -84,5 +85,5 @@
             </div>
         {/if}
     {/if}
-    {#if panel.msg}<p class="status small" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
+    <Status class="status small" msg={panel.msg} error={panel.failed} />
 </div>

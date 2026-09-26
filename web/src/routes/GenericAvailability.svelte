@@ -7,6 +7,7 @@
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
+    import Status from '../lib/Status.svelte';
 
     /*
         The plan-free availability page. Same grid as a plan, but you choose the
@@ -72,6 +73,12 @@
         }
         loading = false;
     });
+
+    const savedText = $derived(
+        saved
+            ? `Saved ${saved.savedDays} day${saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.${saved.confirmedPlans.length ? ` These also answered: ${saved.confirmedPlans.join(', ')}.` : ''}`
+            : ''
+    );
 
     async function save() {
         saveError = '';
@@ -167,18 +174,13 @@
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
             and whatever the last save said are all in reach of a two year page-->
         <div class="actionbar">
-            <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
-            <button class="primary" onclick={save} disabled={saving}>
-                {saving ? 'Saving...' : 'Save availability'}
-            </button>
-            {#if saveError}
-                <p class="status msg error" aria-live="polite">{saveError}</p>
-            {:else if saved}
-                <p class="status msg good" aria-live="polite">
-                    Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.
-                    {#if saved.confirmedPlans.length}These also answered: {saved.confirmedPlans.join(', ')}.{/if}
-                </p>
-            {/if}
+            <div class="bar-row">
+                <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
+                <button class="primary" onclick={save} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save availability'}
+                </button>
+            </div>
+            <Status class="status msg {saved ? 'good' : ''}" msg={saveError || savedText} error={Boolean(saveError)} />
         </div>
     {/if}
 </section>

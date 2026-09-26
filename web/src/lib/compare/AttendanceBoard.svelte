@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api } from '../api.js';
     import type { Participant } from '../types.js';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -117,6 +118,6 @@
                 </ul>
             </div>
         {/if}
-        {#if panel.msg}<p class="status error small" aria-live="polite">{panel.msg}</p>{/if}
+        <Status class="status small" msg={panel.msg} error={panel.failed} />
     </div>
 {/if}

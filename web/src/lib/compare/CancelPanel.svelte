@@ -1,5 +1,6 @@
 <script lang="ts">
     import { api } from '../api.js';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -59,5 +60,6 @@
             </div>
         </div>
     {/if}
-    {#if panel.msg}<p class="status" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
 </div>
+<!--Outside the row above, where an empty line would still take a gap-->
+<Status class="status" msg={panel.msg} error={panel.failed} />

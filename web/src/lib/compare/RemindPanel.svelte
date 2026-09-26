@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api } from '../api.js';
     import type { Participant } from '../types.js';
+    import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
     /*
@@ -50,5 +51,6 @@
             Nudge the stragglers
         {/if}
     </button>
-    {#if panel.msg}<p class="status small said" class:error={panel.failed} aria-live="polite">{panel.msg}</p>{/if}
 </div>
+<!--Outside the row above, where an empty line would still take a gap-->
+<Status class="status small" msg={panel.msg} error={panel.failed} />
