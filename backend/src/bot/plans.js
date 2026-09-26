@@ -8,6 +8,7 @@ import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability
 import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { fanOut } from '../lib/fanout.js';
+import { realMembers } from '../lib/members.js';
 import { formatDate, formatTime } from '../lib/dates.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 import { config } from '../config.js';
@@ -943,10 +944,18 @@ export async function handleUndrop(interaction) {
         return interaction.update({ content: 'That plan is no longer around.', components: [] });
     }
     if (plan.status === 'cancelled') {
-        return interaction.update({ content: `"${plan.name}" was cancelled, so there is nothing to re-join.`, components: [] });
+        return interaction.update({ content: `"${plan.name}" was cancelled, so there is nothing to rejoin.`, components: [] });
+    }
+    if (dayHasPassed(plan)) {
+        return interaction.update({ content: `"${plan.name}" was on ${formatDate(plan.chosenDate)}, so there is nothing to rejoin.`, components: [] });
     }
     if (plan.participants.some((p) => p.userId === interaction.user.id)) {
         return interaction.update({ content: `You are already back on "${plan.name}".`, components: [dropRow(planId)] });
+    }
+    //Pressed from a DM, which says nothing about whether they are still in the server
+    const guild = await client.guilds.fetch(plan.guildId).catch(() => null);
+    if (!guild || !(await realMembers(guild, [interaction.user.id])).length) {
+        return interaction.update({ content: `You are not in the server "${plan.name}" is in anymore, so I cannot put you back on it.`, components: [] });
     }
 
     const updated = await addParticipants(planId, [interaction.user.id]);

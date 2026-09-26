@@ -7,7 +7,7 @@ import { today, shiftDate } from '../../src/lib/dates.js';
     not written.
 */
 
-const store = vi.hoisted(() => ({ plan: null }));
+const store = vi.hoisted(() => ({ plan: null, members: [] }));
 const db = vi.hoisted(() => ({
     getPlan: vi.fn(async () => store.plan && { ...store.plan }),
     recordVote: vi.fn(async () => store.plan),
@@ -20,11 +20,18 @@ vi.mock('../../src/bot/client.js', () => ({
     client: {
         channels: { fetch: async () => Promise.reject(new Error('unknown channel')) },
         users: { fetch: async () => Promise.reject(new Error('unknown user')) },
-        guilds: { fetch: async () => Promise.reject(new Error('unknown guild')) }
+        guilds: {
+            fetch: async () => ({
+                members: {
+                    cache: new Map(),
+                    fetch: async (id) => (store.members.includes(id) ? { id, user: { bot: false } } : Promise.reject(new Error('Unknown Member')))
+                }
+            })
+        }
     }
 }));
 
-const { handleVote } = await import('../../src/bot/plans.js');
+const { handleVote, handleUndrop } = await import('../../src/bot/plans.js');
 
 function press(customId) {
     return { customId, user: { id: 'bo', username: 'bo' }, inGuild: () => false, update: vi.fn(async () => {}) };
@@ -59,5 +66,47 @@ describe('a vote on a day that has been and gone', () => {
         store.plan = setPlan(shiftDate(today(), 3));
         await handleVote(press('vote|yes|ab12cd34ef')).catch(() => {});
         expect(db.recordVote).toHaveBeenCalled();
+    });
+});
+
+describe('undoing a drop out', () => {
+    //Dropped out, so no longer on the guest list
+    const dropped = (over = {}) => ({ ...setPlan(shiftDate(today(), 3)), participants: [], ...over });
+
+    beforeEach(() => {
+        store.members = ['bo'];
+    });
+
+    it('puts someone still in the server back on', async () => {
+        store.plan = dropped();
+        await handleUndrop(press('undrop|ab12cd34ef')).catch(() => {});
+        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['bo']);
+    });
+
+    it('turns away someone who has left the server', async () => {
+        store.plan = dropped();
+        store.members = [];
+        const click = press('undrop|ab12cd34ef');
+
+        await handleUndrop(click);
+
+        expect(click.update.mock.calls[0][0].content).toMatch(/not in the server/);
+        expect(db.addParticipants).not.toHaveBeenCalled();
+    });
+
+    it('turns them away once the day has gone', async () => {
+        store.plan = dropped({ chosenDate: shiftDate(today(), -2) });
+        const click = press('undrop|ab12cd34ef');
+
+        await handleUndrop(click);
+
+        expect(click.update.mock.calls[0][0].content).toMatch(/nothing to rejoin/);
+        expect(db.addParticipants).not.toHaveBeenCalled();
+    });
+
+    it('turns them away from a cancelled plan', async () => {
+        store.plan = dropped({ status: 'cancelled' });
+        await handleUndrop(press('undrop|ab12cd34ef'));
+        expect(db.addParticipants).not.toHaveBeenCalled();
     });
 });
