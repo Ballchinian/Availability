@@ -196,6 +196,11 @@ describe('the compare grid', () => {
     it('keeps every day on a grid that is only looked back at', () => {
         expect(buttons(draw({ today: null }))).toBe(14);
     });
+
+    //A title the same as the name gets read out a second time as the description
+    it('says each day once', () => {
+        expect(draw({})).not.toContain('title=');
+    });
 });
 
 //Counted off today, since the grid reads the clock itself

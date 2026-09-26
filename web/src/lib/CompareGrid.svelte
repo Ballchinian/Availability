@@ -107,7 +107,6 @@
                             aria-label={describe(cell.date, ev)}
                             aria-pressed={selectedDate === cell.date}
                             onclick={() => pick(cell.date)}
-                            title={describe(cell.date, ev)}
                         >
                             <span class="num">{cell.day}</span>
                             <span class="count">{ev.freeCount || ''}</span>
