@@ -39,9 +39,7 @@ export function dayLabel(date) {
 
 /*
     The days this plan asks about, split into the runs one select can hold. Chunks are
-    fixed by position rather than by week, so the same day is always in the same select:
-    the index is what the button ids carry, and a chunk that moved would write somebody's
-    answer onto the wrong dates.
+    fixed by position rather than by week, so the same day is always in the same select.
 
     A plan longer than four selects is cut off rather than paginated. The link does the
     whole range and is right there in the message, and a plan asking about more than a
@@ -76,13 +74,20 @@ export function pickerText(plan, freeCount, shownCount, cut) {
     discord.js to validate: every cap in here is one Discord enforces at send time, which
     is the worst place to find out about it.
 */
+/*
+    Every id carries the first and last day it was drawn with. The chunk is rebuilt from the
+    plan as it is now, so a picker opened before the dates moved would otherwise save onto
+    days it never showed, and wipe the ones left unticked.
+*/
 export function pickerComponents(plan, chunks, freeSet) {
+    const every = chunks.flat();
+    const span = `${every[0]}|${every[every.length - 1]}`;
     const rows = chunks.map((chunk, index) => {
         const options = chunk.map((date) =>
             new StringSelectMenuOptionBuilder().setLabel(dayLabel(date)).setValue(date).setDefault(freeSet.has(date))
         );
         const select = new StringSelectMenuBuilder()
-            .setCustomId(`free|day|${plan.planId}|${index}`)
+            .setCustomId(`free|day|${plan.planId}|${index}|${chunk[0]}|${chunk[chunk.length - 1]}`)
             .setPlaceholder(`${dayLabel(chunk[0])} to ${dayLabel(chunk[chunk.length - 1])}`)
             //Zero so a list can be emptied, which is how somebody says they are free on none of these
             .setMinValues(0)
@@ -92,8 +97,8 @@ export function pickerComponents(plan, chunks, freeSet) {
     });
 
     const buttons = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`free|all|${plan.planId}`).setLabel('Free every day').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`free|none|${plan.planId}`).setLabel('Free on none of them').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(`free|all|${plan.planId}|${span}`).setLabel('Free every day').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`free|none|${plan.planId}|${span}`).setLabel('Free on none of them').setStyle(ButtonStyle.Secondary)
     );
 
     return [...rows, buttons];
@@ -104,7 +109,7 @@ export function pickerComponents(plan, chunks, freeSet) {
     No ephemeral flag on it: the first one is sent with one and every later one edits that
     same message, where saying it again is not allowed.
 */
-async function pickerPayload(plan, userId) {
+async function pickerPayload(plan, userId, note = '') {
     const { chunks, cut } = dayChunks(plan);
     const shown = chunks.flat();
     const rows = await getAvailabilityInRange(userId, shown[0], shown[shown.length - 1]);
@@ -112,7 +117,9 @@ async function pickerPayload(plan, userId) {
     const freeCount = shown.filter((d) => freeSet.has(d)).length;
 
     return {
-        content: pickerText(plan, freeCount, shown.length, cut),
+        content: (note ? `${note}
+
+` : '') + pickerText(plan, freeCount, shown.length, cut),
         components: pickerComponents(plan, chunks, freeSet)
     };
 }
@@ -199,9 +206,16 @@ export async function handleFree(interaction) {
     });
 }
 
+const MOVED = 'The dates on this plan changed since this list was opened, so I saved nothing. Here they are as they are now.';
+
+//Drawn with the same first and last day. Ids from before they carried one never match, so those redraw too.
+function sameDays(days, first, last) {
+    return days.length > 0 && days[0] === first && days[days.length - 1] === last;
+}
+
 //Every free|* click and pick, all of which rewrite the same ephemeral message in place
 export async function handleFreeComponent(interaction) {
-    const [, step, planId, chunkIndex] = interaction.customId.split('|');
+    const [, step, planId, ...rest] = interaction.customId.split('|');
 
     if (step === 'plan') {
         const { plan, error } = await usablePlan(interaction, interaction.values[0]);
@@ -215,12 +229,14 @@ export async function handleFreeComponent(interaction) {
     const { chunks } = dayChunks(plan);
 
     if (step === 'day') {
-        //Read back off the plan rather than trusting the message, which may be older than the plan is
-        const chunk = chunks[Number(chunkIndex)];
-        if (!chunk) return interaction.update(await pickerPayload(plan, interaction.user.id));
+        const [index, first, last] = rest;
+        const chunk = chunks[Number(index)];
+        if (!chunk || !sameDays(chunk, first, last)) return interaction.update(await pickerPayload(plan, interaction.user.id, MOVED));
         await saveDays(interaction.user.id, plan, interaction.values, chunk);
     } else if (step === 'all' || step === 'none') {
+        const [first, last] = rest;
         const every = chunks.flat();
+        if (!sameDays(every, first, last)) return interaction.update(await pickerPayload(plan, interaction.user.id, MOVED));
         await saveDays(interaction.user.id, plan, step === 'all' ? every : [], every);
     }
 

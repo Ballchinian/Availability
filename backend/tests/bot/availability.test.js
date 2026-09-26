@@ -3,9 +3,8 @@ import { dayLabel, dayChunks, pickerComponents, pickerText } from '../../src/bot
 import { weekdayOf } from '../../src/lib/dates.js';
 
 /*
-    Only the parts that decide what goes on screen, which is where this can go wrong
-    quietly: a chunk that moved would write somebody's answer onto the wrong dates, since
-    the index is all the button id carries.
+    Mostly the parts that decide what goes on screen, which is where this can go wrong
+    quietly, then a click on a picker drawn before the plan's dates moved.
 */
 
 const plan = (start, end, allowedWeekdays = null) => ({
@@ -132,10 +131,18 @@ describe('pickerComponents', () => {
         expect(select.max_values).toBe(14);
     });
 
-    it('carries the chunk index each select answers for', () => {
+    it('carries the chunk each select answers for, by index and by its first and last day', () => {
         const rows = build(plan('2026-08-01', '2026-09-09'));
-        expect(rows[0].components[0].custom_id).toBe('free|day|ab12cd34ef|0');
-        expect(rows[1].components[0].custom_id).toBe('free|day|ab12cd34ef|1');
+        expect(rows[0].components[0].custom_id).toBe('free|day|ab12cd34ef|0|2026-08-01|2026-08-25');
+        expect(rows[1].components[0].custom_id).toBe('free|day|ab12cd34ef|1|2026-08-26|2026-09-09');
+    });
+
+    it('carries the whole span on the two buttons', () => {
+        const buttons = build(plan('2026-08-01', '2026-09-09')).at(-1).components;
+        expect(buttons.map((b) => b.custom_id)).toEqual([
+            'free|all|ab12cd34ef|2026-08-01|2026-09-09',
+            'free|none|ab12cd34ef|2026-08-01|2026-09-09'
+        ]);
     });
 
     it('keeps every id inside the hundred characters an id gets', () => {
