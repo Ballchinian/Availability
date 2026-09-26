@@ -49,6 +49,22 @@ export function isoPlus(date: string, amount: number, unit: 'day' | 'month' | 'y
     return isoOf(d);
 }
 
+/*
+    Where an arrow key takes focus on a calendar grid: a day either way, or a week up or
+    down, passing over days that cannot take it. Stays put at either end of the range,
+    and null for a key that is not an arrow.
+*/
+const ARROWS: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+
+export function stepDay(from: string, key: string, open: (date: string) => boolean, first: string, last: string): string | null {
+    const step = ARROWS[key];
+    if (!step) return null;
+    for (let d = isoPlus(from, step, 'day'); d >= first && d <= last; d = isoPlus(d, step, 'day')) {
+        if (open(d)) return d;
+    }
+    return from;
+}
+
 //The same step, counted from today
 export function isoFromNow(amount: number, unit: 'day' | 'month' | 'year'): string {
     return isoPlus(isoOf(new Date()), amount, unit);

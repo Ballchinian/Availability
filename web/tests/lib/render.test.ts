@@ -44,6 +44,9 @@ vi.mock('../../src/lib/zone.js', async (importOriginal) => ({
 
 //Every day that can be picked or marked is a button, and a day that is out is a span
 const buttons = (body: string) => (body.match(/<button/g) || []).length;
+//The days in the tab order, each as far as its name
+const stops = (body: string) =>
+    [...body.matchAll(/<button class="c?day[^"]*"[^>]*>/g)].filter((m) => m[0].includes('tabindex="0"')).map((m) => m[0].slice(0, m[0].indexOf('"', m[0].indexOf('aria-label="') + 12) + 1));
 
 /*
     The grid is the only way to a date now, so it has to hold up on a plan nobody has
@@ -207,6 +210,14 @@ describe('the compare grid', () => {
         Two different things: the day the plan is on, and the day being looked at. Before this
         the grid could only show the second, so scrolling the grid lost track of the first.
     */
+    it('is one Tab stop, on the day being looked at', () => {
+        expect(stops(draw({ selectedDate: '2026-08-07' }))).toEqual([expect.stringContaining(formatLong('2026-08-07'))]);
+    });
+
+    it('is on its first day before any is picked', () => {
+        expect(stops(draw({}))).toEqual([expect.stringContaining(formatLong('2026-08-01'))]);
+    });
+
     it('marks the set day apart from the day being looked at', () => {
         const body = draw({ chosenDate: '2026-08-05', selectedDate: '2026-08-07' });
         expect(body).toContain('isset');
@@ -299,6 +310,24 @@ describe('the fill-in grid', () => {
         expect(clock.shown).toBe('');
         expect(clock.name).toBe(`Set hours for ${formatLong(day)}, free all day`);
         expect(clock.drawn).toBe(true);
+    });
+
+    //Two years of days was up to 730 stops, and the arrows move between them instead
+    it('is one Tab stop, on the first day that can be marked', () => {
+        const body = draw();
+        expect(stops(body)).toEqual([`<button class="day" aria-label="${formatLong(isoFromNow(0, 'day'))}"`]);
+    });
+
+    it('puts only the clock under that day in the tab order', () => {
+        const body = draw({ [isoFromNow(0, 'day')]: [], [isoFromNow(1, 'day')]: [] });
+        const inOrder = [...body.matchAll(/<button class="clock"[^>]*>/g)].filter((m) => m[0].includes('tabindex="0"'));
+        expect(inOrder).toHaveLength(1);
+        expect(inOrder[0][0]).toContain(formatLong(isoFromNow(0, 'day')));
+    });
+
+    it('says how a keyboard gets round, where it is read out on the way in', () => {
+        const body = draw();
+        expect(body).toMatch(/<p class="legend small" id="([^"]+)">[^<]*Shift\+Enter marks the stretch[^<]*<\/p>[\s\S]*role="group" aria-describedby="\1"/);
     });
 });
 

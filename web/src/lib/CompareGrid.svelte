@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { buildMonths, WEEKDAYS, isWeekdayAllowed } from './calendar.js';
+    import { buildMonths, stepDay, WEEKDAYS, isWeekdayAllowed } from './calendar.js';
     import { fillTextStyle } from './heatmap.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT } from './hours.js';
@@ -84,9 +84,26 @@
     function pick(date: string) {
         selectedDate = date;
     }
+
+    //One Tab stop for the whole grid, on the picked day until the arrows move it
+    let focusDate = $state('');
+    const stop = $derived(
+        evals[focusDate] ? focusDate : selectedDate && evals[selectedDate] ? selectedDate : (Object.keys(evals)[0] ?? '')
+    );
+    let wrap: HTMLDivElement;
+
+    //Moves focus only: the day is picked by Enter or a click, as before
+    function arrow(e: KeyboardEvent, date: string) {
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        const next = stepDay(date, e.key, (d) => Boolean(evals[d]), start, end);
+        if (next === null) return;
+        e.preventDefault();
+        focusDate = next;
+        wrap.querySelector<HTMLElement>(`[data-date="${next}"]`)?.focus();
+    }
 </script>
 
-<div class="grid-wrap">
+<div class="grid-wrap" bind:this={wrap}>
     {#each months as month (month.year + '-' + month.month)}
         <section class="cal">
             <svelte:element this={`h${level}`}>{month.label} {month.year}</svelte:element>
@@ -109,7 +126,11 @@
                             style={ev.viable ? fillTextStyle(ev.windowSize, HOUR_COUNT) : ''}
                             aria-label={describe(cell.date, ev)}
                             aria-pressed={selectedDate === cell.date}
+                            tabindex={cell.date === stop ? 0 : -1}
+                            data-date={cell.date}
                             onclick={() => pick(cell.date)}
+                            onkeydown={(e) => arrow(e, cell.date)}
+                            onfocus={() => (focusDate = cell.date)}
                         >
                             <span class="num">{cell.day}{#if chosenDate === cell.date}<svg class="tick" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 6.5l2.5 2.5L10 3.5" /></svg>{/if}</span>
                             <span class="count">{ev.freeCount || ''}</span>

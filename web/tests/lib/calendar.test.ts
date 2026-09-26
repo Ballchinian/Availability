@@ -8,6 +8,7 @@ import {
     isoOf,
     isoPlus,
     nextDay,
+    stepDay,
     weekdayOf,
     isWeekdayAllowed
 } from '../../src/lib/calendar.js';
@@ -94,6 +95,38 @@ describe('nextDay', () => {
     it('knows a leap year', () => {
         expect(nextDay('2028-02-28')).toBe('2028-02-29');
         expect(nextDay('2026-02-28')).toBe('2026-03-01');
+    });
+});
+
+describe('stepDay', () => {
+    const open = () => true;
+    //A plan that asks about weekends only
+    const weekends = (d: string) => [0, 6].includes(new Date(`${d}T00:00:00`).getDay());
+
+    it('goes a day either way and a week up or down', () => {
+        expect(stepDay('2026-08-12', 'ArrowRight', open, '2026-08-01', '2026-08-31')).toBe('2026-08-13');
+        expect(stepDay('2026-08-12', 'ArrowLeft', open, '2026-08-01', '2026-08-31')).toBe('2026-08-11');
+        expect(stepDay('2026-08-12', 'ArrowDown', open, '2026-08-01', '2026-08-31')).toBe('2026-08-19');
+        expect(stepDay('2026-08-12', 'ArrowUp', open, '2026-08-01', '2026-08-31')).toBe('2026-08-05');
+    });
+
+    it('crosses into the next month', () => {
+        expect(stepDay('2026-08-31', 'ArrowRight', open, '2026-08-01', '2026-09-30')).toBe('2026-09-01');
+    });
+
+    it('passes over days that cannot take focus', () => {
+        //Sunday 16 August to Saturday 22 August
+        expect(stepDay('2026-08-16', 'ArrowRight', weekends, '2026-08-01', '2026-08-31')).toBe('2026-08-22');
+    });
+
+    it('stays put at either end', () => {
+        expect(stepDay('2026-08-31', 'ArrowRight', open, '2026-08-01', '2026-08-31')).toBe('2026-08-31');
+        expect(stepDay('2026-08-03', 'ArrowUp', open, '2026-08-01', '2026-08-31')).toBe('2026-08-03');
+        expect(stepDay('2026-08-29', 'ArrowRight', weekends, '2026-08-01', '2026-08-29')).toBe('2026-08-29');
+    });
+
+    it('leaves any other key alone', () => {
+        expect(stepDay('2026-08-12', 'Enter', open, '2026-08-01', '2026-08-31')).toBeNull();
     });
 });
 

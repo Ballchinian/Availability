@@ -1,6 +1,6 @@
 <script lang="ts">
     import { fillTextStyle, headingColor } from './heatmap.js';
-    import { buildMonths, isoOf, isoFromNow, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
+    import { buildMonths, isoOf, isoFromNow, stepDay, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT, formatHours } from './hours.js';
     import { Press, fromKeyboard } from './paint.svelte.js';
@@ -172,15 +172,49 @@
         }
         return { days, tallies };
     });
+
+    /*
+        The grid is one Tab stop, which the arrow keys move from day to day: two years of
+        days was up to 730 stops to get past. The stop's clock is the only clock in the tab
+        order, so the hours of the day with focus are one Tab away and nobody else's are.
+    */
+    let focusDate = $state('');
+    const stop = $derived(
+        view.days[focusDate]?.selectable ? focusDate : (Object.keys(view.days).find((d) => view.days[d].selectable) ?? '')
+    );
+    let wrap: HTMLDivElement;
+    const uid = $props.id();
+
+    //Arrows only move focus and never mark anything, so a keyboard can look before it touches
+    function arrow(e: KeyboardEvent, date: string) {
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        const next = stepDay(date, e.key, (d) => Boolean(view.days[d]?.selectable), start, end);
+        if (next === null) return;
+        e.preventDefault();
+        focusDate = next;
+        wrap.querySelector<HTMLElement>(`[data-date="${next}"]`)?.focus();
+    }
 </script>
 
 <svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} onkeydown={press.keydown} />
 
 <!--What the colours mean, which nothing said before: the same shading on the compare
     grid means something else entirely, and it has had a legend all along-->
-<p class="legend small">Brighter means more of the day free. A clock showing a number, like 5h, counts the hours you kept. A clock on its own means all of them.</p>
+<p class="legend small" id="{uid}-legend">
+    Brighter means more of the day free. A clock showing a number, like 5h, counts the hours you kept. A clock on its
+    own means all of them. On a keyboard the arrows move between days, and Shift+Enter marks the stretch back to the
+    last day you pressed.
+</p>
 
-<div class="grid-wrap" class:painting={press.phase === 'painting'} {@attach press.stopScroll}>
+<!--A group so the legend above is read out on the way in, whichever day Tab lands on-->
+<div
+    class="grid-wrap"
+    class:painting={press.phase === 'painting'}
+    role="group"
+    aria-describedby="{uid}-legend"
+    bind:this={wrap}
+    {@attach press.stopScroll}
+>
     {#each months as month (monthKey(month))}
         {@const tally = view.tallies[monthKey(month)]}
         <section class="cal">
@@ -207,9 +241,13 @@
                                 style={day.style}
                                 aria-label={day.label}
                                 aria-pressed={day.free}
+                                tabindex={cell.date === stop ? 0 : -1}
+                                data-date={cell.date}
                                 onpointerdown={(e) => press.down(cell.date, e)}
                                 onpointerenter={() => press.enter(cell.date)}
                                 onclick={(e) => keyToggle(e, cell.date)}
+                                onkeydown={(e) => arrow(e, cell.date)}
+                                onfocus={() => (focusDate = cell.date)}
                                 title={day.far ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
                             >
                                 {cell.day}
@@ -219,6 +257,7 @@
                                     class="clock"
                                     title="Set specific hours"
                                     aria-label={clockLabel(cell.date)}
+                                    tabindex={cell.date === stop ? 0 : -1}
                                     onpointerdown={(e) => e.stopPropagation()}
                                     onpointerenter={() => press.enter(cell.date)}
                                     onclick={() => (editingDate = cell.date)}
