@@ -53,6 +53,12 @@ describe('realMembers', () => {
         expect(guild.fetched).toEqual(['c']);
     });
 
+    it('keeps someone sent twice only once', async () => {
+        const guild = fakeGuild({ remote: [member('a'), member('b')] });
+        expect(await realMembers(guild, ['a', 'b', 'a'])).toEqual(['a', 'b']);
+        expect(guild.fetched).toEqual(['a', 'b']);
+    });
+
     it('has nothing to say about an empty list', async () => {
         const guild = fakeGuild();
         expect(await realMembers(guild, [])).toEqual([]);

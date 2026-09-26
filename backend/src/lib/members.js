@@ -10,7 +10,9 @@ import { fanOut } from './fanout.js';
     finishes jobs in whatever order they finish and this order is the guest list
     order, which on the site is whatever the picker was dragged into.
 */
-export async function realMembers(guild, ids) {
+export async function realMembers(guild, given) {
+    //A picker that sends someone twice would otherwise put them on the plan twice
+    const ids = [...new Set(given)];
     const kept = new Array(ids.length).fill(null);
 
     await fanOut(ids, async (id, i) => {

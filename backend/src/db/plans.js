@@ -445,16 +445,32 @@ export async function removeParticipant(planId, userId) {
     return getPlan(planId);
 }
 
-//Add people to a plan that is already running, fresh and unconfirmed. One write for the lot.
+/*
+    Add people to a plan that is already running, fresh and unconfirmed. One write for the lot.
+
+    Only ids not already on the plan are pushed, and the write matches only while none of
+    them is, so two adds landing together cannot put the same person on twice. When the
+    other add got there first the write misses and this reads the plan again.
+*/
 export async function addParticipants(planId, userIds) {
-    await col(collections.plans).updateOne(
-        { planId },
-        {
-            $push: { participants: { $each: userIds.map((id) => freshParticipant(id)) } },
-            //A new face means not everyone is in yet, so let the all-in nudge fire again later
-            $set: { allInNotifiedAt: null }
-        }
-    );
+    const ids = [...new Set(userIds)];
+    for (let tries = 0; tries < 3; tries++) {
+        const plan = await getPlan(planId);
+        if (!plan) return null;
+        const on = new Set(plan.participants.map((p) => p.userId));
+        const fresh = ids.filter((id) => !on.has(id));
+        if (!fresh.length) return plan;
+
+        const res = await col(collections.plans).updateOne(
+            { planId, 'participants.userId': { $nin: fresh } },
+            {
+                $push: { participants: { $each: fresh.map((id) => freshParticipant(id)) } },
+                //A new face means not everyone is in yet, so let the all-in nudge fire again later
+                $set: { allInNotifiedAt: null }
+            }
+        );
+        if (res.modifiedCount) return getPlan(planId);
+    }
     return getPlan(planId);
 }
 
