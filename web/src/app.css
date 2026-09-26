@@ -559,6 +559,11 @@ a.primary {
     color: var(--muted);
 }
 
+/* The search box beside it is a .field input at 100%, so without this the count is what gives */
+.col-head > span:first-child {
+    white-space: nowrap;
+}
+
 .col-head .head-actions {
     display: flex;
     gap: 6px;
