@@ -247,6 +247,21 @@ Planner role only.
 
 # Plans
 
+## GET `/api/plans/:planId/name`
+
+A plan's name, for anyone holding its link, logged in or not. It is what lets the page a logged out visitor lands on say what the link is for before they log in.
+
+### Returns
+
+* The plan's name, and nothing else: no description, dates, server or guests
+
+### Notes
+
+* `404` if there is no such plan.
+* Limited to 120 requests from one address every ten minutes, since it is the one plan read that needs no login. Plan ids are ten random characters, so nobody reaches one by guessing.
+
+---
+
 ## GET `/api/plans/:planId` (session)
 
 Everything the availability page needs to draw the grid.

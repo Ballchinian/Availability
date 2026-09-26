@@ -184,6 +184,21 @@ describe('the plan gate', () => {
         expect(lookups).toEqual([]);
     });
 
+    it('gives a logged out request the plan name and nothing else', async () => {
+        sessionUser = null;
+        plans.set('ab12cd34ef', plan({ description: 'At mine, bring snacks' }));
+        const res = await get('/ab12cd34ef/name');
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ name: 'Board games' });
+    });
+
+    it('says so when a logged out request names a plan that is not there', async () => {
+        sessionUser = null;
+        const res = await get('/nosuchplan/name');
+        expect(res.status).toBe(404);
+    });
+
     it('answers for a plan that is not there', async () => {
         const res = await get('/nosuchplan');
         expect(res.status).toBe(404);

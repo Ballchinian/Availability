@@ -195,6 +195,11 @@ code {
     font-weight: 600;
 }
 
+.discord-btn.big {
+    padding: 12px 20px;
+    font-size: 16px;
+}
+
 .link-btn {
     background: none;
     border: none;

@@ -15,6 +15,7 @@ import { gatherFreeDays } from '../../lib/freedays.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
+import { ipLimit } from '../../lib/iplimit.js';
 
 /*
     The availability side of a plan. GET hands the page everything it needs to
@@ -24,6 +25,24 @@ import { realMembers } from '../../lib/members.js';
 */
 
 const router = Router();
+
+/*
+    The one thing about a plan anyone holding its link can read, logged in or not: its
+    name, so a logged out visitor can see what the link is for before logging in.
+
+    :id rather than :planId, so the limit runs before the lookup rather than after it.
+*/
+const limitName = ipLimit({
+    limit: 120,
+    windowMs: 10 * 60 * 1000,
+    message: 'That is a lot of plan links from one place. Give it ten minutes and try again.'
+});
+
+router.get('/:id/name', limitName, async (req, res) => {
+    const plan = await getPlan(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+    res.json({ name: plan.name });
+});
 
 //Ahead of the lookup below on purpose: express runs a param callback before the route's own
 //middleware, so without this a logged out request would read a plan out of the database

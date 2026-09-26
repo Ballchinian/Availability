@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { api, errorText } from '../lib/api.js';
-    import { auth, loadMe } from '../lib/auth.svelte.js';
+    import { api, errorText, ApiError } from '../lib/api.js';
+    import { auth, loadMe, loginHref } from '../lib/auth.svelte.js';
     import { formatDate, formatTime, describeWeekdays } from '../lib/format.js';
     import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
@@ -15,6 +15,11 @@
     let loading = $state(true);
     let data = $state<PlanScreen | null>(null);
     let loadError = $state('');
+
+    //Logged out, the name is all the link gives away
+    let publicName = $state('');
+    let missing = $state(false);
+    const planName = $derived(data?.plan.name || publicName);
 
     let selection = $state<Record<string, number[]>>({});
     //The grid as it last stood on the server, so a close can tell whether anything moved
@@ -102,6 +107,11 @@
     onMount(async () => {
         await loadMe();
         if (!auth.user) {
+            try {
+                publicName = (await api<{ name: string }>(`/plans/${params.planId}/name`)).name;
+            } catch (err) {
+                missing = err instanceof ApiError && err.status === 404;
+            }
             loading = false;
             return;
         }
@@ -154,7 +164,7 @@
     }
 </script>
 
-<svelte:head><title>{data ? `${data.plan.name} · your dates` : 'Your availability'}</title></svelte:head>
+<svelte:head><title>{planName ? `${planName} · your dates` : 'Your dates'}</title></svelte:head>
 
 <!--Offered while a plan is still ahead of you, whether or not it is still asking for dates:
     a day that is already set is exactly when somebody finds out they cannot come-->
@@ -176,12 +186,18 @@
 <section class="screen">
     <!--The plan's name, since the other availability page is this one's twin and the
         heading was the one place they had nothing to tell them apart-->
-    <h1>{data ? data.plan.name : 'Your availability'}</h1>
+    <h1>{planName || 'Your dates'}</h1>
 
     {#if loading}
         <p class="muted">Loading this plan...</p>
     {:else if !auth.user}
-        <p class="muted">Log in above to fill in your dates.</p>
+        {#if missing}
+            <p class="status error">That plan does not exist.</p>
+        {:else}
+            <p class="prompt">A plan on Discord to find a day that works for everyone.</p>
+            <p><a class="discord-btn big" href={loginHref()}>Log in with Discord to add your dates</a></p>
+            <p class="muted small">Logging in shares your Discord ID, name and avatar with me, and nothing else.</p>
+        {/if}
     {:else if loadError || !data}
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else if left}
