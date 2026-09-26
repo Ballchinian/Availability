@@ -338,6 +338,7 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
+    if (date < todayIn(plan.timeZone)) return res.status(400).json({ error: 'That date is in the past.' });
     //A weekday-pinned plan can only land on one of the days it collected for
     if (!weekdayAllowed(date, plan.allowedWeekdays)) {
         return res.status(400).json({ error: 'That day is not one this plan asked about.' });

@@ -114,7 +114,7 @@ const plan = (over = {}) => ({
     name: 'Board games',
     description: '',
     status: 'collecting',
-    dateRange: { start: '2026-08-01', end: '2026-08-14' },
+    dateRange: { start: ahead(1), end: ahead(14) },
     participants: [{ userId: 'guest', confirmed: false }],
     createdBy: 'planner',
     history: [],
@@ -128,6 +128,8 @@ const ahead = (days) => {
     d.setDate(d.getDate() + days);
     return iso(d);
 };
+//A day inside the default window, for the routes that set one
+const inWindow = ahead(5);
 
 let server;
 let base;
@@ -196,13 +198,13 @@ describe('the plan gate', () => {
 
     it('refuses someone without the planner role, and the route never runs', async () => {
         plannerAnswer = notPlanner;
-        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05' });
+        const res = await post('/ab12cd34ef/choose', { date: inWindow });
         expect(res.status).toBe(403);
         expect(db.setPlanChosen).not.toHaveBeenCalled();
     });
 
     it('refuses a cancelled plan on every route that would change one', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'cancelled', chosenDate: '2026-08-05' }));
+        plans.set('ab12cd34ef', plan({ status: 'cancelled', chosenDate: inWindow }));
         for (const path of changing) {
             const res = await post(`/ab12cd34ef${path}`, {});
             expect([path, res.status]).toEqual([path, 409]);
@@ -298,7 +300,7 @@ describe('a plan as a template', () => {
 
     //A new plan wants a new window, so nothing about when this one ran comes over
     it('carries no dates at all', async () => {
-        plans.set('ab12cd34ef', plan({ chosenDate: '2026-08-05', repeatWeeks: 2 }));
+        plans.set('ab12cd34ef', plan({ chosenDate: inWindow, repeatWeeks: 2 }));
         const body = await (await get('/ab12cd34ef/template')).json();
         expect(Object.keys(body).sort()).toEqual(['allowedWeekdays', 'description', 'name', 'participantIds']);
     });
@@ -327,7 +329,7 @@ describe('choosing the day a plan is already on', () => {
     const setPlan = (over = {}) =>
         plan({
             status: 'closed',
-            chosenDate: '2026-08-05',
+            chosenDate: inWindow,
             chosenTime: '19:00',
             chosenNote: 'meet at the station',
             ...over
@@ -335,7 +337,7 @@ describe('choosing the day a plan is already on', () => {
 
     it('edits the time without touching anything else', async () => {
         plans.set('ab12cd34ef', setPlan());
-        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '20:00' });
+        const res = await post('/ab12cd34ef/choose', { date: inWindow, time: '20:00' });
 
         expect(res.status).toBe(200);
         expect(await res.json()).toMatchObject({ edited: true, changed: false, chosenTime: '20:00' });
@@ -350,7 +352,7 @@ describe('choosing the day a plan is already on', () => {
     */
     it('carries a stored note through untouched', async () => {
         plans.set('ab12cd34ef', setPlan());
-        await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '20:00', note: 'somewhere else' });
+        await post('/ab12cd34ef/choose', { date: inWindow, time: '20:00', note: 'somewhere else' });
         expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', 'meet at the station');
     });
 
@@ -358,7 +360,7 @@ describe('choosing the day a plan is already on', () => {
     it('ignores the invite narrowing entirely', async () => {
         plans.set('ab12cd34ef', setPlan());
         await post('/ab12cd34ef/choose', {
-            date: '2026-08-05',
+            date: inWindow,
             time: '20:00',
             inviteMode: 'attending',
             attendingIds: ['guest']
@@ -368,7 +370,7 @@ describe('choosing the day a plan is already on', () => {
 
     it('refuses an update that changes nothing', async () => {
         plans.set('ab12cd34ef', setPlan());
-        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '19:00' });
+        const res = await post('/ab12cd34ef/choose', { date: inWindow, time: '19:00' });
         expect(res.status).toBe(400);
         expect((await res.json()).error).toMatch(/Nothing changed/);
         expect(db.setPlanWhen).not.toHaveBeenCalled();
@@ -377,7 +379,7 @@ describe('choosing the day a plan is already on', () => {
     //A different day is a real move and still starts the round again
     it('still clears the round when the day actually moves', async () => {
         plans.set('ab12cd34ef', setPlan());
-        const res = await post('/ab12cd34ef/choose', { date: '2026-08-06', time: '19:00' });
+        const res = await post('/ab12cd34ef/choose', { date: ahead(6), time: '19:00' });
 
         expect(await res.json()).toMatchObject({ changed: true });
         expect(db.setPlanChosen).toHaveBeenCalled();
@@ -387,7 +389,7 @@ describe('choosing the day a plan is already on', () => {
     //A plan still collecting has no day to be already on, however the date lines up
     it('treats a first pick as a set rather than an edit', async () => {
         plans.set('ab12cd34ef', plan({ chosenDate: null }));
-        await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '19:00' });
+        await post('/ab12cd34ef/choose', { date: inWindow, time: '19:00' });
         expect(db.setPlanChosen).toHaveBeenCalled();
         expect(db.setPlanWhen).not.toHaveBeenCalled();
     });
@@ -427,21 +429,21 @@ describe('quiet mode', () => {
     });
 
     it('carries through to setting a day', async () => {
-        await post('/ab12cd34ef/choose', { date: '2026-08-05', quiet: true });
+        await post('/ab12cd34ef/choose', { date: inWindow, quiet: true });
         runQueued();
         expect(flagsOf(announceOutcome)).toMatchObject({ quiet: true });
     });
 
     it('carries through to an edit of the time or note', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: '2026-08-05', chosenTime: '19:00' }));
-        await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '20:00', quiet: true });
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, chosenTime: '19:00' }));
+        await post('/ab12cd34ef/choose', { date: inWindow, time: '20:00', quiet: true });
         runQueued();
         expect(flagsOf(announceWhenEdit)).toMatchObject({ quiet: true });
     });
 
     //The confirmation reads it as "do not mention anyone", since the poll itself still has to exist
     it('stops a first confirmation mentioning the invite list', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: '2026-08-05', probeActive: false }));
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: false }));
         applyConfirmations.mockResolvedValue({ revived: false });
         await post('/ab12cd34ef/confirmations', { active: true, quiet: true });
         expect(applyConfirmations.mock.calls.at(-1).at(-1)).toMatchObject({ mention: false });
@@ -537,7 +539,7 @@ describe('fixing up Discord by hand', () => {
 */
 describe('times and days on the plan clock', () => {
     it('refuses a time that is not one', async () => {
-        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '25:99' });
+        const res = await post('/ab12cd34ef/choose', { date: inWindow, time: '25:99' });
         expect(res.status).toBe(400);
         expect((await res.json()).error).toMatch(/between 00:00 and 23:59/);
         expect(db.setPlanChosen).not.toHaveBeenCalled();
@@ -557,6 +559,26 @@ describe('times and days on the plan clock', () => {
 
             on('Europe/London');
             const here = await post('/ab12cd34ef/dates', { date: '2026-09-26' });
+            expect(here.status).toBe(200);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('reads it the same way when the day is picked off the grid', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-26T13:00:00Z'));
+        try {
+            const on = (timeZone) => plans.set('ab12cd34ef', plan({ timeZone, dateRange: { start: '2026-09-20', end: '2026-10-10' } }));
+
+            on('Pacific/Auckland');
+            const there = await post('/ab12cd34ef/choose', { date: '2026-09-26' });
+            expect(there.status).toBe(400);
+            expect((await there.json()).error).toMatch(/in the past/);
+            expect(db.setPlanChosen).not.toHaveBeenCalled();
+
+            on('Europe/London');
+            const here = await post('/ab12cd34ef/choose', { date: '2026-09-26' });
             expect(here.status).toBe(200);
         } finally {
             vi.useRealTimers();

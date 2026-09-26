@@ -10,8 +10,8 @@
         the size of the common window once the people you are willing to miss have
         been dropped: the bright end of the ramp means everyone shares the whole
         evening, the dark end a narrow overlap, dim means no workable day. The
-        colours are a guide, not a gate, so any in range day can be picked, even a
-        dim one you already know works.
+        colours are a guide, not a gate, so any in range day from today on can be
+        picked, even a dim one you already know works.
     */
     let {
         start,
@@ -22,6 +22,7 @@
         allowedWeekdays = null,
         unsureByDate = {},
         chosenDate = null,
+        today = null,
         selectedDate = $bindable(null)
     }: {
         start: string;
@@ -33,10 +34,16 @@
         unsureByDate?: Record<string, number>;
         //The day the plan is actually set for, marked apart from whichever day is being looked at
         chosenDate?: string | null;
+        //Days before it are out. Null keeps every day, for a grid that is only looked back at.
+        today?: string | null;
         selectedDate?: string | null;
     } = $props();
 
     const months = $derived(buildMonths(start, end));
+
+    function pickable(date: string) {
+        return (!today || date >= today) && isWeekdayAllowed(date, allowedWeekdays);
+    }
 
     /*
         Every day evaluated once per data change, not once per cell per render.
@@ -47,7 +54,7 @@
         const map: Record<string, DayEval> = {};
         for (const month of months) {
             for (const cell of month.cells) {
-                if (!cell || !cell.inRange || !isWeekdayAllowed(cell.date, allowedWeekdays)) continue;
+                if (!cell || !cell.inRange || !pickable(cell.date)) continue;
                 map[cell.date] = evaluateDay(freeByDate[cell.date] || [], confirmedCount, missAllowed, unsureByDate[cell.date] || 0);
             }
         }
@@ -87,7 +94,7 @@
                 {#each month.cells as cell, i (i)}
                     {#if !cell}
                         <span class="pad"></span>
-                    {:else if !cell.inRange || !isWeekdayAllowed(cell.date, allowedWeekdays)}
+                    {:else if !cell.inRange || !pickable(cell.date)}
                         <span class="day out">{cell.day}</span>
                     {:else}
                         {@const ev = evals[cell.date]}

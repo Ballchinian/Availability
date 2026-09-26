@@ -4,6 +4,7 @@
     import { recallMiss, rememberMiss } from '../remember.js';
     import type { Participant } from '../types.js';
     import type { FreePerson } from '../overlap.js';
+    import { todayIn } from '../zone.js';
     import ClockNote from '../ClockNote.svelte';
     import CompareGrid from '../CompareGrid.svelte';
     import PickPanel from './PickPanel.svelte';
@@ -151,6 +152,7 @@
     {confirmedCount}
     {allowedWeekdays}
     chosenDate={chosen?.date ?? null}
+    today={readOnly ? null : todayIn(timeZone)}
     {unsureByDate}
     {missAllowed}
     bind:selectedDate

@@ -4,6 +4,7 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
     import type { CompareScreen } from '../lib/types.js';
+    import { todayIn } from '../lib/zone.js';
     import ClockNote from '../lib/ClockNote.svelte';
     import AboutPanel from '../lib/compare/AboutPanel.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
@@ -93,7 +94,8 @@
             data = await api<CompareScreen>(`/plans/${params.planId}/compare`);
             //A cancelled plan is read only, the banner stands in for the controls
             if (data.plan.status === 'cancelled') cancelled = true;
-            if (data.plan.chosenDate) selectedDate = data.plan.chosenDate;
+            //A day already gone is out on the grid, so it cannot be the one picked there
+            if (data.plan.chosenDate && data.plan.chosenDate >= todayIn(data.plan.timeZone)) selectedDate = data.plan.chosenDate;
         } catch (err) {
             loadError = errorText(err);
         }

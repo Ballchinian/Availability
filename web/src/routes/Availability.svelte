@@ -63,9 +63,9 @@
     const allowedWeekdays = $derived<number[] | null>(data?.plan.allowedWeekdays ?? null);
     const weekdayLabel = $derived(describeWeekdays(allowedWeekdays));
 
-    //Only days the plan actually asks about count towards the tally and the total
-    const freeCount = $derived(Object.keys(selection).filter((d) => isWeekdayAllowed(d, allowedWeekdays)).length);
-    const totalDays = $derived(data ? countDays(data.plan.start, data.plan.end, allowedWeekdays) : 0);
+    //Only days the plan still asks about count towards the tally and the total, the same days the grid leaves open
+    const freeCount = $derived(Object.keys(selection).filter((d) => d >= todayIso && isWeekdayAllowed(d, allowedWeekdays)).length);
+    const totalDays = $derived(data ? countDays(data.plan.start > todayIso ? data.plan.start : todayIso, data.plan.end, allowedWeekdays) : 0);
 
     //The first day past the front edge of their timetable, or null if it reaches the end
     const newFrom = $derived.by(() => {

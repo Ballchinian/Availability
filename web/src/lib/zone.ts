@@ -12,9 +12,14 @@ import { api } from './api.js';
     the page and the DM cannot disagree about whose evening a plan lands on.
 */
 
-import { zoneOffsetLabel } from '../../../shared/zones.js';
+import { zoneOffsetLabel, safeZone, instantToWall } from '../../../shared/zones.js';
 
 export { clocksAgree } from '../../../shared/zones.js';
+
+//Today on a plan's clock, the date the server refuses anything before
+export function todayIn(zone: string): string {
+    return instantToWall(safeZone(zone), new Date()).date;
+}
 
 //What the device says, or nothing at all from a runtime too old to know
 export function browserZone(): string {

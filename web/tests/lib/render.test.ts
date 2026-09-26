@@ -3,9 +3,10 @@ import { render } from 'svelte/server';
 import ConfirmPanel from '../../src/lib/compare/ConfirmPanel.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
+import DayGrid from '../../src/lib/DayGrid.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
-import { repeatSeries } from '../../src/lib/calendar.js';
+import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import type { Answer, Participant } from '../../src/lib/types.js';
 
 /*
@@ -13,6 +14,9 @@ import type { Answer, Participant } from '../../src/lib/types.js';
     a string with no DOM and no new dependency, which is as close as this suite gets to
     looking at a screen. Not the compare page itself, which wants auth and the api behind it.
 */
+
+//Every day that can be picked or marked is a button, and a day that is out is a span
+const buttons = (body: string) => (body.match(/<button/g) || []).length;
 
 describe('the confirmation switch', () => {
     const person = (userId: string, invited: boolean, vote: Answer | null): Participant => ({
@@ -194,6 +198,30 @@ describe('the compare grid', () => {
 
     it('marks nothing when no day is set', () => {
         expect(draw({ chosenDate: null })).not.toContain('isset');
+    });
+
+    //The server refuses a day before today, so the grid does not offer one
+    it('draws the days before today as out', () => {
+        expect(buttons(draw({ today: '2026-08-06' }))).toBe(9);
+    });
+
+    it('keeps every day on a grid that is only looked back at', () => {
+        expect(buttons(draw({ today: null }))).toBe(14);
+    });
+});
+
+//Counted off today, since the grid reads the clock itself
+describe('the fill-in grid', () => {
+    const draw = (selection: Record<string, number[]> = {}) =>
+        render(DayGrid, { props: { start: isoFromNow(-3, 'day'), end: isoFromNow(3, 'day'), selection } }).body;
+
+    it('locks the days already gone', () => {
+        expect(buttons(draw())).toBe(4);
+    });
+
+    //A clock button rides on every free day, so one clock means the day gone is not drawn as free
+    it('leaves a day gone out even when it was marked free', () => {
+        expect(buttons(draw({ [isoFromNow(-1, 'day')]: [], [isoFromNow(1, 'day')]: [] }))).toBe(5);
     });
 });
 

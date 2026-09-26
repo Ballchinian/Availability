@@ -1,14 +1,14 @@
 <script lang="ts">
     import { fillTextStyle, headingColor } from './heatmap.js';
-    import { buildMonths, isoOf, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
+    import { buildMonths, isoOf, isoFromNow, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT, formatHours } from './hours.js';
     import TimePicker from './TimePicker.svelte';
 
     /*
         The calendar. One block per month between the plan's start and end, each
-        day a cell you tap to mark yourself free. Days outside the range are dim
-        and locked. The month heading carries how full it is as a colour and as a
+        day a cell you tap to mark yourself free. Days outside the range, and days
+        already gone, are dim and locked. The month heading carries how full it is as a colour and as a
         tally, so the heat is never the only thing saying it. A free day shows a
         small clock you can tap to set specific hours.
 
@@ -56,9 +56,12 @@
         return map;
     });
 
-    //A day can be marked only when it is in range and on a weekday this plan asks about
+    //On this device's clock, since everyone's days are stored the way they wrote them
+    const today = isoFromNow(0, 'day');
+
+    //A day can be marked only when it is in range, not gone, and on a weekday this plan asks about
     function selectable(date: string) {
-        return isWeekdayAllowed(date, allowedWeekdays);
+        return date >= today && isWeekdayAllowed(date, allowedWeekdays);
     }
 
     function isFree(date: string) {
