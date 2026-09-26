@@ -187,6 +187,11 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
     const again = Boolean(plan.repeatedFrom);
     const where = guildName ? ` in ${guildName}` : '';
 
+    //Only ever set on the copy onThreadDelete keeps after the plan itself has gone
+    if (plan.deleted) {
+        return { content: `"${plan.name}"${where} was deleted, so there is nothing more to answer here.`, components: [] };
+    }
+
     //First, so nobody is left holding a card that still has them coming on the twelfth
     if (plan.status === 'cancelled') {
         return {

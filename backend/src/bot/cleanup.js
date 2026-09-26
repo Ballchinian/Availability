@@ -4,6 +4,7 @@ import { getPlanByThread, deletePlan, deletePlansForGuild, removeUserFromGuildPl
 import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel } from './util.js';
+import { syncPlanCards } from './plans.js';
 
 /*
     Keeping things tidy when bits get deleted, so the user never hits a silent
@@ -20,10 +21,16 @@ async function forgetIfOrphaned(userId) {
     }
 }
 
+/*
+    Deleting a plan thread by hand is the signal to scrap the whole plan. The cards are
+    rewritten after the delete, off the copy read before it, so the plan goes even if
+    Discord is slow, and a button pressed in between already finds nothing to act on.
+*/
 export async function onThreadDelete(thread) {
-    //Deleting a plan thread by hand is the signal to scrap the whole plan
     const plan = await getPlanByThread(thread.id);
-    if (plan) await deletePlan(plan.planId);
+    if (!plan) return;
+    await deletePlan(plan.planId);
+    await syncPlanCards({ ...plan, deleted: true }).catch((err) => console.error('[cleanup] retiring cards failed:', err));
 }
 
 export async function onChannelDelete(channel) {
