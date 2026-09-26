@@ -706,7 +706,11 @@ a.primary {
     font-size: 13px;
     cursor: cell;
     padding: 0;
-    touch-action: none;
+    /* Up and down stay the page's, so a swipe across the grid scrolls it rather than marking days */
+    touch-action: pan-y pinch-zoom;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 /* While dragging across days, make it obvious and stop text selecting */
@@ -873,7 +877,10 @@ a.primary {
     color: var(--text);
     font-size: 12px;
     cursor: cell;
-    touch-action: none;
+    touch-action: pan-y pinch-zoom;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .hour.on {

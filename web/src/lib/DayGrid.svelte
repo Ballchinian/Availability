@@ -3,6 +3,7 @@
     import { buildMonths, isoOf, isoFromNow, WEEKDAYS, isWeekdayAllowed, type Month } from './calendar.js';
     import { formatLong } from './format.js';
     import { HOUR_COUNT, formatHours } from './hours.js';
+    import { Press, fromKeyboard } from './paint.svelte.js';
     import TimePicker from './TimePicker.svelte';
 
     /*
@@ -15,9 +16,10 @@
         You can also press and drag across days to paint a stretch in one go. The
         first day you press sets the mode: start on an empty day and the drag marks
         days free, start on a free day and it clears them. The cursor switches to a
-        crosshair while you are dragging so it is obvious it is happening. Dragging
-        is pointer only, so shift-click paints the same stretch from the last day
-        pressed, which is all a keyboard gets.
+        crosshair while you are dragging so it is obvious it is happening. On a
+        phone a swipe up or down scrolls, so a finger paints once it moves sideways
+        or holds still. Dragging is pointer only, so shift-click paints the same
+        stretch from the last day pressed, which is all a keyboard gets.
     */
     let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, sureUntil = null }: {
         start: string;
@@ -29,10 +31,6 @@
     } = $props();
 
     let editingDate = $state('');
-    let painting = $state(false);
-    let paintMode = $state('add');
-    //The last day pressed, the far end a shift-click paints back to
-    let anchor = $state('');
 
     const months = $derived(buildMonths(start, end));
 
@@ -78,70 +76,31 @@
             selection = rest;
         }
     }
-    function apply(date: string) {
-        if (!selectable(date)) return;
-        if (paintMode === 'add') markFree(date);
-        else unmark(date);
-    }
 
-    /*
-        Every day from the anchor to here, painted the way the anchor ended up: an
-        anchor left free marks the stretch free, an anchor cleared clears it.
-    */
-    function extendTo(date: string) {
-        const [from, to] = anchor <= date ? [anchor, date] : [date, anchor];
-        paintMode = isFree(anchor) ? 'add' : 'remove';
+    function datesBetween(a: string, b: string) {
+        const [from, to] = a <= b ? [a, b] : [b, a];
+        const dates: string[] = [];
         const d = new Date(`${from}T00:00:00`);
         const last = new Date(`${to}T00:00:00`);
         while (d <= last) {
-            apply(isoOf(d));
+            dates.push(isoOf(d));
             d.setDate(d.getDate() + 1);
         }
+        return dates;
     }
 
-    function startPaint(e: PointerEvent, date: string) {
-        if (!selectable(date)) return;
-        e.preventDefault();
-        if (e.shiftKey && anchor) {
-            extendTo(date);
-            anchor = date;
-            return;
-        }
-        //Mouse has no implicit capture, but release it for pen and touch so the
-        //drag can cross into neighbouring day cells
-        try {
-            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch {
-            //Fine, nothing to release
-        }
-        painting = true;
-        paintMode = isFree(date) ? 'remove' : 'add';
-        apply(date);
-        anchor = date;
-    }
-    function enterPaint(date: string) {
-        if (painting) apply(date);
-    }
-    function stopPaint() {
-        painting = false;
-    }
+    const press = new Press<string>({
+        isOn: isFree,
+        set: (date, on) => {
+            if (!selectable(date)) return;
+            if (on) markFree(date);
+            else unmark(date);
+        },
+        between: datesBetween
+    });
 
-    /*
-        Enter or space on a focused day, which fires no pointer events at all so
-        startPaint never sees it. A keyboard activation is the click with nothing
-        behind it: detail 0, and an empty pointerType where click carries one.
-        Both, since a real tap fails only one of them depending on the browser,
-        and letting a tap through here would undo what startPaint just did.
-    */
     function keyToggle(e: MouseEvent, date: string) {
-        if (e.detail !== 0 || (e as PointerEvent).pointerType || !selectable(date)) return;
-        if (e.shiftKey && anchor) {
-            extendTo(date);
-        } else {
-            paintMode = isFree(date) ? 'remove' : 'add';
-            apply(date);
-        }
-        anchor = date;
+        if (fromKeyboard(e) && selectable(date)) press.key(date, e.shiftKey);
     }
 
     //A free day shades up the ramp by how many hours of the day it keeps,
@@ -204,13 +163,13 @@
     });
 </script>
 
-<svelte:window onpointerup={stopPaint} />
+<svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} />
 
 <!--What the colours mean, which nothing said before: the same shading on the compare
     grid means something else entirely, and it has had a legend all along-->
 <p class="legend small">Brighter means more of the day free. The badge on a day counts the hours you kept, a dot meaning all of them.</p>
 
-<div class="grid-wrap" class:painting>
+<div class="grid-wrap" class:painting={press.phase === 'painting'} {@attach press.stopScroll}>
     {#each months as month (monthKey(month))}
         {@const tally = view.tallies[monthKey(month)]}
         <section class="cal">
@@ -237,8 +196,8 @@
                                 style={day.style}
                                 aria-label={day.label}
                                 aria-pressed={day.free}
-                                onpointerdown={(e) => startPaint(e, cell.date)}
-                                onpointerenter={() => enterPaint(cell.date)}
+                                onpointerdown={(e) => press.down(cell.date, e)}
+                                onpointerenter={() => press.enter(cell.date)}
                                 onclick={(e) => keyToggle(e, cell.date)}
                                 title={day.far ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
                             >

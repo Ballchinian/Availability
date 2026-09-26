@@ -1,6 +1,7 @@
 <script lang="ts">
     import { formatDate, formatLong } from './format.js';
     import { DAY_HOURS, hourLabel, formatHours } from './hours.js';
+    import { Press, fromKeyboard } from './paint.svelte.js';
 
     /*
         Narrow a free day down to certain hours, anywhere in the day. Tap an
@@ -22,11 +23,6 @@
 
     const set = $derived(new Set(hours));
 
-    let painting = $state(false);
-    let paintMode = $state('add');
-    //The last hour pressed, the far end a shift-click paints back to
-    let anchor = $state<number | null>(null);
-
     //Mounted only while a day is being edited, so opening is the whole of it
     $effect(() => {
         dialog.showModal();
@@ -38,72 +34,26 @@
     function remove(h: number) {
         hours = hours.filter((x) => x !== h);
     }
-    function apply(h: number) {
-        if (paintMode === 'add') add(h);
-        else remove(h);
+
+    //In display order, so a run from 10pm to 2am goes through midnight
+    function hoursBetween(a: number, b: number) {
+        const i = DAY_HOURS.indexOf(a);
+        const j = DAY_HOURS.indexOf(b);
+        return DAY_HOURS.slice(Math.min(i, j), Math.max(i, j) + 1);
     }
 
-    /*
-        Every hour from the anchor to here in display order, painted the way the
-        anchor ended up: an anchor left on fills the run, an anchor cleared clears it.
-    */
-    function extendTo(h: number) {
-        if (anchor === null) return;
-        const a = DAY_HOURS.indexOf(anchor);
-        const b = DAY_HOURS.indexOf(h);
-        const [from, to] = a <= b ? [a, b] : [b, a];
-        paintMode = set.has(anchor) ? 'add' : 'remove';
-        for (let i = from; i <= to; i++) apply(DAY_HOURS[i]);
-    }
-
-    function startPaint(e: PointerEvent, h: number) {
-        e.preventDefault();
-        if (e.shiftKey && anchor !== null) {
-            extendTo(h);
-            anchor = h;
-            return;
-        }
-        try {
-            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch {
-            //Fine, nothing to release
-        }
-        painting = true;
-        paintMode = set.has(h) ? 'remove' : 'add';
-        apply(h);
-        anchor = h;
-    }
-    function enterPaint(h: number) {
-        if (painting) apply(h);
-    }
-    function stopPaint() {
-        painting = false;
-    }
-
-    /*
-        Enter or space on a focused hour, which fires no pointer events at all so
-        startPaint never sees it. A keyboard activation is the click with nothing
-        behind it: detail 0, and an empty pointerType where click carries one.
-        Both, since a real tap fails only one of them depending on the browser,
-        and letting a tap through here would undo what startPaint just did.
-    */
-    function keyToggle(e: MouseEvent, h: number) {
-        if (e.detail !== 0 || (e as PointerEvent).pointerType) return;
-        if (e.shiftKey && anchor !== null) {
-            extendTo(h);
-        } else {
-            paintMode = set.has(h) ? 'remove' : 'add';
-            apply(h);
-        }
-        anchor = h;
-    }
+    const press = new Press<number>({
+        isOn: (h) => set.has(h),
+        set: (h, on) => (on ? add(h) : remove(h)),
+        between: hoursBetween
+    });
 
     function allDay() {
         hours = [];
     }
 </script>
 
-<svelte:window onpointerup={stopPaint} />
+<svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} />
 
 <dialog
     class="time-card"
@@ -124,15 +74,15 @@
             {hours.length === 0 ? 'Free all day. Tap or drag to narrow it down.' : `Free ${formatHours(hours)}.`}
         </p>
 
-        <div class="hours" class:painting>
+        <div class="hours" class:painting={press.phase === 'painting'} {@attach press.stopScroll}>
             {#each DAY_HOURS as h (h)}
                 <button
                     class="hour"
                     class:on={set.has(h)}
                     aria-pressed={set.has(h)}
-                    onpointerdown={(e) => startPaint(e, h)}
-                    onpointerenter={() => enterPaint(h)}
-                    onclick={(e) => keyToggle(e, h)}
+                    onpointerdown={(e) => press.down(h, e)}
+                    onpointerenter={() => press.enter(h)}
+                    onclick={(e) => fromKeyboard(e) && press.key(h, e.shiftKey)}
                 >{hourLabel(h)}</button>
             {/each}
         </div>
