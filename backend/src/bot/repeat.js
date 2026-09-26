@@ -4,7 +4,7 @@ import { isMongoReady } from '../db/mongo.js';
 import { announcePlan, announceSetPlan, syncPlan } from './plans.js';
 import { shortId } from '../lib/ids.js';
 import { today, shiftDate, nextPlanShape } from '../lib/dates.js';
-import { safeZone, instantToWall } from '../lib/zones.js';
+import { safeZone, dayHasPassed } from '../lib/zones.js';
 
 /*
     Plans that come round again. "Every other Thursday" used to mean making a new plan
@@ -29,15 +29,6 @@ const SWEEP_MS = 30 * 60 * 1000;
 const FIRST_SWEEP_MS = 60 * 1000;
 
 let timer = null;
-
-/*
-    Whether the plan's day has actually been and gone where the plan is. The sweep's query
-    filters on the machine's date, which is close enough to find candidates and up to a day
-    out for a server on the other side of the world, so the real check happens here.
-*/
-function dayHasPassed(plan) {
-    return instantToWall(safeZone(plan.timeZone), new Date()).date > plan.chosenDate;
-}
 
 /*
     One plan's turn. Everything that can go wrong here is a reason to stop rather than to
@@ -160,6 +151,7 @@ export async function sweepRepeats() {
     const due = await getPlansDueToRepeat(shiftDate(today(), 1));
     let made = 0;
     for (const plan of due) {
+        //The query above is only close enough to find candidates, this is the real check
         if (!dayHasPassed(plan)) continue;
         if (await repeatOne(plan)) made++;
     }

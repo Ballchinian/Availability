@@ -9,7 +9,7 @@ import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { fanOut } from '../lib/fanout.js';
 import { formatDate, formatTime } from '../lib/dates.js';
-import { safeZone, planInstant, instantToWall, discordStamp } from '../lib/zones.js';
+import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 import { config } from '../config.js';
 
 /*
@@ -1032,6 +1032,7 @@ function voteStale(plan, userId) {
     if (!plan) return 'That plan is no longer around.';
     if (plan.status === 'cancelled') return `"${plan.name}" was cancelled.`;
     if (!plan.probeActive || !plan.chosenDate) return 'That confirmation is closed now. Check the thread for the latest.';
+    if (dayHasPassed(plan)) return `"${plan.name}" was on ${formatDate(plan.chosenDate)}, so that day has been and gone.`;
     const me = plan.participants.find((p) => p.userId === userId);
     if (!me) return `You are not on "${plan.name}" anymore.`;
     if (me.invited === false) return `You are not on the invite list for this date. Check the thread for the latest.`;

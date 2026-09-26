@@ -29,6 +29,11 @@ export function todayIn(zone) {
     return instantToWall(safeZone(zone), new Date()).date;
 }
 
+//A set plan's day has been and gone where the plan is. A plan with no day has none to pass.
+export function dayHasPassed(plan) {
+    return Boolean(plan.chosenDate) && todayIn(plan.timeZone) > plan.chosenDate;
+}
+
 //What Discord renders in the reader's own clock, so a DM never has to say whose 8pm it is
 export function discordStamp(instant, style = 'F') {
     return `<t:${Math.floor(instant.getTime() / 1000)}:${style}>`;
