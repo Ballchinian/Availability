@@ -1,5 +1,6 @@
 <script lang="ts">
     import { isoFromNow, isoPlus } from './calendar.js';
+    import { invalidIf } from './Status.svelte';
 
     /*
         The window a plan asks about: three one-click spans and the two dates themselves.
@@ -9,10 +10,13 @@
         min is the one thing the two screens disagree on: a plan being made cannot start
         before tomorrow, one already running can be pulled back to today.
     */
-    let { start = $bindable(''), end = $bindable(''), min = '' }: {
+    let { start = $bindable(''), end = $bindable(''), min = '', fault = '', errorId = '' }: {
         start?: string;
         end?: string;
         min?: string;
+        //Which of the two dates the form's error line is about, if either
+        fault?: string;
+        errorId?: string;
     } = $props();
 
     const maxDate = isoFromNow(2, 'year');
@@ -48,11 +52,11 @@
     <div class="range">
         <div>
             <label for="start">From</label>
-            <input id="start" type="date" bind:value={start} min={floor} max={maxDate} />
+            <input id="start" type="date" bind:value={start} min={floor} max={maxDate} {...invalidIf(fault === 'start', errorId)} />
         </div>
         <div>
             <label for="end">To</label>
-            <input id="end" type="date" bind:value={end} min={start || floor} max={maxDate} />
+            <input id="end" type="date" bind:value={end} min={start || floor} max={maxDate} {...invalidIf(fault === 'end', errorId)} />
         </div>
     </div>
 </fieldset>

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { router } from 'svelte-spa-router';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
@@ -9,7 +9,7 @@
     import RangeField from '../lib/RangeField.svelte';
     import RepeatDates from '../lib/RepeatDates.svelte';
     import RepeatField from '../lib/RepeatField.svelte';
-    import Status from '../lib/Status.svelte';
+    import Status, { invalidIf } from '../lib/Status.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
     let { params = {} }: { params?: Record<string, string> } = $props();
@@ -71,6 +71,9 @@
 
     let submitting = $state(false);
     let formError = $state('');
+    //The field formError is about, empty when it is about the form as a whole
+    let fault = $state('');
+    let errorLine = $state<Status>();
     let result = $state<CreatedPlan | null>(null);
     let copied = $state(false);
 
@@ -126,19 +129,27 @@
         loading = false;
     });
 
+    function fail(field: string, msg: string) {
+        fault = field;
+        formError = msg;
+        //Once the line holds the text, so that is what gets read with focus on it
+        tick().then(() => errorLine?.focus());
+    }
+
     async function submit() {
         formError = '';
+        fault = '';
         result = null;
-        if (!planName.trim()) return (formError = 'Give the plan a name.');
+        if (!planName.trim()) return fail('name', 'Give the plan a name.');
 
         if (mode === 'announce') {
-            if (!setDate) return (formError = 'Pick the date the plan is on.');
+            if (!setDate) return fail('date', 'Pick the date the plan is on.');
         } else {
-            if (!startDate || !endDate) return (formError = 'Pick a start and end date.');
-            if (endDate < startDate) return (formError = 'The end date is before the start.');
-            if (chosenWeekdays.length === 0) return (formError = 'Pick at least one day people can mark.');
+            if (!startDate || !endDate) return fail(startDate ? 'end' : 'start', 'Pick a start and end date.');
+            if (endDate < startDate) return fail('end', 'The end date is before the start.');
+            if (chosenWeekdays.length === 0) return fail('days', 'Pick at least one day people can mark.');
         }
-        if (selectedIds.length === 0) return (formError = 'Pick at least one person.');
+        if (selectedIds.length === 0) return fail('people', 'Pick at least one person.');
 
         submitting = true;
         try {
@@ -168,7 +179,7 @@
                 body: JSON.stringify(body)
             });
         } catch (err) {
-            formError = errorText(err);
+            fail('', errorText(err));
         }
         submitting = false;
     }
@@ -189,6 +200,7 @@
     function startAnother() {
         result = null;
         formError = '';
+        fault = '';
         copied = false;
         //The note about what this was copied from, which no longer describes an empty form
         likeName = '';
@@ -255,7 +267,7 @@
 
         <div class="field">
             <label for="planName">Plan name</label>
-            <input id="planName" type="text" bind:value={planName} placeholder="e.g. Camping weekend" maxlength="90" />
+            <input id="planName" type="text" bind:value={planName} placeholder="e.g. Camping weekend" maxlength="90" {...invalidIf(fault === 'name', 'form-error')} />
         </div>
 
         <div class="field">
@@ -270,9 +282,9 @@
         </fieldset>
 
         {#if mode === 'collect'}
-            <RangeField bind:start={startDate} bind:end={endDate} min={minStart} />
+            <RangeField bind:start={startDate} bind:end={endDate} min={minStart} {fault} errorId="form-error" />
 
-            <fieldset class="field">
+            <fieldset class="field" {...invalidIf(fault === 'days', 'form-error')}>
                 <legend class="group-label">Which days count?</legend>
                 <WeekdayPicker bind:dayOn />
             </fieldset>
@@ -280,7 +292,7 @@
             <div class="field range">
                 <div>
                     <label for="setdate">Date</label>
-                    <input id="setdate" type="date" bind:value={setDate} min={todayIso} max={maxDate} />
+                    <input id="setdate" type="date" bind:value={setDate} min={todayIso} max={maxDate} {...invalidIf(fault === 'date', 'form-error')} />
                 </div>
                 <div>
                     <label for="settime">Time (optional)</label>
@@ -289,7 +301,7 @@
             </div>
         {/if}
 
-        <fieldset class="field">
+        <fieldset class="field" {...invalidIf(fault === 'people', 'form-error')}>
             <legend class="group-label">Who is coming?</legend>
             <MemberPicker {members} bind:selectedIds />
         </fieldset>
@@ -297,7 +309,7 @@
         <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
         <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />
 
-        <Status class="status" msg={formError} error />
+        <Status class="status" id="form-error" msg={formError} error bind:this={errorLine} />
 
         <button class="primary" onclick={submit} disabled={submitting}>
             {#if submitting}Setting it up...{:else if mode === 'announce'}Announce the plan{:else}Create plan{/if}

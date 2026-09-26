@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { countDays, daysSince, isoFromNow, nextDay } from '../lib/calendar.js';
@@ -7,7 +7,7 @@
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
-    import Status from '../lib/Status.svelte';
+    import Status, { invalidIf } from '../lib/Status.svelte';
 
     /*
         The plan-free availability page. Same grid as a plan, but you choose the
@@ -36,6 +36,14 @@
     let saving = $state(false);
     let saved = $state<SavedTimetable | null>(null);
     let saveError = $state('');
+    //Set when saveError is about the window rather than the save
+    let endAtFault = $state(false);
+    let saveLine = $state<Status>();
+
+    function fail(msg: string) {
+        saveError = msg;
+        tick().then(() => saveLine?.focus());
+    }
 
     const newFrom = $derived.by(() => {
         if (!lastFilled || lastFilled >= displayEnd) return null;
@@ -83,10 +91,8 @@
     async function save() {
         saveError = '';
         saved = null;
-        if (displayEnd < displayStart) {
-            saveError = 'The end is before the start.';
-            return;
-        }
+        endAtFault = displayEnd < displayStart;
+        if (endAtFault) return fail('The end is before the start.');
         saving = true;
         try {
             const days = Object.entries(selection)
@@ -106,7 +112,7 @@
             lastFilled = days.length ? days.map((d) => d.date).sort().at(-1) ?? lastFilled : lastFilled;
             lastUpdatedAt = new Date().toISOString();
         } catch (err) {
-            saveError = errorText(err);
+            fail(errorText(err));
         }
         saving = false;
     }
@@ -137,7 +143,7 @@
             </div>
             <div>
                 <label for="end">To</label>
-                <input id="end" type="date" bind:value={displayEnd} min={displayStart} max={maxDate} />
+                <input id="end" type="date" bind:value={displayEnd} min={displayStart} max={maxDate} {...invalidIf(endAtFault, 'save-line')} />
             </div>
         </div>
 
@@ -180,7 +186,7 @@
                     {saving ? 'Saving...' : 'Save availability'}
                 </button>
             </div>
-            <Status class="status msg {saved ? 'good' : ''}" msg={saveError || savedText} error={Boolean(saveError)} />
+            <Status class="status msg {saved ? 'good' : ''}" id="save-line" msg={saveError || savedText} error={Boolean(saveError)} bind:this={saveLine} />
         </div>
     {/if}
 </section>

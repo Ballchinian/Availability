@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { api, errorText, ApiError } from '../lib/api.js';
     import { auth, loadMe, loginHref } from '../lib/auth.svelte.js';
     import { formatDate, formatTime, describeWeekdays } from '../lib/format.js';
@@ -28,6 +28,7 @@
     let submitting = $state(false);
     let saved = $state<SavedForPlan | null>(null);
     let saveError = $state('');
+    let saveLine = $state<Status>();
 
     //Auto-accept any other plan this save fully covers, same as the general page
     let autoConfirm = $state(true);
@@ -153,6 +154,7 @@
             if (data) data.confirmed = true;
         } catch (err) {
             saveError = errorText(err);
+            tick().then(() => saveLine?.focus());
         }
         submitting = false;
     }
@@ -296,7 +298,7 @@
                     {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
                 </button>
             </div>
-            <Status class="status msg {saved ? 'good' : ''}" msg={saveError || savedText} error={Boolean(saveError)} />
+            <Status class="status msg {saved ? 'good' : ''}" msg={saveError || savedText} error={Boolean(saveError)} bind:this={saveLine} />
         </div>
 
         {@render dropOut()}

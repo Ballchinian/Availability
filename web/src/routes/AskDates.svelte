@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { push } from 'svelte-spa-router';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
@@ -10,7 +10,7 @@
     import MemberPicker from '../lib/MemberPicker.svelte';
     import RangeField from '../lib/RangeField.svelte';
     import RepeatField from '../lib/RepeatField.svelte';
-    import Status from '../lib/Status.svelte';
+    import Status, { invalidIf } from '../lib/Status.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
     /*
@@ -54,6 +54,9 @@
 
     let saving = $state(false);
     let formError = $state('');
+    //The field formError is about, empty when it is about the form as a whole
+    let fault = $state('');
+    let errorLine = $state<Status>();
 
     //A plan already running can be pulled back to today, unlike one being made
     const todayIso = isoFromNow(0, 'day');
@@ -138,14 +141,22 @@
         loading = false;
     });
 
+    function fail(field: string, msg: string) {
+        fault = field;
+        formError = msg;
+        //Once the line holds the text, so that is what gets read with focus on it
+        tick().then(() => errorLine?.focus());
+    }
+
     async function save() {
         formError = '';
+        fault = '';
         if (mode === 'set') {
-            if (!setDate) return (formError = 'Pick the day it is on.');
+            if (!setDate) return fail('date', 'Pick the day it is on.');
         } else {
-            if (!startDate || !endDate) return (formError = 'Pick a start and end date.');
-            if (endDate < startDate) return (formError = 'The end date is before the start.');
-            if (chosenWeekdays.length === 0) return (formError = 'Pick at least one day people can mark.');
+            if (!startDate || !endDate) return fail(startDate ? 'end' : 'start', 'Pick a start and end date.');
+            if (endDate < startDate) return fail('end', 'The end date is before the start.');
+            if (chosenWeekdays.length === 0) return fail('days', 'Pick at least one day people can mark.');
         }
 
         saving = true;
@@ -188,7 +199,7 @@
             push(`/plan/${params.planId}/compare`);
             return;
         } catch (err) {
-            formError = errorText(err);
+            fail('', errorText(err));
         }
         saving = false;
     }
@@ -228,7 +239,7 @@
             <div class="field range">
                 <div>
                     <label for="setdate">Date</label>
-                    <input id="setdate" type="date" bind:value={setDate} min={todayIso} max={maxDate} />
+                    <input id="setdate" type="date" bind:value={setDate} min={todayIso} max={maxDate} {...invalidIf(fault === 'date', 'form-error')} />
                 </div>
                 <div>
                     <label for="settime">Time (optional)</label>
@@ -265,9 +276,9 @@
                 </div>
             {/if}
         {:else}
-            <RangeField bind:start={startDate} bind:end={endDate} min={todayIso} />
+            <RangeField bind:start={startDate} bind:end={endDate} min={todayIso} {fault} errorId="form-error" />
 
-            <fieldset class="field">
+            <fieldset class="field" {...invalidIf(fault === 'days', 'form-error')}>
                 <legend class="group-label">Which days count?</legend>
                 <WeekdayPicker bind:dayOn />
             </fieldset>
@@ -315,7 +326,7 @@
             {/if}
         </p>
 
-        <Status class="status" msg={formError} error />
+        <Status class="status" id="form-error" msg={formError} error bind:this={errorLine} />
 
         <div class="btn-row">
             <button class="primary" onclick={save} disabled={saving}>

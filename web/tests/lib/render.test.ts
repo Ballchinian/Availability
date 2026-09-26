@@ -10,7 +10,7 @@ import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
 import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
 import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
 import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
-import Status from '../../src/lib/Status.svelte';
+import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
 import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
@@ -635,6 +635,9 @@ describe('the miss slider', () => {
     });
 });
 
+//Both regions there and both empty
+const silent = /<p class="[^"]*silent"[^>]*><span role="alert"><\/span><span role="status"><\/span><\/p>/;
+
 describe('a status line', () => {
     const draw = (props: Record<string, unknown>) => render(Status, { props: { class: 'status', ...props } }).body;
 
@@ -649,8 +652,28 @@ describe('a status line', () => {
     });
 
     it('is there with nothing to say, taking no room', () => {
-        const body = draw({});
-        expect(body).toContain('<p class="status silent"><span role="alert"></span><span role="status"></span></p>');
+        expect(draw({})).toMatch(silent);
+    });
+
+    //A failed submit sends focus here, and a field at fault points here for its description
+    it('can take focus and be pointed at', () => {
+        expect(draw({ id: 'form-error' })).toMatch(/<p class="status silent" id="form-error" tabindex="-1">/);
+    });
+});
+
+describe('a field at fault', () => {
+    it('is marked invalid and described by the error line', () => {
+        expect(invalidIf(true, 'form-error')).toEqual({ 'aria-invalid': true, 'aria-describedby': 'form-error' });
+    });
+
+    it('carries nothing once it is not', () => {
+        expect(invalidIf(false, 'form-error')).toEqual({});
+    });
+
+    it('marks only the date the range error is about', () => {
+        const body = render(RangeField, { props: { fault: 'end', errorId: 'form-error' } }).body;
+        expect(body).toMatch(/<input id="end"[^>]*aria-invalid="true" aria-describedby="form-error"/);
+        expect(body).not.toMatch(/<input id="start"[^>]*aria-invalid/);
     });
 });
 
@@ -672,6 +695,6 @@ describe('the status line on each panel', () => {
     ];
 
     it.each(panels)('%s', (_, draw) => {
-        expect(draw()).toContain('silent"><span role="alert"></span><span role="status"></span></p>');
+        expect(draw()).toMatch(silent);
     });
 });
