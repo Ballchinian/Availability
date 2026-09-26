@@ -71,6 +71,7 @@
     });
 
     const maxMiss = $derived(Math.max(0, confirmedCount - 1));
+    const missSaid = $derived(missInput === 0 ? 'nobody' : missInput === 1 ? '1 person' : `${missInput} people`);
 
     /*
         How many confirmed people each day sits past the certainty horizon of. They
@@ -135,8 +136,9 @@
     <!--With one person in there is nobody to leave out, and a slider whose two ends
         are the same place is a control that looks broken rather than settled-->
     {#if maxMiss > 0}
-        <label for="miss">How many people are you willing to leave out? <strong>{missInput}</strong></label>
-        <input id="miss" type="range" min="0" max={maxMiss} bind:value={missInput} />
+        <!--The number is the slider's value, said by aria-valuetext, so the name stays put while it moves-->
+        <label for="miss">How many people are you willing to leave out? <strong aria-hidden="true">{missInput}</strong></label>
+        <input id="miss" type="range" min="0" max={maxMiss} aria-valuetext={missSaid} bind:value={missInput} />
     {/if}
     <p class="legend small">Brighter means more hours work for everyone counted, and the small number on a day is how many are free. Dim days, edged in dashes, have no time that fits: tap one to see why. {#if chosen}A tick marks the day it is set for.{/if}</p>
     <!--Everyone's hours are read onto this clock before they are compared, so it is the one the grid is in-->

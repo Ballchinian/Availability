@@ -4,6 +4,7 @@ import ClockNote from '../../src/lib/ClockNote.svelte';
 import PickPanel from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
+import DayCompare from '../../src/lib/compare/DayCompare.svelte';
 import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
 import MemberPicker from '../../src/lib/MemberPicker.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
@@ -542,5 +543,26 @@ describe('the weekday picker', () => {
         const body = render(WeekdayPicker, { props: { dayOn: [true, false, true, true, true, true, true] } }).body;
         expect(body).toContain('aria-pressed="false">Mo</button>');
         expect(body).toContain('aria-pressed="true">Tu</button>');
+    });
+
+    //"Mo" is what shows, and still what is said first, so voice control finds it
+    it('names each day in full', () => {
+        const body = render(WeekdayPicker, { props: {} }).body;
+        expect(body).toContain('aria-label="Monday"');
+        expect(body).toContain('aria-label="Sunday"');
+    });
+});
+
+describe('the miss slider', () => {
+    const draw = () =>
+        render(DayCompare, {
+            props: { planId: 'ab12cd34ef', start: '2026-08-01', end: '2026-08-14', confirmedCount: 4, totalParticipants: 4, timeZone: 'Europe/London', onsaved: async () => {} }
+        }).body;
+
+    //A name with the value in it changes every step, and some readers say the whole label again each time
+    it('says its value as the value, not in its name', () => {
+        const body = draw();
+        expect(body).toContain('aria-valuetext="nobody"');
+        expect(body).toContain('<strong aria-hidden="true">0</strong>');
     });
 });

@@ -11,7 +11,7 @@
 
 <script lang="ts">
     import { WEEKDAYS } from './calendar.js';
-    import { describeWeekdays } from './format.js';
+    import { describeWeekdays, WEEKDAY_NAMES } from './format.js';
 
     /*
         The pick-your-days control, shared by the create form and the compare page.
@@ -55,7 +55,7 @@
 </div>
 <div class="wdays">
     {#each ORDER as i (i)}
-        <button type="button" class="wday" class:on={dayOn[i]} aria-pressed={dayOn[i]} onclick={() => toggle(i)}>{WEEKDAYS[i]}</button>
+        <button type="button" class="wday" class:on={dayOn[i]} aria-label={WEEKDAY_NAMES[i]} aria-pressed={dayOn[i]} onclick={() => toggle(i)}>{WEEKDAYS[i]}</button>
     {/each}
 </div>
 {#if hint}<p class="muted small">{hint}</p>{/if}
