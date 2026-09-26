@@ -51,3 +51,11 @@ describe('reflow', () => {
         expect(value(".miss input[type='range']", 'margin-inline')).toBe('0');
     });
 });
+
+describe('the compare grid', () => {
+    //Same specificity, so whichever comes later wins
+    it('rings the day with focus over the day that is picked', () => {
+        expect(rule('.cday:focus-visible')).toContain('var(--heading)');
+        expect(css.indexOf('\n.cday:focus-visible {')).toBeGreaterThan(css.indexOf('\n.cday.chosen {'));
+    });
+});

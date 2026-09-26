@@ -1094,6 +1094,24 @@ a.primary {
     box-shadow: 0 0 0 2px #6ee7a0 inset;
 }
 
+/* In the text colour, so it keeps the 4.5:1 the heatmap picks that for. The ring above is 1.24:1 on a bright day */
+.cday .tick {
+    width: 9px;
+    height: 9px;
+    margin-left: 1px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* After .cday.chosen and just as specific, or the picked day's outline hides which day has focus */
+.cday:focus-visible {
+    outline: 2px solid var(--heading);
+    outline-offset: 2px;
+}
+
 /* Waiting / remind block */
 .waiting {
     margin-top: 10px;

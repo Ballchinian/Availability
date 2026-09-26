@@ -108,7 +108,7 @@
                             aria-pressed={selectedDate === cell.date}
                             onclick={() => pick(cell.date)}
                         >
-                            <span class="num">{cell.day}</span>
+                            <span class="num">{cell.day}{#if chosenDate === cell.date}<svg class="tick" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 6.5l2.5 2.5L10 3.5" /></svg>{/if}</span>
                             <span class="count">{ev.freeCount || ''}</span>
                         </button>
                     {/if}

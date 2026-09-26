@@ -186,6 +186,14 @@ describe('the compare grid', () => {
 
     it('marks nothing when no day is set', () => {
         expect(draw({ chosenDate: null })).not.toContain('isset');
+        expect(draw({ chosenDate: null })).not.toContain('class="tick"');
+    });
+
+    //The ring alone is 1.24:1 on a bright day, so the set day carries a tick in its text colour
+    it('ticks the set day', () => {
+        const body = draw({ chosenDate: '2026-08-05' });
+        expect(body.match(/class="tick"/g)).toHaveLength(1);
+        expect(body).toMatch(/class="num">5(<!--[^>]*-->)?<svg class="tick"/);
     });
 
     //The server refuses a day before today, so the grid does not offer one
