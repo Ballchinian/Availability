@@ -116,12 +116,19 @@
     }
 
     /*
-        The hours kept, on the badge. A bare number read as a count of anything at all,
-        so it carries its unit. Every hour picked is the same thing as none picked, which
-        is what formatHours already says out loud, so both come out as the quiet dot.
+        The hours kept, beside the clock. A bare number read as a count of anything at
+        all, so it carries its unit. Every hour picked is the same thing as none picked,
+        which is what formatHours already says out loud, so both leave the clock alone.
     */
     function hourBadge(hours: number[]) {
-        return !hours.length || hours.length === HOUR_COUNT ? '·' : `${hours.length}h`;
+        return !hours.length || hours.length === HOUR_COUNT ? '' : `${hours.length}h`;
+    }
+
+    //Starting with whatever the badge shows, so saying "5h" out loud finds it
+    function clockLabel(date: string) {
+        const badge = hourBadge(selection[date]);
+        const rest = `hours for ${names[date]}, free ${formatHours(selection[date])}`;
+        return badge ? `${badge}, set ${rest}` : `Set ${rest}`;
     }
 
     //Whether this day is past the point they said they can honestly plan to
@@ -171,7 +178,7 @@
 
 <!--What the colours mean, which nothing said before: the same shading on the compare
     grid means something else entirely, and it has had a legend all along-->
-<p class="legend small">Brighter means more of the day free. The badge on a day counts the hours you kept, a dot meaning all of them.</p>
+<p class="legend small">Brighter means more of the day free. A clock showing a number, like 5h, counts the hours you kept. A clock on its own means all of them.</p>
 
 <div class="grid-wrap" class:painting={press.phase === 'painting'} {@attach press.stopScroll}>
     {#each months as month (monthKey(month))}
@@ -211,10 +218,15 @@
                                 <button
                                     class="clock"
                                     title="Set specific hours"
-                                    aria-label={`Set hours for ${names[cell.date]}, free ${formatHours(selection[cell.date])}`}
+                                    aria-label={clockLabel(cell.date)}
                                     onpointerdown={(e) => e.stopPropagation()}
                                     onclick={() => (editingDate = cell.date)}
-                                >{hourBadge(selection[cell.date])}</button>
+                                >
+                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                        <circle cx="8" cy="8" r="6.25" />
+                                        <path d="M8 4.5V8l2.5 1.5" />
+                                    </svg>{hourBadge(selection[cell.date])}
+                                </button>
                             {/if}
                         </span>
                     {/if}

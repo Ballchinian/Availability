@@ -10,7 +10,7 @@ import RepeatField from '../../src/lib/RepeatField.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
-import { formatDate } from '../../src/lib/format.js';
+import { formatDate, formatLong } from '../../src/lib/format.js';
 import type { Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
 
 /*
@@ -206,6 +206,30 @@ describe('the fill-in grid', () => {
     //A clock button rides on every free day, so one clock means the day gone is not drawn as free
     it('leaves a day gone out even when it was marked free', () => {
         expect(buttons(draw({ [isoFromNow(-1, 'day')]: [], [isoFromNow(1, 'day')]: [] }))).toBe(5);
+    });
+
+    //Each clock as its name and the words on it, with the drawing taken out
+    const clocks = (body: string) =>
+        [...body.matchAll(/<button class="clock"[^>]*aria-label="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)].map((m) => ({
+            name: m[1],
+            shown: m[2].replace(/<svg[\s\S]*?<\/svg>/, '').replace(/<!--.*?-->/g, '').trim(),
+            drawn: m[2].includes('<svg') && m[2].includes('aria-hidden="true"')
+        }));
+
+    it('names a clock on part of a day by the hours it shows first', () => {
+        const day = isoFromNow(1, 'day');
+        const [clock] = clocks(draw({ [day]: [17, 18, 19, 20, 21] }));
+        expect(clock.shown).toBe('5h');
+        expect(clock.name).toBe(`5h, set hours for ${formatLong(day)}, free 5pm to 10pm`);
+        expect(clock.drawn).toBe(true);
+    });
+
+    it('shows only the clock on a day free all of it', () => {
+        const day = isoFromNow(1, 'day');
+        const [clock] = clocks(draw({ [day]: [] }));
+        expect(clock.shown).toBe('');
+        expect(clock.name).toBe(`Set hours for ${formatLong(day)}, free all day`);
+        expect(clock.drawn).toBe(true);
     });
 });
 
