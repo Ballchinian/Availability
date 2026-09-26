@@ -29,13 +29,30 @@
         '/privacy': Privacy,
         '*': NotFound
     };
+
+    /*
+        A hash route changes the page without the browser noticing, so a screen reader
+        is left on the link that was pressed. Each move lands it on the new page's h1.
+        Not the first route, which is the page loading and starts at the top anyway.
+    */
+    let arrived = false;
+    function toHeading() {
+        if (!arrived) {
+            arrived = true;
+            return;
+        }
+        const heading = document.querySelector<HTMLElement>('#content h1');
+        if (!heading) return;
+        heading.tabIndex = -1;
+        heading.focus();
+    }
 </script>
 
 <div class="page">
     <SiteHeader />
     <!--Focused by the skip link in the header-->
     <main id="content" tabindex="-1">
-        <Router {routes} />
+        <Router {routes} onRouteLoaded={toHeading} />
     </main>
     <footer class="site-foot">
         <a href="#/terms">Terms of Service</a>

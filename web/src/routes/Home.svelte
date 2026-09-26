@@ -53,8 +53,10 @@
 <!--The front door keeps the name the bot's links carry until there is somebody to name it for-->
 <svelte:head><title>{auth.user ? 'My plans' : 'Plan a meetup'}</title></svelte:head>
 
+<!--The heading comes as soon as it is known who is here rather than with the plans,
+    since a move from another page sends focus to it-->
 <section class="screen">
-    {#if loading}
+    {#if !auth.loaded}
         <p class="muted">Loading your plans...</p>
     {:else if !auth.user}
         <h1>When is everyone free?</h1>
@@ -63,20 +65,23 @@
             Log in above to see the plans you are part of. If you have not met the bot yet, someone in your server needs to
             invite it and run <code>/setup</code>.
         </p>
-    {:else if loadError}
-        <h1>My plans</h1>
-        <p class="status error">{loadError}</p>
     {:else}
         <h1>My plans</h1>
 
-        <StartPlan {guilds} />
-
-        {#if plans.length === 0}
-            <p class="muted">
-                Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
-            </p>
+        {#if loading}
+            <p class="muted">Loading your plans...</p>
+        {:else if loadError}
+            <p class="status error">{loadError}</p>
         {:else}
-            <PlanCards plans={sortedPlans} />
+            <StartPlan {guilds} />
+
+            {#if plans.length === 0}
+                <p class="muted">
+                    Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
+                </p>
+            {:else}
+                <PlanCards plans={sortedPlans} />
+            {/if}
         {/if}
     {/if}
 </section>

@@ -23,6 +23,8 @@ import RepeatField from '../../src/lib/RepeatField.svelte';
 import WeekdayPicker from '../../src/lib/WeekdayPicker.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
+import Home from '../../src/routes/Home.svelte';
+import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong } from '../../src/lib/format.js';
 import type { Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
@@ -725,5 +727,19 @@ describe('the line a picked day opens with', () => {
 
     it('says what the day comes to from inside that region', () => {
         expect(draw('2026-08-12')).toMatch(/<span role="status">\s*<strong>[^<]+<\/strong> works for 1 of 1, common time <strong>all day<\/strong>\.\s*<\/span>/);
+    });
+});
+
+describe('the front door', () => {
+    //A move from another page sends focus to the h1, so it cannot wait for the plans
+    it('names the page while the plans are still loading', () => {
+        auth.loaded = true;
+        auth.user = { id: 'u1', username: 'ann', displayName: 'Ann', avatar: '' };
+        try {
+            expect(bare(render(Home).body)).toMatch(/<h1>My plans<\/h1>\s*<p class="muted">Loading your plans\.\.\.<\/p>/);
+        } finally {
+            auth.loaded = false;
+            auth.user = null;
+        }
     });
 });

@@ -62,6 +62,11 @@ html {
     outline: none;
 }
 
+/* The same for a page's heading, focused only by a move from another page */
+#content h1:focus {
+    outline: none;
+}
+
 /* Two lots of padding either side costs a phone a third of its width */
 @media (max-width: 600px) {
     :root {
