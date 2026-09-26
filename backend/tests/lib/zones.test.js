@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { isValidZone, instantToWall, wallToInstant, clocksAgree, retimeDay, planInstant } from '../../src/lib/zones.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { isValidZone, instantToWall, wallToInstant, clocksAgree, retimeDay, planInstant, todayIn } from '../../src/lib/zones.js';
 import { suggestZones } from '../../src/bot/timezone.js';
 
 /*
@@ -166,5 +166,18 @@ describe('suggestZones', () => {
 
     it('comes back empty rather than guessing', () => {
         expect(suggestZones('zzzznotazone')).toEqual([]);
+    });
+});
+
+describe('todayIn', () => {
+    afterEach(() => vi.useRealTimers());
+
+    //1pm UTC on the 26th is already 1am on the 27th in Auckland
+    it('is the date on the server clock, not the machine one', () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-26T13:00:00Z'));
+        expect(todayIn('Pacific/Auckland')).toBe('2026-09-27');
+        expect(todayIn('Europe/London')).toBe('2026-09-26');
+        expect(todayIn('America/Los_Angeles')).toBe('2026-09-26');
     });
 });

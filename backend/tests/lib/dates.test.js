@@ -10,7 +10,8 @@ import {
     allowedDaysInRange,
     describeWeekdays,
     cleanWeekdays,
-    weekdayChange
+    weekdayChange,
+    readTime
 } from '../../src/lib/dates.js';
 
 //Days from today as a YYYY-MM-DD string, for the range checks that read the clock
@@ -260,5 +261,32 @@ describe('weekdayChange', () => {
     //Dropping the restriction opens every day the plan was not already asking about
     it('opens days when the restriction is lifted', () => {
         expect(weekdayChange([0, 6], null)).toEqual({ same: false, opensADay: true });
+    });
+});
+
+describe('readTime', () => {
+    it('takes any time on a 24 hour clock', () => {
+        expect(readTime('00:00')).toBe('00:00');
+        expect(readTime('23:59')).toBe('23:59');
+    });
+
+    it('has nothing to say when no time was given', () => {
+        expect(readTime(null)).toBe(null);
+        expect(readTime(undefined)).toBe(null);
+        expect(readTime('')).toBe(null);
+    });
+
+    it('refuses what only looks like a time', () => {
+        for (const bad of ['25:99', '24:00', '19:60', '7:00', '19:00:00', 'soon', 1900]) {
+            expect([bad, readTime(bad)]).toEqual([bad, false]);
+        }
+    });
+});
+
+describe('checkRange on a server clock', () => {
+    //The machine's today is left out on purpose: now is whatever the plan's server says it is
+    it('counts tomorrow from the day it is given', () => {
+        expect(checkRange('2026-09-27', '2026-09-30', '2026-09-26')).toBe(null);
+        expect(checkRange('2026-09-27', '2026-09-30', '2026-09-27')).toMatch(/tomorrow or later/);
     });
 });

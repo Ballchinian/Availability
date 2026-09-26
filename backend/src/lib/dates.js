@@ -1,4 +1,4 @@
-import { describeWeekdays as describeDays, weekdayAllowed, isoDate, tomorrow, maxEnd } from '../../../shared/dates.js';
+import { describeWeekdays as describeDays, weekdayAllowed, isoDate, maxEnd, shiftDate } from '../../../shared/dates.js';
 
 /*
     Plain calendar date helpers. Everything is a YYYY-MM-DD string so a date is
@@ -24,11 +24,19 @@ export function today() {
     return isoDate(new Date());
 }
 
-//Returns an error string if the range is no good, or null if it is fine
-export function checkRange(start, end) {
+export const BAD_TIME = 'Pick a time between 00:00 and 23:59.';
+
+//A time of day as HH:MM, null for none given, false for one that is not a time. Two digits apiece let "25:99" through.
+export function readTime(time) {
+    if (time == null || time === '') return null;
+    return typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : false;
+}
+
+//Returns an error string if the range is no good, or null if it is fine. now is today on the plan's clock.
+export function checkRange(start, end, now = today()) {
     const shape = /^\d{4}-\d{2}-\d{2}$/;
     if (!shape.test(start) || !shape.test(end)) return 'Pick a valid start and end date.';
-    if (start < tomorrow()) return 'The start date has to be tomorrow or later.';
+    if (start < shiftDate(now, 1)) return 'The start date has to be tomorrow or later.';
     if (end > maxEnd()) return 'The end date cannot be more than two years away.';
     if (start > end) return 'The start date is after the end date.';
     return null;

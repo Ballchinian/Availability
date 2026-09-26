@@ -4,12 +4,12 @@ import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
 import { announcePlan, announceSetPlan } from '../../bot/plans.js';
-import { checkRange, today, maxEnd, cleanWeekdays, allowedDaysInRange, REPEAT_WEEKS } from '../../lib/dates.js';
+import { checkRange, maxEnd, cleanWeekdays, allowedDaysInRange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
-import { safeZone } from '../../lib/zones.js';
+import { safeZone, todayIn } from '../../lib/zones.js';
 
 /*
     Server scoped routes: who the logged in person is in this server, the member
@@ -157,13 +157,14 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (setMode) {
         const shape = /^\d{4}-\d{2}-\d{2}$/;
         if (!shape.test(date || '')) return res.status(400).json({ error: 'Pick the date the plan is on.' });
-        if (date < today()) return res.status(400).json({ error: 'That date is in the past.' });
+        if (date < todayIn(ctx.cfg.timeZone)) return res.status(400).json({ error: 'That date is in the past.' });
         if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
-        const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
+        const cleanTime = readTime(time);
+        if (cleanTime === false) return res.status(400).json({ error: BAD_TIME });
         dateRange = { start: date, end: date };
         chosen = { date, time: cleanTime };
     } else {
-        const rangeError = checkRange(start, end);
+        const rangeError = checkRange(start, end, todayIn(ctx.cfg.timeZone));
         if (rangeError) return res.status(400).json({ error: rangeError });
         dateRange = { start, end };
         weekdays = cleanWeekdays(allowedWeekdays);

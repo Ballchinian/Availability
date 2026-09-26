@@ -22,7 +22,9 @@ A missing or expired session comes back as `401`. A valid session without the ri
 Dates are `YYYY-MM-DD` and times are `HH:MM`, both plain readings with no zone written into them. Which clock to read one on depends on whose it is:
 
 * A person's own availability is read on **their** clock, `PUT /api/me/timezone`, taken from the browser.
-* A plan's day, its set time and the compare grid are read on **the server's**, set by `/setup` or `/timezone` in Discord.
+* A plan's day, its set time and the compare grid are read on **the server's**, set by `/setup` or `/timezone` in Discord. So is "today" when a route turns away a day in the past: on a server in Auckland, the 27th arrives while it is still the 26th here.
+
+A time has to be a real one, `00:00` to `23:59`. Anything else, `25:99` say, comes back as a 400 rather than being quietly dropped.
 
 Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compare`, which reads everyone's hours onto the server's clock so they can be compared, and in the calendar file, which turns a plan's reading into a real moment.
 

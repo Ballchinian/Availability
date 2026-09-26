@@ -504,6 +504,35 @@ describe('fixing up Discord by hand', () => {
     Its dates are worked out from today rather than written down: this route refuses a
     window that has already been, so fixed dates here would pass until the day they did not.
 */
+describe('times and days on the plan clock', () => {
+    it('refuses a time that is not one', async () => {
+        const res = await post('/ab12cd34ef/choose', { date: '2026-08-05', time: '25:99' });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/between 00:00 and 23:59/);
+        expect(db.setPlanChosen).not.toHaveBeenCalled();
+    });
+
+    //1pm UTC on the 26th, which is the 27th in Auckland and still the 26th nearly everywhere else
+    it('reads today as the date where the server is', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-26T13:00:00Z'));
+        try {
+            const on = (timeZone) => plans.set('ab12cd34ef', plan({ timeZone, dateRange: { start: '2026-09-20', end: '2026-10-10' } }));
+
+            on('Pacific/Auckland');
+            const there = await post('/ab12cd34ef/dates', { date: '2026-09-26' });
+            expect(there.status).toBe(400);
+            expect((await there.json()).error).toMatch(/in the past/);
+
+            on('Europe/London');
+            const here = await post('/ab12cd34ef/dates', { date: '2026-09-26' });
+            expect(here.status).toBe(200);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
 describe('going back out for different dates', () => {
     //The first Monday a month out, so a Monday to Friday window is the same shape whenever this runs
     const monday = (() => {

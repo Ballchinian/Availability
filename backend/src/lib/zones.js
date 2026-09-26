@@ -1,4 +1,4 @@
-import { safeZone as safe } from '../../../shared/zones.js';
+import { safeZone as safe, instantToWall } from '../../../shared/zones.js';
 import { config } from '../config.js';
 
 /*
@@ -22,6 +22,11 @@ export {
 //A stored zone, or the deployment's, for a document written before anyone was asked
 export function safeZone(zone) {
     return safe(zone, config.defaultTimeZone);
+}
+
+//Today on a server's clock, up to a day off the machine's own for a server across the world
+export function todayIn(zone) {
+    return instantToWall(safeZone(zone), new Date()).date;
 }
 
 //What Discord renders in the reader's own clock, so a DM never has to say whose 8pm it is

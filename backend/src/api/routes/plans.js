@@ -9,9 +9,9 @@ import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
 import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, announceAddition, notifyCreatorIfAllIn, syncPlan, applyConfirmations, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl, planUrl } from '../../bot/util.js';
 import { buildIcs, icsFileName } from '../../lib/ics.js';
-import { today, maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, REPEAT_WEEKS } from '../../lib/dates.js';
+import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
-import { safeZone } from '../../lib/zones.js';
+import { safeZone, todayIn } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
@@ -343,8 +343,8 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
         return res.status(400).json({ error: 'That day is not one this plan asked about.' });
     }
 
-    //The time is optional and only sticks if it looks like HH:MM
-    const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
+    const cleanTime = readTime(time);
+    if (cleanTime === false) return res.status(400).json({ error: BAD_TIME });
     /*
         Carried through rather than taken from the caller. What a plan is about is one field
         now, edited on details, and a day being moved is not a reason to lose the line an
@@ -600,7 +600,7 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
 
     if (setMode) {
         if (!shape.test(date)) return res.status(400).json({ error: 'Pick a valid date.' });
-        if (date < today()) return res.status(400).json({ error: 'That date is in the past.' });
+        if (date < todayIn(plan.timeZone)) return res.status(400).json({ error: 'That date is in the past.' });
         if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
 
         /*
@@ -627,7 +627,7 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
             return res.status(400).json({ error: 'Pick a valid start and end date.' });
         }
         if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
-        if (end < today()) return res.status(400).json({ error: 'That whole range is in the past.' });
+        if (end < todayIn(plan.timeZone)) return res.status(400).json({ error: 'That whole range is in the past.' });
         if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
 
         window = { start, end };
@@ -651,7 +651,8 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
     const movedWindow = window.start !== plan.dateRange.start || window.end !== plan.dateRange.end;
     const { same: sameDays, opensADay } = weekdayChange(plan.allowedWeekdays, weekdays);
     const movedRepeat = wanted !== (plan.repeatWeeks || null);
-    const cleanTime = typeof time === 'string' && /^\d{2}:\d{2}$/.test(time) ? time : null;
+    const cleanTime = readTime(time);
+    if (setMode && cleanTime === false) return res.status(400).json({ error: BAD_TIME });
     //A day is new when the plan had none, moved when it had a different one
     const movedDay = setMode && date !== plan.chosenDate;
     const movedTime = setMode && cleanTime !== (plan.chosenTime || null);
