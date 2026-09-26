@@ -263,19 +263,19 @@
             <textarea id="planDescription" bind:value={planDescription} placeholder="A line or two so people know what they are signing up for." maxlength="280" rows="2"></textarea>
         </div>
 
-        <div class="field" role="radiogroup" aria-labelledby="modeLabel">
-            <span class="group-label" id="modeLabel">What kind of plan?</span>
+        <fieldset class="field">
+            <legend class="group-label">What kind of plan?</legend>
             <label class="check"><input type="radio" name="mode" value="collect" bind:group={mode} /> Collect availability, find a day that works</label>
             <label class="check"><input type="radio" name="mode" value="announce" bind:group={mode} /> Announce a set plan, you already know the day</label>
-        </div>
+        </fieldset>
 
         {#if mode === 'collect'}
             <RangeField bind:start={startDate} bind:end={endDate} min={minStart} />
 
-            <div class="field" role="group" aria-labelledby="daysLabel">
-                <span class="group-label" id="daysLabel">Which days count?</span>
+            <fieldset class="field">
+                <legend class="group-label">Which days count?</legend>
                 <WeekdayPicker bind:dayOn />
-            </div>
+            </fieldset>
         {:else}
             <div class="field range">
                 <div>
@@ -289,10 +289,10 @@
             </div>
         {/if}
 
-        <div class="field" role="group" aria-labelledby="whoLabel">
-            <span class="group-label" id="whoLabel">Who is coming?</span>
+        <fieldset class="field">
+            <legend class="group-label">Who is coming?</legend>
             <MemberPicker {members} bind:selectedIds />
-        </div>
+        </fieldset>
 
         <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
         <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />

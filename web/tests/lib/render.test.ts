@@ -15,6 +15,7 @@ import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
 import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
 import MemberPicker from '../../src/lib/MemberPicker.svelte';
+import RangeField from '../../src/lib/RangeField.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import TimePicker from '../../src/lib/TimePicker.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
@@ -76,6 +77,16 @@ describe('picking a day nobody has answered about', () => {
             freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] }
         });
         expect(body).toContain('Just the people who can make it');
+    });
+
+    it('asks who is still invited as a set of radios under a legend', () => {
+        const body = draw({
+            confirmedCount: 1,
+            totalParticipants: 3,
+            freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] }
+        });
+        expect(body).toMatch(/<fieldset><legend class="lbl">Who is still invited\?<\/legend>\s*<label class="check"><input type="radio"/);
+        expect(body).not.toContain('radiogroup');
     });
 
     //The grid gives the hours as a number now too, so the line under it says the same one
@@ -573,6 +584,25 @@ describe('the member picker', () => {
         expect(body).toContain('aria-label="Add ANN"');
         expect(body).toContain('aria-label="Remove BOB"');
         expect(body).not.toContain('title=');
+    });
+
+    //The placeholder goes the moment anyone types, and some readers never say it at all
+    it('names the search box', () => {
+        expect(draw([])).toMatch(/<label class="offscreen" for="([^"]+)-search">Search members<\/label>\s*<input id="\1-search"/);
+    });
+
+    it('names each list by the head over it', () => {
+        const body = draw(['bob']);
+        expect(body).toMatch(/<span id="([^"]+)-pool">Members \(2\)<\/span>[\s\S]*<ul class="list" aria-labelledby="\1-pool"/);
+        expect(body).toMatch(/<span id="([^"]+)-chosen">Invited \(1\)<\/span>[\s\S]*<ul class="list drop" aria-labelledby="\1-chosen"/);
+    });
+});
+
+describe('the date range', () => {
+    it('groups the spans and the two dates under a legend', () => {
+        const body = render(RangeField, { props: {} }).body;
+        expect(body).toMatch(/^(<!--[^>]*-->)?<fieldset class="field"><legend class="group-label">Which dates should I ask about\?<\/legend>/);
+        expect(body).not.toContain('role="group"');
     });
 });
 

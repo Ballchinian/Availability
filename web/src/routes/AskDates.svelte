@@ -218,11 +218,11 @@
             {/if}
         </p>
 
-        <div class="field" role="radiogroup" aria-labelledby="modeLabel">
-            <span class="group-label" id="modeLabel">Which is it?</span>
+        <fieldset class="field">
+            <legend class="group-label">Which is it?</legend>
             <label class="check"><input type="radio" name="mode" value="set" bind:group={mode} /> I know the day, set it</label>
             <label class="check"><input type="radio" name="mode" value="ask" bind:group={mode} /> Ask everyone which days work</label>
-        </div>
+        </fieldset>
 
         {#if mode === 'set'}
             <div class="field range">
@@ -267,16 +267,16 @@
         {:else}
             <RangeField bind:start={startDate} bind:end={endDate} min={todayIso} />
 
-            <div class="field" role="group" aria-labelledby="daysLabel">
-                <span class="group-label" id="daysLabel">Which days count?</span>
+            <fieldset class="field">
+                <legend class="group-label">Which days count?</legend>
                 <WeekdayPicker bind:dayOn />
-            </div>
+            </fieldset>
         {/if}
 
-        <div class="field" role="group" aria-labelledby="whoLabel">
-            <span class="group-label" id="whoLabel">Who is coming?</span>
+        <fieldset class="field">
+            <legend class="group-label">Who is coming?</legend>
             <MemberPicker {members} bind:selectedIds />
-        </div>
+        </fieldset>
 
         <!--Counted off whichever day survives this, which in set mode is the one being named-->
         <RepeatField bind:weeks={repeatWeeks} from={seriesFrom} time={mode === 'set' ? setTime : data.plan.chosenTime} />

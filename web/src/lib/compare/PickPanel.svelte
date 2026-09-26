@@ -232,11 +232,11 @@
         <!--Only for a day that is moving. On the day the plan is already on there is no
             invite list to redraw.-->
         {#if !isUpdate && canNarrow}
-            <div role="radiogroup" aria-labelledby="invitelabel">
-                <span class="lbl" id="invitelabel">Who is still invited?</span>
+            <fieldset>
+                <legend class="lbl">Who is still invited?</legend>
                 <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
                 <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
-            </div>
+            </fieldset>
         {/if}
 
         <!--Said before it happens rather than found afterwards on the board, since the switches

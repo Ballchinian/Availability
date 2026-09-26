@@ -38,8 +38,8 @@
     }
 </script>
 
-<div class="field" role="group" aria-labelledby="rangeLabel">
-    <span class="group-label" id="rangeLabel">Which dates should I ask about?</span>
+<fieldset class="field">
+    <legend class="group-label">Which dates should I ask about?</legend>
     <div class="quick-row">
         {#each SPANS as span (span.label)}
             <button type="button" class="quick" onclick={() => setSpan(span.endOf)}>{span.label}</button>
@@ -55,4 +55,4 @@
             <input id="end" type="date" bind:value={end} min={start || floor} max={maxDate} />
         </div>
     </div>
-</div>
+</fieldset>

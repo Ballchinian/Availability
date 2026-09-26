@@ -13,6 +13,7 @@
     } = $props();
 
     let search = $state('');
+    const uid = $props.id();
 
     const selectedSet = $derived(new Set(selectedIds));
 
@@ -61,11 +62,13 @@
 <div class="picker">
     <div class="col">
         <div class="col-head">
-            <span>Members ({pool.length})</span>
-            <input class="search" type="text" placeholder="Search..." bind:value={search} />
+            <span id="{uid}-pool">Members ({pool.length})</span>
+            <label class="offscreen" for="{uid}-search">Search members</label>
+            <input id="{uid}-search" class="search" type="text" placeholder="Search..." bind:value={search} />
         </div>
         <ul
             class="list"
+            aria-labelledby="{uid}-pool"
             ondragover={(e) => e.preventDefault()}
             ondrop={(e) => onDrop(e, 'pool')}
         >
@@ -91,7 +94,7 @@
 
     <div class="col">
         <div class="col-head">
-            <span>Invited ({chosen.length})</span>
+            <span id="{uid}-chosen">Invited ({chosen.length})</span>
             <span class="head-actions">
                 <button type="button" class="quick" onclick={addAll} disabled={pool.length === 0}>
                     {search.trim() ? 'Add all shown' : 'Add all'}
@@ -101,6 +104,7 @@
         </div>
         <ul
             class="list drop"
+            aria-labelledby="{uid}-chosen"
             ondragover={(e) => e.preventDefault()}
             ondrop={(e) => onDrop(e, 'chosen')}
         >
