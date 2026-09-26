@@ -1,7 +1,7 @@
-import { getPlansDueToRepeat, claimForRepeat, releaseRepeatClaim, createPlan, setPlanChosen, setPlanRepeat, addPlanEvent } from '../db/plans.js';
+import { getPlan, getPlansDueToRepeat, getPlansNeedingRepair, claimForRepeat, releaseRepeatClaim, createPlan, setPlanChosen, setPlanRepeat, setNeedsRepair, addPlanEvent } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { isMongoReady } from '../db/mongo.js';
-import { announcePlan, announceSetPlan } from './plans.js';
+import { announcePlan, announceSetPlan, syncPlan } from './plans.js';
 import { shortId } from '../lib/ids.js';
 import { today, shiftDate, nextPlanShape } from '../lib/dates.js';
 import { safeZone, instantToWall } from '../lib/zones.js';
@@ -69,13 +69,14 @@ async function repeatOne(plan) {
     /*
         The id is claimed on the old plan before the new one exists, so two sweeps running
         at once cannot both get through here, and a crash in between leaves a claim rather
-        than a duplicate. The claim is let go again if the plan is not actually made.
+        than a duplicate. The claim is let go again only if the plan is not actually made.
     */
     const nextId = shortId(10);
     if (!(await claimForRepeat(plan.planId, nextId))) return false;
 
+    let next = null;
     try {
-        let next = await createPlan({
+        next = await createPlan({
             planId: nextId,
             guildId: plan.guildId,
             name: plan.name,
@@ -91,27 +92,54 @@ async function repeatOne(plan) {
             repeatWeeks: plan.repeatWeeks,
             repeatedFrom: plan.planId
         });
+    } catch (err) {
+        /*
+            An insert can throw after it landed (a timeout on the reply), so the claim goes
+            only once the plan is known not to be there. Letting it go with the plan made
+            was a new plan and thread every half hour for as long as the announcement failed.
+        */
+        console.error(`[repeat] ${plan.planId} failed:`, err);
+        if (await getPlan(nextId).catch(() => null)) await setNeedsRepair(nextId, true).catch(() => {});
+        else await releaseRepeatClaim(plan.planId).catch(() => {});
+        return false;
+    }
 
+    await addPlanEvent(plan.planId, { type: 'repeated', by: plan.createdBy, byName: '', planId: nextId }).catch(() => {});
+
+    try {
         if (shape.set) {
             next = await setPlanChosen(next.planId, shape.chosen.date, shape.chosen.time, shape.chosen.note);
             await announceSetPlan(next, cfg, '', { dm: true, probe: false });
         } else {
             await announcePlan(next, cfg, '', { dm: true });
         }
-
-        await addPlanEvent(plan.planId, { type: 'repeated', by: plan.createdBy, byName: '', planId: nextId });
-        console.log(`[repeat] ${plan.planId} came round again as ${nextId}`);
-        return true;
     } catch (err) {
-        /*
-            The plan may or may not exist by now. Letting the claim go is right either way:
-            if it was never made the next sweep tries again, and if it was made but the
-            announcement fell over, the plan is still reachable from the landing page.
-        */
-        console.error(`[repeat] ${plan.planId} failed:`, err);
-        await releaseRepeatClaim(plan.planId).catch(() => {});
-        return false;
+        console.error(`[repeat] ${nextId} was made but not announced, repairing it next sweep:`, err);
+        await setNeedsRepair(nextId, true).catch(() => {});
     }
+
+    console.log(`[repeat] ${plan.planId} came round again as ${nextId}`);
+    return true;
+}
+
+/*
+    A repeat that exists but never fully reached Discord. With a thread, syncPlan puts the
+    opener and cards back; without one the announcement never got that far, so it runs again.
+*/
+async function repairOne(plan) {
+    const cfg = await getGuildConfig(plan.guildId);
+    if (!cfg?.setupComplete || !cfg.plansChannelId) {
+        console.warn(`[repeat] ${plan.planId}: server ${plan.guildId} has no working setup, giving up the repair`);
+        await setNeedsRepair(plan.planId, false);
+        return;
+    }
+
+    if (plan.threadId) await syncPlan(plan, { cfg });
+    else if (plan.status === 'closed') await announceSetPlan(plan, cfg, '', { dm: true, probe: false });
+    else await announcePlan(plan, cfg, '', { dm: true });
+
+    await setNeedsRepair(plan.planId, false);
+    console.log(`[repeat] ${plan.planId} repaired`);
 }
 
 /*
@@ -123,6 +151,10 @@ async function repeatOne(plan) {
 */
 export async function sweepRepeats() {
     if (!isMongoReady()) return 0;
+
+    for (const plan of await getPlansNeedingRepair()) {
+        await repairOne(plan).catch((err) => console.error(`[repeat] repairing ${plan.planId} failed:`, err));
+    }
 
     //A day past the machine's own date, since a plan's day passes on its server's clock, not ours
     const due = await getPlansDueToRepeat(shiftDate(today(), 1));

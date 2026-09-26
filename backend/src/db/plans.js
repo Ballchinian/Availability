@@ -277,6 +277,15 @@ export async function releaseRepeatClaim(planId) {
     await col(collections.plans).updateOne({ planId }, { $set: { repeatedInto: null } });
 }
 
+//A repeat that was made but never fully reached Discord, picked up again by the next sweep
+export async function setNeedsRepair(planId, needsRepair) {
+    await col(collections.plans).updateOne({ planId }, needsRepair ? { $set: { needsRepair: true } } : { $unset: { needsRepair: '' } });
+}
+
+export async function getPlansNeedingRepair(limit = 25) {
+    return col(collections.plans).find({ needsRepair: true }).limit(limit).toArray();
+}
+
 /*
     Open plans the person is in whose whole range sits inside the dates they just
     filled. Used by the general availability page to auto-accept any plan they

@@ -121,6 +121,8 @@ async function ensureIndexes(database) {
     await database
         .collection(collections.plans)
         .createIndex({ repeatWeeks: 1, repeatedInto: 1, chosenDate: 1 }, { partialFilterExpression: { repeatWeeks: { $gt: 0 } } });
+    //The same sweep's other question, which almost no plan ever answers yes to
+    await database.collection(collections.plans).createIndex({ needsRepair: 1 }, { partialFilterExpression: { needsRepair: true } });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
 }
