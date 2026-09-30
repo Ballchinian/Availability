@@ -341,7 +341,8 @@ Planner role only.
 
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
-* Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
+* Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `inReason` for someone out, `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
+* `updatedAt`: when each of them last saved anything on their calendar, null if they never have
 * For anyone who is in, `unanswered`: the plan's days they haven't answered yet, as `[first, last]` runs rather than one date each, since a two year window would otherwise be hundreds of dates per person
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap. Only people who are in count, and only on days their answer reaches: a day marked on their calendar past their answer date doesn't show until they answer it
@@ -470,6 +471,33 @@ Planner role only.
 
 ---
 
+## POST `/api/plans/:planId/askagain` (session)
+
+Ask one person again, from the groups on a plan still finding its day.
+
+Planner role only.
+
+### Input
+
+* `userId`: who to ask
+
+### Effects
+
+* DMs them their card fresh, with REMINDER on top and who is waiting on them. Their old card is taken down.
+* Someone who is in is also sent back: their calendar stops answering this plan until they save their dates on it again, and the card opens with "Ali asked you to go over your dates for "Bowling" again." instead.
+
+### Returns
+
+* `dm`: whether the DM landed
+
+### Notes
+
+* `400` for someone not on the plan, or someone who said Not for me, since they get no DMs at all.
+* `409` once the plan has a day (move them to Waiting on the board instead), or if it was cancelled.
+* `429` if they were asked again in the last 24 hours.
+
+---
+
 ## POST `/api/plans/:planId/repeat` (session)
 
 Whether this plan comes round again once its day has been and gone.
@@ -504,7 +532,7 @@ Planner role only.
 
 * While the plan is still collecting, sends their card again to whoever it is waiting on: anyone who hasn't said if they're in, and anyone in whose calendar still leaves days to fill. The card says what each of them has left, and the line on top who is waiting. Nobody who is done, or who said Not for me, hears anything.
 * Once a date is locked in and a confirmation probe is running, sends the people who have not said whether they are coming their card again, yes/no buttons and all, so they can answer from the DM.
-* Someone a host moved back to waiting hears "Sam moved you back to waiting for "Bowling"." in place of who is waiting.
+* Someone a host moved back to waiting hears "Sam moved you back to waiting for "Bowling"." in place of who is waiting. Before there's a day, it's "Sam asked you to go over your dates for "Bowling" again."
 
 ### Returns
 

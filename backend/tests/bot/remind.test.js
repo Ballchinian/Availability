@@ -30,7 +30,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
     getLastUpdated: vi.fn(async () => ({}))
 }));
 
-const { remindStragglers, remindVoters } = await import('../../src/bot/plans.js');
+const { remindStragglers, remindVoters, askAgain } = await import('../../src/bot/plans.js');
 
 const ahead = (n) => shiftDate(todayIn('Europe/London'), n);
 const plan = (participants, over = {}) => ({
@@ -83,7 +83,7 @@ describe('nudging a plan still finding its day', () => {
     it('opens with who moved someone back, and nothing about who is waiting', async () => {
         const back = { userId: 'done', in: null, sentBack: { byName: 'Sam', at: new Date(), was: { in: true } } };
         await remindStragglers(plan([back]), 'Ali');
-        expect(card('done')).toContain('Sam moved you back to waiting for "Board games".');
+        expect(card('done')).toContain('Sam asked you to go over your dates for "Board games" again.');
         expect(card('done')).not.toContain('Ali is still waiting');
     });
 
@@ -104,5 +104,29 @@ describe('nudging about a set day', () => {
     it('opens with who moved someone back', async () => {
         await remindVoters(day([{ userId: 'bo', invited: true, sentBack: { byName: 'Sam' } }]), 'Ali');
         expect(card('bo')).toContain('Sam moved you back to waiting for "Board games".');
+    });
+});
+
+describe('asking one person again', () => {
+    it('sends someone not said yet their card, with who is waiting on them', async () => {
+        prefs.rows = { quiet: calendar(null) };
+        expect(await askAgain(plan([{ userId: 'quiet', in: null }]), 'quiet', 'Ali')).toBe(true);
+        expect(card('quiet')).toContain('REMINDER');
+        expect(card('quiet')).toContain("Ali is still waiting to hear if you're in.");
+    });
+
+    //The route has already put them back, so the card asks for every day
+    it('tells someone in who asked them to go over their dates', async () => {
+        prefs.rows = { done: calendar(ahead(10)) };
+        const back = { userId: 'done', in: true, sentBack: { byName: 'Ali', at: new Date(), was: { in: true } } };
+        await askAgain(plan([back]), 'done', 'Ali');
+        expect(card('done')).toContain('Ali asked you to go over your dates for "Board games" again.');
+        expect(card('done')).toContain("You're in. Now fill in your dates.");
+    });
+
+    it('sends nothing to someone who said it was not for them, or on a set day', async () => {
+        expect(await askAgain(plan([{ userId: 'out', in: false }]), 'out', 'Ali')).toBe(false);
+        expect(await askAgain(plan([{ userId: 'bo', in: null }], { status: 'closed', chosenDate: ahead(3) }), 'bo', 'Ali')).toBe(false);
+        expect(dms).toEqual([]);
     });
 });

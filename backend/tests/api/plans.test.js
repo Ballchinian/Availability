@@ -3,10 +3,10 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, announceJoin, answersMoved } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, askAgain, announceJoin, answersMoved } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
-import { getAvailabilityForUsersInRange } from '../../src/db/availability.js';
+import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
 import { formatDay } from '../../src/lib/dates.js';
 
 /*
@@ -57,6 +57,7 @@ vi.mock('../../src/db/plans.js', () => ({
         'setPlanDetails',
         'setAttendanceOverride',
         'setSentBack',
+        'setAskedAgain',
         'setIn',
         'setPlanRepeat',
         'addPlanEvent'
@@ -76,7 +77,8 @@ vi.mock('../../src/db/availability.js', () => ({
     getAvailabilityInRange: vi.fn(async () => []),
     getAvailabilityForUsersInRange: vi.fn(async () => []),
     replaceAvailabilityInRange: vi.fn(async () => 0),
-    getAvailabilitySummary: vi.fn(async () => ({ lastFilled: null, lastUpdatedAt: null }))
+    getAvailabilitySummary: vi.fn(async () => ({ lastFilled: null, lastUpdatedAt: null })),
+    getLastUpdated: vi.fn(async () => ({}))
 }));
 vi.mock('../../src/db/users.js', () => ({
     setCoveredUntil: vi.fn(),
@@ -97,6 +99,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'answersMoved',
         'syncPlan',
         'applyAttendanceMove',
+        'askAgain',
         'announceJoin'
     )
 );
@@ -175,7 +178,7 @@ const runQueued = () => {
 };
 
 //The routes that refuse to touch a cancelled plan, which is all of them bar the three below
-const changing = ['/choose', '/attendance', '/repeat', '/remind', '/dates', '/details', '/add'];
+const changing = ['/choose', '/attendance', '/askagain', '/repeat', '/remind', '/dates', '/details', '/add'];
 
 describe('the plan gate', () => {
     /*
@@ -1001,7 +1004,7 @@ describe('the overview', () => {
                 participants: [
                     { userId: 'ann', confirmed: true, in: true },
                     { userId: 'bo', confirmed: false, in: true },
-                    { userId: 'cy', confirmed: true, in: false },
+                    { userId: 'cy', confirmed: true, in: false, inReason: 'Away' },
                     { userId: 'di', confirmed: false, in: null }
                 ]
             })
@@ -1031,8 +1034,58 @@ describe('the overview', () => {
 
         expect(by.ann).toMatchObject({ in: true, standing: 'done', daysLeft: 0, coveredUntil: ahead(20), unanswered: [] });
         expect(by.bo).toMatchObject({ in: true, standing: 'no-dates', daysLeft: 14, unanswered: [[ahead(1), ahead(14)]] });
-        expect(by.cy).toMatchObject({ in: false, standing: 'out', unanswered: [] });
+        expect(by.cy).toMatchObject({ in: false, inReason: 'Away', standing: 'out', unanswered: [] });
         expect(by.di).toMatchObject({ in: null, standing: 'not-said', coveredUntil: null });
+    });
+
+    it('says when each person last saved their calendar', async () => {
+        getLastUpdated.mockResolvedValueOnce({ ann: new Date('2026-09-28T10:00:00Z') });
+        const body = await (await get('/ab12cd34ef/compare')).json();
+        expect(body.participants.map((p) => p.updatedAt)).toEqual(['2026-09-28T10:00:00.000Z', null, null, null]);
+    });
+});
+
+describe('asking one person again', () => {
+    const queue = () => announceAfter.mockImplementationOnce(async (planId, label, run) => run(plans.get(planId)));
+
+    beforeEach(() =>
+        plans.set('ab12cd34ef', plan({ participants: [{ userId: 'ann', in: true }, { userId: 'di', in: null }, { userId: 'cy', in: false }] }))
+    );
+
+    //Their calendar stops answering, so they go over their dates again
+    it('sends back someone in, and DMs them', async () => {
+        queue();
+        askAgain.mockResolvedValueOnce(true);
+        const res = await post('/ab12cd34ef/askagain', { userId: 'ann' });
+
+        expect(await res.json()).toEqual({ ok: true, dm: true });
+        expect(db.setAskedAgain).toHaveBeenCalledWith('ab12cd34ef', 'ann', expect.objectContaining({ byName: 'Ali', was: { in: true } }));
+        expect(askAgain).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'ann', 'Ali');
+    });
+
+    it('asks someone who has not said without sending them back', async () => {
+        const res = await post('/ab12cd34ef/askagain', { userId: 'di' });
+        expect(await res.json()).toEqual({ ok: true, dm: false });
+        expect(db.setAskedAgain).toHaveBeenCalledWith('ab12cd34ef', 'di', null);
+    });
+
+    it('never DMs someone who said it was not for them', async () => {
+        const res = await post('/ab12cd34ef/askagain', { userId: 'cy' });
+        expect(res.status).toBe(400);
+        expect(db.setAskedAgain).not.toHaveBeenCalled();
+    });
+
+    it('asks each person once a day at most', async () => {
+        plans.set('ab12cd34ef', plan({ participants: [{ userId: 'ann', in: true, askedAgainAt: new Date(Date.now() - 3 * 3600000) }] }));
+        const res = await post('/ab12cd34ef/askagain', { userId: 'ann' });
+        expect(res.status).toBe(429);
+        expect((await res.json()).error).toMatch(/in 21 hours/);
+    });
+
+    it('points a set day at the board', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, participants: [{ userId: 'ann', in: true }] }));
+        const res = await post('/ab12cd34ef/askagain', { userId: 'ann' });
+        expect(res.status).toBe(409);
     });
 });
 

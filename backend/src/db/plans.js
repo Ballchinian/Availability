@@ -557,18 +557,15 @@ export async function confirmParticipant(planId, userId) {
     return getPlan(planId);
 }
 
-//Count me in (true) or Not for me (false, with an optional reason), their own answer ending any sent back
+/*
+    Count me in (true) or Not for me (false, with an optional reason). A no ends being sent
+    back and a yes leaves it: Ask again only sends back someone already in, so pressing in
+    again would let a stale calendar answer without them going over their dates.
+*/
 export async function setIn(planId, userId, value, reason = null) {
-    await col(collections.plans).updateOne(
-        { planId, 'participants.userId': userId },
-        {
-            $set: {
-                'participants.$.in': value,
-                'participants.$.inReason': value === false ? reason : null,
-                'participants.$.sentBack': null
-            }
-        }
-    );
+    const set = { 'participants.$.in': value, 'participants.$.inReason': value === false ? reason : null };
+    if (value === false) set['participants.$.sentBack'] = null;
+    await col(collections.plans).updateOne({ planId, 'participants.userId': userId }, { $set: set });
     return getPlan(planId);
 }
 
@@ -612,6 +609,14 @@ export async function setAttendanceOverride(planId, userId, override, { reinvite
         { planId, 'participants.userId': userId },
         { $set: set }
     );
+    return getPlan(planId);
+}
+
+//Ask again on a plan still finding its day. askedAgainAt keeps it to once a day a person, and sentBack is for someone in.
+export async function setAskedAgain(planId, userId, sentBack = null) {
+    const set = { 'participants.$.askedAgainAt': new Date() };
+    if (sentBack) set['participants.$.sentBack'] = sentBack;
+    await col(collections.plans).updateOne({ planId, 'participants.userId': userId }, { $set: set });
     return getPlan(planId);
 }
 

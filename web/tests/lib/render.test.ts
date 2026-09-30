@@ -10,6 +10,7 @@ import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
 import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
 import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
 import Standing from '../../src/lib/compare/Standing.svelte';
+import HostGroups, { owing, askedLine, updatedLine } from '../../src/lib/compare/HostGroups.svelte';
 import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
@@ -904,16 +905,80 @@ describe('the nudge', () => {
         invited: true
     }));
 
-    it('names who is still out and nothing more', () => {
+    //The groups above name them, so the button only says how many it reaches
+    it('says how many it reaches and names nobody', () => {
         const body = render(RemindPanel, { props: { planId: 'ab12cd34ef', waiting } }).body;
-        expect(body).toContain('<p class="muted small">Still out: ANN, BO.</p>');
-        expect(body).not.toContain('wait for everyone');
+        expect(body).toContain('Nudge the 2 still to answer');
+        expect(body).not.toContain('Still out');
+    });
+});
+
+describe('where everyone stands before there is a day', () => {
+    const person = (userId: string, over: Partial<Participant> = {}): Participant => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: false,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        ...over
+    });
+    const crowd = [
+        person('ann', { in: true, standing: 'done', updatedAt: new Date(Date.now() - 2 * 86400000).toISOString() }),
+        person('bo', { in: true, standing: 'days-left', daysLeft: 3 }),
+        person('cy', { in: true, standing: 'no-dates', sentBack: { byName: 'Ali' } }),
+        person('di', { in: null, standing: 'not-said', dmsClosed: true }),
+        person('ed', { in: false, standing: 'out', inReason: 'Away' })
+    ];
+    const draw = (props: Record<string, unknown> = {}) =>
+        bare(render(HostGroups, { props: { planId: 'ab12cd34ef', participants: crowd, onmoved: async () => {}, ...props } }).body);
+
+    it('heads each group with how many are in it, leaving out any with nobody', () => {
+        const body = draw({ participants: crowd.slice(0, 2) });
+        expect(body).toContain('<h3>In, done (1)</h3>');
+        expect(body).toContain('<h3>In, days left (1)</h3>');
+        expect(body).not.toContain('Not said yet');
+        expect(body).not.toContain('Nobody here');
     });
 
-    it('says whose DMs are closed, since a nudge is a DM', () => {
-        const closed = [waiting[0], { ...waiting[1], dmsClosed: true }];
-        const body = render(RemindPanel, { props: { planId: 'ab12cd34ef', waiting: closed } }).body;
-        expect(body).toContain('Still out: ANN, BO (DMs closed, only reachable in the thread).');
+    it('says what the group cannot beside each name', () => {
+        const body = draw();
+        expect(body).toMatch(/>ANN\s+<span class="muted small">calendar updated 2 days ago<\/span>/);
+        expect(body).toMatch(/>BO\s+<span class="muted small">3 days left<\/span>/);
+        expect(body).toMatch(/>CY\s+<span class="muted small">moved back by Ali<\/span>/);
+        expect(body).toMatch(/>DI\s+<span class="muted small">DMs closed, only reachable in the thread<\/span>/);
+    });
+
+    //They get no DMs at all, so there is nothing to ask, and only whoever runs the plan sees why
+    it('gives someone who said no their reason and nothing to press', () => {
+        const body = draw();
+        expect(body).toMatch(/<span class="bstatic">ED\s+<span class="muted small">Away<\/span><\/span>/);
+        expect(body.match(/class="bchip"/g)).toHaveLength(4);
+    });
+
+    it('offers nothing on a plan that was called off', () => {
+        expect(draw({ readOnly: true })).not.toContain('bchip');
+    });
+
+    it('nudges whoever still has to say or fill in days', () => {
+        expect(owing(crowd).map((p) => p.userId)).toEqual(['bo', 'cy', 'di']);
+    });
+
+    it('reads an older backend by who filled in', () => {
+        const old = [person('ann', { confirmed: true }), person('bo')];
+        expect(owing(old).map((p) => p.userId)).toEqual(['bo']);
+    });
+
+    it('claims the DM only when it landed', () => {
+        expect(askedLine('Ann', true)).toBe('Asked Ann again. I DMed them.');
+        expect(askedLine('Ann', false)).toBe("Asked Ann again, but I couldn't DM them. They can still answer in the thread.");
+    });
+
+    it('says how long since a calendar was saved', () => {
+        expect([0, 1, 5].map(updatedLine)).toEqual(['calendar updated today', 'calendar updated yesterday', 'calendar updated 5 days ago']);
+        expect(updatedLine(null)).toBe('');
     });
 });
 

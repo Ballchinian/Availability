@@ -1534,7 +1534,26 @@ export async function remindStragglers(plan, actorName) {
 //Someone a host moved back hears that first, and nothing about who is waiting
 function nudgeLine(plan, userId, waiting) {
     const back = plan.participants.find((p) => p.userId === userId)?.sentBack;
-    return back?.byName ? `${back.byName} moved you back to waiting for "${plan.name}".` : waiting;
+    if (!back?.byName) return waiting;
+    return plan.chosenDate
+        ? `${back.byName} moved you back to waiting for "${plan.name}".`
+        : `${back.byName} asked you to go over your dates for "${plan.name}" again.`;
+}
+
+/*
+    Ask again, from the overview of a plan still finding its day: one person's card sent
+    fresh, opening with who asked. Answers whether it landed. Nobody who said Not for me,
+    since they get no DMs at all.
+*/
+export async function askAgain(plan, userId, actorName) {
+    const p = plan.participants.find((q) => q.userId === userId);
+    if (!p || inOf(p) === false || plan.status !== 'collecting') return false;
+    const cfg = await getGuildConfig(plan.guildId).catch(() => null);
+    const sent = await resendCards(plan, [userId], cfg, {
+        title: 'REMINDER',
+        aside: nudgeLine(plan, userId, `${actorName} is still waiting to hear if you're in.`)
+    });
+    return sent.length > 0;
 }
 
 /*

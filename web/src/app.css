@@ -1348,8 +1348,16 @@ a.ghost:hover {
     background: var(--accent-soft);
 }
 
-.bchip .muted {
+.bchip .muted,
+.bstatic .muted {
     margin-left: 4px;
+}
+
+/* Someone in a group with nothing to press, at a chip's size */
+.bstatic {
+    display: block;
+    padding: 6px 9px;
+    font-size: 14px;
 }
 
 .bempty {

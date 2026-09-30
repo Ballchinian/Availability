@@ -64,6 +64,12 @@ describe('Count me in / Not for me', () => {
         await setIn('p1', 'bo', true, 'ignored');
         expect(bo()).toMatchObject({ in: true, inReason: null });
     });
+
+    //Only saving their dates ends it, or the calendar they were asked to look over answers again
+    it('keeps someone sent back when they say they are in', async () => {
+        await setIn('p1', 'bo', true);
+        expect(bo().sentBack).toEqual({ byName: 'Ali' });
+    });
 });
 
 describe('a host sending someone back', () => {

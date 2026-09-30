@@ -39,6 +39,7 @@ export interface Participant {
     dmsClosed?: boolean;
     //Where they stand on a plan still finding its day. Missing from an older backend too.
     in?: boolean | null;
+    inReason?: string | null;
     standing?: Standing;
     daysLeft?: number;
     coveredUntil?: string | null;
@@ -46,6 +47,8 @@ export interface Participant {
     unanswered?: [string, string][];
     //A host sent them back to answer again, and hasn't taken it back
     sentBack?: { byName: string } | null;
+    //Their last save anywhere on their calendar, null if they have never saved
+    updatedAt?: string | null;
 }
 
 //A day someone marked free, with the hours they narrowed it to

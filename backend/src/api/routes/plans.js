@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
-import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
+import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary, getLastUpdated } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, syncPlan, applyAttendanceMove, announceJoin, answersMoved } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, answersMoved } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -285,19 +285,20 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
     const joined = plan.participants.filter((p) => inOf(p) === true);
 
     /*
-        The three reads this page needs, together: everyone's clocks and answers, their
-        names and avatars, and the hours themselves. Who is in comes off the plan
+        The four reads this page needs, together: everyone's clocks and answers, their
+        names and avatars, the hours themselves, and when each last saved. Who is in comes off the plan
         we already hold, so nothing here waits on anything else here. The member fetches
         are one wait for twenty people rather than twenty on their own.
     */
-    const [prefs, members, rows] = await Promise.all([
+    const [prefs, members, rows, updated] = await Promise.all([
         getPlanningPrefs(plan.participants.map((p) => p.userId)),
         Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null))),
         getAvailabilityForUsersInRange(
             joined.map((p) => p.userId),
             shiftDate(plan.dateRange.start, -1),
             shiftDate(plan.dateRange.end, 1)
-        )
+        ),
+        getLastUpdated(plan.participants.map((p) => p.userId))
     ]);
 
     const participants = plan.participants.map((p, i) => {
@@ -311,9 +312,13 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
             avatarUrl: m?.displayAvatarURL({ size: 64 }) || '',
             confirmed: p.confirmed,
             in: joinedNow,
+            //Why it's not for them, which only whoever runs the plan reads
+            inReason: joinedNow === false ? p.inReason || null : null,
             standing: standing(p, coverage),
             daysLeft: coverage.daysLeft,
             coveredUntil: prefs[p.userId]?.coveredUntil || null,
+            //Their last save anywhere, so a host can see a calendar has gone stale
+            updatedAt: updated[p.userId] ? new Date(updated[p.userId]).toISOString() : null,
             //The days still to answer, as runs, only for people whose days the grid counts
             unanswered: joinedNow === true ? toFillRuns(answers) : [],
             //The confirmation vote, so the planner can watch who is in without leaning on DMs
@@ -568,6 +573,32 @@ router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, 
     );
 
     res.json(invite ? { ok: true, dm: reached === true } : { ok: true });
+});
+
+/*
+    Ask again, beside each name on a plan still finding its day: that one person's card
+    DMed now. Someone in is sent back as well, so their calendar stops answering this plan
+    until they save their dates again. Once a day for each person. dm says whether it landed.
+*/
+router.post('/:planId/askagain', requirePlanner, refuseCancelled, async (req, res) => {
+    const { plan, ctx } = req;
+    if (plan.status !== 'collecting') {
+        return res.status(409).json({ error: 'This plan has its day. Move them to Waiting to answer on the board instead.' });
+    }
+    const person = plan.participants.find((p) => p.userId === req.body?.userId);
+    if (!person) return res.status(400).json({ error: 'That person is not on this plan.' });
+    const joined = inOf(person);
+    if (joined === false) return res.status(400).json({ error: "They said it's not for them, so I don't DM them." });
+
+    const hoursSince = (Date.now() - (person.askedAgainAt ? new Date(person.askedAgainAt).getTime() : 0)) / 3600000;
+    if (hoursSince < 24) {
+        return res.status(429).json({ error: `Already asked them in the last day. You can ask again in ${Math.ceil(24 - hoursSince)} hours.` });
+    }
+
+    const byName = ctx.member.displayName;
+    await setAskedAgain(plan.planId, person.userId, joined === true ? { byName, at: new Date(), was: { in: true } } : null);
+    const reached = await announceAfter(plan.planId, 'ask again', (current) => askAgain(current, person.userId, byName));
+    res.json({ ok: true, dm: reached === true });
 });
 
 /*

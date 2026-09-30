@@ -6,10 +6,9 @@
 
     /*
         The nudge for whoever the plan is waiting on. Before a date is set that is
-        the people who have not filled their dates in, and the planner never has to
-        wait for them, so it sits above the grid rather than in the way of it. Once a
-        probe is running it is the people who have not said whether they are coming,
-        and it sits under the board that shows who is still out.
+        whoever still has to say they're in or fill in days, and once there is one it is
+        whoever hasn't said if they're coming. Either way the groups or the board above
+        name them.
 
         The route picks which set to chase from the plan itself, so mode only decides
         the wording here.
@@ -34,19 +33,8 @@
 </script>
 
 <div class="waiting">
-    <!--Only before a date is set. Once one is, the board above lists these people in a
-        column of their own and naming them again says nothing new.-->
-    {#if !chasingVotes}
-        <p class="muted small">Still out: {waiting.map((p) => (p.dmsClosed ? `${p.displayName} (DMs closed, only reachable in the thread)` : p.displayName)).join(', ')}.</p>
-    {/if}
     <button class="ghost" onclick={remind} disabled={panel.busy}>
-        {#if panel.busy}
-            Nudging...
-        {:else if chasingVotes}
-            Nudge the {waiting.length} still to answer
-        {:else}
-            Nudge the stragglers
-        {/if}
+        {#if panel.busy}Nudging...{:else}Nudge the {waiting.length} still to answer{/if}
     </button>
 </div>
 <!--Outside the row above, where an empty line would still take a gap-->
