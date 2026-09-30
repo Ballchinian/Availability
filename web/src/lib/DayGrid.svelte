@@ -5,6 +5,8 @@
     import { HOUR_COUNT, formatHours } from './hours.js';
     import { refocus } from './focus.js';
     import { Press, fromKeyboard } from './paint.svelte.js';
+    import { Brush } from './brush.svelte.js';
+    import Status from './Status.svelte';
     import TimePicker from './TimePicker.svelte';
 
     /*
@@ -68,8 +70,11 @@
         return date in selection && selectable(date);
     }
 
+    const brush = new Brush();
+    let brushSaid = $state('');
+
     function markFree(date: string) {
-        if (!(date in selection)) selection = { ...selection, [date]: [] };
+        selection = brush.mark(selection, date);
     }
     function unmark(date: string) {
         if (date in selection) {
@@ -186,6 +191,12 @@
     let wrap: HTMLDivElement;
     const uid = $props.id();
 
+    //The button goes with the chip, and the grid is where the next day gets marked
+    function allDay() {
+        brushSaid = brush.reset();
+        refocus(() => wrap.querySelector<HTMLElement>(`[data-date="${stop}"]`));
+    }
+
     //Arrows only move focus and never mark anything, so a keyboard can look before it touches
     function arrow(e: KeyboardEvent, date: string) {
         if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -201,6 +212,12 @@
 
 <!--Only the keys: the brightness and the clocks read for themselves, and each day's name carries its hours-->
 <p class="offscreen" id="{uid}-keys">Arrow keys move between days. Shift+Enter marks the stretch back to the last day you pressed.</p>
+
+{#if !brush.allDay}
+    <p class="brush">New days get {formatHours(brush.hours)} <button class="ghost" aria-label="All day for new days" onclick={allDay}>All day</button></p>
+{/if}
+<!--The chip says it on screen, so this only reads it out-->
+<Status class="offscreen" msg={brushSaid} />
 
 <!--A group so the keys are read out on the way in, whichever day Tab lands on-->
 <div
@@ -281,6 +298,7 @@
                 unmark(date);
                 refocus(() => wrap.querySelector<HTMLElement>(`[data-date="${date}"]`));
             }
+            brushSaid = brush.closed(selection[date], empty) || brushSaid;
             editingDate = '';
         }}
     />

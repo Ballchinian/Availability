@@ -817,6 +817,25 @@ a.primary {
     say" rather than busy. Still tappable, marking one free beats the horizon.
     Any stronger a hatch and the muted number on it drops under 4.5:1.
 */
+/* Above the calendar while new days take the hours a clock was last closed on */
+.brush {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 4px 6px 4px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 13px;
+}
+
+.brush .ghost {
+    padding: 3px 9px;
+    min-height: 24px;
+    font-size: 12px;
+}
+
 .day.far {
     background: repeating-linear-gradient(45deg, transparent 0 4px, rgba(230, 180, 80, 0.1) 4px 8px);
     border-color: rgba(230, 180, 80, 0.55);

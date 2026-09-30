@@ -405,6 +405,13 @@ describe('the fill-in grid', () => {
         expect(body).toMatch(/<p class="offscreen" id="([^"]+)">Arrow keys move between days\. Shift\+Enter marks the stretch[^<]*<\/p>[\s\S]*role="group" aria-describedby="\1"/);
     });
 
+    //A brush left from a last visit would quietly narrow every day marked in the next
+    it('starts every visit giving new days all day, with nothing to say so', () => {
+        const body = draw({ [isoFromNow(1, 'day')]: [17, 18] });
+        expect(body).not.toContain('New days get');
+        expect(bare(body)).toMatch(silent);
+    });
+
     //The brightness and the clocks read for themselves, and each day's name already says the rest
     it('explains nothing on the screen', () => {
         const body = draw({ [isoFromNow(1, 'day')]: [17, 18] });
