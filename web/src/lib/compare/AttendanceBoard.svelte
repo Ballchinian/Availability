@@ -63,6 +63,8 @@
     /*
         The buttons pressed to move someone go with them, so focus goes on to whoever was
         next in the list they left, and to the person themselves once that list is empty.
+        Only once run is done: until then the next Invite them is disabled, and focusing
+        a disabled button does nothing.
     */
     async function move(p: Participant, status: string, from: Participant[], said: (dm: boolean) => string) {
         const at = from.findIndex((q) => q.userId === p.userId);
@@ -74,9 +76,9 @@
             });
             picked = null;
             await onmoved();
-            refocus(() => root?.querySelector<HTMLElement>(`[data-user="${next.userId}"]`));
             return said(res.dm === true);
         });
+        refocus(() => root?.querySelector<HTMLElement>(`[data-user="${next.userId}"]`));
     }
 </script>
 
