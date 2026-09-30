@@ -31,6 +31,7 @@ import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong } from '../../src/lib/format.js';
 import type { CompareScreen, Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
+import type { FreePerson } from '../../src/lib/overlap.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
@@ -61,16 +62,8 @@ describe('picking a day nobody has answered about', () => {
             props: { planId: 'ab12cd34ef', selectedDate: '2026-08-12', onsaved: async () => {}, ...props }
         }).body;
 
-    //The other way to count nobody is everyone's sure-up-to date having passed, which
-    //this would otherwise blame it on
-    it('says nobody has answered rather than blaming their horizons', () => {
-        const body = draw({ confirmedCount: 0, totalParticipants: 3 });
-        expect(body).toContain('nobody has filled their dates in');
-        expect(body).not.toContain('sure-up-to date');
-    });
-
     it('still offers to set the day', () => {
-        expect(draw({ confirmedCount: 0, totalParticipants: 3 })).toContain('You can still set it');
+        expect(draw({ confirmedCount: 0, totalParticipants: 3 })).toContain('Set it to Wed 12 Aug 2026');
     });
 
     //Narrowing to the people who can make it is nought people here, and it is the default
@@ -97,15 +90,26 @@ describe('picking a day nobody has answered about', () => {
         expect(body).not.toContain('radiogroup');
     });
 
-    //The grid gives the hours as a number now too, so the line under it says the same one
-    it('counts the hours in common beside when they are', () => {
-        const body = draw({ confirmedCount: 1, totalParticipants: 3, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] } });
-        expect(body).toContain('<strong>5pm to 8pm</strong> (3h).');
+});
+
+/*
+    The grid's colouring and the slider already say how a day came out, and the people
+    under the day give their hours, so the line that answers a click is the day alone.
+*/
+describe('the day picked', () => {
+    const draw = (freeByDate: Record<string, FreePerson[]>, confirmedCount: number) =>
+        bare(render(PickPanel, { props: { planId: 'ab12cd34ef', selectedDate: '2026-08-12', confirmedCount, freeByDate, onsaved: async () => {} } }).body);
+
+    it.each([
+        ['a day that works', { '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] }, 1],
+        ['a day someone is missing from', { '2026-08-12': [{ userId: 'a', hours: [] }] }, 3],
+        ['a day nobody has answered', {}, 0]
+    ])('is said as the day alone on %s', (_, free, confirmed) => {
+        expect(draw(free, confirmed)).toContain('<span role="status"><strong>Wed 12 Aug 2026</strong></span>');
     });
 
-    it('lets "all day" say it on its own', () => {
-        const body = draw({ confirmedCount: 1, totalParticipants: 3, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
-        expect(body).toContain('<strong>all day</strong>.');
+    it('lists who is free with their hours', () => {
+        expect(draw({ '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] }, 1)).toContain('Someone: 5pm to 8pm');
     });
 });
 
@@ -148,11 +152,11 @@ describe('what setting a day says it will do', () => {
         expect(draw()).not.toContain('Ask everyone if they can make it');
     });
 
-    //The default narrows the list, so the people it takes off get counted before it happens
-    it('counts who comes off the list when it narrows', () => {
+    //The radios and the box already show who comes off, so only the people pinged are counted
+    it('counts who it pings when it narrows, and no one else', () => {
         const body = draw({ confirmedCount: 1, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
         expect(body).toContain('pings 1 person and DMs them the same buttons.');
-        expect(body).toContain('2 people come off the list and hear no more about it.');
+        expect(body).not.toContain('come off the list');
     });
 
     //The buttons need a message to sit on, so quiet still posts the yes/no, just without the pings
@@ -234,10 +238,8 @@ describe('keeping the people who have not answered', () => {
         expect(draw()).toMatch(/<label class="check sub"><input type="checkbox"[^>]* checked[^>]*\/?> Ask the 3 who haven't answered this day too<\/label>/);
     });
 
-    it('counts them among the people pinged, and only the ones who cannot make it as coming off', () => {
-        const body = draw();
-        expect(body).toContain('pings 4 people');
-        expect(body).toContain('2 people come off the list');
+    it('counts them among the people pinged', () => {
+        expect(draw()).toContain('pings 4 people');
     });
 
     it('names them', () => {
@@ -957,10 +959,6 @@ describe('the line a picked day opens with', () => {
         const body = draw(null);
         expect(body).toMatch(silent);
         expect(body).not.toContain('pick-panel');
-    });
-
-    it('says what the day comes to from inside that region', () => {
-        expect(draw('2026-08-12')).toMatch(/<span role="status">\s*<strong>[^<]+<\/strong> works for 1 of 1, common time <strong>all day<\/strong>\.\s*<\/span>/);
     });
 });
 

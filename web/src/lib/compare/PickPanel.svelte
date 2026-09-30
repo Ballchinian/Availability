@@ -9,8 +9,8 @@
     import { untrack } from 'svelte';
     import { api } from '../api.js';
     import { formatDate } from '../format.js';
-    import { HOUR_COUNT, formatHours } from '../hours.js';
-    import { evaluateDay, explainDay, type FreePerson } from '../overlap.js';
+    import { formatHours } from '../hours.js';
+    import { evaluateDay, type FreePerson } from '../overlap.js';
     import type { Participant } from '../types.js';
     import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
@@ -77,7 +77,7 @@
             (p) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
         );
         const unsureIds = new Set(unsurePeople.map((p) => p.userId));
-        //Confirmed, near enough to say, and did not mark the day: the half of "why is this dim" that has names
+        //Confirmed, near enough to say, and did not mark the day
         const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId) && !unsureIds.has(p.userId));
         //Not filled in, or filled in only up to a sure-up-to date before this day
         const unanswered = participants.filter((p) => !p.confirmed || unsureIds.has(p.userId));
@@ -90,10 +90,8 @@
             free,
             ev,
             droppedSet,
-            counted: confirmedCount - unsure,
             missing,
-            unanswered,
-            reason: ev.viable ? null : explainDay(free, confirmedCount, missAllowed, unsure)
+            unanswered
         };
     });
 
@@ -162,14 +160,10 @@
             return `${said}. Every answer and the invite list stand.`;
         }
 
-        const off = dropping
-            ? ` ${people(dropping)} ${dropping === 1 ? 'comes off the list and hears' : 'come off the list and hear'} no more about it.`
-            : '';
-
         if (quiet) {
-            return `Posts the yes/no in the thread pinging nobody, and quietly rewrites the DMs everyone already holds.${off}`;
+            return 'Posts the yes/no in the thread pinging nobody, and quietly rewrites the DMs everyone already holds.';
         }
-        return `Posts the yes/no in the thread, pings ${invited} and DMs them the same buttons. I'll DM you when everyone is in, or if someone can't make it.${off}`;
+        return `Posts the yes/no in the thread, pings ${invited} and DMs them the same buttons. I'll DM you when everyone is in, or if someone can't make it.`;
     });
 
     async function lockIn() {
@@ -191,36 +185,11 @@
 </script>
 
 {#snippet lead()}
-    {#if sel && selectedDate}
-        {#if sel.ev.viable}
-            <strong>{formatDate(selectedDate)}</strong> works for {sel.ev.keptIds.length} of {sel.counted}, common time <strong>{formatHours(sel.ev.window)}</strong>{sel.ev.windowSize < HOUR_COUNT ? ` (${sel.ev.windowSize}h)` : ''}.
-        {:else}
-            <!--Says which of the two dim days this is, since the grid can only say that it is one.
-                The title attribute carried this and never showed up on a phone.-->
-            <strong>{formatDate(selectedDate)}</strong>
-            <!--Told apart from the horizon case below, which also counts nobody. On a plan
-                nobody has answered yet every day lands here, and blaming it on sure-up-to
-                dates nobody has set reads as a fault.-->
-            {#if confirmedCount === 0}
-                has nothing to weigh it against yet, since nobody has filled their dates in.
-            {:else if sel.reason?.block === 'nobody'}
-                is past everyone's sure-up-to date, so nobody is counted on it.
-            {:else if sel.reason?.block === 'missing'}
-                is dim because {sel.missing.length} of {sel.counted} did not mark it free, and you are
-                {missAllowed ? `only willing to miss ${missAllowed}` : 'not willing to miss anyone'}.
-            {:else}
-                is dim because the {sel.free.length} people free on it share no hour between them.
-            {/if}
-            {#if sel.reason?.needMiss != null}
-                Willing to miss {sel.reason.needMiss}? Then it works.
-            {/if}
-            You can still set it.
-        {/if}
-    {/if}
+    <strong>{formatDate(selectedDate ?? '')}</strong>
 {/snippet}
 
-<!--Mounted with nothing picked, so the line saying what a day comes to is already being
-    watched when one is, and gets read out rather than turning up in silence-->
+<!--Just the day: the grid's colouring and the slider already say how it came out.
+    Mounted with nothing picked, so the day is read out when one is.-->
 <div class:pick-panel={Boolean(sel)}>
     <Status children={sel ? lead : undefined} />
     {#if sel && selectedDate}
