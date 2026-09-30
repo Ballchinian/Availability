@@ -2,21 +2,19 @@
     import { onMount } from 'svelte';
     import { api, errorText, isAuthError } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import { formatDate, formatTime } from '../lib/format.js';
+    import { formatDate } from '../lib/format.js';
     import type { CompareScreen } from '../lib/types.js';
     import { todayIn } from '../lib/zone.js';
     import { refocus } from '../lib/focus.js';
-    import ClockNote from '../lib/ClockNote.svelte';
     import AboutPanel from '../lib/compare/AboutPanel.svelte';
     import AddPeople from '../lib/compare/AddPeople.svelte';
-    import AttendanceBoard from '../lib/compare/AttendanceBoard.svelte';
     import CancelPanel from '../lib/compare/CancelPanel.svelte';
     import DayCompare from '../lib/compare/DayCompare.svelte';
     import EditDetails from '../lib/compare/EditDetails.svelte';
     import HistoryPanel from '../lib/compare/HistoryPanel.svelte';
-    import RemindPanel from '../lib/compare/RemindPanel.svelte';
     import RepairPanel from '../lib/compare/RepairPanel.svelte';
     import RepeatPanel from '../lib/compare/RepeatPanel.svelte';
+    import Standing from '../lib/compare/Standing.svelte';
     import WhenPanel from '../lib/compare/WhenPanel.svelte';
 
     /*
@@ -52,37 +50,8 @@
 
     let selectedDate = $state<string | null>(null);
 
-    const unconfirmed = $derived(data ? data.participants.filter((p) => !p.confirmed) : []);
-
-    /*
-        A plan announced with its day already known never collects availability, so its
-        confirmed count sits at nought of everyone for good. Everything about filling
-        dates in hangs off this, or the page asks people for something it never wanted.
-    */
-    const collecting = $derived(Boolean(data && data.plan.status === 'collecting'));
-
     //Only while collecting: a plan set from the start stores its one day as the range
-    const range = $derived(collecting && data ? ` · ${formatDate(data.plan.start)} to ${formatDate(data.plan.end)}` : '');
-
-    /*
-        Chasing dates only makes sense while they are still being collected, a plan with
-        a day already locked in is waiting on answers instead. Held here rather than
-        written out twice, so the line under the grid cannot offer a nudge when there is
-        no panel above it to do the nudging.
-    */
-    const nudging = $derived(Boolean(collecting && unconfirmed.length && !cancelled));
-
-    /*
-        Who a running confirmation probe is still waiting on: on the invite list, and
-        with no answer of their own and no call from a planner standing in for one.
-        Only ever populated while a probe is live, so the nudge cannot offer to chase
-        people about a date nobody has been asked to confirm.
-    */
-    const pendingVoters = $derived(
-        data && data.plan.probeActive && data.plan.chosenDate
-            ? data.participants.filter((p) => p.invited && !p.override && !p.vote)
-            : []
-    );
+    const range = $derived(data?.plan.status === 'collecting' ? ` · ${formatDate(data.plan.start)} to ${formatDate(data.plan.end)}` : '');
 
     //What the plan is set for right now, null while it is still open
     const chosen = $derived(
@@ -206,45 +175,7 @@
             </div>
         {/if}
 
-        <section class="group">
-            <h2>{chosen ? 'Where it stands' : 'Which day?'}</h2>
-
-            {#if chosen}
-                <!--A box rather than one paragraph: the clock note is a paragraph of its own that
-                    says nothing at all when everyone shares a clock, and hanging it off a <br />
-                    left an empty line in the box for everybody who does-->
-                <div class="prompt good" bind:this={standing}>
-                    <p>
-                        <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
-                        {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
-                    </p>
-                    {#if chosen.time}<ClockNote zone={data.plan.timeZone} date={chosen.date} time={chosen.time} />{/if}
-                    {#if chosen.note}<p>{chosen.note}</p>{/if}
-                </div>
-
-                {#if !cancelled}
-                    <AttendanceBoard
-                        planId={params.planId}
-                        participants={data.participants}
-                        chosenDate={data.plan.chosenDate}
-                        onmoved={refresh}
-                    />
-
-                    {#if pendingVoters.length}
-                        <RemindPanel planId={params.planId} waiting={pendingVoters} mode="vote" />
-                    {/if}
-                {/if}
-            {/if}
-
-            <!--Nought of everyone, for good, on a plan that was announced with its day already known-->
-            {#if collecting || data.confirmedCount > 0}
-                <p class="status">{data.confirmedCount} of {data.totalParticipants} have filled in their dates.</p>
-            {/if}
-
-            {#if nudging}
-                <RemindPanel planId={params.planId} waiting={unconfirmed} />
-            {/if}
-        </section>
+        <Standing planId={params.planId} {data} {chosen} {cancelled} onmoved={refresh} bind:box={standing} />
 
         <!--Everyone's days leads the page while the day is still open, since which day is the
             whole question then. Once it is set this section is gone and the grid is one button

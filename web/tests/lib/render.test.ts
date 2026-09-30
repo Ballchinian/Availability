@@ -9,6 +9,7 @@ import EditDetails from '../../src/lib/compare/EditDetails.svelte';
 import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
 import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
 import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
+import Standing from '../../src/lib/compare/Standing.svelte';
 import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
@@ -29,7 +30,7 @@ import Privacy from '../../src/routes/Privacy.svelte';
 import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong } from '../../src/lib/format.js';
-import type { Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
+import type { CompareScreen, Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
@@ -678,6 +679,78 @@ describe('the attendance board', () => {
         expect(invitedLine('Ann', true)).toBe('Invited Ann. They have the yes/no in their DMs.');
         expect(invitedLine('Ann', false)).not.toContain('in their DMs');
         expect(invitedLine('Ann', false)).toContain('thread');
+    });
+});
+
+/*
+    A set plan's page is the yes/no page however it got its day. One that collected dates
+    first kept "3 of 4 have filled in their dates" under the nudge, which read as if the
+    nudge were chasing dates.
+*/
+describe('where a set plan stands', () => {
+    const person = (userId: string, over: Partial<Participant> = {}): Participant => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: false,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        sureUntil: null,
+        ...over
+    });
+    const screen = (start: string, end: string, participants: Participant[]): CompareScreen => ({
+        plan: {
+            planId: 'ab12cd34ef',
+            name: 'Bowling',
+            description: '',
+            start,
+            end,
+            status: 'closed',
+            allowedWeekdays: null,
+            guildName: 'The server',
+            chosenDate: '2026-08-12',
+            chosenTime: '19:00',
+            chosenNote: null,
+            timeZone: 'America/New_York',
+            guildId: 'g1',
+            probeActive: true,
+            repeatWeeks: null,
+            repeatedFrom: null,
+            repeatedInto: null,
+            threadUrl: null
+        },
+        participants,
+        youAreIn: false,
+        confirmedCount: participants.filter((p) => p.confirmed).length,
+        totalParticipants: participants.length,
+        freeByDate: {},
+        history: []
+    });
+    const draw = (data: CompareScreen) =>
+        bare(render(Standing, { props: { planId: 'ab12cd34ef', data, chosen: { date: '2026-08-12', time: '19:00', note: '' }, onmoved: async () => {} } }).body);
+
+    const collected = screen('2026-08-01', '2026-08-30', [
+        person('ann', { confirmed: true, vote: 'yes' }),
+        person('bo', { confirmed: true }),
+        person('cy'),
+        person('di', { confirmed: true, invited: false })
+    ]);
+    const setFromTheStart = screen('2026-08-12', '2026-08-12', [person('ann', { vote: 'yes' }), person('bo'), person('cy')]);
+
+    it('draws the same page either way, apart from the not-invited list', () => {
+        const withList = draw(collected);
+        expect(withList).toContain('class="uninvited"');
+        expect(withList.replace(/<div class="uninvited">[\s\S]*?<\/ul><\/div>/, '')).toBe(draw(setFromTheStart));
+    });
+
+    it('says nothing about filling in dates', () => {
+        expect(draw(collected)).not.toContain('filled in their dates');
+    });
+
+    it('says who the nudge reaches', () => {
+        expect(draw(collected)).toContain('Nudge the 2 still to answer');
     });
 });
 

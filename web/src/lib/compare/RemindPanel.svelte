@@ -46,7 +46,7 @@
         {#if panel.busy}
             Nudging...
         {:else if chasingVotes}
-            Nudge the ones who have not answered
+            Nudge the {waiting.length} still to answer
         {:else}
             Nudge the stragglers
         {/if}
