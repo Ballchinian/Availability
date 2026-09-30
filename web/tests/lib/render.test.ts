@@ -25,6 +25,7 @@ import PlanCards from '../../src/lib/PlanCards.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import Home from '../../src/routes/Home.svelte';
 import Terms from '../../src/routes/Terms.svelte';
+import Privacy from '../../src/routes/Privacy.svelte';
 import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong } from '../../src/lib/format.js';
@@ -792,6 +793,41 @@ describe('the terms', () => {
     });
 
     it('speaks as we rather than as the Service', () => {
+        expect(body).not.toContain('the Service');
+    });
+});
+
+describe('the privacy policy', () => {
+    const body = render(Privacy).body;
+
+    it('names the time zone it keeps', () => {
+        expect(body).toMatch(/<strong>Your time zone:<\/strong> the one your browser reports/);
+    });
+
+    it("keeps a plan's history and the DMs it can rewrite on the list", () => {
+        expect(body).toMatch(/last 100 events/);
+        expect(body).toMatch(/<strong>The bot's DMs:<\/strong>/);
+    });
+
+    it('says who can see your days', () => {
+        expect(body).toMatch(/<h2>Who can see your days<\/h2>\s*<p>\s*Anyone with the planner role in a server/);
+    });
+
+    it('says the bot DMs the people on a plan', () => {
+        expect(body).toMatch(/DMs the people invited to a plan/);
+    });
+
+    it('says a deleted thread or channel takes its plan with it', () => {
+        expect(body).toMatch(/A plan is deleted when its thread is deleted,\s+or the channel holding its thread is/);
+    });
+
+    it('says what is left once you share no server with the bot', () => {
+        expect(body).toMatch(/cut down to\s+your Discord ID and the logout number/);
+    });
+
+    it('uses the words the rest of the site does', () => {
+        expect(body).toMatch(/who has\s+filled in their dates/);
+        expect(body).not.toContain('confirmed');
         expect(body).not.toContain('the Service');
     });
 });

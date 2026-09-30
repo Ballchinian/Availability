@@ -12,63 +12,89 @@
     <h2>What we store</h2>
     <p>
         <strong>Your Discord account:</strong> your Discord user ID, username, display name and avatar,
-        from the "identify" scope when you log in. It's what lets the site know who you are and show you
-        back to yourself.
+        from the "identify" scope when you log in, and when you first and last logged in. It's what lets
+        the site know who you are and show you back to yourself.
         <br />
-        <strong>Your availability:</strong> the days you mark as free, and any hours you narrow a day
-        down to. This is saved against your account and carried across plans and servers, so you don't
-        have to fill it in twice.
+        <strong>Your time zone:</strong> the one your browser reports, saved whenever it changes, so the
+        hours you mark are read on your own clock.
+        <br />
+        <strong>Your calendar:</strong> the days you mark as free, any hours you narrow a day down to, and
+        your "sure up to" date if you set one. This is saved against your account and carried across plans
+        and servers, so you don't have to fill it in twice.
         <br />
         <strong>Servers you share with the bot:</strong> which servers (that have the bot) you're in, so
-        we know when your saved availability is still needed by anyone.
+        we know when your calendar is still needed by anyone.
         <br />
         <strong>Plans:</strong> a plan's name, optional description, date range, who's invited, who has
-        confirmed, the chosen date, time and any note, and, once a plan has a set date, each person's
-        yes or no plus any short reason given for a no. Anyone who opens a plan's link sees its name,
-        even logged out, so they can tell what the link is for. That's all a logged-out visitor sees.
+        filled in their dates, and the day, time and any note it's set for. Once a day is set, also each
+        person's yes or no, any short reason given for a no, a planner's call on the board, and who is on
+        that day's list. Each plan keeps its last 100 events: what happened, when, and who did it, under
+        the name they had then. Anyone who opens a plan's link sees its name, even logged out, so they can
+        tell what the link is for. That's all a logged-out visitor sees.
+        <br />
+        <strong>The bot's DMs:</strong> the ID of the message the bot last sent you about each plan, so it
+        can rewrite that message when the plan changes.
         <br />
         <strong>Server settings:</strong> for each server, which channel is the plans channel, which role
-        can drive the bot, and the intro message the bot pinned.
+        can plan, the time zone its plans run on, who ran /setup, and the intro message the
+        bot pinned.
+        <br />
+        <strong>Limits:</strong> the times in the last day you started or changed a plan in each server,
+        which stops the bot being used to spam. Logins and plan links are also limited by IP address, which
+        is only held in memory for ten minutes and never saved.
         <br />
         <strong>Login session:</strong> a signed cookie that keeps you logged in for 30 days. It holds
         your Discord ID, name and avatar and nothing more. All we keep on our side is a number on your
         account that changes when you log out, which is what makes logging out end the session
-        everywhere rather than only in the browser you clicked it in.
+        everywhere rather than only in the browser you clicked it in. That number stays after the rest of
+        your data is deleted, so an old cookie stays logged out.
+    </p>
+
+    <h2>Who can see your days</h2>
+    <p>
+        Anyone with the planner role in a server can open the overview of any plan there. Once you've
+        filled in your dates for a plan, the overview shows them the days and hours you marked free within
+        that plan's dates, and which of those days are past your "sure up to" date. It also shows your yes
+        or no on a set day, and any reason you gave. Everyone else on the plan only sees counts: how many
+        have filled in their dates, and how many are coming.
     </p>
 
     <h2>What we don't do</h2>
     <p>
         No selling or sharing of your data with third parties, no advertising, no analytics trackers. The
-        bot doesn't read your everyday chat: it only posts and reads in the plan threads and the info
-        channel it sets up. Data is kept apart per server, so one server's plans and guest lists aren't
-        visible to another.
+        bot doesn't read your everyday chat: it posts in the plan threads and the info channel it sets up,
+        DMs the people invited to a plan about it, and sees only the commands, buttons and reason boxes
+        you use. It sees each server's member list so planners can pick who to invite, and doesn't save
+        it. Data is kept apart per server, so one server's plans and guest lists aren't visible to
+        another.
     </p>
 
     <h2>Where it lives</h2>
     <p>
-        Your data is stored in a MongoDB database and processed on the Service's hosting providers,
+        Your data is stored in a MongoDB database and processed on Availability's hosting providers,
         currently Netlify for the website and Railway for the bot and API. Logging in goes through
         Discord's own OAuth, and avatars are loaded straight from Discord's CDN.
     </p>
 
     <h2>Retention and deletion</h2>
     <p>
-        Plans are deleted when the bot is removed from a server, and you're dropped from a server's plans
-        when you leave that server. Your saved availability is cleared automatically once you no longer
-        share any server with the bot, since at that point it's no use to anyone. If you want your data
-        gone sooner, email us (see below) from a way we can tie to your Discord account and we'll remove
-        it within a reasonable time.
+        A plan is deleted when its thread is deleted, or the channel holding its thread is, and every DM
+        the bot sent about it is rewritten to say so. Removing the bot from a server deletes all of that
+        server's plans. You're taken off a server's plans when you leave that server. Once you no longer
+        share any server with the bot, your calendar is deleted and your account record is cut down to
+        your Discord ID and the logout number above. If you want your data gone sooner, email us (see
+        below) from a way we can tie to your Discord account and we'll remove it within a reasonable time.
     </p>
 
     <h2>Children</h2>
     <p>
-        The Service is meant for users who meet Discord's minimum age requirement in their country. We
+        Availability is meant for users who meet Discord's minimum age requirement in their country. We
         don't knowingly collect data from anyone below it.
     </p>
 
     <h2>Changes</h2>
     <p>
         If this policy changes in a meaningful way, the "last updated" date above changes with it.
-        Carrying on using the Service after an update means you accept the revised policy.
+        Carrying on using Availability after an update means you accept the revised policy.
     </p>
 </Legal>
