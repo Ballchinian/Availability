@@ -1023,6 +1023,10 @@ describe('the privacy policy', () => {
         expect(body).toMatch(/<strong>The bot's DMs:<\/strong>/);
     });
 
+    it('keeps the answers for the last three days a plan has been on', () => {
+        expect(body).toMatch(/kept for the last three days the plan has\s+been on/);
+    });
+
     it('keeps whether your DMs were closed, and says who sees it', () => {
         expect(body).toMatch(/whether your DMs were closed the last time it\s+tried, so the overview can show planners/);
     });

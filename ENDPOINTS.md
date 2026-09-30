@@ -37,6 +37,8 @@ Three kinds of Discord message belong to a plan, and every route that changes it
 
 Anything that tells a guest something (a day set, a time moved, a nudge, a plan called off) goes as a fresh card with a line on why it came, and their old card is deleted once the new one has landed. When Discord will not delete it, it is edited down to "There's a newer message about this plan." with no buttons. That keeps one DM per person per plan with live buttons. A press on an older one anyway gets the card as it is now, becomes their card, and changes nothing. The only other DMs are the notes to whoever set the plan up about other people (everyone is in, someone cannot make it, someone dropped out).
 
+Every yes/no button carries the round it was sent in, and a new day is a new round, so a button pressed after the day moved is refused with the day it was about ("That was about Sat 12 Sep 2026; the plan has moved.") and nothing is written. The answers for the last three days a plan has been on are kept, so moving back to one of them brings its answers back, and its old buttons work again. Buttons sent before rounds existed carry none and count as the plan's first day.
+
 Editing a message notifies nobody in Discord. That is what the whole arrangement rests on: a wrong time or a wrong note can be put right without the correction itself becoming an event, and the people it was wrong for end up holding a DM that is simply correct.
 
 A card that cannot be reached is skipped, never replaced, since sending a new one would ping them. A card whose message has really gone (Discord's `10008`) is forgotten so later passes stop paying for it; any other failure is left alone and tried again.

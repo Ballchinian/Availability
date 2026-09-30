@@ -105,7 +105,7 @@ describe('planCard once a day is set', () => {
         const card = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali' });
         expect(card.content).toContain('CAN YOU MAKE IT?');
         expect(card.content).toContain('Can you make it? Tap below.');
-        expect(ids(card)).toEqual(['vote|yes|ab12cd34ef', 'vote|no|ab12cd34ef']);
+        expect(ids(card)).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
     });
 });
 
@@ -120,7 +120,7 @@ describe('planCard for somebody who has already answered', () => {
         expect(card.content).toContain("You're down as coming.");
         expect(card.content).not.toContain('Can you make it? Tap below.');
         expect(card.content).not.toMatch(/calendar\.google|\.ics/);
-        expect(ids(card)).toEqual(['vote|yes|ab12cd34ef', 'vote|no|ab12cd34ef']);
+        expect(ids(card)).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
     });
 
     it('keeps a no on the card', () => {

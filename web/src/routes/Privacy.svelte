@@ -28,7 +28,8 @@
         <strong>Plans:</strong> a plan's name, optional description, date range, who's invited, who has
         filled in their dates, and the day, time and any note it's set for. Once a day is set, also each
         person's yes or no, any short reason given for a no, a planner's call on the board, and who is on
-        that day's list. Each plan keeps its last 100 events: what happened, when, and who did it, under
+        that day's list. When the day moves, those answers are kept for the last three days the plan has
+        been on, so they come back if it moves back. Each plan keeps its last 100 events: what happened, when, and who did it, under
         the name they had then. Anyone who opens a plan's link sees its name, even logged out, so they can
         tell what the link is for. That's all a logged-out visitor sees.
         <br />

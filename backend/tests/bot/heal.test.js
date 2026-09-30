@@ -159,7 +159,7 @@ describe('the yes/no on a set day', () => {
         const edits = thread.log.filter((e) => e.edit);
         expect(edits).toHaveLength(1);
         expect(edits[0].payload.content).toContain('1 coming');
-        expect(ids(edits[0].payload)).toEqual(['vote|yes|ab12cd34ef', 'vote|no|ab12cd34ef']);
+        expect(ids(edits[0].payload)).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
     });
 
     //From before the opener carried it: its tally stopped moving, so it goes the first time the plan is touched

@@ -32,7 +32,7 @@ vi.mock('../../src/bot/client.js', () => ({
     }
 }));
 
-const { handleVote, handleUndrop } = await import('../../src/bot/plans.js');
+const { handleVote, handleVoteModal, handleUndrop } = await import('../../src/bot/plans.js');
 
 function press(customId, message = null) {
     return { customId, message, user: { id: 'bo', username: 'bo' }, inGuild: () => false, update: vi.fn(async () => {}), showModal: vi.fn(async () => {}) };
@@ -142,6 +142,77 @@ describe('a press on a card older than the one on record', () => {
     it('counts a press on the card on record as ever', async () => {
         store.plan = holding();
         await handleVote(press('vote|yes|ab12cd34ef', { id: 'newer' })).catch(() => {});
+        expect(db.recordVote).toHaveBeenCalled();
+    });
+});
+
+/*
+    Every yes/no button carries the round it was sent in. Before rounds, a poll left over
+    from the day before a move voted on the new day.
+*/
+describe('a press from a round the plan has moved on from', () => {
+    const moved = () => ({
+        ...setPlan(shiftDate(today(), 3)),
+        round: 2,
+        pastVotes: [{ date: '2026-09-12', round: 1, votes: [] }],
+        participants: [{ userId: 'bo', invited: true, vote: null, cardMessageId: 'card' }]
+    });
+    const inThread = (customId) => ({ ...press(customId), inGuild: () => true, reply: vi.fn(async () => {}) });
+
+    it('is refused in the thread with the day it was about, and changes nothing', async () => {
+        store.plan = moved();
+        const click = inThread('vote|yes|ab12cd34ef|r1');
+
+        await handleVote(click);
+
+        expect(click.reply.mock.calls[0][0].content).toBe('That was about Sat 12 Sep 2026; the plan has moved.');
+        expect(db.recordVote).not.toHaveBeenCalled();
+    });
+
+    //A DM has no private reply, so the card itself says it and shows where things are now
+    it('turns the card back into the current one in a DM, saying why', async () => {
+        store.plan = moved();
+        const click = press('vote|no|ab12cd34ef|r1', { id: 'card' });
+
+        await handleVote(click);
+
+        const shown = click.update.mock.calls[0][0];
+        expect(shown.content).toContain('That was about Sat 12 Sep 2026; the plan has moved.');
+        expect(shown.components[0].components[0].data.custom_id).toBe('vote|yes|ab12cd34ef|r2');
+        expect(click.showModal).not.toHaveBeenCalled();
+        expect(db.recordVote).not.toHaveBeenCalled();
+    });
+
+    it('is refused when the reason box comes back after the day moved', async () => {
+        store.plan = moved();
+        const submit = { ...press('votemodal|ab12cd34ef|r1'), fields: { getTextInputValue: () => '' } };
+
+        await handleVoteModal(submit);
+
+        expect(db.recordVote).not.toHaveBeenCalled();
+    });
+
+    it('says only that the day moved when the round is too old to name', async () => {
+        store.plan = { ...moved(), pastVotes: [] };
+        const click = inThread('vote|yes|ab12cd34ef|r1');
+        await handleVote(click);
+        expect(click.reply.mock.calls[0][0].content).toBe('That was about an earlier day; the plan has moved.');
+    });
+
+    //What went out before rounds carries none: good while the day has not moved, refused once it has
+    it('counts a press with no round on a plan still on its first day, and refuses it after a move', async () => {
+        store.plan = { ...setPlan(shiftDate(today(), 3)) };
+        await handleVote(inThread('vote|yes|ab12cd34ef')).catch(() => {});
+        expect(db.recordVote).toHaveBeenCalledTimes(1);
+
+        store.plan = moved();
+        await handleVote(inThread('vote|yes|ab12cd34ef'));
+        expect(db.recordVote).toHaveBeenCalledTimes(1);
+    });
+
+    it('counts a press from the round the plan is on', async () => {
+        store.plan = moved();
+        await handleVote(inThread('vote|yes|ab12cd34ef|r2')).catch(() => {});
         expect(db.recordVote).toHaveBeenCalled();
     });
 });

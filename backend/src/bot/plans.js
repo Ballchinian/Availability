@@ -167,14 +167,21 @@ function aboutLine(plan) {
     return plan.description ? `What it is about: ${plan.description}\n` : '';
 }
 
+//The round the buttons are about, see roundFor in db/plans.js. Buttons from before rounds carry none.
+function roundOf(customId) {
+    const tag = customId.split('|').find((bit) => /^r\d+$/.test(bit));
+    return tag ? Number(tag.slice(1)) : 0;
+}
+
 /*
     The yes/no buttons for a confirmation probe. The same row rides on the shared thread
     message and on each person's DM, since the vote it records is shared either way.
 */
-function probeRow(planId) {
+function probeRow(plan) {
+    const r = `r${plan.round || 0}`;
     return new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`vote|yes|${planId}`).setLabel("I'm coming").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`vote|no|${planId}`).setLabel("Can't make it").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(`vote|yes|${plan.planId}|${r}`).setLabel("I'm coming").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`vote|no|${plan.planId}|${r}`).setLabel("Can't make it").setStyle(ButtonStyle.Danger)
     );
 }
 
@@ -183,14 +190,15 @@ function probeRow(planId) {
     the buttons to their answer: the one they picked turns solid with a tick, the other
     stays live so they can switch. This is how a DM voter sees that their choice landed.
 */
-function votedDmRow(planId, vote) {
+function votedDmRow(plan, vote) {
+    const r = `r${plan.round || 0}`;
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`vote|yes|${planId}`)
+            .setCustomId(`vote|yes|${plan.planId}|${r}`)
             .setLabel(vote === 'yes' ? '✓ Coming' : "I'm coming")
             .setStyle(vote === 'yes' ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId(`vote|no|${planId}`)
+            .setCustomId(`vote|no|${plan.planId}|${r}`)
             .setLabel(vote === 'no' ? "✓ Can't make it" : "Can't make it")
             .setStyle(vote === 'no' ? ButtonStyle.Danger : ButtonStyle.Secondary)
     );
@@ -308,14 +316,14 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
             content: top('CAN YOU MAKE IT?') +
                 `**${plan.name}** is set for ${when}.${about}${note}${extra}\n` +
                 `${line} Tap the other button if that changes.`,
-            components: [votedDmRow(plan.planId, vote)]
+            components: [votedDmRow(plan, vote)]
         };
     }
 
     if (plan.probeActive) {
         return {
             content: top('CAN YOU MAKE IT?') + lead + about + note + extra + `\n\nCan you make it? Tap below.`,
-            components: [probeRow(plan.planId)]
+            components: [probeRow(plan)]
         };
     }
 
@@ -409,7 +417,7 @@ function opener(plan) {
                 `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}\n` +
                 (asking ? 'Tap below to let everyone know.' : 'Confirmations are closed.') +
                 `\n\n${probeTally(plan)}`,
-            components: asking ? [probeRow(plan.planId)] : [],
+            components: asking ? [probeRow(plan)] : [],
             ...quietly
         };
     }
@@ -690,7 +698,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
                 content: banner('CAN YOU MAKE IT?') +
                     `${actorName} ${changed ? 'moved' : 'set'} **${plan.name}** ${changed ? 'to' : 'for'} ${whenLine(plan)}.\n` +
                     `Tap below to let everyone know.`,
-                components: [probeRow(plan.planId)]
+                components: [probeRow(plan)]
             });
         }
     }
@@ -971,16 +979,20 @@ export async function handleUndrop(interaction) {
 */
 export async function handleVote(interaction) {
     const [, choice, planId] = interaction.customId.split('|');
+    const round = roundOf(interaction.customId);
     const plan = await getPlan(planId);
 
     const stale = voteStale(plan, interaction.user.id);
     if (stale) return respondStale(interaction, stale);
-    if (await answeredOldCard(interaction, plan)) return;
+    const moved = roundMoved(plan, round);
+    if (await answeredOldCard(interaction, plan, moved)) return;
+    if (moved) return respondStale(interaction, moved);
 
     if (choice === 'no') {
         return interaction.showModal(
             new ModalBuilder()
-                .setCustomId(`votemodal|${planId}`)
+                //The day can move while the box is open, so the round goes with it
+                .setCustomId(`votemodal|${planId}|r${round}`)
                 .setTitle("Can't make it")
                 .addComponents(
                     new ActionRowBuilder().addComponents(
@@ -1017,6 +1029,9 @@ export async function handleVoteModal(interaction) {
 
     const stale = voteStale(plan, interaction.user.id);
     if (stale) return respondStale(interaction, stale);
+    const moved = roundMoved(plan, roundOf(interaction.customId));
+    if (await answeredOldCard(interaction, plan, moved)) return;
+    if (moved) return respondStale(interaction, moved);
 
     const reason = (interaction.fields.getTextInputValue('reason') || '').trim().slice(0, 200) || null;
     const wasNo = plan.participants.find((p) => p.userId === interaction.user.id)?.vote === 'no';
@@ -1040,21 +1055,33 @@ function voteStale(plan, userId) {
     return null;
 }
 
+//The line for a press from a round the plan has moved on from, or null when it is this one
+function roundMoved(plan, round) {
+    if (round === (plan.round || 0)) return null;
+    const day = (plan.pastVotes || []).find((d) => d.round === round)?.date;
+    return day ? `That was about ${formatDate(day)}; the plan has moved.` : 'That was about an earlier day; the plan has moved.';
+}
+
 /*
-    A press on a DM that is not their card on record: an older card whose delete failed, or
-    a message from before every DM was a card. What they pressed may be about something
-    that has since changed, so nothing is written. The message becomes the card, showing
-    the plan as it is now, and the one on record is taken down. Says whether it answered.
+    A DM press on buttons that may be about something that has since changed: an older card
+    whose delete failed, a message from before every DM was a card, or a round the day has
+    moved on from. Nothing is written. The message becomes the card, showing the plan as it
+    is now, with moved saying why, and any other card on record is taken down. Says whether
+    it answered.
 */
-async function answeredOldCard(interaction, plan) {
-    if (interaction.inGuild()) return false;
+async function answeredOldCard(interaction, plan, moved = null) {
+    if (interaction.inGuild() || !interaction.message) return false;
     const p = plan.participants.find((q) => q.userId === interaction.user.id);
-    if (!p?.cardMessageId || !interaction.message || p.cardMessageId === interaction.message.id) return false;
+    if (!p) return false;
+    const onRecord = p.cardMessageId === interaction.message.id;
+    if (!moved && (onRecord || !p.cardMessageId)) return false;
 
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    await interaction.update(planCard(plan, p, { guildName: cfg?.guildName || '' }));
-    await setPlanCards(plan.planId, [{ userId: p.userId, messageId: interaction.message.id }], { keepLead: true });
-    await retireCard(p.userId, p.cardMessageId);
+    await interaction.update(planCard(plan, p, { guildName: cfg?.guildName || '', aside: moved || '' }));
+    if (!onRecord) {
+        await setPlanCards(plan.planId, [{ userId: p.userId, messageId: interaction.message.id }], { keepLead: true });
+        if (p.cardMessageId) await retireCard(p.userId, p.cardMessageId);
+    }
     return true;
 }
 
@@ -1085,7 +1112,7 @@ async function ackVote(interaction, plan, vote) {
     } else {
         await interaction.update({
             content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.`,
-            components: [votedDmRow(plan.planId, vote)]
+            components: [votedDmRow(plan, vote)]
         });
     }
     await updateOpener(plan).catch(() => {});

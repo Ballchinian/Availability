@@ -120,7 +120,7 @@ describe('announcing a plan with its day already set', () => {
         expect(posts).toHaveLength(1);
         expect(posts[0].content).toContain('**Board games** is set for Sat 8 Aug 2026.');
         expect(posts[0].content).toContain("0 coming · 0 can't make it · 2 yet to answer");
-        expect(buttons(posts[0])).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        expect(buttons(posts[0])).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
         expect(db.setPlanOpener).toHaveBeenCalledWith('p1', 'post1');
     });
 
@@ -128,7 +128,7 @@ describe('announcing a plan with its day already set', () => {
         await announceSetPlan(store.plan, cfg, 'Ali');
 
         expect(dms.map((d) => d.userId).sort()).toEqual(guests);
-        for (const dm of dms) expect(buttons(dm)).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        for (const dm of dms) expect(buttons(dm)).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
     });
 
     it('links no calendar in the thread or the DMs', async () => {
@@ -158,7 +158,7 @@ describe('setting a day on a running plan', () => {
 
         expect(dms.map((d) => d.userId)).toEqual(['ali']);
         expect(posts).toHaveLength(1);
-        expect(buttons(posts[0])).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        expect(buttons(posts[0])).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
         expect(posts[0].allowedMentions).toEqual({ users: ['bo'] });
         expect(posts[0].content.startsWith('<@bo>\n\n')).toBe(true);
     });
@@ -183,7 +183,7 @@ describe('setting a day on a running plan', () => {
 
         expect(posts).toEqual([]);
         expect(dms).toEqual([]);
-        expect(buttons(edited.find((e) => e.id === 'op1'))).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        expect(buttons(edited.find((e) => e.id === 'op1'))).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
     });
 });
 
@@ -234,7 +234,7 @@ describe('a plan of 150 people', () => {
         withinLimits();
         expect(posts.flatMap((p) => p.allowedMentions.users).sort()).toEqual([...crowd].sort());
         //The buttons ride on the first, which is the one the tally follows
-        expect(buttons(posts[0])).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        expect(buttons(posts[0])).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
         expect(posts.slice(1).every((p) => !p.components)).toBe(true);
     });
 
@@ -301,7 +301,7 @@ describe('the pinned opener', () => {
 
         const pin = edited.find((e) => e.id === 'op1');
         expect(pin.content).toContain('**Board games** is set for Sat 8 Aug 2026.');
-        expect(buttons(pin)).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        expect(buttons(pin)).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
     });
 
     it('says called off, with no buttons, once the plan is cancelled', async () => {

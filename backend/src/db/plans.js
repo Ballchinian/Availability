@@ -305,6 +305,34 @@ export async function getPlansCoveredBy(userId, start, end) {
         .toArray();
 }
 
+//How many days moved away from keep their answers, in case the plan comes back to one
+const PAST_VOTES = 3;
+
+//The day the plan is leaving, with everyone's answer for it, added to the ones kept
+function stashVotes(plan) {
+    const past = plan?.pastVotes || [];
+    if (!plan?.chosenDate) return past;
+    const votes = plan.participants
+        .filter((p) => p.vote || p.override)
+        .map((p) => ({ userId: p.userId, vote: p.vote || null, voteReason: p.voteReason || null, votedAt: p.votedAt || null, override: p.override || null }));
+    return [...past.filter((d) => d.date !== plan.chosenDate), { date: plan.chosenDate, round: plan.round || 0, votes }].slice(-PAST_VOTES);
+}
+
+/*
+    Every yes/no button carries the round it was sent in, so one pressed after the day moved
+    cannot answer for the new day. A day moved back to gets its old round again, which puts
+    its answers back and makes the buttons sent for it good again. Anything else is a round
+    no button has carried yet. A plan from before rounds reads as round 0, the same as a
+    button from then.
+*/
+export function roundFor(plan, date) {
+    const past = stashVotes(plan);
+    const back = past.find((d) => d.date === date) || null;
+    const lastRound = plan?.lastRound ?? plan?.round ?? 0;
+    const round = back ? back.round : lastRound + 1;
+    return { round, lastRound: Math.max(lastRound, round), pastVotes: past.filter((d) => d !== back), restore: back?.votes || [] };
+}
+
 /*
     Lock in the winning date (with an optional time and note) and close the plan off.
     A new date means a fresh confirmation round: any votes from a previous date are
@@ -312,12 +340,32 @@ export async function getPlansCoveredBy(userId, start, end) {
     is who stays invited for this date, null keeps everyone on the list.
 */
 export async function setPlanChosen(planId, date, time = null, note = null, invitedIds = null) {
+    const { restore, ...turn } = roundFor(await getPlan(planId), date);
     const { set, options } = clearedProbe(invitedIds);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set, probeActive: true } },
+        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set, probeActive: true, ...turn } },
         options
     );
+    //After the wipe above rather than in it, since the wipe reaches every participant
+    if (restore.length) {
+        await col(collections.plans).bulkWrite(
+            restore.map((v) => ({
+                updateOne: {
+                    filter: { planId, 'participants.userId': v.userId },
+                    update: {
+                        $set: {
+                            'participants.$.vote': v.vote,
+                            'participants.$.voteReason': v.voteReason,
+                            'participants.$.votedAt': v.votedAt,
+                            'participants.$.override': v.override
+                        }
+                    }
+                }
+            })),
+            { ordered: false }
+        );
+    }
     return getPlan(planId);
 }
 
@@ -375,8 +423,7 @@ export async function setPlanDates(planId, { start, end, allowedWeekdays, repeat
         allowedWeekdays: allowedWeekdays || null,
         repeatWeeks: repeatWeeks || null
     };
-    //Only the narrowing case has anything left to decide, and what it reads is the day, not the guest list
-    const plan = reopen ? null : await getPlan(planId);
+    const plan = await getPlan(planId);
 
     if (reopen) {
         Object.assign(set, {
@@ -386,6 +433,7 @@ export async function setPlanDates(planId, { start, end, allowedWeekdays, repeat
             chosenNote: null,
             ...unconfirmAll,
             ...clearedProbe().set,
+            pastVotes: stashVotes(plan),
             //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
             lastRemindedAt: null,
             allInNotifiedAt: null
@@ -397,6 +445,7 @@ export async function setPlanDates(planId, { start, end, allowedWeekdays, repeat
             chosenTime: null,
             chosenNote: null,
             ...clearedProbe().set,
+            pastVotes: stashVotes(plan),
             allInNotifiedAt: null
         });
     }
