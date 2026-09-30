@@ -21,7 +21,7 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - Changes named after what you came wanting: the day, the time, the name, who's on it, or going back out for different dates altogether
 - Optional DMs and thread posts, so you can keep any action as quiet as you like
 - A quiet switch for putting a mistake right: everyone's DM is corrected where it sits, nobody is told it changed
-- Yes/no confirmations you can close and reopen without anybody losing their answer
+- Once a day is set, the thread's pinned post becomes the yes/no, with a count that keeps itself up to date
 - Noise limits so nobody can get blasted with pings
 - Multi server support, fully isolated per server
 

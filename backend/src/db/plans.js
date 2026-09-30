@@ -53,9 +53,9 @@ function clearedProbe(invitedIds = null) {
         [`participants.${who}.votedAt`]: null,
         [`participants.${who}.override`]: null
     });
+    //No probeThreadMessageId: an old plan's own yes/no message waits for updateOpener to delete it
     const probe = {
         probeActive: false,
-        probeThreadMessageId: null,
         probeAllYesNotifiedAt: null,
         //A fresh round of votes to chase, so the nudge cooldown starts over with it
         lastVoteRemindedAt: null
@@ -151,7 +151,6 @@ export async function createPlan({
         allInNotifiedAt: null,
         //The confirmation probe: off while collecting, and on from the moment a day is set
         probeActive: false,
-        probeThreadMessageId: null,
         probeAllYesNotifiedAt: null,
         createdAt: now,
         //Seeded here rather than pushed after, so the list always opens on the plan starting
@@ -582,18 +581,9 @@ export async function clearPlanCard(planId, userId, messageId) {
     );
 }
 
-/*
-    Turn the probe on or off, and remember which thread message carries its buttons.
-
-    Leaving threadMessageId out keeps the one already there, which is how a reopen revives
-    the old poll instead of posting a second; pass null to really forget it. No vote is
-    touched either way, a probe being a switch rather than a round. clearedProbe wipes them.
-*/
-export async function setProbe(planId, { active, threadMessageId }) {
-    const set = { probeActive: active };
-    if (threadMessageId !== undefined) set.probeThreadMessageId = threadMessageId;
-    await col(collections.plans).updateOne({ planId }, { $set: set });
-    return getPlan(planId);
+//Plans set before the opener carried the yes/no posted it as a message of its own, this being its id
+export async function forgetProbeMessage(planId) {
+    await col(collections.plans).updateOne({ planId }, { $unset: { probeThreadMessageId: '' } });
 }
 
 //Note that the creator has been told everyone confirmed, so that good-to-go DM only goes once

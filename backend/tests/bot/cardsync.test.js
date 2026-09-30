@@ -60,7 +60,6 @@ vi.mock('../../src/bot/client.js', () => ({
 
 const db = vi.hoisted(() => ({
     clearPlanCard: vi.fn(async () => {}),
-    setProbe: vi.fn(async () => {}),
     setPlanOpener: vi.fn(async () => {}),
     setPlanCards: vi.fn(async () => {}),
     setDmsClosed: vi.fn(async () => {})

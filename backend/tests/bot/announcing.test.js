@@ -7,6 +7,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 */
 
 const posts = [];
+//Edits to messages already in a thread, the pinned opener among them
+const edited = [];
 const dms = [];
 //Who has DMs from the server off, and whether the thread refuses every post
 const closed = new Set();
@@ -18,7 +20,15 @@ vi.mock('../../src/bot/client.js', () => {
         id,
         archived: false,
         members: { add: async () => {} },
-        messages: { fetch: async (messageId) => ({ id: messageId, edit: async (payload) => payload }) },
+        messages: {
+            fetch: async (messageId) => ({
+                id: messageId,
+                edit: async (payload) => {
+                    edited.push({ id: messageId, ...payload });
+                    return { id: messageId, ...payload };
+                }
+            })
+        },
         send: async (payload) => {
             if (broken.thread) throw new Error('service unavailable');
             posts.push({ threadId: id, ...payload });
@@ -54,12 +64,7 @@ const db = vi.hoisted(() => ({
     setPlanThread: vi.fn(async () => {}),
     setPlanOpener: vi.fn(async () => {}),
     setPlanCards: vi.fn(async () => {}),
-    setDmsClosed: vi.fn(async () => {}),
-    setProbe: vi.fn(async (planId, { active, threadMessageId }) => {
-        store.plan.probeActive = active;
-        if (threadMessageId !== undefined) store.plan.probeThreadMessageId = threadMessageId;
-        return { ...store.plan };
-    })
+    setDmsClosed: vi.fn(async () => {})
 }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanningPrefs: vi.fn(async () => ({})) }));
@@ -92,13 +97,13 @@ const setDay = (over = {}) => ({
     chosenDate: '2026-08-08',
     chosenTime: null,
     probeActive: true,
-    probeThreadMessageId: null,
     ...over
 });
 
 beforeEach(() => {
     vi.clearAllMocks();
     posts.length = 0;
+    edited.length = 0;
     dms.length = 0;
     closed.clear();
     broken.thread = false;
@@ -108,12 +113,15 @@ beforeEach(() => {
 describe('announcing a plan with its day already set', () => {
     beforeEach(() => (store.plan = setDay()));
 
-    it('posts the yes/no in the thread and keeps it as the one to tally', async () => {
+    //The yes/no used to be a second post under the pin, with its own tally to keep in step
+    it('pins one opener carrying the day, the tally and the buttons, and posts nothing else', async () => {
         await announceSetPlan(store.plan, cfg, 'Ali');
 
-        const asking = posts.filter((p) => buttons(p).includes('vote|yes|p1'));
-        expect(asking).toHaveLength(1);
-        expect(db.setProbe).toHaveBeenCalledWith('p1', { active: true, threadMessageId: `post${posts.indexOf(asking[0]) + 1}` });
+        expect(posts).toHaveLength(1);
+        expect(posts[0].content).toContain('**Board games** is set for Sat 8 Aug 2026.');
+        expect(posts[0].content).toContain("0 coming · 0 can't make it · 2 yet to answer");
+        expect(buttons(posts[0])).toEqual(['vote|yes|p1', 'vote|no|p1']);
+        expect(db.setPlanOpener).toHaveBeenCalledWith('p1', 'post1');
     });
 
     it('DMs every guest the same buttons', async () => {
@@ -153,7 +161,6 @@ describe('setting a day on a running plan', () => {
         expect(buttons(posts[0])).toEqual(['vote|yes|p1', 'vote|no|p1']);
         expect(posts[0].allowedMentions).toEqual({ users: ['bo'] });
         expect(posts[0].content.startsWith('<@bo>\n\n')).toBe(true);
-        expect(db.setProbe).toHaveBeenCalledWith('p1', { active: true, threadMessageId: 'post1' });
     });
 
     it('mentions nobody when every DM landed', async () => {
@@ -169,14 +176,14 @@ describe('setting a day on a running plan', () => {
         expect(dms.map((d) => d.userId).sort()).toEqual(guests);
     });
 
-    it('still posts the yes/no when quiet, but mentions and DMs nobody', async () => {
+    //The pin carries the buttons now, so quiet has no reason to post anything at all
+    it('rewrites the pin when quiet, and posts, mentions and DMs nothing', async () => {
+        store.plan.openerMessageId = 'op1';
         await announceOutcome(store.plan, cfg, { changed: false, actorName: 'Ali', quiet: true });
 
-        expect(posts).toHaveLength(1);
-        expect(buttons(posts[0])).toEqual(['vote|yes|p1', 'vote|no|p1']);
-        expect(posts[0].allowedMentions).toEqual({ users: [] });
-        expect(posts[0].content).not.toContain('<@');
+        expect(posts).toEqual([]);
         expect(dms).toEqual([]);
+        expect(buttons(edited.find((e) => e.id === 'op1'))).toEqual(['vote|yes|p1', 'vote|no|p1']);
     });
 });
 
@@ -280,5 +287,36 @@ describe('a DM that Discord refuses', () => {
             client.users.fetch = fetch;
         }
         expect(db.setDmsClosed).not.toHaveBeenCalled();
+    });
+});
+
+/*
+    The pin is the yes/no on a set day, so it has to follow the plan: the loud path of setting
+    a day used to skip it, leaving "fill in your dates" pinned over a plan that had its day.
+*/
+describe('the pinned opener', () => {
+    it('shows the day and the buttons once a day is picked', async () => {
+        store.plan = setDay({ threadId: 'thread1', openerMessageId: 'op1' });
+        await announceOutcome(store.plan, cfg, { changed: false, actorName: 'Ali' });
+
+        const pin = edited.find((e) => e.id === 'op1');
+        expect(pin.content).toContain('**Board games** is set for Sat 8 Aug 2026.');
+        expect(buttons(pin)).toEqual(['vote|yes|p1', 'vote|no|p1']);
+    });
+
+    it('says called off, with no buttons, once the plan is cancelled', async () => {
+        store.plan = setDay({ threadId: 'thread1', openerMessageId: 'op1', status: 'cancelled' });
+        await announceCancel(store.plan, 'Ali');
+
+        const pin = edited.find((e) => e.id === 'op1');
+        expect(pin.content).toContain('**Board games** was called off.');
+        expect(pin.components).toEqual([]);
+    });
+
+    //Sent back out for dates: the edit has to say no buttons, or the old ones stay on the pin
+    it('drops the buttons when a plan goes back to collecting', async () => {
+        const { syncPlan } = await import('../../src/bot/plans.js');
+        await syncPlan({ ...collecting(), threadId: 'thread1', openerMessageId: 'op1' });
+        expect(edited.find((e) => e.id === 'op1').components).toEqual([]);
     });
 });

@@ -32,7 +32,7 @@ Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compar
 
 Three kinds of Discord message belong to a plan, and every route that changes it brings all three back in line before it does anything else.
 
-* **The pinned opener** in the plan's thread, and **the confirmation** while one exists. Both are remembered by message id, both are edited where they sit, and both are posted again if somebody deletes one. Without that second half a single deletion was permanent: every later pass fetched nothing and gave up.
+* **The pinned opener** in the plan's thread. On a set day it is the yes/no itself: the day, what the plan is about, the running tally and the buttons. Once called off it says so, with no buttons. It is remembered by message id, edited where it sits, and posted and pinned again if somebody deletes it. Without that second half a single deletion was permanent: every later pass fetched nothing and gave up. Set plans used to post the yes/no as a second message under it, and that one is deleted the first time the plan is touched after this change.
 * **One card per person**, the DM that says what the plan currently is. It is rebuilt from the plan every time, so the message sent on the day and the message rewritten a fortnight later agree, and somebody's own yes or no stays on theirs.
 
 Anything that tells a guest something (a day set, a time moved, a nudge, a plan called off) goes as a fresh card with a line on why it came, and their old card is deleted once the new one has landed. When Discord will not delete it, it is edited down to "There's a newer message about this plan." with no buttons. That keeps one DM per person per plan with live buttons. A press on an older one anyway gets the card as it is now, becomes their card, and changes nothing. The only other DMs are the notes to whoever set the plan up about other people (everyone is in, someone cannot make it, someone dropped out).
@@ -379,12 +379,11 @@ Planner role only.
 * Time (optional)
 * `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list.
 * `attendingIds`: who stays invited, worked out by the compare page: the people who can make the day, plus anyone who hasn't answered for it unless the planner unticked that
-* `probe` (optional): whether to ask everyone to confirm they are coming with yes/no buttons
-* `quiet` (optional): only read on an edit, see below
+* `quiet` (optional): rewrite everything in place and tell nobody
 
 ### Two things, decided by the date
 
-Picking the day the plan is **already set for** is an edit to the time and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` and `probe` are ignored, since neither has anything to decide. Everyone's DM and the pinned post are rewritten where they sit, and unless `quiet` is set the people still invited get a DM naming what moved, with the yes/no buttons again. Answers `edited: true`.
+Picking the day the plan is **already set for** is an edit to the time and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` is ignored, since it has nothing to decide. Everyone's DM and the pinned post are rewritten where they sit, and unless `quiet` is set the people still invited get a fresh card naming what moved, with the yes/no buttons again. Answers `edited: true`.
 
 Picking **any other day** is a set or a move, and behaves as it always has, below. This split is the fix for an update having wiped a confirmation round that was halfway through.
 
@@ -393,7 +392,8 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 * Sets the chosen date.
 * Narrows the invite list when asked. Anyone left off is not pinged, not DMed, and does not count in the confirmation tally. Moving or undoing the date invites everyone back.
 * Always DMs the people still invited, then posts the outcome in the thread, pinging only the ones the DM could not reach. Setting a different date counts as a reorganise.
-* With the probe on, the outcome carries yes/no buttons in the thread and the DMs, and the thread tally keeps itself current as votes land. Anyone whose sure-up-to date sits before the chosen day gets an extra line in their DM saying this landed past what they could plan for.
+* The pinned opener becomes the yes/no before anything is sent, and its tally keeps itself current as votes land. The thread post carries the buttons too, for the people it pings. Anyone whose sure-up-to date sits before the chosen day gets an extra line in their DM saying this landed past what they could plan for.
+* `quiet` on a move posts nothing: the pin and everyone's card are rewritten where they sit.
 
 ### Notes
 
@@ -412,7 +412,7 @@ Planner role only.
 
 ### Effects
 
-* Rewrites the pinned opener, the confirmation and its tally, and every DM card, from the plan as it currently stands. Anything deleted since is posted again, except a card, since sending one would ping them.
+* Rewrites the pinned opener, tally and all, and every DM card, from the plan as it currently stands. Anything deleted since is posted again, except a card, since sending one would ping them.
 * Sends nothing and pings nobody, so it is safe to press whenever something looks out of step.
 
 ### Notes
@@ -421,33 +421,6 @@ Planner role only.
 * Answers `cards` (how many DMs were corrected) against `holders` (how many people are holding one). A gap between them is people who deleted theirs or have DMs closed.
 * `502` if Discord would not answer at all, rather than reporting a success it did not have.
 * No `refuseCancelled`, deliberately, and it is the fourth planner route to go without one. A cancelled plan is the one whose DMs most want correcting, since a stale card there has somebody turning up to nothing.
-
----
-
-## POST `/api/plans/:planId/confirmations` (session)
-
-Opens or closes the yes/no confirmation on a set date.
-
-Planner role only.
-
-### Input
-
-* `active`: `true` to open, `false` to close
-* `quiet`: optional, `true` posts a first confirmation without mentioning anyone
-
-### Effects
-
-* A switch, not a round. Neither direction touches a single answer, so a confirmation closed by mistake reopens with every yes and no still on it and the attendance board never loses what it knew. Only a day actually moving clears answers, which is the choose and dates routes.
-* Opening revives the confirmation message already in the thread wherever it survives, rather than posting a second one. Only a plan that has never had one gets a fresh post, and only that post carries mentions.
-* Every card is rewritten with it, so the buttons appear in people's DMs when it opens and come off when it closes.
-
-### Notes
-
-* `400` if no date is set, or `active` is not a boolean.
-* Answers `unchanged: true` and does nothing when it already matches.
-* `revived` says whether it came back on the old message. Reviving is an edit, and Discord does not notify on an edit, so a revived confirmation reaches nobody until someone nudges. The site says so rather than implying people were told.
-* No rate limit: opening revives a message rather than sending one.
-* `409` if the plan was cancelled.
 
 ---
 

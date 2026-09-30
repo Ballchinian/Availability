@@ -12,22 +12,29 @@ vi.mock('../../src/bot/client.js', () => ({
     client: { channels: { fetch: async (id) => channels.get(id) || Promise.reject(new Error('unknown channel')) } }
 }));
 
-const db = vi.hoisted(() => ({ setPlanOpener: vi.fn(), setProbe: vi.fn(async () => ({})) }));
+const db = vi.hoisted(() => ({ setPlanOpener: vi.fn(), forgetProbeMessage: vi.fn(async () => {}) }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 
 const pins = vi.hoisted(() => ({ pinMessage: vi.fn(async () => {}) }));
 vi.mock('../../src/bot/util.js', async (real) => ({ ...(await real()), ...pins }));
 
-const { syncPlan, updateProbeMessage } = await import('../../src/bot/plans.js');
+const { syncPlan, updateOpener } = await import('../../src/bot/plans.js');
 
 /*
     held is which message ids the thread still has. Anything else fetches as gone, which
     is what a deleted message looks like from here.
 */
-function fakeThread(held = []) {
+function fakeThread(held = [], { undeletable = false } = {}) {
     const log = [];
     const messages = new Map(
-        held.map((id) => [id, { id, edit: async (payload) => (log.push({ edit: id, payload }), { id, ...payload }) }])
+        held.map((id) => [id, {
+            id,
+            edit: async (payload) => (log.push({ edit: id, payload }), { id, ...payload }),
+            delete: async () => {
+                if (undeletable) throw new Error('missing access');
+                log.push({ delete: id });
+            }
+        }])
     );
     return {
         log,
@@ -65,7 +72,7 @@ const plan = (over = {}) => ({
 beforeEach(() => {
     channels.clear();
     db.setPlanOpener.mockClear();
-    db.setProbe.mockClear();
+    db.forgetProbeMessage.mockClear();
     pins.pinMessage.mockClear();
 });
 
@@ -136,45 +143,54 @@ const setPlan = (over = {}) =>
         chosenTime: '19:00',
         timeZone: 'Europe/London',
         probeActive: true,
-        probeThreadMessageId: 'pr1',
+        participants: [{ userId: 'a', invited: true, vote: 'yes' }, { userId: 'b', invited: true, vote: null }],
         ...over
     });
 
-describe('the confirmation message', () => {
-    it('is edited where it sits while it is still there', async () => {
+const ids = (payload) => payload.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
+
+describe('the yes/no on a set day', () => {
+    it('is the opener, edited where it sits with the tally and the buttons', async () => {
+        const thread = fakeThread(['op1']);
+        channels.set('t1', thread);
+
+        await updateOpener(setPlan());
+
+        const edits = thread.log.filter((e) => e.edit);
+        expect(edits).toHaveLength(1);
+        expect(edits[0].payload.content).toContain('1 coming');
+        expect(ids(edits[0].payload)).toEqual(['vote|yes|ab12cd34ef', 'vote|no|ab12cd34ef']);
+    });
+
+    //From before the opener carried it: its tally stopped moving, so it goes the first time the plan is touched
+    it('takes down the separate yes/no an older plan posted, and forgets it', async () => {
+        const thread = fakeThread(['op1', 'pr1']);
+        channels.set('t1', thread);
+
+        await updateOpener(setPlan({ probeThreadMessageId: 'pr1' }));
+
+        expect(thread.log).toContainEqual({ delete: 'pr1' });
+        expect(db.forgetProbeMessage).toHaveBeenCalledWith('ab12cd34ef');
+    });
+
+    it('edits that one down to a pointer when Discord will not delete it', async () => {
+        const thread = fakeThread(['op1', 'pr1'], { undeletable: true });
+        channels.set('t1', thread);
+
+        await updateOpener(setPlan({ probeThreadMessageId: 'pr1' }));
+
+        const down = thread.log.find((e) => e.edit === 'pr1');
+        expect(down.payload).toEqual({ content: 'The yes/no is the pinned message now.', components: [] });
+    });
+
+    //Nothing would carry the buttons if it went, so a plan with no opener keeps what it has
+    it('leaves an older plan with no opener exactly as it is', async () => {
         const thread = fakeThread(['pr1']);
         channels.set('t1', thread);
 
-        await updateProbeMessage(setPlan());
+        await updateOpener(setPlan({ openerMessageId: null, probeThreadMessageId: 'pr1' }));
 
-        expect(thread.log.filter((e) => e.edit)).toHaveLength(1);
-        expect(db.setProbe).not.toHaveBeenCalled();
-    });
-
-    it('is posted again and written down when it has been deleted', async () => {
-        const thread = fakeThread([]);
-        channels.set('t1', thread);
-
-        await updateProbeMessage(setPlan());
-
-        const sent = thread.log.find((e) => e.send);
-        expect(sent).toBeTruthy();
-        expect(sent.payload.content).toContain('CAN YOU MAKE IT?');
-        expect(db.setProbe).toHaveBeenCalledWith('ab12cd34ef', { active: true, threadMessageId: sent.send });
-    });
-
-    /*
-        The DM only case, from a probe that went up while the thread was unreachable. This
-        runs on every vote, so healing here would post a poll into a thread nobody asked
-        to have one in.
-    */
-    it('is not invented for a probe that never had one', async () => {
-        const thread = fakeThread([]);
-        channels.set('t1', thread);
-
-        await updateProbeMessage(setPlan({ probeThreadMessageId: null }));
-
-        expect(thread.log).toHaveLength(0);
-        expect(db.setProbe).not.toHaveBeenCalled();
+        expect(thread.log).toEqual([]);
+        expect(db.forgetProbeMessage).not.toHaveBeenCalled();
     });
 });

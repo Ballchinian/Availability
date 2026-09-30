@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
@@ -224,22 +224,6 @@ function probeTally(plan) {
 }
 
 /*
-    The body of a confirmation probe: a clear heading, the date in question, what the
-    plan is about and the running tally, so anyone reading the thread sees where the
-    vote stands at a glance.
-*/
-function probeText(plan) {
-    const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
-    //A closed one keeps its tally: what people said still stands, it is only the asking that stopped
-    const asking = plan.probeActive !== false;
-    return banner('CAN YOU MAKE IT?') +
-        `**${plan.name}** is set for ${whenLine(plan)}.${note}\n` +
-        aboutLine(plan) +
-        (asking ? `Tap below to let everyone know.\n\n` : `Confirmations are closed.\n\n`) +
-        probeTally(plan);
-}
-
-/*
     The one DM per person saying what the plan currently is, rebuilt from the plan every
     time so a send and a later rewrite agree. Every DM that tells a guest something about
     the plan is a fresh card, and sendCards takes the one before it down. The creator's
@@ -363,32 +347,30 @@ async function placeThreadMessage(thread, messageId, payload) {
 }
 
 /*
-    Redraw the shared thread probe as votes land, and put it back when it has been deleted.
+    The pinned opener brought in line with the plan, and put back and pinned again when
+    somebody has deleted it. Runs on every vote, since on a set day it carries the tally.
 
-    A probe that never had a thread message is left alone rather than given one: that is the
-    DM only case, and this runs on every vote, so it would post a poll nobody asked for.
+    A plan with no remembered opener is left alone, since a repost would land at the bottom
+    of the thread and that is not an opener.
 */
-export async function updateProbeMessage(plan) {
-    if (!plan.probeThreadMessageId || !plan.threadId) return;
-    const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+export async function updateOpener(plan, thread = null) {
+    if (!plan.threadId || !plan.openerMessageId) return;
+    thread ??= await client.channels.fetch(plan.threadId).catch(() => null);
     if (!thread) return;
     await reviveThread(thread);
 
-    const payload = {
-        content: probeText(plan),
-        components: plan.probeActive ? [probeRow(plan.planId)] : [],
-        allowedMentions: { parse: [] }
-    };
-
-    //A closed one is only ever edited: reposting a poll with no buttons helps nobody
-    if (!plan.probeActive) {
-        const msg = await thread.messages.fetch(plan.probeThreadMessageId).catch(() => null);
-        if (msg) await msg.edit(payload).catch(() => {});
-        return;
+    const placed = await placeThreadMessage(thread, plan.openerMessageId, opener(plan));
+    if (placed?.fresh) {
+        await pinMessage(placed.message).catch(() => {});
+        await setPlanOpener(plan.planId, placed.message.id);
     }
 
-    const placed = await placeThreadMessage(thread, plan.probeThreadMessageId, payload);
-    if (placed?.fresh) await setProbe(plan.planId, { active: true, threadMessageId: placed.message.id });
+    //Its tally stopped moving the day the opener took its job, so it goes
+    if (plan.probeThreadMessageId) {
+        const old = await thread.messages.fetch(plan.probeThreadMessageId).catch(() => null);
+        if (old) await old.delete().catch(() => old.edit({ content: 'The yes/no is the pinned message now.', components: [] }).catch(() => {}));
+        await forgetProbeMessage(plan.planId);
+    }
 }
 
 //Best effort display name for someone in a guild, falling back when they have left
@@ -403,28 +385,47 @@ async function memberName(guildId, userId, fallback = 'Someone') {
 }
 
 /*
-    The opening post for a plan's thread, pulled out so creating a plan, announcing
-    a set plan, and editing the details later all build the exact same message,
-    which keeps the pinned post in step. A set plan already has its date, so its
-    opener states it instead of asking people to fill in availability.
+    The pinned post at the top of a plan's thread, built the same way every time so any
+    rewrite keeps it in step. On a set day it is the yes/no itself: the day, what it is
+    about, the running tally and the buttons. Always carries its components, even none,
+    or a plan sent back out for dates would keep the buttons on its edited pin.
 */
-function openerText(plan) {
+function opener(plan) {
     //A plan the sweep made says so itself, so nothing has to be passed down to every caller
     const again = Boolean(plan.repeatedFrom);
+    const quietly = { allowedMentions: { parse: [] } };
+
+    if (plan.status === 'cancelled') {
+        return { content: banner('PLAN CANCELLED') + `**${plan.name}** was called off.`, components: [], ...quietly };
+    }
+
     if (plan.status === 'closed' && plan.chosenDate) {
         const note = plan.chosenNote ? `\n${plan.chosenNote}` : '';
         const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
-        return banner(again ? 'ROUND AGAIN' : 'PLAN SET') +
-            `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}`;
+        //A closed one keeps its tally: what people said still stands, it is only the asking that stopped
+        const asking = Boolean(plan.probeActive);
+        return {
+            content: banner(again ? 'ROUND AGAIN' : 'PLAN SET') +
+                `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}\n` +
+                (asking ? 'Tap below to let everyone know.' : 'Confirmations are closed.') +
+                `\n\n${probeTally(plan)}`,
+            components: asking ? [probeRow(plan.planId)] : [],
+            ...quietly
+        };
     }
+
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
-    return banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
-        (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
-        aboutLine(plan) +
-        `Fill in your dates here: ${planUrl(plan.planId)}\n` +
-        //The link is the fuller thing, so it stays first, but a lot of people will only ever use this
-        `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
-        `A planner can run \`/overview\` any time to see where things stand, even before everyone is in.`;
+    return {
+        content: banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
+            (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
+            aboutLine(plan) +
+            `Fill in your dates here: ${planUrl(plan.planId)}\n` +
+            //The link is the fuller thing, so it stays first, but a lot of people will only ever use this
+            `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
+            `A planner can run \`/overview\` any time to see where things stand, even before everyone is in.`,
+        components: [],
+        ...quietly
+    };
 }
 
 /*
@@ -494,12 +495,12 @@ export async function announcePlan(plan, cfg, actorName) {
     await addToThread(thread, ids);
 
     //No @ here, adding people to the thread already pings them
-    const opener = await thread.send({ content: openerText(plan), allowedMentions: { parse: [] } });
+    const pinned = await thread.send(opener(plan));
     //Pin the opener so the link and the details stay at the top of the thread, best effort:
     //a server that has not given the bot Manage Messages still gets its thread
-    await pinMessage(opener).catch(() => {});
+    await pinMessage(pinned).catch(() => {});
     //Remember it so editing the title or description later can rewrite this same post
-    await setPlanOpener(plan.planId, opener.id);
+    await setPlanOpener(plan.planId, pinned.id);
 
     //The thread id is only in the database yet, so it is patched on or the card has no jump link
     const withThread = { ...plan, threadId: thread.id };
@@ -518,7 +519,7 @@ export async function announcePlan(plan, cfg, actorName) {
     nothing to collect. The thread is always opened, same as a normal plan, so /overview
     keeps working and the plan can be reached and managed later. Adding people to a
     private thread already pings them, so the opener goes up quietly. Everyone is asked
-    whether they can make it, in the thread and by DM. actorName is whoever set it up.
+    whether they can make it, on the pinned opener and by DM. actorName is whoever set it up.
 */
 export async function announceSetPlan(plan, cfg, actorName) {
     const ids = plan.participants.map((p) => p.userId);
@@ -530,19 +531,10 @@ export async function announceSetPlan(plan, cfg, actorName) {
     await addToThread(thread, ids);
 
     //No @ here, adding people to the thread already pings them
-    const opener = await thread.send({ content: openerText(plan), allowedMentions: { parse: [] } });
-    await pinMessage(opener).catch(() => {});
-    await setPlanOpener(plan.planId, opener.id);
+    const pinned = await thread.send(opener(plan));
+    await pinMessage(pinned).catch(() => {});
+    await setPlanOpener(plan.planId, pinned.id);
 
-    /*
-        The confirmation probe rides on top: a thread message everyone can vote on, and
-        the same buttons in each DM. The thread message is remembered so its tally can be
-        kept current.
-    */
-    const probeMsg = await thread.send({ content: probeText(plan), components: [probeRow(plan.planId)], allowedMentions: { parse: [] } });
-    plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
-
-    //Off the plan setProbe handed back, or the cards go out without the buttons
     const who = plan.repeatedFrom ? '' : actorName;
     await sendCards(plan, ids, (id) =>
         planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
@@ -570,6 +562,8 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
     if (thread) {
         await reviveThread(thread);
         await addToThread(thread, newIds);
+        //A set day's pin counts them in its tally
+        await updateOpener(plan, thread).catch(() => {});
     }
 
     //The same card everyone else holds, so a late joiner rides the same rewrites
@@ -617,49 +611,35 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
 
 /*
     Everything Discord holds about a plan, brought back in line with it: the pinned opener,
-    the confirmation, every card. All edits, so this pings nobody.
+    which is the yes/no on a set day, and every card. All edits, so this pings nobody.
 
     rename is asked for rather than done every pass, Discord capping thread renames at twice
-    per ten minutes. A plan with no remembered opener is left alone, since a repost would
-    land at the bottom of the thread and that is not an opener.
+    per ten minutes. cards: false is for an announcement about to send everyone a fresh one.
 */
-export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
+export async function syncPlan(plan, { cfg = null, rename = false, cards = true } = {}) {
     if (plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             if (rename) await thread.setName(plan.name.slice(0, 100)).catch(() => {});
-
-            if (plan.openerMessageId) {
-                const placed = await placeThreadMessage(thread, plan.openerMessageId, {
-                    content: openerText(plan),
-                    allowedMentions: { parse: [] }
-                });
-                if (placed?.fresh) {
-                    await pinMessage(placed.message).catch(() => {});
-                    await setPlanOpener(plan.planId, placed.message.id);
-                }
-            }
+            await updateOpener(plan, thread);
         }
     }
 
-    await updateProbeMessage(plan).catch(() => {});
-    return syncPlanCards(plan, cfg);
+    return cards ? syncPlanCards(plan, cfg) : 0;
 }
 
 /*
-    Once a planner locks the winning date the plan closes. Everyone still invited gets a
-    DM, then the outcome lands in the thread pinging whoever the DM missed, so nobody who
-    is meant to be there can miss it. Anyone the planner left off the invite list hears
-    nothing. The DM names who set or moved it.
+    Once a planner locks the winning date the plan closes. The pinned opener turns into the
+    yes/no first. Everyone still invited then gets a card, and a post in the thread pings
+    whoever the card missed, so nobody who is meant to be there can miss it. Anyone the
+    planner left off the invite list hears nothing. The card names who set or moved it.
 
-    The thread post is the yes/no itself, a set day always asking who can make it.
+    The post carries the buttons too, since the people it pings are the ones with no card
+    to press them on. The tally stays on the pin.
 
-    The DM becomes their card, so a later change to the time or note rewrites it in place.
-
-    quiet sends no DM and mentions nobody. Everyone's card is rewritten where it sits
-    instead, so their DM quietly becomes the new day. The yes/no still has to exist as a
-    message to carry its buttons, so it goes up unmentioned rather than not at all.
+    quiet sends no card and posts nothing. The pin and everyone's card are rewritten where
+    they sit instead, so the DM they already hold quietly becomes the new day.
 */
 export async function announceOutcome(plan, cfg, { changed, actorName, quiet = false, added = [] }) {
     /*
@@ -675,46 +655,44 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
     //Sent back out for dates since this was queued, which announces itself
     if (!plan.chosenDate) return;
 
-    let sent = [];
-    if (!quiet) {
-        //Anyone whose horizon sits before the date never really answered for it, so their card says so
-        const prefs = await getPlanningPrefs(ids).catch(() => ({}));
-        const nudge = 'This lands past the date you said you could plan up to, so it is worth a proper look.';
-
-        sent = await sendCards(plan, ids, (id) =>
-            planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
-                guildName: cfg.guildName,
-                actorName,
-                moved: changed,
-                aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
-            }), { actorName, moved: changed });
-    }
-
-    if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            //Remembered so its tally can be kept current as votes come in
-            const probeMsg = await postMentioning(thread, quiet ? [] : missedBy(ids, sent), {
-                content: probeText(plan),
-                components: [probeRow(plan.planId)]
-            });
-            plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
-        }
-    }
-
     /*
-        Quiet rewrites the cards people already hold rather than sending new ones, so the DM
-        in somebody's inbox silently becomes the new day. The ids stay put and only the lead
-        they carry moves on, which has to be written down before the sync reads it back.
+        Quiet rewrites the cards people already hold rather than sending new ones. The ids
+        stay put and only the lead they carry moves on, which has to be written down before
+        the sync reads it back.
     */
     if (quiet) {
         const held = plan.participants.filter((p) => p.cardMessageId);
         await setPlanCards(plan.planId, held.map((p) => ({ userId: p.userId, messageId: p.cardMessageId })), { actorName, moved: changed });
         const relabelled = { ...plan, participants: plan.participants.map((p) => ({ ...p, cardActor: actorName, cardMoved: changed })) };
-        //One pass for the pin, the confirmation and every card, since the probe is now settled
         await syncPlan(relabelled, { cfg }).catch((err) => console.error('[plans] quiet outcome sync failed:', err));
         return;
+    }
+
+    await syncPlan(plan, { cfg, cards: false }).catch((err) => console.error('[plans] outcome sync failed:', err));
+
+    //Anyone whose horizon sits before the date never really answered for it, so their card says so
+    const prefs = await getPlanningPrefs(ids).catch(() => ({}));
+    const nudge = 'This lands past the date you said you could plan up to, so it is worth a proper look.';
+
+    const sent = await sendCards(plan, ids, (id) =>
+        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+            guildName: cfg.guildName,
+            actorName,
+            moved: changed,
+            aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
+        }), { actorName, moved: changed });
+
+    if (plan.threadId) {
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        if (thread) {
+            await reviveThread(thread);
+            await postMentioning(thread, missedBy(ids, sent), {
+                content: banner('CAN YOU MAKE IT?') +
+                    `${actorName} ${changed ? 'moved' : 'set'} **${plan.name}** ${changed ? 'to' : 'for'} ${whenLine(plan)}.\n` +
+                    `Tap below to let everyone know.`,
+                components: [probeRow(plan.planId)]
+            });
+        }
     }
 
     /*
@@ -776,45 +754,6 @@ export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false,
         title: 'PLAN UPDATED',
         aside: plan.description ? `${actorName} changed what it says it is about.` : `${actorName} took out what it said it is about.`
     });
-}
-
-/*
-    Open or close the confirmation on a set day. A switch: no answer is touched either way,
-    so one closed by accident comes back with every yes and no still on it.
-
-    Opening revives the thread message it already had rather than posting a second poll.
-    The trap is that an edit notifies nobody, so a revived confirmation is silent however
-    loudly it was asked for, which is why the answer says which of the two happened.
-    Every card is rewritten with it, so the buttons appear and vanish with the switch.
-*/
-export async function applyConfirmations(plan, active, { cfg = null, mention = true } = {}) {
-    let updated = await setProbe(plan.planId, { active });
-    let revived = true;
-
-    if (active && updated.threadId) {
-        const thread = await client.channels.fetch(updated.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            const ids = invitedOnly(updated).map((p) => p.userId);
-            const ping = mention && ids.length;
-            //Mentions only on a confirmation this plan has never had, the rest being replacements
-            const announcing = ping && !updated.probeThreadMessageId;
-            const placed = await placeThreadMessage(thread, updated.probeThreadMessageId, {
-                content: (announcing ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '') + probeText(updated),
-                components: [probeRow(updated.planId)],
-                allowedMentions: announcing ? { users: ids } : { parse: [] }
-            });
-            if (placed?.fresh) {
-                revived = false;
-                updated = await setProbe(updated.planId, { active: true, threadMessageId: placed.message.id });
-            }
-        }
-    } else {
-        await updateProbeMessage(updated).catch(() => {});
-    }
-
-    await syncPlanCards(updated, cfg).catch((err) => console.error('[plans] confirmation card sync failed:', err));
-    return { plan: updated, revived };
 }
 
 /*
@@ -909,6 +848,8 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
 export async function leavePlan(plan, userId, actorName) {
     const updated = await removeParticipant(plan.planId, userId);
     await addPlanEvent(plan.planId, { type: 'left', by: userId, byName: actorName || '' }).catch(() => {});
+    //A set day's pin was counting them
+    await updateOpener(updated).catch(() => {});
 
     //If that drop out leaves everyone else already in, the planner can compare now
     await notifyCreatorIfAllIn(updated).catch(() => {});
@@ -1014,6 +955,7 @@ export async function handleUndrop(interaction) {
         byName: interaction.member?.displayName || interaction.user.username
     }).catch(() => {});
     await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
+    await updateOpener(updated).catch(() => {});
 
     return interaction.update({
         content: banner('BACK IN') + `You are back on "${plan.name}". Hit "Drop out" below if that changes again.`,
@@ -1146,7 +1088,7 @@ async function ackVote(interaction, plan, vote) {
             components: [votedDmRow(plan.planId, vote)]
         });
     }
-    await updateProbeMessage(plan).catch(() => {});
+    await updateOpener(plan).catch(() => {});
 }
 
 /*
@@ -1302,7 +1244,7 @@ async function notifyCreatorAllYes(plan) {
 */
 export async function applyAttendanceMove(plan, status, userId) {
     const reached = status === 'invite' ? await sendInvite(plan, userId) : null;
-    await updateProbeMessage(plan).catch(() => {});
+    await updateOpener(plan).catch(() => {});
     if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
     return reached;
 }

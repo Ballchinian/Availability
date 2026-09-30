@@ -39,7 +39,7 @@
     let changing = $state(false);
 
     /*
-        Quiet: nothing done from this page pings anybody. The pin, the confirmation and
+        Quiet: nothing done from this page pings anybody. The pin and
         everyone's DM are still rewritten, so what people hold stays true, they just are
         not told it changed. For putting your own mistake right without announcing it.
 
@@ -163,8 +163,8 @@
                 <label class="check"><input type="checkbox" bind:checked={quiet} /> Quiet: fix things without telling anyone</label>
                 <p class="muted small">
                     {#if quiet}
-                        Nothing you do here pings anybody until you turn this off. The pinned post, the
-                        yes/no message and everyone's DM are still rewritten where they sit, so what people
+                        Nothing you do here pings anybody until you turn this off. The pinned post and
+                        everyone's DM are still rewritten where they sit, so what people
                         are holding stays correct, they just are not told it changed. Reloading the page
                         turns this off again.
                     {:else}
