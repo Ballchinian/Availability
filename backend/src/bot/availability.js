@@ -1,9 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } from 'discord.js';
-import { getPlan, getPlanByThread, getOpenPlansForUser, confirmParticipant } from '../db/plans.js';
+import { getPlan, getPlanByThread, getOpenPlansForUser, getCollectingPlansForUser, confirmParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange } from '../db/availability.js';
 import { addAnswered } from '../db/users.js';
-import { notifyCreatorIfAllIn, setDayReply } from './plans.js';
+import { answersMoved, setDayReply } from './plans.js';
 import { planUrl } from './util.js';
 import { allowedDaysInRange, formatDay, formatDate } from '../lib/dates.js';
 import { todayIn } from '../lib/zones.js';
@@ -213,20 +213,23 @@ export async function handleFreeComponent(interaction) {
     if (error) return interaction.update({ content: error, components: [] });
 
     const { chunks } = dayChunks(plan);
-    let updated = null;
+    let saved = false;
 
     if (step === 'day') {
         const [index, first, last] = rest;
         const chunk = chunks[Number(index)];
         if (!chunk || !sameDays(chunk, first, last)) return interaction.update(await pickerPayload(plan, interaction.user.id, MOVED));
-        updated = await saveDays(interaction.user.id, plan, interaction.values, chunk);
+        saved = await saveDays(interaction.user.id, plan, interaction.values, chunk);
     } else if (step === 'all' || step === 'none') {
         const [first, last] = rest;
         const every = chunks.flat();
         if (!sameDays(every, first, last)) return interaction.update(await pickerPayload(plan, interaction.user.id, MOVED));
-        updated = await saveDays(interaction.user.id, plan, step === 'all' ? every : [], every);
+        saved = await saveDays(interaction.user.id, plan, step === 'all' ? every : [], every);
     }
 
     await interaction.update(await pickerPayload(plan, interaction.user.id));
-    if (updated) await notifyCreatorIfAllIn(updated).catch((err) => console.error('[free] all-in notify failed:', err));
+    if (saved) {
+        const theirs = await getCollectingPlansForUser(interaction.user.id).catch(() => []);
+        answersMoved(interaction.user.id, [...new Set([plan.planId, ...theirs.map((p) => p.planId)])]);
+    }
 }

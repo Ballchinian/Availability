@@ -10,6 +10,7 @@ import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
 import { formatDay, formatDate, formatTime } from '../lib/dates.js';
+import { answersOn, coverageOf, standing } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 
 /*
@@ -237,12 +238,20 @@ function votedDmRow(plan, vote) {
 }
 
 /*
+    Everyone who has not said the plan is not for them. They stay on it, and can say
+    they're in again, but nothing is sent to them and nobody waits on them.
+*/
+function onIt(plan) {
+    return plan.participants.filter((p) => p.in !== false);
+}
+
+/*
     The people still on the invite list for a set date. Everyone starts invited, a
     planner can narrow it to just the people who fit while locking a date in, and
     voiding or moving the date puts everyone back on.
 */
 function invitedOnly(plan) {
-    return plan.participants.filter((p) => p.invited !== false);
+    return onIt(plan).filter((p) => p.invited !== false);
 }
 
 //Where someone actually stands: a planner's manual call wins over their own vote,
@@ -460,28 +469,42 @@ function opener(plan) {
 }
 
 /*
-    When the last invited person fills their availability, nothing else tells the
-    planner they can go and pick a day, so we DM whoever created the plan with the
-    compare link. The allInNotifiedAt flag keeps it to one nudge per round: adding
-    someone or changing the dates reopens the round and lets it fire again.
+    Once everyone left on the plan is in and their calendar answers every day of it,
+    nothing else tells the planner they can go and pick a day, so whoever created it
+    gets a DM with the overview. The allInNotifiedAt flag keeps it to one nudge per
+    round: adding someone or changing the dates reopens the round and lets it fire again.
 */
 export async function notifyCreatorIfAllIn(plan) {
-    if (!plan || plan.status !== 'collecting') return;
-    const ids = plan.participants.map((p) => p.userId);
-    if (!ids.length || !plan.participants.every((p) => p.confirmed)) return;
-    if (plan.allInNotifiedAt) return;
+    if (!plan || plan.status !== 'collecting' || plan.allInNotifiedAt) return;
+    const on = onIt(plan);
+    if (!on.length) return;
+    const prefs = await getPlanningPrefs(on.map((p) => p.userId));
+    if (!on.every((p) => standing(p, coverageOf(answersOn(plan, prefs[p.userId], p))) === 'done')) return;
 
     //Set the flag before the DM so a slow send cannot let a second nudge slip through
     await markAllInNotified(plan.planId);
 
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    const count = ids.length === 1 ? '1 person has' : `all ${ids.length} people have`;
     await deliver(plan, plan.createdBy, {
-        content: banner('EVERYONE IS IN') +
-            `Everyone is in for "${plan.name}"${where}. ${count} filled in their dates, so you can pick a day now.`,
+        content: banner('EVERYONE IS IN') + `Everyone has answered "${plan.name}"${where}, so you can pick a day now.`,
         components: [overviewRow(plan)]
     });
+}
+
+/*
+    A calendar save moves what someone has answered on every plan still finding its day.
+    Each card they hold says how much is left, so it is brought in line, and a plan the
+    save finished may now have everyone in. Never waited on.
+*/
+export function answersMoved(userId, planIds) {
+    for (const planId of planIds) {
+        announceAfter(planId, 'answers moved', async (plan) => {
+            if (plan.status !== 'collecting') return;
+            await syncPlanCards(plan, null, { only: [userId] });
+            await notifyCreatorIfAllIn(plan);
+        });
+    }
 }
 
 /*
@@ -512,7 +535,7 @@ async function openThread(plan, cfg) {
 */
 export async function announcePlan(plan, cfg, actorName) {
     const { guild, thread } = await openThread(plan, cfg);
-    const ids = plan.participants.map((p) => p.userId);
+    const ids = onIt(plan).map((p) => p.userId);
 
     //The thread id is only in the database yet, so it is patched on or the card has no thread button
     const withThread = { ...plan, threadId: thread.id };
@@ -533,7 +556,7 @@ export async function announcePlan(plan, cfg, actorName) {
     whether they can make it, on the pinned opener and by DM. actorName is whoever set it up.
 */
 export async function announceSetPlan(plan, cfg, actorName) {
-    const ids = plan.participants.map((p) => p.userId);
+    const ids = onIt(plan).map((p) => p.userId);
     await openThread(plan, cfg);
 
     const who = plan.repeatedFrom ? '' : actorName;
@@ -689,10 +712,11 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
     }
 
     /*
-        Nobody new is sent to the narrowed off the list, or to anyone the new card missed,
-        but the cards they hold would still be about the old day.
+        Nobody new is sent to the narrowed off the list, anyone who said it is not for them,
+        or anyone the new card missed, but the cards they hold would still be about the old day.
     */
-    const stale = [...plan.participants.filter((p) => p.invited === false).map((p) => p.userId), ...missedBy(ids, sent)];
+    const reached = new Set(sent.map((s) => s.userId));
+    const stale = plan.participants.map((p) => p.userId).filter((id) => !reached.has(id) && !isNew.has(id));
     if (stale.length) {
         await syncPlanCards(plan, cfg, { only: stale })
             .catch((err) => console.error('[plans] stale card sync failed:', err));
@@ -765,7 +789,7 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
     await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] dates sync failed:', err));
 
     const isNew = new Set(added);
-    const ids = plan.participants.map((p) => p.userId).filter((id) => !isNew.has(id));
+    const ids = onIt(plan).map((p) => p.userId).filter((id) => !isNew.has(id));
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     const days = daysLabel ? `, ${daysLabel} only` : '';
     //A round reopened means fill it in, which the button says, and anything narrower means nothing to do
@@ -815,7 +839,7 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
     //Nobody should be left holding a card that still says they are coming on the twelfth
     await syncPlan(plan).catch((err) => console.error('[plans] cancel sync failed:', err));
 
-    const ids = plan.participants.map((p) => p.userId);
+    const ids = onIt(plan).map((p) => p.userId);
     const cfg = dm ? await getGuildConfig(plan.guildId).catch(() => null) : null;
     const sent = dm ? await resendCards(plan, ids, cfg, { actorName }) : [];
 

@@ -315,7 +315,7 @@ Participants only.
 * Marks them confirmed for the plan, which counts as in.
 * Remembers the plan's window, weekdays and all, as days they've answered, so every other plan over the same days counts them as answered too. `/free` does the same for each list it saves.
 * Saves `coveredUntil` when it rides along.
-* If that was the last person, DMs the planner to go and compare.
+* Rewrites the DM card they hold on every plan still finding a day, since each says how much is left, and DMs the planner of any plan where everyone left on it is now in and answered.
 
 ### Returns
 
@@ -739,6 +739,7 @@ Save the requester's general timetable for a window.
 
 * Replaces their saved days inside the window.
 * Saves `coveredUntil` when it rides along. A plan's day counts as answered once every one of their own days it falls on is on or before it.
+* Rewrites the DM card they hold on every plan still finding a day, and DMs the planner of any plan where everyone left on it is now in and answered.
 
 ### Returns
 

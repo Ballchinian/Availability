@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, announceJoin } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, announceJoin, answersMoved } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { formatDay } from '../../src/lib/dates.js';
@@ -92,7 +92,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'leavePlan',
         'notifyCreatorDropped',
         'announceAddition',
-        'notifyCreatorIfAllIn',
+        'answersMoved',
         'syncPlan',
         'applyAttendanceMove',
         'announceJoin'
@@ -836,6 +836,14 @@ describe('saving dates on the plan page', () => {
 
         const body = await (await post('/ab12cd34ef/availability', { days: [], coveredUntil: ahead(20) })).json();
         expect(body.answers).toEqual([{ planId: 'zz98yx76wv', name: 'Pub quiz' }]);
+    });
+
+    //Every card they hold says how much is left, and a plan it finished may now be all in
+    it('brings this plan and every other one they are finding a day for up to date', async () => {
+        db.getCollectingPlansForUser.mockResolvedValueOnce([plans.get('ab12cd34ef'), plan({ planId: 'zz98yx76wv' })]);
+        db.confirmParticipant.mockResolvedValueOnce(plans.get('ab12cd34ef'));
+        await post('/ab12cd34ef/availability', { days: [] });
+        expect(answersMoved).toHaveBeenCalledWith('guest', ['ab12cd34ef', 'zz98yx76wv']);
     });
 
     it('hands it back with the page', async () => {

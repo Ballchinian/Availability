@@ -57,6 +57,7 @@ const cal = vi.hoisted(() => ({
 vi.mock('../../src/db/availability.js', () => cal);
 
 const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleDropModal, handleUndrop, setDayReply } = await import('../../src/bot/plans.js');
+const { getPlanningPrefs } = await import('../../src/db/users.js');
 
 const day = shiftDate(today(), 3);
 const ids = (payload) => payload.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
@@ -239,6 +240,8 @@ describe('dropping out and coming back', () => {
     it('hands the planner the overview as a button, not a link in the text', async () => {
         store.plan = collecting([{ userId: 'bo', invited: true }, planner]);
         store.after = collecting([planner]);
+        //Their own calendar answers the one day, so the planner is all that is left and done
+        getPlanningPrefs.mockResolvedValueOnce({ planner: { answered: [{ start: day, end: day, allowedWeekdays: null }] } });
 
         await handleDropModal(press('dropmodal|ab12cd34ef', { fields: { getTextInputValue: () => '' } }));
 

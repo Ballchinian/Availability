@@ -12,6 +12,7 @@ vi.mock('../../src/db/plans.js', () => ({
     getPlan: vi.fn(async () => store.plan),
     getPlanByThread: vi.fn(),
     getOpenPlansForUser: vi.fn(),
+    getCollectingPlansForUser: vi.fn(async () => [{ planId: 'other' }]),
     confirmParticipant: vi.fn(async () => store.plan)
 }));
 const saved = vi.hoisted(() => ({ replaceAvailabilityInRange: vi.fn(async () => 0), getAvailabilityInRange: vi.fn(async () => []) }));
@@ -21,7 +22,7 @@ const users = vi.hoisted(() => ({ addAnswered: vi.fn(async () => []) }));
 vi.mock('../../src/db/users.js', () => users);
 const order = vi.hoisted(() => []);
 vi.mock('../../src/bot/plans.js', () => ({
-    notifyCreatorIfAllIn: vi.fn(async () => order.push('planner told')),
+    answersMoved: vi.fn(() => order.push('planner told')),
     setDayReply: vi.fn(() => ({ content: 'The day and the yes/no', components: [] }))
 }));
 vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/plan' }));
@@ -29,6 +30,7 @@ vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/p
 const { handleFree, handleFreeComponent } = await import('../../src/bot/availability.js');
 const { getPlanByThread } = await import('../../src/db/plans.js');
 const { getGuildConfig } = await import('../../src/db/guilds.js');
+const { answersMoved } = await import('../../src/bot/plans.js');
 
 const day = (n) => shiftDate(today(), n);
 const window = (start, end) => ({
@@ -129,5 +131,11 @@ describe('a picker that still matches', () => {
         await handleFreeComponent(click);
 
         expect(order).toEqual(['answered', 'planner told']);
+    });
+
+    //The window it saved answers their other plans over the same days too
+    it('brings every plan they are finding a day for up to date', async () => {
+        await handleFreeComponent(pick(`free|all|ab12cd34ef|${day(10)}|${day(20)}`));
+        expect(answersMoved).toHaveBeenCalledWith('bo', ['ab12cd34ef', 'other']);
     });
 });

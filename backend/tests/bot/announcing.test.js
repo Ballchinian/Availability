@@ -199,6 +199,21 @@ describe('setting a day on a running plan', () => {
     });
 });
 
+describe('someone who said it is not for them', () => {
+    const withOut = (plan) => ({ ...plan, participants: [{ userId: 'ali', invited: true, in: false }, { userId: 'bo', invited: true }] });
+
+    it('is not asked about the day, or pinged when their DM is not sent', async () => {
+        await announceOutcome(withOut(setDay({ threadId: 't9' })), cfg, { changed: false, actorName: 'Ali' });
+        expect(dms.map((d) => d.userId)).toEqual(['bo']);
+        expect(posts[0].allowedMentions.users).toEqual([]);
+    });
+
+    it('is not told it was called off', async () => {
+        await announceCancel(withOut(collecting()), 'Ali');
+        expect(dms.map((d) => d.userId)).toEqual(['bo']);
+    });
+});
+
 describe('opening a plan thread', () => {
     it('stores the channel the thread was made under', async () => {
         store.plan = collecting();

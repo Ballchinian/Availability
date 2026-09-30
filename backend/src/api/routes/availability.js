@@ -4,6 +4,7 @@ import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySumm
 import { getUserById, setCoveredUntil, getPlanningPrefs } from '../../db/users.js';
 import { getCollectingPlansForUser } from '../../db/plans.js';
 import { newlyCovered } from '../../lib/coverage.js';
+import { answersMoved } from '../../bot/plans.js';
 import { maxEnd } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone } from '../../lib/zones.js';
@@ -65,6 +66,7 @@ router.post('/', requireUser, async (req, res) => {
 
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid);
     const after = await getPlanningPrefs([req.user.id]);
+    answersMoved(req.user.id, plans.map((p) => p.planId));
 
     res.json({ ok: true, savedDays, answers: newlyCovered(plans, req.user.id, before[req.user.id], after[req.user.id]) });
 });

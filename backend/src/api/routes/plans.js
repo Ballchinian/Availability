@@ -6,7 +6,7 @@ import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanC
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, announceJoin } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, syncPlan, applyAttendanceMove, announceJoin, answersMoved } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -218,13 +218,8 @@ router.post('/:planId/availability', async (req, res) => {
     const others = plans.filter((p) => p.planId !== plan.planId);
     const meNow = updated.participants.find((p) => p.userId === req.user.id) || me;
 
-    //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
-    //If that was the last person though, the planner gets a DM nudging them to compare.
-    try {
-        await notifyCreatorIfAllIn(updated);
-    } catch (err) {
-        console.error('[plans] all-in notify failed:', err);
-    }
+    //No thread post, a save is quiet. Their cards catch up, and a plan it finished may DM its planner.
+    answersMoved(req.user.id, [...new Set([plan.planId, ...plans.map((p) => p.planId)])]);
 
     res.json({
         ok: true,
