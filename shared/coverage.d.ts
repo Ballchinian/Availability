@@ -41,6 +41,7 @@ export interface PlanAnswers extends Answers {
 
 export function coverageOf(answers: PlanAnswers): Coverage;
 export function daysToFill(answers: PlanAnswers): string[];
+export function toFillRuns(answers: PlanAnswers): [string, string][];
 export function inOf(p: Answerer): boolean | null;
 export function standing(p: Answerer, coverage: Coverage): Standing;
 export function owes(p: Answerer, coverage: Coverage): 'answer' | 'days' | null;

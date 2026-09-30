@@ -341,8 +341,10 @@ Planner role only.
 
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
+* Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, and their `coveredUntil`
+* For anyone who is in, `unanswered`: the plan's days they haven't answered yet, as `[first, last]` runs rather than one date each, since a two year window would otherwise be hundreds of dates per person
 * Whether the requester is on the guest list themselves
-* For each day, who is free and the hours they gave, so the page can work out the overlap
+* For each day, who is free and the hours they gave, so the page can work out the overlap. Only people who are in count, and only on days their answer reaches: a day marked on their calendar past their answer date doesn't show until they answer it
 * The plan's history: what has happened to it, oldest first
 
 ### Notes

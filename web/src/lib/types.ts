@@ -1,4 +1,5 @@
 import type { FreePerson } from './overlap.js';
+import type { Standing } from '../../../shared/coverage.js';
 
 /*
     What the api hands back, as the screens read it. Written from the routes in
@@ -36,6 +37,13 @@ export interface Participant {
     invited: boolean;
     //Missing from a backend older than the site, for the few minutes a deploy takes
     dmsClosed?: boolean;
+    //Where they stand on a plan still finding its day. Missing from an older backend too.
+    in?: boolean | null;
+    standing?: Standing;
+    daysLeft?: number;
+    coveredUntil?: string | null;
+    //The plan's days they are in for and haven't answered yet, as [first, last] runs
+    unanswered?: [string, string][];
 }
 
 //A day someone marked free, with the hours they narrowed it to

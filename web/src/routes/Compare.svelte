@@ -195,7 +195,6 @@
                         allowedWeekdays={data.plan.allowedWeekdays}
                         freeByDate={data.freeByDate}
                         participants={data.participants}
-                        confirmedCount={data.confirmedCount}
                         totalParticipants={data.totalParticipants}
                         timeZone={data.plan.timeZone}
                         readOnly={cancelled}

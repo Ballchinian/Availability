@@ -8,7 +8,7 @@ import { gatherFreeDays } from './freedays.js';
     person on one plan, out of the plan and their row from getPlanningPrefs.
 */
 
-export { askedDays, answeredOn, coverageOf, daysToFill, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
+export { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
 
 //coverageOf's input. Only coveredUntil is a date on their own clock, so only it goes through retimeDay.
 export function answersOn(plan, prefs, p = null) {

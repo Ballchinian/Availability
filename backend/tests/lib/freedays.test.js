@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { gatherFreeDays } from '../../src/lib/freedays.js';
 
 /*
@@ -106,5 +106,21 @@ describe('gatherFreeDays', () => {
         const junk = call(rows, { ...opts, prefs: { a: { timeZone: 'nonsense/zone' } } });
         expect(junk).toEqual(call(rows, { ...opts, prefs: {} }));
         expect(Object.keys(junk).length).toBeGreaterThan(0);
+    });
+
+    describe('answeredOnly', () => {
+        afterEach(() => vi.useRealTimers());
+
+        //Today is Tue 4 Aug, and a is answered up to the 6th, with the 10th saved on its own
+        const answers = { a: { timeZone: 'Europe/London', coveredUntil: '2026-08-06', answered: [{ start: '2026-08-10', end: '2026-08-10' }] } };
+        const rows = ['2026-08-03', '2026-08-05', '2026-08-08', '2026-08-10'].map((date) => ({ userId: 'a', date, hours: [] }));
+        const opts = { userIds: ['a'], prefs: answers, start: '2026-08-01', end: '2026-08-14' };
+
+        it('leaves out days their answer does not reach yet, and keeps days that have gone', () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-08-04T12:00:00Z'));
+            expect(Object.keys(call(rows, { ...opts, answeredOnly: true })).sort()).toEqual(['2026-08-03', '2026-08-05', '2026-08-10']);
+            expect(Object.keys(call(rows, opts))).toHaveLength(4);
+        });
     });
 });

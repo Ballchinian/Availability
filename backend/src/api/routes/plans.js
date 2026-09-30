@@ -12,7 +12,7 @@ import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysIn
 import { validHours } from '../../lib/hours.js';
 import { safeZone, todayIn } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
-import { newlyCovered, answersOn, askFor, daysToFill, inOf } from '../../lib/coverage.js';
+import { newlyCovered, answersOn, askFor, daysToFill, toFillRuns, coverageOf, standing, inOf } from '../../lib/coverage.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
@@ -273,18 +273,20 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
     const { plan, ctx } = req;
 
     /*
-        Only people who have confirmed count, and we send their hours so the site can
-        work out the overlap window for each day. The query below reaches a day past
-        each end because everyone writes their hours in their own clock and the plan
-        runs on the server's, so a day of theirs spills onto a day of ours either side.
-        gatherFreeDays does that reading and drops whatever still lands outside.
+        Only people who are in count, and only on the days their answer reaches, since
+        a day marked on My calendar past their answer date is not an answer. Their hours
+        go out so the site can work out the overlap window for each day. The query below
+        reaches a day past each end because everyone writes their hours in their own
+        clock and the plan runs on the server's, so a day of theirs spills onto a day of
+        ours either side. gatherFreeDays does that reading and drops whatever still lands
+        outside.
     */
     const guildZone = safeZone(ctx.cfg.timeZone);
-    const confirmed = plan.participants.filter((p) => p.confirmed);
+    const joined = plan.participants.filter((p) => inOf(p) === true);
 
     /*
-        The three reads this page needs, together: everyone's clocks, their
-        names and avatars, and the hours themselves. Who is confirmed comes off the plan
+        The three reads this page needs, together: everyone's clocks and answers, their
+        names and avatars, and the hours themselves. Who is in comes off the plan
         we already hold, so nothing here waits on anything else here. The member fetches
         are one wait for twenty people rather than twenty on their own.
     */
@@ -292,7 +294,7 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
         getPlanningPrefs(plan.participants.map((p) => p.userId)),
         Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null))),
         getAvailabilityForUsersInRange(
-            confirmed.map((p) => p.userId),
+            joined.map((p) => p.userId),
             shiftDate(plan.dateRange.start, -1),
             shiftDate(plan.dateRange.end, 1)
         )
@@ -300,11 +302,20 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
 
     const participants = plan.participants.map((p, i) => {
         const m = members[i];
+        const joinedNow = inOf(p);
+        const answers = answersOn(plan, prefs[p.userId], p);
+        const coverage = coverageOf(answers);
         return {
             userId: p.userId,
             displayName: m?.displayName || 'Someone who left',
             avatarUrl: m?.displayAvatarURL({ size: 64 }) || '',
             confirmed: p.confirmed,
+            in: joinedNow,
+            standing: standing(p, coverage),
+            daysLeft: coverage.daysLeft,
+            coveredUntil: prefs[p.userId]?.coveredUntil || null,
+            //The days still to answer, as runs, only for people whose days the grid counts
+            unanswered: joinedNow === true ? toFillRuns(answers) : [],
             //The confirmation vote, so the planner can watch who is in without leaning on DMs
             vote: p.vote || null,
             voteReason: p.voteReason || null,
@@ -317,11 +328,12 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
     });
 
     const freeByDate = gatherFreeDays(rows, {
-        userIds: confirmed.map((p) => p.userId),
+        userIds: joined.map((p) => p.userId),
         prefs,
         zone: guildZone,
         start: plan.dateRange.start,
-        end: plan.dateRange.end
+        end: plan.dateRange.end,
+        answeredOnly: true
     });
 
     res.json({
@@ -351,7 +363,7 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
         participants,
         //Whether the planner is on the guest list too, so they get their own way to fill dates in
         youAreIn: plan.participants.some((p) => p.userId === req.user.id),
-        confirmedCount: confirmed.length,
+        confirmedCount: plan.participants.filter((p) => p.confirmed).length,
         totalParticipants: plan.participants.length,
         freeByDate,
         /*

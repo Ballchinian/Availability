@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { recallMiss, rememberMiss } from '../remember.js';
     import type { Participant } from '../types.js';
-    import type { FreePerson } from '../overlap.js';
+    import { unansweredByDate, type FreePerson } from '../overlap.js';
     import { todayIn } from '../zone.js';
     import ClockNote from '../ClockNote.svelte';
     import CompareGrid from '../CompareGrid.svelte';
@@ -22,7 +22,6 @@
         allowedWeekdays = null,
         freeByDate = {},
         participants = [],
-        confirmedCount = 0,
         totalParticipants = 0,
         timeZone = '',
         chosen = null,
@@ -38,7 +37,6 @@
         allowedWeekdays?: number[] | null;
         freeByDate?: Record<string, FreePerson[]>;
         participants?: Participant[];
-        confirmedCount?: number;
         totalParticipants?: number;
         timeZone?: string;
         chosen?: { date: string; time: string; note: string } | null;
@@ -72,7 +70,11 @@
         return () => clearTimeout(t);
     });
 
-    const maxMiss = $derived(Math.max(0, confirmedCount - 1));
+    //An older backend sends no in, and counts whoever filled in
+    const inCount = $derived(participants.filter((p) => (p.in === undefined ? p.confirmed : p.in === true)).length);
+    const unanswered = $derived(unansweredByDate(participants, freeByDate));
+
+    const maxMiss = $derived(Math.max(0, inCount - 1));
     const missSaid = $derived(missInput === 0 ? 'nobody' : missInput === 1 ? '1 person' : `${missInput} people`);
 
     /*
@@ -102,7 +104,8 @@
     {start}
     {end}
     {freeByDate}
-    {confirmedCount}
+    {inCount}
+    unansweredByDate={unanswered}
     {allowedWeekdays}
     chosenDate={chosen?.date ?? null}
     today={readOnly ? null : todayIn(timeZone)}
@@ -120,8 +123,9 @@
         {missAllowed}
         {chosen}
         {freeByDate}
+        unansweredByDate={unanswered}
         {participants}
-        {confirmedCount}
+        {inCount}
         {totalParticipants}
         {quiet}
         {onsaved}

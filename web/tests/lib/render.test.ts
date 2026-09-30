@@ -64,17 +64,17 @@ describe('picking a day nobody has answered about', () => {
         }).body;
 
     it('still offers to set the day', () => {
-        expect(draw({ confirmedCount: 0, totalParticipants: 3 })).toContain('Set it to Wed 12 Aug 2026');
+        expect(draw({ inCount: 0, totalParticipants: 3 })).toContain('Set it to Wed 12 Aug 2026');
     });
 
     //Narrowing to the people who can make it is nought people here, and it is the default
     it('does not offer to narrow the invite list to nobody', () => {
-        expect(draw({ confirmedCount: 0, totalParticipants: 3 })).not.toContain('Just the people who can make it');
+        expect(draw({ inCount: 0, totalParticipants: 3 })).not.toContain('Just the people who can make it');
     });
 
     it('offers it again once somebody is free on the day', () => {
         const body = draw({
-            confirmedCount: 1,
+            inCount: 1,
             totalParticipants: 3,
             freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] }
         });
@@ -83,7 +83,7 @@ describe('picking a day nobody has answered about', () => {
 
     it('asks who is still invited as a set of radios under a legend', () => {
         const body = draw({
-            confirmedCount: 1,
+            inCount: 1,
             totalParticipants: 3,
             freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] }
         });
@@ -98,15 +98,15 @@ describe('picking a day nobody has answered about', () => {
     under the day give their hours, so the line that answers a click is the day alone.
 */
 describe('the day picked', () => {
-    const draw = (freeByDate: Record<string, FreePerson[]>, confirmedCount: number) =>
-        bare(render(PickPanel, { props: { planId: 'ab12cd34ef', selectedDate: '2026-08-12', confirmedCount, freeByDate, onsaved: async () => {} } }).body);
+    const draw = (freeByDate: Record<string, FreePerson[]>, inCount: number) =>
+        bare(render(PickPanel, { props: { planId: 'ab12cd34ef', selectedDate: '2026-08-12', inCount, freeByDate, onsaved: async () => {} } }).body);
 
     it.each([
         ['a day that works', { '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] }, 1],
         ['a day someone is missing from', { '2026-08-12': [{ userId: 'a', hours: [] }] }, 3],
         ['a day nobody has answered', {}, 0]
-    ])('is said as the day alone on %s', (_, free, confirmed) => {
-        expect(draw(free, confirmed)).toContain('<span role="status"><strong>Wed 12 Aug 2026</strong></span>');
+    ])('is said as the day alone on %s', (_, free, joined) => {
+        expect(draw(free, joined)).toContain('<span role="status"><strong>Wed 12 Aug 2026</strong></span>');
     });
 
     it('lists who is free with their hours', () => {
@@ -136,7 +136,7 @@ describe('what setting a day says it will do', () => {
             props: {
                 planId: 'ab12cd34ef',
                 selectedDate: '2026-08-12',
-                confirmedCount: 0,
+                inCount: 0,
                 totalParticipants: 3,
                 onsaved: async () => {},
                 ...props
@@ -154,7 +154,7 @@ describe('what setting a day says it will do', () => {
 
     //The radios and the box already show who comes off, so only the people pinged are counted
     it('counts who it pings when it narrows, and no one else', () => {
-        const body = draw({ confirmedCount: 1, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
+        const body = draw({ inCount: 1, freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] } });
         expect(body).toContain('pings 1 person and DMs them the same buttons.');
         expect(body).not.toContain('come off the list');
     });
@@ -179,7 +179,7 @@ describe('what setting a day says it will do', () => {
     it('counts everyone still invited on an edit, not just whoever is free that day', () => {
         const body = draw({
             participants: onPlan,
-            confirmedCount: 1,
+            inCount: 1,
             freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] },
             chosen: { date: '2026-08-12', time: '', note: '' }
         });
@@ -224,7 +224,7 @@ describe('keeping the people who have not answered', () => {
                 planId: 'ab12cd34ef',
                 selectedDate: '2026-08-12',
                 participants: crowd,
-                confirmedCount: 3,
+                inCount: 3,
                 totalParticipants: 5,
                 freeByDate: { '2026-08-12': [{ userId: 'ann', hours: [] }] },
                 onsaved: async () => {},
@@ -250,7 +250,7 @@ describe('keeping the people who have not answered', () => {
     });
 
     it('is not there when everyone has answered', () => {
-        const body = draw({ participants: crowd.slice(0, 3), totalParticipants: 3, confirmedCount: 3 });
+        const body = draw({ participants: crowd.slice(0, 3), totalParticipants: 3, inCount: 3 });
         expect(body).not.toContain('answered this day too');
         expect(body).not.toContain("Haven't answered");
     });
@@ -272,7 +272,7 @@ describe('the compare grid', () => {
                 start: '2026-08-01',
                 end: '2026-08-14',
                 freeByDate: { '2026-08-05': [{ userId: 'a', hours: [] }] },
-                confirmedCount: 1,
+                inCount: 1,
                 ...props
             }
         }).body;
@@ -297,6 +297,11 @@ describe('the compare grid', () => {
 
     it('says which day is set in the accessible name too', () => {
         expect(draw({ chosenDate: '2026-08-05' })).toContain('the day this plan is set for');
+    });
+
+    it('counts only the people in who have answered a day, and says how many have not', () => {
+        const body = draw({ inCount: 3, missAllowed: 1, unansweredByDate: { '2026-08-05': ['b'] } });
+        expect(body).toContain(`${formatLong('2026-08-05')}: 1 of 2 free, 24h in common, 1 hasn't answered it`);
     });
 
     it('marks nothing when no day is set', () => {
@@ -853,9 +858,20 @@ describe('the weekday picker', () => {
 });
 
 describe('the miss slider', () => {
+    const fourIn: Participant[] = ['a', 'b', 'c', 'd'].map((userId) => ({
+        userId,
+        displayName: userId,
+        avatarUrl: '',
+        confirmed: true,
+        in: true,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true
+    }));
     const draw = () =>
         render(DayCompare, {
-            props: { planId: 'ab12cd34ef', start: '2026-08-01', end: '2026-08-14', confirmedCount: 4, totalParticipants: 4, timeZone: 'Europe/London', onsaved: async () => {} }
+            props: { planId: 'ab12cd34ef', start: '2026-08-01', end: '2026-08-14', participants: fourIn, totalParticipants: 4, timeZone: 'Europe/London', onsaved: async () => {} }
         }).body;
 
     //A name with the value in it changes every step, and some readers say the whole label again each time
@@ -970,7 +986,7 @@ describe('the line a picked day opens with', () => {
                 props: {
                     planId: 'ab12cd34ef',
                     selectedDate,
-                    confirmedCount: 1,
+                    inCount: 1,
                     totalParticipants: 1,
                     freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] },
                     onsaved: async () => {}

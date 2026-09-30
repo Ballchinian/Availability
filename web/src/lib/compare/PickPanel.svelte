@@ -25,9 +25,9 @@
         selectedDate = null,
         missAllowed = 0,
         freeByDate = {},
-        unsureByDate = {},
+        unansweredByDate = {},
         participants = [],
-        confirmedCount = 0,
+        inCount = 0,
         totalParticipants = 0,
         chosen = null,
         quiet = false,
@@ -37,9 +37,9 @@
         selectedDate?: string | null;
         missAllowed?: number;
         freeByDate?: Record<string, FreePerson[]>;
-        unsureByDate?: Record<string, number>;
+        unansweredByDate?: Record<string, string[]>;
         participants?: Participant[];
-        confirmedCount?: number;
+        inCount?: number;
         totalParticipants?: number;
         quiet?: boolean;
         chosen?: { date: string; time: string; note: string } | null;
@@ -70,8 +70,7 @@
         if (!selectedDate) return null;
         const day = selectedDate;
         const free = freeByDate[day] || [];
-        const unsure = unsureByDate[day] || 0;
-        const ev = evaluateDay(free, confirmedCount, missAllowed, unsure);
+        const ev = evaluateDay(free, inCount, missAllowed, unansweredByDate[day]?.length || 0);
         const freeSet = new Set(free.map((f) => f.userId));
         const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId));
         const unanswered = participants.filter((p) => !p.confirmed);
@@ -199,7 +198,7 @@
             <p class="muted small">Not free on this day: {sel.missing.map((p) => p.displayName).join(', ')}.</p>
         {/if}
 
-        {#if sel.unanswered.length && confirmedCount > 0}
+        {#if sel.unanswered.length && inCount > 0}
             <p class="muted small">Haven't answered this day: {sel.unanswered.map((p) => p.displayName).join(', ')}.</p>
         {/if}
 

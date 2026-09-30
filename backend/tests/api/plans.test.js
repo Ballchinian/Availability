@@ -6,6 +6,7 @@ import { announceAfter } from '../../src/api/announce.js';
 import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, announceJoin, answersMoved } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
+import { getAvailabilityForUsersInRange } from '../../src/db/availability.js';
 import { formatDay } from '../../src/lib/dates.js';
 
 /*
@@ -987,6 +988,50 @@ describe('dropping out on the site', () => {
 
         expect(res.status).toBe(403);
         expect(notifyCreatorDropped).not.toHaveBeenCalled();
+    });
+});
+
+describe('the overview', () => {
+    beforeEach(() => {
+        plans.set(
+            'ab12cd34ef',
+            plan({
+                timeZone: 'Europe/London',
+                participants: [
+                    { userId: 'ann', confirmed: true, in: true },
+                    { userId: 'bo', confirmed: false, in: true },
+                    { userId: 'cy', confirmed: true, in: false },
+                    { userId: 'di', confirmed: false, in: null }
+                ]
+            })
+        );
+        getPlanningPrefs.mockResolvedValueOnce({
+            ann: { timeZone: 'Europe/London', coveredUntil: ahead(20), answered: [] },
+            bo: { timeZone: 'Europe/London', coveredUntil: null, answered: [] },
+            cy: { timeZone: 'Europe/London', coveredUntil: ahead(20), answered: [] }
+        });
+    });
+
+    //Bo's day comes off My calendar with no answer date, so it is not an answer yet
+    it('counts only people who are in, on the days their answer reaches', async () => {
+        getAvailabilityForUsersInRange.mockResolvedValueOnce([
+            { userId: 'ann', date: ahead(3), hours: [] },
+            { userId: 'bo', date: ahead(4), hours: [] }
+        ]);
+        const body = await (await get('/ab12cd34ef/compare')).json();
+
+        expect(getAvailabilityForUsersInRange.mock.calls[0][0]).toEqual(['ann', 'bo']);
+        expect(body.freeByDate).toEqual({ [ahead(3)]: [{ userId: 'ann', hours: [] }] });
+    });
+
+    it('says where each person stands', async () => {
+        const body = await (await get('/ab12cd34ef/compare')).json();
+        const by = Object.fromEntries(body.participants.map((p) => [p.userId, p]));
+
+        expect(by.ann).toMatchObject({ in: true, standing: 'done', daysLeft: 0, coveredUntil: ahead(20), unanswered: [] });
+        expect(by.bo).toMatchObject({ in: true, standing: 'no-dates', daysLeft: 14, unanswered: [[ahead(1), ahead(14)]] });
+        expect(by.cy).toMatchObject({ in: false, standing: 'out', unanswered: [] });
+        expect(by.di).toMatchObject({ in: null, standing: 'not-said', coveredUntil: null });
     });
 });
 

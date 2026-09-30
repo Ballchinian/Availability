@@ -64,6 +64,24 @@ export function daysToFill(answers) {
 }
 
 /*
+    The same days as [first, last] runs, where a run is days next to each other in what
+    the window asks, so pinned weekdays make one run of a month of Saturdays. The
+    overview carries these per person rather than the days, which on a two year window
+    is hundreds of dates each.
+*/
+export function toFillRuns(answers) {
+    const done = answeredBy(answers);
+    const runs = [];
+    let open = null;
+    for (const d of askedDays(answers.window)) {
+        if (d < (answers.today || '') || done(d)) open = null;
+        else if (open) open[1] = d;
+        else runs.push((open = [d, d]));
+    }
+    return runs;
+}
+
+/*
     Participants saved before the question existed carry no in at all. They read as
     in if they filled in or said yes, otherwise as not said yet, and never as out,
     since anyone who dropped out back then was taken off the plan instead.

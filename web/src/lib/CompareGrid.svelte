@@ -17,10 +17,10 @@
         start,
         end,
         freeByDate = {},
-        confirmedCount = 0,
+        inCount = 0,
         missAllowed = 0,
         allowedWeekdays = null,
-        unsureByDate = {},
+        unansweredByDate = {},
         chosenDate = null,
         today = null,
         level = 3,
@@ -29,10 +29,10 @@
         start: string;
         end: string;
         freeByDate?: Record<string, FreePerson[]>;
-        confirmedCount?: number;
+        inCount?: number;
         missAllowed?: number;
         allowedWeekdays?: number[] | null;
-        unsureByDate?: Record<string, number>;
+        unansweredByDate?: Record<string, string[]>;
         //The day the plan is actually set for, marked apart from whichever day is being looked at
         chosenDate?: string | null;
         //Days before it are out. Null keeps every day, for a grid that is only looked back at.
@@ -58,15 +58,19 @@
         for (const month of months) {
             for (const cell of month.cells) {
                 if (!cell || !cell.inRange || !pickable(cell.date)) continue;
-                map[cell.date] = evaluateDay(freeByDate[cell.date] || [], confirmedCount, missAllowed, unsureByDate[cell.date] || 0);
+                map[cell.date] = evaluateDay(freeByDate[cell.date] || [], inCount, missAllowed, unansweredOn(cell.date));
             }
         }
         return map;
     });
 
-    //The day's honest denominator: the confirmed people who can actually say
+    function unansweredOn(date: string) {
+        return unansweredByDate[date]?.length || 0;
+    }
+
+    //The day's honest denominator: the people in who have answered it
     function countedOn(date: string) {
-        return confirmedCount - (unsureByDate[date] || 0);
+        return inCount - unansweredOn(date);
     }
 
     /*
@@ -74,11 +78,11 @@
         it is the accessible name too, and the cell itself only says a number.
     */
     function describe(date: string, ev: DayEval) {
-        const unsure = unsureByDate[date] || 0;
+        const unanswered = unansweredOn(date);
         const window = ev.viable ? `${ev.windowSize}h in common` : 'no time that fits everyone counted';
         //First, since it is the one thing about a day that beats how good the day looks
         const set = date === chosenDate ? 'the day this plan is set for. ' : '';
-        return `${set}${formatLong(date)}: ${ev.freeCount} of ${countedOn(date)} free, ${window}${unsure ? `, ${unsure} too far out to say` : ''}`;
+        return `${set}${formatLong(date)}: ${ev.freeCount} of ${countedOn(date)} free, ${window}${unanswered ? `, ${unanswered} ${unanswered === 1 ? "hasn't" : "haven't"} answered it` : ''}`;
     }
 
     function pick(date: string) {

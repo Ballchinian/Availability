@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOUR_COUNT } from '../../src/lib/hours.js';
-import { bestWindow, evaluateDay } from '../../src/lib/overlap.js';
+import { bestWindow, evaluateDay, unansweredByDate } from '../../src/lib/overlap.js';
 
 describe('bestWindow', () => {
     it('has no window when nobody is free', () => {
@@ -167,17 +167,37 @@ describe('evaluateDay', () => {
         expect(ev.freeCount).toBe(2);
     });
 
-    /*
-        Someone past their certainty horizon is neither free nor busy, so they come
-        off the denominator instead of counting as a miss.
-    */
-    it('takes unsure people out of the count rather than the budget', () => {
+    //Someone in who hasn't answered a day is neither free nor busy on it, so not a miss either
+    it('takes people who have not answered out of the count rather than the budget', () => {
         const free = [{ userId: 'a' }, { userId: 'b' }];
         expect(evaluateDay(free, 4, 0).viable).toBe(false);
         expect(evaluateDay(free, 4, 0, 2).viable).toBe(true);
     });
 
-    it('is not viable when everyone confirmed is unsure', () => {
+    it('is not viable when nobody in has answered the day', () => {
         expect(evaluateDay([], 2, 0, 2).viable).toBe(false);
+    });
+});
+
+describe('unansweredByDate', () => {
+    it('opens each run out into its days', () => {
+        const out = unansweredByDate([{ userId: 'a', unanswered: [['2026-08-30', '2026-09-01']] }], {});
+        expect(out).toEqual({ '2026-08-30': ['a'], '2026-08-31': ['a'], '2026-09-01': ['a'] });
+    });
+
+    //Their days still show while a host has sent them back, and a free day is an answer
+    it('leaves someone out on a day they marked free', () => {
+        const out = unansweredByDate(
+            [
+                { userId: 'a', unanswered: [['2026-08-05', '2026-08-06']] },
+                { userId: 'b', unanswered: [['2026-08-05', '2026-08-05']] }
+            ],
+            { '2026-08-05': [{ userId: 'a' }] }
+        );
+        expect(out).toEqual({ '2026-08-05': ['b'], '2026-08-06': ['a'] });
+    });
+
+    it('has nothing from a backend that sends no runs', () => {
+        expect(unansweredByDate([{ userId: 'a' }], {})).toEqual({});
     });
 });

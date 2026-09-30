@@ -56,10 +56,10 @@
 
     <h2>Who can see your days</h2>
     <p>
-        Anyone with the planner role in a server can open the overview of any plan there. Once you've
-        filled in your dates for a plan, the overview shows them the days and hours you marked free within
-        that plan's dates. It also shows whether you're in, your yes
-        or no on a set day, and any reason you gave. Everyone else on the plan only sees counts: how many
+        Anyone with the planner role in a server can open the overview of any plan there. Once you're in
+        on a plan, the overview shows them the days and hours you marked free within that plan's dates, on
+        the days your answer covers. It also shows whether you're in, how many days you have left to answer,
+        your yes or no on a set day, and any reason you gave. Everyone else on the plan only sees counts: how many
         have filled in their dates, and how many are coming.
     </p>
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { askedDays, answeredOn, coverageOf, daysToFill, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
+import { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
 import { shiftDate } from '../../../shared/dates.js';
 
 //Mon 7 to Fri 11 Sep 2026
@@ -154,6 +154,24 @@ describe('daysToFill', () => {
 
     it('lists every day while someone is sent back', () => {
         expect(daysToFill({ window: week, coveredUntil: '2026-09-30', sentBack: { byName: 'Ali' } })).toEqual(askedDays(week));
+    });
+});
+
+describe('toFillRuns', () => {
+    it('breaks a run where a day is answered, from today on', () => {
+        const middle = [{ start: '2026-09-09', end: '2026-09-09' }];
+        expect(toFillRuns({ window: week, answered: middle, today: '2026-09-08' })).toEqual([
+            ['2026-09-08', '2026-09-08'],
+            ['2026-09-10', '2026-09-11']
+        ]);
+    });
+
+    it('runs across the days a pinned window skips', () => {
+        expect(toFillRuns({ window: weekends })).toEqual([['2026-09-05', '2026-09-13']]);
+    });
+
+    it('has nothing for a covered window', () => {
+        expect(toFillRuns({ window: week, coveredUntil: '2026-09-11' })).toEqual([]);
     });
 });
 

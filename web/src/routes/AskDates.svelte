@@ -264,7 +264,6 @@
                         allowedWeekdays={data.plan.allowedWeekdays}
                         freeByDate={data.freeByDate}
                         participants={data.participants}
-                        confirmedCount={data.confirmedCount}
                         totalParticipants={data.totalParticipants}
                         timeZone={data.plan.timeZone}
                         chosen={data.plan.chosenDate ? { date: data.plan.chosenDate, time: '', note: '' } : null}

@@ -1,4 +1,5 @@
 import { DAY_HOURS, HOUR_COUNT } from './hours.js';
+import { nextDay } from './calendar.js';
 
 /*
     Works out the common window for a day: the hours that suit everyone we are
@@ -118,12 +119,33 @@ export function bestWindow(free: FreePerson[], budget: number): WindowResult {
 }
 
 /*
-    unsureCount is how many confirmed people this day sits past the certainty horizon
-    of. They are neither free nor busy, just too far out to say, so they come off the
-    denominator rather than eating into the miss budget as if they were skipping it.
+    Who is in and hasn't answered each day yet, from the runs the overview sends for
+    each person. A day they marked free anyway still counts them free: their days show
+    while a host has sent them back to go over them.
 */
-export function evaluateDay(free: FreePerson[], confirmedCount: number, missAllowed: number, unsureCount = 0): DayEval {
-    const counted = confirmedCount - unsureCount;
+export function unansweredByDate(
+    people: { userId: string; unanswered?: [string, string][] }[],
+    freeByDate: Record<string, FreePerson[]>
+): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const p of people) {
+        for (const [first, last] of p.unanswered || []) {
+            for (let d = first; d <= last; d = nextDay(d)) {
+                if ((freeByDate[d] || []).some((f) => f.userId === p.userId)) continue;
+                (out[d] ||= []).push(p.userId);
+            }
+        }
+    }
+    return out;
+}
+
+/*
+    unansweredCount is how many of the people in haven't answered this day. They are
+    neither free nor busy, so they come off the denominator rather than eating into the
+    miss budget as if they were skipping it.
+*/
+export function evaluateDay(free: FreePerson[], inCount: number, missAllowed: number, unansweredCount = 0): DayEval {
+    const counted = inCount - unansweredCount;
     const freeCount = free.length;
     const missingAuto = counted - freeCount;
     if (counted === 0 || missingAuto > missAllowed) {
