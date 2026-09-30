@@ -305,12 +305,15 @@ function effectiveVote(p) {
     return p.override || p.vote || null;
 }
 
-//A one line count of where the confirmation vote stands, shown under the probe.
-//Only the people still invited count, nobody waits on someone who is off the list.
+/*
+    A one line count of where the confirmation vote stands, shown under the probe. Only the
+    people still invited count, nobody waits on someone who is off the list. Someone who said
+    Not for me and hasn't answered for the day counts as can't make it.
+*/
 function probeTally(plan) {
-    const invited = invitedOnly(plan);
+    const invited = plan.participants.filter((p) => p.invited !== false);
     const yes = invited.filter((p) => effectiveVote(p) === 'yes').length;
-    const no = invited.filter((p) => effectiveVote(p) === 'no').length;
+    const no = invited.filter((p) => effectiveVote(p) === 'no' || (!effectiveVote(p) && inOf(p) === false)).length;
     const pending = invited.length - yes - no;
     const bits = [`${yes} coming`, `${no} can't make it`];
     if (pending > 0) bits.push(`${pending} yet to answer`);

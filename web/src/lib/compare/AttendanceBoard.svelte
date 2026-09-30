@@ -8,6 +8,7 @@
 <script lang="ts">
     import { api } from '../api.js';
     import type { Participant } from '../types.js';
+    import { inOf } from '../../../../shared/coverage.js';
     import { refocus } from '../focus.js';
     import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
@@ -15,7 +16,8 @@
     /*
         The attendance board for a set date. Everyone still invited lands in a
         column by where they stand, a planner's manual call winning over their own
-        answer. The uninvited sit apart, and inviting one sends them the yes/no.
+        answer, and someone who said Not for me with no answer for the day under Can't
+        make it. The uninvited sit apart, and inviting one sends them the yes/no.
     */
     let { planId, participants = [], chosenDate = null, onmoved }: {
         planId: string;
@@ -33,7 +35,7 @@
     const board = $derived.by(() => {
         if (!chosenDate) return null;
         const invited = participants.filter((p) => p.invited !== false);
-        const stand = (p: Participant) => p.override || p.vote || 'waiting';
+        const stand = (p: Participant) => p.override || p.vote || (inOf(p) === false ? 'no' : 'waiting');
         return {
             coming: invited.filter((p) => stand(p) === 'yes'),
             waiting: invited.filter((p) => stand(p) === 'waiting'),
@@ -44,20 +46,26 @@
 
     //What the person actually said, shown in brackets when a planner overrode it
     function bracket(p: Participant): string {
+        const out = !p.vote && inOf(p) === false;
+        if (out && !p.override) return "said it's not for them";
         if (!p.override || p.override === p.vote) return '';
         if (p.vote === 'yes') return 'said coming';
         if (p.vote === 'no') return "said can't make it";
-        return "hasn't answered";
+        return out ? "said it's not for them" : "hasn't answered";
     }
 
-    //The other two columns someone can be moved to from where they stand now
-    function moveTargets(from: string) {
+    /*
+        The other two columns someone can be moved to from where they stand now. Not back to
+        waiting for someone out with nothing to put aside: nothing is sent to them to answer.
+    */
+    function moveTargets(p: Participant, from: string) {
         const all = [
             { key: 'coming', label: 'coming' },
             { key: 'waiting', label: 'still to answer' },
             { key: 'cant', label: "can't make it" }
         ];
-        return all.filter((t) => t.key !== from);
+        const stuck = !p.vote && !p.override && inOf(p) === false;
+        return all.filter((t) => t.key !== from && !(stuck && t.key === 'waiting'));
     }
 
     /*
@@ -108,10 +116,11 @@
                                     {#if p.sentBack}<span class="muted small">(moved back by {p.sentBack.byName})</span>{/if}
                                     {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
                                     {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
+                                    {#if !p.vote && p.inReason}<span class="muted small">({p.inReason})</span>{/if}
                                 </button>
                                 {#if picked === p.userId}
                                     <div class="move-row" id="{uid}-moves">
-                                        {#each moveTargets(colDef.key) as t (t.key)}
+                                        {#each moveTargets(p, colDef.key) as t (t.key)}
                                             <button class="ghost" disabled={panel.busy} onclick={() => move(p, t.key, colDef.people, () => `Marked ${p.displayName} as ${t.label}.`)}>Mark as {t.label}</button>
                                         {/each}
                                         <!--The one thing the columns cannot show, said where the move is made-->

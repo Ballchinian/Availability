@@ -144,6 +144,14 @@ describe('announcing a plan with its day already set', () => {
         expect(db.setPlanOpener).toHaveBeenCalledWith('p1', 'post1');
     });
 
+    //Kept on the list for a change of mind, but not waited on
+    it('counts someone who said it is not for them as not coming', async () => {
+        store.plan = setDay({ participants: [...store.plan.participants, { userId: 'cy', in: false, invited: true }] });
+        await announceSetPlan(store.plan, cfg, 'Ali');
+        expect(posts[0].content).toContain("0 coming · 1 can't make it · 2 yet to answer");
+        expect(dms.map((d) => d.userId)).not.toContain('cy');
+    });
+
     it('DMs every guest the same buttons', async () => {
         await announceSetPlan(store.plan, cfg, 'Ali');
 

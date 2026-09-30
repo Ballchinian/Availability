@@ -730,6 +730,14 @@ describe('the attendance board', () => {
         expect(body).not.toContain('move-row');
     });
 
+    //Kept on the list for a change of mind, but nothing asks them, so they are not waited on
+    it("puts someone who said it is not for them under can't make it, with their reason", () => {
+        const body = bare(draw([{ ...person('c', null), in: false, inReason: 'Away' }]));
+        expect(body).toContain("<h3>Waiting to answer (1)</h3>");
+        expect(body).toContain("<h3>Can't make it (1)</h3>");
+        expect(body).toMatch(/>C\s+<span class="muted small">\(said it's not for them\)<\/span>\s*<span class="muted small">\(Away\)<\/span>/);
+    });
+
     it('says who moved someone back to waiting', () => {
         const body = bare(draw([{ ...person('c', null), sentBack: { byName: 'Ali' } }]));
         expect(body).toMatch(/data-user="c"[^>]*>C\s+<span class="muted small">\(moved back by Ali\)<\/span>/);

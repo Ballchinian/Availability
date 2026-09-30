@@ -1,6 +1,7 @@
 <script lang="ts">
     import { formatDate, formatTime } from '../format.js';
     import type { CompareScreen } from '../types.js';
+    import { inOf } from '../../../../shared/coverage.js';
     import ClockNote from '../ClockNote.svelte';
     import AttendanceBoard from './AttendanceBoard.svelte';
     import HostGroups, { owing } from './HostGroups.svelte';
@@ -28,10 +29,10 @@
     //A plan with a day is waiting on answers, not dates
     const nudging = $derived(collecting && waiting.length > 0 && !cancelled);
 
-    //On the list, with no answer of their own and no call from a planner standing in for one
+    //On the list, with no answer of their own and no call from a planner standing in for one. Nobody out is nudged.
     const pendingVoters = $derived(
         data.plan.probeActive && data.plan.chosenDate
-            ? data.participants.filter((p) => p.invited && !p.override && !p.vote)
+            ? data.participants.filter((p) => p.invited && !p.override && !p.vote && inOf(p) !== false)
             : []
     );
 </script>
