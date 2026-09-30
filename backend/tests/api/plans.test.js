@@ -5,6 +5,7 @@ import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
 import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
+import { addAnswered } from '../../src/db/users.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -75,7 +76,8 @@ vi.mock('../../src/db/availability.js', () => ({
 vi.mock('../../src/db/users.js', () => ({
     getUserById: vi.fn(async () => ({ timeZone: 'Europe/London' })),
     setSureUntil: vi.fn(),
-    getPlanningPrefs: vi.fn(async () => ({}))
+    getPlanningPrefs: vi.fn(async () => ({})),
+    addAnswered: vi.fn()
 }));
 vi.mock('../../src/bot/plans.js', () =>
     stubs(
@@ -790,6 +792,21 @@ describe('going back out for different dates', () => {
             expect(announceOutcome).toHaveBeenCalledTimes(1);
             expect(announcePlanDates).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('saving dates on the plan page', () => {
+    beforeEach(() => (sessionUser = guest));
+
+    //What answers every other plan over the same days, pinned weekdays and all
+    it('records the plan window as answered', async () => {
+        plans.set('ab12cd34ef', plan({ allowedWeekdays: [0, 6] }));
+        db.confirmParticipant.mockResolvedValueOnce(plans.get('ab12cd34ef'));
+
+        const res = await post('/ab12cd34ef/availability', { days: [] });
+
+        expect(res.status).toBe(200);
+        expect(addAnswered).toHaveBeenCalledWith('guest', { start: ahead(1), end: ahead(14), allowedWeekdays: [0, 6] });
     });
 });
 

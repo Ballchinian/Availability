@@ -1,4 +1,6 @@
 import { col, collections } from './mongo.js';
+import { saveAnswered } from '../lib/answered.js';
+import { todayIn } from '../lib/zones.js';
 
 /*
     The global user record. One per Discord person, shared across every server,
@@ -89,6 +91,20 @@ export async function setSureUntil(userId, date) {
     await col(collections.users).updateOne({ userId }, { $set: { sureUntil: date || null } });
 }
 
+//"Take my calendar as my answer up to", a date on their own clock. Never seeded from sureUntil, which meant something else.
+export async function setCoveredUntil(userId, date) {
+    await col(collections.users).updateOne({ userId }, { $set: { coveredUntil: date || null } });
+}
+
+/*
+    A window of days this person has now answered, from a plan page or /free.
+    Nowhere is further behind than UTC-12, so no window still running anywhere
+    counts as over.
+*/
+export async function addAnswered(userId, window) {
+    return saveAnswered(col(collections.users), userId, [window], todayIn('Etc/GMT+12'));
+}
+
 /*
     Which clock this person reads their own hours in. Taken from the browser the first
     time they open the site and changeable there after, since a phone knows this and
@@ -103,14 +119,21 @@ export async function setUserTimeZone(userId, zone) {
     await col(collections.users).updateOne({ userId }, { $set: { timeZone: zone || null } });
 }
 
-//The horizons and the clocks for a set of people in one query, keyed by user id
+//The horizons, the answered windows and the clocks for a set of people in one query, keyed by user id
 export async function getPlanningPrefs(userIds) {
     if (!userIds.length) return {};
     const rows = await col(collections.users)
         .find({ userId: { $in: userIds } })
-        .project({ _id: 0, userId: 1, sureUntil: 1, timeZone: 1 })
+        .project({ _id: 0, userId: 1, sureUntil: 1, coveredUntil: 1, answered: 1, timeZone: 1 })
         .toArray();
     const map = {};
-    for (const r of rows) map[r.userId] = { sureUntil: r.sureUntil || null, timeZone: r.timeZone || null };
+    for (const r of rows) {
+        map[r.userId] = {
+            sureUntil: r.sureUntil || null,
+            coveredUntil: r.coveredUntil || null,
+            answered: r.answered || [],
+            timeZone: r.timeZone || null
+        };
+    }
     return map;
 }

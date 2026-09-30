@@ -4,7 +4,7 @@ import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
-import { getPlanningPrefs } from '../db/users.js';
+import { getPlanningPrefs, addAnswered } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
@@ -496,6 +496,7 @@ export async function autoConfirmCoveredPlans(userId, start, end) {
     for (const plan of plans) {
         const me = plan.participants.find((p) => p.userId === userId);
         if (me && !me.confirmed) {
+            await addAnswered(userId, { start: plan.dateRange.start, end: plan.dateRange.end, allowedWeekdays: plan.allowedWeekdays || null });
             const updated = await confirmParticipant(plan.planId, userId);
             names.push(plan.name);
             try {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { today, shiftDate } from '../../src/lib/dates.js';
+import { today, shiftDate, allowedDaysInRange } from '../../src/lib/dates.js';
 
 /*
     A click on a /free picker that was drawn before the plan's dates moved. What matters
@@ -17,6 +17,8 @@ vi.mock('../../src/db/plans.js', () => ({
 const saved = vi.hoisted(() => ({ replaceAvailabilityInRange: vi.fn(async () => 0), getAvailabilityInRange: vi.fn(async () => []) }));
 vi.mock('../../src/db/availability.js', () => saved);
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn() }));
+const users = vi.hoisted(() => ({ addAnswered: vi.fn(async () => []) }));
+vi.mock('../../src/db/users.js', () => users);
 const order = vi.hoisted(() => []);
 vi.mock('../../src/bot/plans.js', () => ({ notifyCreatorIfAllIn: vi.fn(async () => order.push('planner told')) }));
 vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/plan' }));
@@ -50,6 +52,7 @@ describe('a picker drawn before the dates moved', () => {
         await handleFreeComponent(click);
 
         expect(saved.replaceAvailabilityInRange).not.toHaveBeenCalled();
+        expect(users.addAnswered).not.toHaveBeenCalled();
         const redrawn = click.update.mock.calls[0][0];
         expect(redrawn.content).toMatch(/saved nothing/);
         expect(redrawn.components[0].toJSON().components[0].custom_id).toBe(`free|day|ab12cd34ef|0|${day(10)}|${day(20)}`);
@@ -76,6 +79,15 @@ describe('a picker that still matches', () => {
 
         expect(saved.replaceAvailabilityInRange).toHaveBeenCalledWith('bo', day(10), day(20), [{ date: day(12), hours: [] }], expect.any(Array));
         expect(click.update.mock.calls[0][0].content).not.toMatch(/saved nothing/);
+    });
+
+    it("records the list's first and last day as answered, on the plan's weekdays", async () => {
+        store.plan = { ...window(10, 20), allowedWeekdays: [0, 6] };
+        const days = allowedDaysInRange(day(10), day(20), [0, 6]);
+
+        await handleFreeComponent(pick(`free|none|ab12cd34ef|${days[0]}|${days.at(-1)}`));
+
+        expect(users.addAnswered).toHaveBeenCalledWith('bo', { start: days[0], end: days.at(-1), allowedWeekdays: [0, 6] });
     });
 
     //A slow DM to the planner used to hold the answer up past Discord's three seconds

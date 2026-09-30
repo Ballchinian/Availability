@@ -12,10 +12,15 @@ import { syncPlanCards } from './plans.js';
     forgetting data we no longer have any use for.
 */
 
-//A person's timetable is only worth keeping while they share a server with the bot
+/*
+    A person's timetable is only worth keeping while they share a server with the bot.
+    Only a record whose servers were worked out at login can say so: one made to hold
+    the answers of someone who has only used /free has no list, and reading that as
+    none would wipe their calendar the first time they left any server.
+*/
 async function forgetIfOrphaned(userId) {
     const user = await getUserById(userId);
-    if (user && (!user.guilds || user.guilds.length === 0)) {
+    if (Array.isArray(user?.guilds) && user.guilds.length === 0) {
         await deleteAllForUser(userId);
         await forgetUser(userId);
     }
@@ -83,17 +88,18 @@ export async function onGuildDelete(guild) {
 export async function onGuildMemberRemove(member) {
     await removeUserFromGuildPlans(member.guild.id, member.id);
 
-    //Only people who have used the site have anything to clean up
+    //Only people who have logged in to the site have a list of servers to keep
     const user = await getUserById(member.id);
-    if (user) {
+    if (Array.isArray(user?.guilds)) {
         await removeUserGuild(member.id, member.guild.id);
         await forgetIfOrphaned(member.id);
     }
 }
 
+//Starting a list here would make this their only server, and leaving it would wipe them
 export async function onGuildMemberAdd(member) {
     const user = await getUserById(member.id);
-    if (user) await addUserGuild(member.id, member.guild.id);
+    if (Array.isArray(user?.guilds)) await addUserGuild(member.id, member.guild.id);
 }
 
 //Works out which of the bot's servers a person is in, for the login refresh

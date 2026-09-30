@@ -40,6 +40,11 @@ describe('addParticipants', () => {
         expect(ids()).toEqual(['ali', 'bo']);
     });
 
+    it('adds people who have not said if they are in', async () => {
+        await addParticipants('p1', ['bo']);
+        expect(store.doc.participants[1]).toMatchObject({ in: null, inReason: null, sentBack: null });
+    });
+
     it('puts each person on once when two adds land together', async () => {
         await Promise.all([addParticipants('p1', ['bo', 'cass']), addParticipants('p1', ['cass', 'dee'])]);
         expect(ids().sort()).toEqual(['ali', 'bo', 'cass', 'dee']);

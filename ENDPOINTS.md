@@ -305,7 +305,8 @@ Participants only.
 ### Effects
 
 * Replaces their saved days inside the plan range.
-* Marks them confirmed for the plan.
+* Marks them confirmed for the plan, which counts as in.
+* Remembers the plan's window, weekdays and all, as days they've answered, so every other plan over the same days counts them as answered too. `/free` does the same for each list it saves.
 * Saves their sure-up-to date when one rides along.
 * With auto-accept on, quietly confirms them for any other plan the range covers.
 * If that was the last person, DMs the planner to go and compare.

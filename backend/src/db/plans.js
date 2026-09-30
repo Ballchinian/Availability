@@ -24,6 +24,11 @@ function freshParticipant(userId) {
         votedAt: null,
         invited: true,
         override: null,
+        //Count me in / Not for me. Null is not said yet, see inOf in shared/coverage.js for older plans.
+        in: null,
+        inReason: null,
+        //What a host moving them back to waiting took off them, so moving them straight back restores it
+        sentBack: null,
         //The DM saying what the plan is, rewritten in place when it changes. See setPlanCards.
         cardMessageId: null,
         cardActor: '',
@@ -540,11 +545,38 @@ export async function addParticipants(planId, userIds) {
     return getPlan(planId);
 }
 
-//Mark one person as having reviewed and confirmed for this plan
+/*
+    Mark one person as having saved their dates for this plan, which counts as in. Callers
+    also add the window to their answered list (addAnswered in db/users.js), since that is
+    what answers the other plans over the same days.
+*/
 export async function confirmParticipant(planId, userId) {
     await col(collections.plans).updateOne(
         { planId, 'participants.userId': userId },
-        { $set: { 'participants.$.confirmed': true, 'participants.$.confirmedAt': new Date() } }
+        {
+            $set: {
+                'participants.$.confirmed': true,
+                'participants.$.confirmedAt': new Date(),
+                'participants.$.in': true,
+                'participants.$.inReason': null,
+                'participants.$.sentBack': null
+            }
+        }
+    );
+    return getPlan(planId);
+}
+
+//Count me in (true) or Not for me (false, with an optional reason), their own answer ending any sent back
+export async function setIn(planId, userId, value, reason = null) {
+    await col(collections.plans).updateOne(
+        { planId, 'participants.userId': userId },
+        {
+            $set: {
+                'participants.$.in': value,
+                'participants.$.inReason': value === false ? reason : null,
+                'participants.$.sentBack': null
+            }
+        }
     );
     return getPlan(planId);
 }
@@ -559,19 +591,20 @@ export async function markAllInNotified(planId) {
     date, with an optional reason when they cannot. A yes drops any old reason, since a
     reason only makes sense alongside a no. Their own answer also clears any manual
     call a planner made on them, since the horse's mouth beats a guess.
+
+    A yes counts as in, so a plan sent back for dates does not ask them if they're in
+    again. A no is about the one day and leaves in alone.
 */
 export async function recordVote(planId, userId, vote, reason = null) {
-    await col(collections.plans).updateOne(
-        { planId, 'participants.userId': userId },
-        {
-            $set: {
-                'participants.$.vote': vote,
-                'participants.$.voteReason': vote === 'no' ? reason : null,
-                'participants.$.votedAt': new Date(),
-                'participants.$.override': null
-            }
-        }
-    );
+    const set = {
+        'participants.$.vote': vote,
+        'participants.$.voteReason': vote === 'no' ? reason : null,
+        'participants.$.votedAt': new Date(),
+        'participants.$.override': null,
+        'participants.$.sentBack': null
+    };
+    if (vote === 'yes') Object.assign(set, { 'participants.$.in': true, 'participants.$.inReason': null });
+    await col(collections.plans).updateOne({ planId, 'participants.userId': userId }, { $set: set });
     return getPlan(planId);
 }
 

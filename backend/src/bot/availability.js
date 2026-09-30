@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, 
 import { getPlan, getPlanByThread, getOpenPlansForUser, confirmParticipant } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange } from '../db/availability.js';
+import { addAnswered } from '../db/users.js';
 import { notifyCreatorIfAllIn } from './plans.js';
 import { planUrl } from './util.js';
 import { allowedDaysInRange, formatDay } from '../lib/dates.js';
@@ -130,17 +131,15 @@ async function usablePlan(interaction, planId) {
 /*
     Save a stretch of days and mark them confirmed, which is the same pair the site does
     on save. onlyDates is the exact days being answered for, so a weekday-pinned plan and
-    the days in other selects are both left alone.
+    the days in other selects are both left alone. The list's first and last day are the
+    window it answered.
 */
 async function saveDays(userId, plan, dates, answering) {
     const picked = dates.filter((d) => answering.includes(d));
-    await replaceAvailabilityInRange(
-        userId,
-        answering[0],
-        answering[answering.length - 1],
-        picked.map((date) => ({ date, hours: [] })),
-        answering
-    );
+    const first = answering[0];
+    const last = answering[answering.length - 1];
+    await replaceAvailabilityInRange(userId, first, last, picked.map((date) => ({ date, hours: [] })), answering);
+    await addAnswered(userId, { start: first, end: last, allowedWeekdays: plan.allowedWeekdays || null });
 
     return confirmParticipant(plan.planId, userId);
 }

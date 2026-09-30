@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import { config } from '../config.js';
 import { todayIn, dayHasPassed } from '../lib/zones.js';
+import { saveAnswered } from '../lib/answered.js';
 
 /*
     Thin wrapper around the mongo driver. One client for the whole process, a
@@ -42,6 +43,7 @@ export async function connectMongo() {
         await ensureIndexes(database);
         //A missed pass is caught on the next boot, and is no reason to go without a database
         await askOnSetDays(database).catch((err) => console.error('[mongo] turning on yes/no for set days failed:', err));
+        await carryOverAnswers(database).catch((err) => console.error('[mongo] carrying answers over failed:', err));
         client = attempt;
         db = database;
     } catch (err) {
@@ -147,6 +149,50 @@ export async function askOnSetDays(database) {
     const due = found.filter((plan) => !dayHasPassed(plan)).map((plan) => plan.planId);
     if (due.length) await plans.updateMany({ planId: { $in: due } }, { $set: { probeActive: true } });
     return due.length;
+}
+
+/*
+    Participants from before in was stored. They read as in off confirmed or a yes (inOf
+    in shared/coverage.js), but sending a plan back for dates clears confirmed and moving
+    its day clears votes, so that only lasts until the plan next changes. So each one is
+    written down here once, after anyone who filled in a plan still collecting gets its
+    window as answered, or they would all read as "In, no dates yet".
+
+    Only participants with no in, never everyone confirmed: a window widened later must
+    not count as answered for people who were confirmed before it widened. The windows go
+    first so a failure part way leaves in unwritten and the next boot tries again.
+*/
+export async function carryOverAnswers(database) {
+    const plans = database.collection(collections.plans);
+    const today = todayIn('Etc/GMT+12');
+    const legacy = { confirmed: true, in: { $exists: false } };
+
+    const open = await plans
+        .find(
+            { status: 'collecting', 'dateRange.end': { $gte: today }, participants: { $elemMatch: legacy } },
+            { projection: { dateRange: 1, allowedWeekdays: 1, participants: 1 } }
+        )
+        .toArray();
+    const byUser = new Map();
+    for (const plan of open) {
+        const window = { start: plan.dateRange.start, end: plan.dateRange.end, allowedWeekdays: plan.allowedWeekdays || null };
+        for (const p of plan.participants) {
+            if (!p.confirmed || p.in !== undefined) continue;
+            if (!byUser.has(p.userId)) byUser.set(p.userId, []);
+            byUser.get(p.userId).push(window);
+        }
+    }
+    const users = database.collection(collections.users);
+    for (const [userId, windows] of byUser) await saveAnswered(users, userId, windows, today);
+
+    for (const [field, value] of [['confirmed', true], ['vote', 'yes']]) {
+        await plans.updateMany(
+            { participants: { $elemMatch: { in: { $exists: false }, [field]: value } } },
+            { $set: { 'participants.$[p].in': true } },
+            { arrayFilters: [{ 'p.in': { $exists: false }, [`p.${field}`]: value }] }
+        );
+    }
+    return byUser.size;
 }
 
 export async function closeMongo() {

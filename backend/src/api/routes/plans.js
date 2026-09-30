@@ -5,7 +5,7 @@ import { announceAfter } from '../announce.js';
 import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getUserById, setSureUntil, getPlanningPrefs } from '../../db/users.js';
+import { getUserById, setSureUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
 import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
@@ -185,6 +185,7 @@ router.post('/:planId/availability', async (req, res) => {
     //availability on the other days (from other plans) is left untouched
     const onlyDates = allowed ? allowedDaysInRange(start, end, allowed) : null;
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid, onlyDates);
+    await addAnswered(req.user.id, { start, end, allowedWeekdays: allowed });
     const updated = await confirmParticipant(plan.planId, req.user.id);
 
     //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
