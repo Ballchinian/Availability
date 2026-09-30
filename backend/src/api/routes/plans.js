@@ -463,14 +463,19 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
     /*
         Who is still invited once the date is set. "attending" narrows the plan to
         the people the site worked out can make the day, plus by default anyone who
-        has not answered for it, so only they get pinged, DMed and counted in the tally. Anything else keeps everyone on
-        the list, and moving the date invites everyone back too.
+        has not answered for it, so only they get pinged, DMed and counted in the tally.
+        Anything else keeps everyone on the list, and moving the date invites everyone
+        back too.
+
+        Anyone who said Not for me stays on a narrowed list without being asked, since
+        nothing is sent to them and their card has to keep I'm coming for a change of mind.
     */
     let invitedIds = null;
     if (inviteMode === 'attending' && Array.isArray(attendingIds)) {
         const here = new Set(plan.participants.map((p) => p.userId));
         const kept = attendingIds.filter((id) => here.has(id));
-        if (kept.length) invitedIds = kept;
+        const out = plan.participants.filter((p) => inOf(p) === false).map((p) => p.userId);
+        if (kept.length) invitedIds = [...new Set([...kept, ...out])];
     }
 
     //If a date was already set and this is a different one, it is a reorganise

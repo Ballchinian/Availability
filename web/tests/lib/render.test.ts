@@ -264,6 +264,32 @@ describe('keeping the people who have not answered', () => {
     it('says one person in the singular', () => {
         expect(draw({ participants: crowd.slice(0, 4), totalParticipants: 4 })).toContain("Ask the 1 who hasn't answered this day too");
     });
+
+    //Bo is in but his answer stops short of the day, and Cy said it's not for her
+    it('goes by what each person has answered, and leaves anyone out off both lists', () => {
+        const body = draw({
+            participants: [
+                { ...crowd[0], in: true },
+                { ...crowd[1], in: true },
+                { ...crowd[2], in: false },
+                { ...crowd[3], in: null }
+            ],
+            inCount: 2,
+            totalParticipants: 4,
+            unansweredByDate: { '2026-08-12': ['bo'] }
+        });
+        expect(body).toContain("Haven't answered this day: BO, DI.");
+        expect(body).not.toContain('Not free on this day');
+        expect(body).toContain("Ask the 2 who haven't answered this day too");
+        expect(body).toContain('pings 3 people');
+    });
+
+    it('never counts anyone out among the people pinged', () => {
+        const withOut = [crowd[0], crowd[1], { ...crowd[2], in: false }];
+        //Nobody free, so nothing to narrow to and the whole list stays on
+        expect(draw({ participants: withOut, totalParticipants: 3, freeByDate: {} })).toContain('pings 2 people');
+        expect(draw({ participants: withOut, totalParticipants: 3, chosen: { date: '2026-08-12', time: '', note: '' } })).toContain('DMs 2 people');
+    });
 });
 
 describe('the compare grid', () => {

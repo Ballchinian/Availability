@@ -3,6 +3,7 @@
     import { recallMiss, rememberMiss } from '../remember.js';
     import type { Participant } from '../types.js';
     import { unansweredByDate, type FreePerson } from '../overlap.js';
+    import { inOf } from '../../../../shared/coverage.js';
     import { todayIn } from '../zone.js';
     import ClockNote from '../ClockNote.svelte';
     import CompareGrid from '../CompareGrid.svelte';
@@ -70,8 +71,7 @@
         return () => clearTimeout(t);
     });
 
-    //An older backend sends no in, and counts whoever filled in
-    const inCount = $derived(participants.filter((p) => (p.in === undefined ? p.confirmed : p.in === true)).length);
+    const inCount = $derived(participants.filter((p) => inOf(p) === true).length);
     const unanswered = $derived(unansweredByDate(participants, freeByDate));
 
     const maxMiss = $derived(Math.max(0, inCount - 1));

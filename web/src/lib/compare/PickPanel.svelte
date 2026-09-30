@@ -12,6 +12,7 @@
     import { formatHours } from '../hours.js';
     import { evaluateDay, type FreePerson } from '../overlap.js';
     import type { Participant } from '../types.js';
+    import { inOf } from '../../../../shared/coverage.js';
     import Status from '../Status.svelte';
     import { Panel } from './panel.svelte.js';
 
@@ -70,10 +71,12 @@
         if (!selectedDate) return null;
         const day = selectedDate;
         const free = freeByDate[day] || [];
-        const ev = evaluateDay(free, inCount, missAllowed, unansweredByDate[day]?.length || 0);
+        const notYet = new Set(unansweredByDate[day] || []);
+        const ev = evaluateDay(free, inCount, missAllowed, notYet.size);
         const freeSet = new Set(free.map((f) => f.userId));
-        const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId));
-        const unanswered = participants.filter((p) => !p.confirmed);
+        //Anyone out is on neither list: they come off a narrowed list and hear nothing either way
+        const missing = participants.filter((p) => inOf(p) === true && !freeSet.has(p.userId) && !notYet.has(p.userId));
+        const unanswered = participants.filter((p) => inOf(p) === null || notYet.has(p.userId));
         /*
             Nobody is dropped on a day that failed. keptIds comes back empty there,
             which read as everyone having been left out and struck the whole list through.
@@ -115,12 +118,15 @@
         on the day the plan is already on: that edit never touches the list, so counting a
         narrowing there had the line naming fewer people than it goes on to DM.
     */
+    //Anyone who said Not for me is never DMed or pinged, whichever list they end up on
+    const outCount = $derived(participants.filter((p) => inOf(p) === false).length);
+
     const dropping = $derived(
-        !isUpdate && canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - inviteIds.length) : 0
+        !isUpdate && canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - outCount - inviteIds.length) : 0
     );
 
     //Who an edit to a day that is staying put reaches: the list as it already stands, narrowed or not
-    const invitedNow = $derived(participants.filter((p) => p.invited !== false).length);
+    const invitedNow = $derived(participants.filter((p) => p.invited !== false && inOf(p) !== false).length);
 
     //Whether the picked day and time both already match what the plan is set for
     const isCurrent = $derived(Boolean(isUpdate && time === chosen!.time));
@@ -144,7 +150,7 @@
     */
     const outcome = $derived.by(() => {
         const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
-        const invited = people(totalParticipants - dropping);
+        const invited = people(totalParticipants - outCount - dropping);
 
         if (isUpdate) {
             return quiet

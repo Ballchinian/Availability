@@ -416,6 +416,15 @@ describe('choosing the day a plan is already on', () => {
     it never turns off is the rewriting, which is why a quiet fix still leaves everyone
     holding a correct DM.
 */
+describe('narrowing the list to the people who can make it', () => {
+    //Nothing reaches them, and their card keeps I'm coming for a change of mind
+    it('keeps anyone who said Not for me on it', async () => {
+        plans.set('ab12cd34ef', plan({ participants: [{ userId: 'ann', in: true }, { userId: 'bo', in: true }, { userId: 'cy', in: false }] }));
+        await post('/ab12cd34ef/choose', { date: inWindow, inviteMode: 'attending', attendingIds: ['ann'] });
+        expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', inWindow, null, null, ['ann', 'cy']);
+    });
+});
+
 //A set day always asks who can make it, so no request can set one without asking or stop the asking
 describe('asking who can make it', () => {
     it('records a new day as asked about, whatever the request says', async () => {

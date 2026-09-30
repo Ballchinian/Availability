@@ -390,8 +390,8 @@ Planner role only.
 
 * Date (must sit inside the plan range)
 * Time (optional)
-* `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list.
-* `attendingIds`: who stays invited, worked out by the compare page: the people who can make the day, plus anyone who hasn't answered for it unless the planner unticked that
+* `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list. Anyone who said Not for me stays on a narrowed list too, but nothing is sent to them: their card just changes to the day, so they can still say I'm coming.
+* `attendingIds`: who stays invited, worked out by the compare page: the people who can make the day, plus anyone who hasn't answered for it (not said if they're in, or in but their answer doesn't reach that day) unless the planner unticked that
 * `quiet` (optional): rewrite everything in place and tell nobody
 
 ### Two things, decided by the date
