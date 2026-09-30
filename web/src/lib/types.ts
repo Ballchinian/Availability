@@ -140,11 +140,19 @@ export interface CompareScreen {
     history: PlanEvent[];
 }
 
+//A plan a save now answers, named with the way to its page
+export interface PlanLink {
+    planId: string;
+    name: string;
+}
+
 //POST /plans/:planId/availability
 export interface SavedForPlan {
     confirmedCount: number;
     totalParticipants: number;
     savedDays: number;
+    //The other plans this save answered. Missing from a backend older than the site.
+    answers?: PlanLink[];
 }
 
 //POST /plans/:planId/leave, the names the drop out DM reached and the ones it could not
@@ -167,6 +175,7 @@ export interface TimetableScreen {
 //POST /availability
 export interface SavedTimetable {
     savedDays: number;
+    answers?: PlanLink[];
 }
 
 //GET /guilds/:guildId, where the requester stands in one server

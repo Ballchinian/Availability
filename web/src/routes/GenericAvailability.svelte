@@ -9,6 +9,7 @@
     import { refocus } from '../lib/focus.js';
     import type { SavedTimetable, TimetableScreen } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
+    import PlanList from '../lib/PlanList.svelte';
     import Status, { invalidIf } from '../lib/Status.svelte';
 
     /*
@@ -89,12 +90,6 @@
         loading = false;
     });
 
-    const savedText = $derived(
-        saved
-            ? `Saved ${saved.savedDays} day${saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.`
-            : ''
-    );
-
     function setCovered(date: string) {
         coveredUntil = date;
         coveredOwn = true;
@@ -138,6 +133,13 @@
 </script>
 
 <svelte:head><title>My calendar</title></svelte:head>
+
+{#snippet savedLine()}
+    {#if saved}
+        Saved {saved.savedDays} day{saved.savedDays === 1 ? '' : 's'}.
+        {#if saved.answers?.length}Your calendar now answers <PlanList plans={saved.answers} />.{/if}
+    {/if}
+{/snippet}
 
 <section class="screen">
     <h1>My calendar</h1>
@@ -191,7 +193,14 @@
                     {saving ? 'Saving...' : 'Save availability'}
                 </button>
             </div>
-            <Status class="status msg {saved ? 'good' : ''}" id="save-line" msg={saveError || savedText} error={Boolean(saveError)} bind:this={saveLine} />
+            <Status
+                class="status msg {saved ? 'good' : ''}"
+                id="save-line"
+                msg={saveError}
+                error={Boolean(saveError)}
+                children={saved ? savedLine : undefined}
+                bind:this={saveLine}
+            />
         </div>
     {/if}
 </section>

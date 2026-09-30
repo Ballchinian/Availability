@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getUserById, setCoveredUntil } from '../../db/users.js';
+import { getUserById, setCoveredUntil, getPlanningPrefs } from '../../db/users.js';
+import { getCollectingPlansForUser } from '../../db/plans.js';
+import { newlyCovered } from '../../lib/coverage.js';
 import { maxEnd } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone } from '../../lib/zones.js';
@@ -53,14 +55,18 @@ router.post('/', requireUser, async (req, res) => {
         return res.status(429).json({ error: `You have saved ${SAVE_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
+    //Read before the save moves it, so the reply can name the plans this save answered
+    const [plans, before] = await Promise.all([getCollectingPlansForUser(req.user.id), getPlanningPrefs([req.user.id])]);
+
     //Left alone when it is missing, which is how a page from before the field saves
     if (coveredUntil === null || SHAPE.test(coveredUntil || '')) {
         await setCoveredUntil(req.user.id, coveredUntil || null);
     }
 
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid);
+    const after = await getPlanningPrefs([req.user.id]);
 
-    res.json({ ok: true, savedDays });
+    res.json({ ok: true, savedDays, answers: newlyCovered(plans, req.user.id, before[req.user.id], after[req.user.id]) });
 });
 
 export default router;

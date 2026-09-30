@@ -182,6 +182,11 @@ export async function getOpenPlansForUser(guildId, userId) {
         .toArray();
 }
 
+//Every plan still collecting that they are on, across every server, since one calendar answers them all
+export async function getCollectingPlansForUser(userId) {
+    return col(collections.plans).find({ 'participants.userId': userId, status: 'collecting' }).toArray();
+}
+
 /*
     Everything this person still has on, across every server: plans still collecting
     dates, plus set ones whose day has not come round yet. Backs the landing page

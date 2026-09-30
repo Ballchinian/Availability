@@ -113,7 +113,7 @@ async function ensureIndexes(database) {
     await database.collection(collections.plans).createIndex({ guildId: 1 });
     //Every /overview and /cancel starts by finding the plan behind the thread
     await database.collection(collections.plans).createIndex({ threadId: 1 });
-    //Backs getOpenPlansForUser, which guildId alone does not cover
+    //Backs getOpenPlansForUser and getCollectingPlansForUser, which guildId alone does not cover
     await database.collection(collections.plans).createIndex({ 'participants.userId': 1, status: 1 });
     //The other half of the landing page list: the plans someone runs, whether or not they are in them
     await database.collection(collections.plans).createIndex({ createdBy: 1, status: 1 });

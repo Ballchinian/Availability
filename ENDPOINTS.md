@@ -312,6 +312,7 @@ Participants only.
 ### Returns
 
 * The running confirmed count out of the total
+* `answers`: the other plans still finding a day that this save left their calendar answering in full, where it did not before, each as `{ planId, name }`. Plans they have said are not for them are left out.
 
 ### Notes
 
@@ -702,6 +703,7 @@ Save the requester's general timetable for a window.
 ### Returns
 
 * How many days were saved
+* `answers`: the plans still finding a day that `coveredUntil` now answers in full, where it did not before, each as `{ planId, name }`. Plans they have said are not for them are left out.
 
 ### Notes
 

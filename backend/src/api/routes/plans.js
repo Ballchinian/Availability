@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
@@ -12,6 +12,7 @@ import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, clean
 import { validHours } from '../../lib/hours.js';
 import { safeZone, todayIn } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
+import { newlyCovered } from '../../lib/coverage.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
@@ -176,6 +177,9 @@ router.post('/:planId/availability', async (req, res) => {
         return res.status(429).json({ error: `You have saved ${SAVE_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
+    //Read before the save moves it, so the reply can name the other plans this save answered
+    const [plans, before] = await Promise.all([getCollectingPlansForUser(req.user.id), getPlanningPrefs([req.user.id])]);
+
     //Left alone when it is missing, which is how a page from before the field saves
     if (coveredUntil === null || /^\d{4}-\d{2}-\d{2}$/.test(coveredUntil || '')) {
         await setCoveredUntil(req.user.id, coveredUntil || null);
@@ -187,6 +191,8 @@ router.post('/:planId/availability', async (req, res) => {
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid, onlyDates);
     await addAnswered(req.user.id, { start, end, allowedWeekdays: allowed });
     const updated = await confirmParticipant(plan.planId, req.user.id);
+    const after = await getPlanningPrefs([req.user.id]);
+    const others = plans.filter((p) => p.planId !== plan.planId);
 
     //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
     //If that was the last person though, the planner gets a DM nudging them to compare.
@@ -200,7 +206,8 @@ router.post('/:planId/availability', async (req, res) => {
         ok: true,
         confirmedCount: updated.participants.filter((p) => p.confirmed).length,
         totalParticipants: updated.participants.length,
-        savedDays
+        savedDays,
+        answers: newlyCovered(others, req.user.id, before[req.user.id], after[req.user.id])
     });
 });
 

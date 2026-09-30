@@ -5,7 +5,7 @@ import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
 import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
-import { addAnswered, setCoveredUntil, getUserById } from '../../src/db/users.js';
+import { addAnswered, setCoveredUntil, getUserById, getPlanningPrefs } from '../../src/db/users.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -43,6 +43,7 @@ vi.mock('../../src/db/plans.js', () => ({
     }),
     //The real one comes back null when the plan was already cancelled by the time it wrote
     markPlanCancelled: vi.fn(async (planId) => ({ ...plans.get(planId), status: 'cancelled' })),
+    getCollectingPlansForUser: vi.fn(async () => []),
     ...stubs(
         'confirmParticipant',
         'setPlanChosen',
@@ -823,6 +824,16 @@ describe('saving dates on the plan page', () => {
         db.confirmParticipant.mockResolvedValueOnce(plans.get('ab12cd34ef'));
         await post('/ab12cd34ef/availability', { days: [], sureUntil: ahead(30), autoConfirm: true });
         expect(setCoveredUntil).not.toHaveBeenCalled();
+    });
+
+    it('names the other plans the save answered, and never this one', async () => {
+        const other = plan({ planId: 'zz98yx76wv', name: 'Pub quiz', dateRange: { start: ahead(3), end: ahead(5) } });
+        db.getCollectingPlansForUser.mockResolvedValueOnce([plans.get('ab12cd34ef'), other]);
+        getPlanningPrefs.mockResolvedValueOnce({}).mockResolvedValueOnce({ guest: { coveredUntil: ahead(20), answered: [], timeZone: 'Europe/London' } });
+        db.confirmParticipant.mockResolvedValueOnce(plans.get('ab12cd34ef'));
+
+        const body = await (await post('/ab12cd34ef/availability', { days: [], coveredUntil: ahead(20) })).json();
+        expect(body.answers).toEqual([{ planId: 'zz98yx76wv', name: 'Pub quiz' }]);
     });
 
     it('hands it back with the page', async () => {

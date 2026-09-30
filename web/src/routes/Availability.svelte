@@ -10,6 +10,7 @@
     import { refocus } from '../lib/focus.js';
     import type { PlanScreen, SavedForPlan, LeftPlan } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
+    import PlanList from '../lib/PlanList.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
     import Status from '../lib/Status.svelte';
 
@@ -128,12 +129,6 @@
         loading = false;
     });
 
-    const savedText = $derived(
-        saved
-            ? "Saved. I'll DM you when a day is picked."
-            : ''
-    );
-
     async function confirm() {
         saveError = '';
         saved = null;
@@ -187,6 +182,11 @@
 </script>
 
 <svelte:head><title>{planName ? `${planName} · your dates` : 'Your dates'}</title></svelte:head>
+
+{#snippet savedLine()}
+    Saved. I'll DM you when a day is picked.
+    {#if saved?.answers?.length}Your calendar now answers <PlanList plans={saved.answers} /> too.{/if}
+{/snippet}
 
 <!--Offered while a plan is still ahead of you, whether or not it is still asking for dates:
     a day that is already set is exactly when somebody finds out they cannot come-->
@@ -292,7 +292,13 @@
                     {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
                 </button>
             </div>
-            <Status class="status msg {saved ? 'good' : ''}" msg={saveError || savedText} error={Boolean(saveError)} bind:this={saveLine} />
+            <Status
+                class="status msg {saved ? 'good' : ''}"
+                msg={saveError}
+                error={Boolean(saveError)}
+                children={saved ? savedLine : undefined}
+                bind:this={saveLine}
+            />
         </div>
 
         {@render dropOut()}

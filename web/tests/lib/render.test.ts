@@ -23,6 +23,7 @@ import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
 import WeekdayPicker from '../../src/lib/WeekdayPicker.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
+import PlanList from '../../src/lib/PlanList.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import Home from '../../src/routes/Home.svelte';
 import Terms from '../../src/routes/Terms.svelte';
@@ -1047,5 +1048,17 @@ describe('the privacy policy', () => {
         expect(body).toMatch(/who has\s+filled in their dates/);
         expect(body).not.toContain('confirmed');
         expect(body).not.toContain('the Service');
+    });
+});
+
+//What a save names as now answered, each one a way to its page
+describe('a list of plans', () => {
+    const link = (planId: string) => ({ planId, name: planId.toUpperCase() });
+    const draw = (ids: string[]) => render(PlanList, { props: { plans: ids.map(link) } }).body.replace(/<!--[^>]*-->/g, '');
+
+    it('reads as a sentence however many there are', () => {
+        expect(draw(['a'])).toBe('<a href="#/plan/a">A</a>');
+        expect(draw(['a', 'b'])).toBe('<a href="#/plan/a">A</a> and <a href="#/plan/b">B</a>');
+        expect(draw(['a', 'b', 'c'])).toBe('<a href="#/plan/a">A</a>, <a href="#/plan/b">B</a> and <a href="#/plan/c">C</a>');
     });
 });
