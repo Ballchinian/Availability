@@ -711,6 +711,8 @@ describe('the attendance board', () => {
     it('says whose DMs are closed beside their name, in a column or off the day', () => {
         const body = draw([{ ...person('c', null), dmsClosed: true }, { ...person('d', null), invited: false, dmsClosed: true }]);
         expect(body.match(/\(DMs closed, only reachable in the thread\)/g)).toHaveLength(2);
+        //A space at the start of an {#if} is dropped, which read out as "Jo(DMs closed"
+        expect(body.replace(/<[^>]*>/g, '')).not.toMatch(/\S\(DMs closed/);
         expect(draw()).not.toContain('DMs closed');
     });
 });

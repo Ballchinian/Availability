@@ -132,7 +132,10 @@
                 <ul>
                     {#each board.uninvited as p (p.userId)}
                         <li>
-                            <span>{p.displayName}{#if p.dmsClosed} <span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}</span>
+                            <span>
+                                {p.displayName}
+                                {#if p.dmsClosed}<span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}
+                            </span>
                             <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, 'invite', board.uninvited, (dm) => invitedLine(p.displayName, dm))}>Invite them</button>
                         </li>
                     {/each}
