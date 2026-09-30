@@ -687,6 +687,12 @@ a.primary {
     margin-top: 0;
 }
 
+/* Muted drops under 4.5:1 on a prompt's tint, which the reason box sits on before anyone is in */
+.prompt .muted,
+.prompt .field > label {
+    color: inherit;
+}
+
 /* The quiet switch, loud on screen so it cannot be left on without being noticed */
 .hush {
     margin: 14px 0;
