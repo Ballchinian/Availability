@@ -92,6 +92,16 @@ describe('announceAfter', () => {
         logged.mockRestore();
     });
 
+    //An invite from the board waits on this to say whether its DM landed
+    it('hands back what the announcement returned, and nothing when it failed', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+        expect(await announceAfter('p1', 'invite', async () => true)).toBe(true);
+        expect(await announceAfter('p1', 'invite', async () => {
+            throw new Error('discord is down');
+        })).toBeUndefined();
+        logged.mockRestore();
+    });
+
     it('sends nothing for a plan deleted before its turn', async () => {
         const run = vi.fn();
         await announceAfter('gone', 'outcome post', run);

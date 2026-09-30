@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 
 /*
@@ -826,5 +826,59 @@ describe('dropping out on the site', () => {
 
         expect(res.status).toBe(403);
         expect(notifyCreatorDropped).not.toHaveBeenCalled();
+    });
+});
+
+describe('the attendance board', () => {
+    const set = (participants) =>
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: true, participants }));
+    //The queue run for real, so the route sees what the announcement handed back
+    const queue = () => announceAfter.mockImplementationOnce(async (planId, label, run) => run(plans.get(planId)));
+
+    beforeEach(() => set([{ userId: 'ann', invited: false }, { userId: 'bo', invited: true }]));
+
+    it('invites someone left off the day with no answer, and says the DM landed', async () => {
+        queue();
+        applyAttendanceMove.mockResolvedValueOnce(true);
+        const res = await post('/ab12cd34ef/attendance', { userId: 'ann', status: 'invite' });
+
+        expect(await res.json()).toEqual({ ok: true, dm: true });
+        expect(db.setAttendanceOverride).toHaveBeenCalledWith('ab12cd34ef', 'ann', null, { reinvite: true });
+        expect(applyAttendanceMove).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'invite', 'ann');
+    });
+
+    it('does not claim a DM that never landed', async () => {
+        queue();
+        applyAttendanceMove.mockResolvedValueOnce(false);
+        const res = await post('/ab12cd34ef/attendance', { userId: 'ann', status: 'invite' });
+        expect(await res.json()).toEqual({ ok: true, dm: false });
+    });
+
+    //The queue swallows a failure and hands back nothing
+    it('does not claim one when sending it fell over', async () => {
+        const res = await post('/ab12cd34ef/attendance', { userId: 'ann', status: 'invite' });
+        expect(await res.json()).toEqual({ ok: true, dm: false });
+    });
+
+    //A planner's yes standing in for an answer nobody was ever asked for
+    it('no longer lets someone in by marking them as coming', async () => {
+        const res = await post('/ab12cd34ef/attendance', { userId: 'ann', status: 'coming' });
+
+        expect(res.status).toBe(400);
+        expect(db.setAttendanceOverride).not.toHaveBeenCalled();
+    });
+
+    it('refuses to invite someone already invited', async () => {
+        const res = await post('/ab12cd34ef/attendance', { userId: 'bo', status: 'invite' });
+
+        expect(res.status).toBe(400);
+        expect(db.setAttendanceOverride).not.toHaveBeenCalled();
+    });
+
+    it('still moves someone invited without inviting anyone', async () => {
+        const res = await post('/ab12cd34ef/attendance', { userId: 'bo', status: 'coming' });
+
+        expect(await res.json()).toEqual({ ok: true });
+        expect(db.setAttendanceOverride).toHaveBeenCalledWith('ab12cd34ef', 'bo', 'yes', { reinvite: false });
     });
 });

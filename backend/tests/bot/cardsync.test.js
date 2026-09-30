@@ -20,7 +20,11 @@ vi.mock('../../src/bot/client.js', () => ({
                 const box = inbox.get(id);
                 if (!box) throw new Error('unknown user');
                 return {
-                    send: async (payload) => (sends.push({ userId: id, payload }), { id: `sent-${id}` }),
+                    send: async (payload) => {
+                        if (box.dmsOff) throw Object.assign(new Error('cannot send'), { code: 50007 });
+                        sends.push({ userId: id, payload });
+                        return { id: `sent-${id}` };
+                    },
                     createDM: async () => {
                         if (box.dmsOff) throw Object.assign(new Error('cannot send'), { code: 50007 });
                         return {
@@ -53,7 +57,7 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ 
 
 vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
 
-const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition } = await import('../../src/bot/plans.js');
+const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition, applyAttendanceMove } = await import('../../src/bot/plans.js');
 
 const person = (userId, over = {}) => ({
     userId,
@@ -254,5 +258,40 @@ describe('announcing a plan that has moved on since', () => {
         await announceAddition(plan([person('a', { cardMessageId: null })]), ['a', 'b'], 'Ali');
 
         expect(sends.map((s) => s.userId)).toEqual(['a']);
+    });
+});
+
+//Their old card says "NOT THIS ONE" and has no buttons, so rewriting it would never ask them
+describe('inviting someone left off the day', () => {
+    const invited = () => plan([person('a', { cardMessageId: 'm-old' })], { probeActive: true });
+
+    it('sends them the yes/no as a new DM and keeps hold of it', async () => {
+        inbox.set('a', {});
+        const reached = await applyAttendanceMove(invited(), 'invite', 'a');
+
+        expect(reached).toBe(true);
+        expect(sends).toHaveLength(1);
+        expect(sends[0].payload.content).toContain('Can you make it? Tap below.');
+        expect(sends[0].payload.components).toHaveLength(1);
+        expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { actorName: '' });
+    });
+
+    //Ali set the day, which is not the same as Ali inviting them
+    it('names nobody as having set it', async () => {
+        inbox.set('a', {});
+        await applyAttendanceMove(invited(), 'invite', 'a');
+        expect(sends[0].payload.content).not.toContain('Ali');
+    });
+
+    it('says so when their DMs are closed', async () => {
+        inbox.set('a', { dmsOff: true });
+        expect(await applyAttendanceMove(invited(), 'invite', 'a')).toBe(false);
+        expect(sends).toHaveLength(0);
+    });
+
+    it('sends nothing for any other move', async () => {
+        inbox.set('a', {});
+        expect(await applyAttendanceMove(invited(), 'cant', 'a')).toBeNull();
+        expect(sends).toHaveLength(0);
     });
 });

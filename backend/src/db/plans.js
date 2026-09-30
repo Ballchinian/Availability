@@ -528,9 +528,8 @@ export async function recordVote(planId, userId, vote, reason = null) {
 /*
     A planner's manual call on whether someone is coming, laid over their real vote.
     "yes" and "no" override whatever the person answered (or did not answer), null
-    clears it and lets their own answer stand again. reinvite puts them back on the
-    invite list at the same time, which is how a planner lets in someone who was
-    left off when the date was locked.
+    clears it and lets their own answer stand again. reinvite puts someone left off
+    when the date was locked back on the list.
 */
 export async function setAttendanceOverride(planId, userId, override, { reinvite = false } = {}) {
     const set = { 'participants.$.override': override };

@@ -451,35 +451,36 @@ router.post('/:planId/repair', requirePlanner, async (req, res) => {
 /*
     A planner's manual call on someone's attendance for the set date, the moves on
     the compare page's board. "coming" and "cant" lay an override over whatever the
-    person answered, "waiting" clears it and their own answer stands again. Moving
-    someone to coming also puts them back on the invite list if they were left off,
-    which is how you let in someone who never filled their availability.
+    person answered, "waiting" clears it and their own answer stands again. "invite"
+    is the one move for someone left off the day's list: back on it with no answer.
 
-    Silent for the person moved. The board is a planner's own working state, and the
-    reason to reach for it is having decided that person will not answer.
+    Silent for the person moved, except an invite, which DMs them the yes/no. The board
+    is a planner's own working state, and the reason to reach for it is having decided
+    that person will not answer. dm says whether an invite's DM landed.
 */
 router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, res) => {
     const { plan } = req;
     if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then sort out who is coming.' });
 
     const { userId, status } = req.body || {};
-    if (!['coming', 'cant', 'waiting'].includes(status)) {
+    if (!['coming', 'cant', 'waiting', 'invite'].includes(status)) {
         return res.status(400).json({ error: 'Something was off with that move.' });
     }
     const person = plan.participants.find((p) => p.userId === userId);
     if (!person) return res.status(400).json({ error: 'That person is not on this plan.' });
 
-    const override = status === 'coming' ? 'yes' : status === 'cant' ? 'no' : null;
-    const reinvite = status === 'coming' && person.invited === false;
-    const updated = await setAttendanceOverride(plan.planId, userId, override, { reinvite });
-
-    try {
-        await applyAttendanceMove(updated, status);
-    } catch (err) {
-        console.error('[plans] attendance move failed:', err);
+    const invite = status === 'invite';
+    if (invite !== (person.invited === false)) {
+        return res.status(400).json({ error: invite ? 'They are already invited to this date.' : 'They are not invited to this date yet.' });
     }
 
-    res.json({ ok: true });
+    const override = status === 'coming' ? 'yes' : status === 'cant' ? 'no' : null;
+    await setAttendanceOverride(plan.planId, userId, override, { reinvite: invite });
+
+    //Waited on, since the answer has to say whether the invite's DM landed
+    const reached = await announceAfter(plan.planId, 'attendance move', (current) => applyAttendanceMove(current, status, userId));
+
+    res.json(invite ? { ok: true, dm: reached === true } : { ok: true });
 });
 
 /*

@@ -15,13 +15,15 @@ const queues = new Map();
     when its turn comes, not as the save saw it. A plan deleted by then gets nothing,
     and a cancelled one gets only its cancel. The queue lives in memory, which holds
     only while this is one process.
+
+    Resolves to whatever the announcement returned, undefined when it failed or never ran.
 */
 export function announceAfter(planId, label, run, { cancel = false } = {}) {
     const turn = (queues.get(planId) || Promise.resolve())
         .then(async () => {
             const plan = await getPlan(planId);
             if (!plan || (plan.status === 'cancelled' && !cancel)) return;
-            await run(plan);
+            return run(plan);
         })
         .catch((err) => console.error(`[plans] ${label} failed:`, err));
 

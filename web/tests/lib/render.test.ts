@@ -13,7 +13,7 @@ import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
-import AttendanceBoard from '../../src/lib/compare/AttendanceBoard.svelte';
+import AttendanceBoard, { invitedLine } from '../../src/lib/compare/AttendanceBoard.svelte';
 import MemberPicker from '../../src/lib/MemberPicker.svelte';
 import RangeField from '../../src/lib/RangeField.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
@@ -575,12 +575,12 @@ describe('the attendance board', () => {
         invited: true,
         sureUntil: null
     });
-    const draw = () =>
+    const draw = (extra: Participant[] = []) =>
         render(AttendanceBoard, {
             props: {
                 planId: 'ab12cd34ef',
                 chosenDate: '2026-08-12',
-                participants: [person('a', 'yes'), person('b', null)],
+                participants: [person('a', 'yes'), person('b', null), ...extra],
                 onmoved: async () => {}
             }
         }).body;
@@ -597,6 +597,19 @@ describe('the attendance board', () => {
         const body = draw();
         expect(body.match(/<button[^>]*class="bchip"[^>]*aria-expanded="false"/g)).toHaveLength(2);
         expect(body).not.toContain('move-row');
+    });
+
+    //Named to match "Not invited to this date", and it asks them rather than answering for them
+    it('invites someone left off the day', () => {
+        const body = draw([{ ...person('c', null), invited: false }]);
+        expect(body).toMatch(/<button class="ghost" data-user="c"[^>]*>Invite them<\/button>/);
+        expect(body).not.toContain('Let them come');
+    });
+
+    it('says the yes/no reached them only when the DM landed', () => {
+        expect(invitedLine('Ann', true)).toBe('Invited Ann. They have the yes/no in their DMs.');
+        expect(invitedLine('Ann', false)).not.toContain('in their DMs');
+        expect(invitedLine('Ann', false)).toContain('thread');
     });
 });
 

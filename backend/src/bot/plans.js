@@ -1196,15 +1196,29 @@ async function notifyCreatorAllYes(plan) {
 }
 
 /*
-    A planner moving someone on the attendance board: the thread tally, nothing else.
+    A planner moving someone on the attendance board: the thread tally, and for an invite,
+    the yes/no card the others got, sent fresh since their old one says "NOT THIS ONE".
+    Answers whether that DM landed.
 
-    The person moved is never told. A planner reaches for the board having decided they
+    Anyone else moved is never told. A planner reaches for the board having decided they
     will not answer, and an override only stops them being nudged: they keep the buttons
     on their card, and voting clears the override, so their own word still wins.
 */
-export async function applyAttendanceMove(plan, status) {
+export async function applyAttendanceMove(plan, status, userId) {
+    const reached = status === 'invite' ? await sendInvite(plan, userId) : null;
     await updateProbeMessage(plan).catch(() => {});
     if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
+    return reached;
+}
+
+//No actor on the lead: whoever set the day is not who let them in
+async function sendInvite(plan, userId) {
+    const p = plan.participants.find((q) => q.userId === userId);
+    if (!p || p.invited === false) return false;
+    const cfg = await getGuildConfig(plan.guildId).catch(() => null);
+    const sent = await dmCards([userId], () => planCard(plan, p, { guildName: cfg?.guildName || '', actorName: '' }));
+    await setPlanCards(plan.planId, sent, { actorName: '' });
+    return sent.length > 0;
 }
 
 /*

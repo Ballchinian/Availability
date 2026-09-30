@@ -1,3 +1,10 @@
+<script module lang="ts">
+    //Claims the DM only when the route says it landed. They were never taken out of the thread.
+    export function invitedLine(name: string, dm: boolean): string {
+        return dm ? `Invited ${name}. They have the yes/no in their DMs.` : `Invited ${name}, but I couldn't DM them. They can still answer in the thread.`;
+    }
+</script>
+
 <script lang="ts">
     import { api } from '../api.js';
     import type { Participant } from '../types.js';
@@ -8,7 +15,7 @@
     /*
         The attendance board for a set date. Everyone still invited lands in a
         column by where they stand, a planner's manual call winning over their own
-        answer. The uninvited sit apart with a way back in.
+        answer. The uninvited sit apart, and inviting one sends them the yes/no.
     */
     let { planId, participants = [], chosenDate = null, onmoved }: {
         planId: string;
@@ -57,18 +64,18 @@
         The buttons pressed to move someone go with them, so focus goes on to whoever was
         next in the list they left, and to the person themselves once that list is empty.
     */
-    async function move(p: Participant, to: { key: string; label: string }, from: Participant[]) {
+    async function move(p: Participant, status: string, from: Participant[], said: (dm: boolean) => string) {
         const at = from.findIndex((q) => q.userId === p.userId);
         const next = from[at + 1] ?? from[at - 1] ?? p;
         await panel.run(async () => {
-            await api(`/plans/${planId}/attendance`, {
+            const res = await api<{ dm?: boolean }>(`/plans/${planId}/attendance`, {
                 method: 'POST',
-                body: JSON.stringify({ userId: p.userId, status: to.key })
+                body: JSON.stringify({ userId: p.userId, status })
             });
             picked = null;
             await onmoved();
             refocus(() => root?.querySelector<HTMLElement>(`[data-user="${next.userId}"]`));
-            return `Marked ${p.displayName} as ${to.label}.`;
+            return said(res.dm === true);
         });
     }
 </script>
@@ -101,7 +108,7 @@
                                 {#if picked === p.userId}
                                     <div class="move-row" id="{uid}-moves">
                                         {#each moveTargets(colDef.key) as t (t.key)}
-                                            <button class="ghost" disabled={panel.busy} onclick={() => move(p, t, colDef.people)}>Mark as {t.label}</button>
+                                            <button class="ghost" disabled={panel.busy} onclick={() => move(p, t.key, colDef.people, () => `Marked ${p.displayName} as ${t.label}.`)}>Mark as {t.label}</button>
                                         {/each}
                                         <!--The one thing the columns cannot show, said where the move is made-->
                                         <span class="muted small aside">They are not told, and answering later replaces this.</span>
@@ -123,7 +130,7 @@
                     {#each board.uninvited as p (p.userId)}
                         <li>
                             <span>{p.displayName}</span>
-                            <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, { key: 'coming', label: 'coming' }, board.uninvited)}>Let them come</button>
+                            <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, 'invite', board.uninvited, (dm) => invitedLine(p.displayName, dm))}>Invite them</button>
                         </li>
                     {/each}
                 </ul>

@@ -452,18 +452,22 @@ Planner role only.
 ### Input
 
 * The person to move
-* `status`: `coming`, `cant`, or `waiting`
+* `status`: `coming`, `cant`, `waiting`, or `invite`
 
 ### Effects
 
 * `coming` and `cant` lay an override over whatever the person answered. `waiting` clears it, so their own answer stands again.
-* Moving someone to coming also puts them back on the invite list if they were left off when the date was locked, which is how you let in someone who never filled their availability.
-* The thread tally is refreshed. Nothing else happens: a board move is silent for the person it lands on.
+* `invite` is for someone left off the list when the date was locked. It puts them back on with no answer, so they land in Waiting to answer, and DMs them the same yes/no everyone else got as a new message. Their old DM said they weren't on the list and has no buttons.
+* The thread tally is refreshed.
+
+### Returns
+
+* `dm`, on an invite only: whether their DM landed. With DMs closed they can still answer on the yes/no in the thread, since they were never taken out of it.
 
 ### Notes
 
-* `400` if no date is set yet, or the person is not on the plan.
-* Nobody is ever DMed about being moved. A planner reaches for the board because they have decided that person is not going to answer, so telling them second guesses a call already made. An override only stops them being nudged: they keep the thread and the buttons on their own DM, and casting a vote clears the override, so their own answer still wins whenever they give it.
+* `400` if no date is set yet, the person is not on the plan, `invite` names someone already invited, or any other move names someone who isn't.
+* Nobody is DMed about any other move. A planner reaches for the board because they have decided that person is not going to answer, so telling them second guesses a call already made. An override only stops them being nudged: they keep the thread and the buttons on their own DM, and casting a vote clears the override, so their own answer still wins whenever they give it.
 * `409` if the plan was cancelled.
 
 ---
