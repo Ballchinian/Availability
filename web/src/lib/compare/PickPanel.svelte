@@ -154,10 +154,9 @@
         const invited = people(totalParticipants - dropping);
 
         if (isUpdate) {
-            const said = quiet
-                ? 'Rewrites the pinned post and the DMs everyone already holds, and tells nobody'
-                : `Rewrites the pinned post and DMs ${people(invitedNow)} to say what changed`;
-            return `${said}. Every answer and the invite list stand.`;
+            return quiet
+                ? 'Rewrites the pinned post and the DMs everyone already holds, and tells nobody.'
+                : `Rewrites the pinned post and DMs ${people(invitedNow)} to say what changed.`;
         }
 
         if (quiet) {

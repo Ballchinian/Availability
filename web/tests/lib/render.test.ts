@@ -164,17 +164,17 @@ describe('what setting a day says it will do', () => {
         expect(draw({ quiet: true })).toContain('Posts the yes/no in the thread pinging nobody');
     });
 
-    //A day staying put keeps every answer, which is the opposite of what moving one does
-    it('says what stands when only the time or note is changing', () => {
+    //Nothing changing to the answers is what anyone expects, so it goes unsaid
+    it('says only who hears when only the time or note is changing', () => {
         const body = draw({ participants: onPlan, chosen: { date: '2026-08-12', time: '', note: '' } });
-        expect(body).toContain('DMs 3 people to say what changed');
-        expect(body).toContain('Every answer and the invite list stand.');
+        expect(body).toContain('DMs 3 people to say what changed.');
+        expect(body).not.toContain('stand');
     });
 
     /*
         The list is not touched by an edit to the day it is already on, so the people free
         on that day are not a narrowing. Counting them as one had it promise fewer DMs than
-        it sends, in the same breath as saying the list stands.
+        it sends.
     */
     it('counts everyone still invited on an edit, not just whoever is free that day', () => {
         const body = draw({
