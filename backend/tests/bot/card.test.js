@@ -35,7 +35,7 @@ const links = (card) => card.components.flatMap((row) => row.components.filter((
 describe('planCard while a plan is still collecting', () => {
     it('reads as the invitation, with the actor, and buttons to the dates and the thread', () => {
         const card = planCard(collecting, nobody, { guildName: 'The server', actorName: 'Ali' });
-        expect(card.content).toContain('INVITED TO A PLAN');
+        expect(card.content).toMatch(/^\*\*INVITED\*\*/);
         expect(card.content).toContain('Ali added you to the plan "Camping" in The server');
         expect(card.content).toContain('Sat 1 Aug 2026 to Sun 30 Aug 2026');
         expect(card.content).toContain('a weekend away');
@@ -60,7 +60,6 @@ describe('planCard while a plan is still collecting', () => {
     //Nobody did this, it came round on a timer, so the line cannot name anyone
     it('says a repeat came round rather than naming whoever the sweep ran as', () => {
         const { content } = planCard({ ...collecting, repeatedFrom: 'zz99' }, nobody, { actorName: 'Ali' });
-        expect(content).toContain('ROUND AGAIN');
         expect(content).toContain('"Camping" is back round again');
         expect(content).not.toContain('Ali');
     });
@@ -81,7 +80,7 @@ describe('planCard while a plan is still collecting', () => {
 describe('planCard once a day is set', () => {
     it('states the day, the time and the note, with no calendar links', () => {
         const { content, components } = planCard(set, nobody, { guildName: 'The server', actorName: 'Ali' });
-        expect(content).toContain('DATE SET');
+        expect(content).toMatch(/^\*\*DAY SET\*\*/);
         expect(content).toContain('Ali set the plan "Camping" in The server for');
         expect(content).toContain('Wed 12 Aug 2026');
         expect(content).toContain('7pm');
@@ -93,7 +92,7 @@ describe('planCard once a day is set', () => {
 
     it('says moved rather than set when the day was already taken', () => {
         const { content } = planCard(set, nobody, { actorName: 'Ali', moved: true });
-        expect(content).toContain('PLAN CHANGED');
+        expect(content).toMatch(/^\*\*CHANGED\*\*/);
         expect(content).toContain('Ali moved the plan "Camping"');
     });
 
@@ -105,8 +104,8 @@ describe('planCard once a day is set', () => {
 
     it('carries the yes/no buttons while the confirmation is running', () => {
         const card = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali' });
-        expect(card.content).toContain('CAN YOU MAKE IT?');
-        expect(card.content).toContain('Can you make it? Tap below.');
+        expect(card.content).toMatch(/^\*\*DAY SET\*\*/);
+        expect(card.content).toMatch(/Can you make it\?$/);
         expect(ids(card)).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
     });
 });
@@ -120,7 +119,7 @@ describe('planCard for somebody who has already answered', () => {
     it('keeps a yes on the card, with a way to change it and no calendar links', () => {
         const card = planCard({ ...set, probeActive: true }, { vote: 'yes' }, { actorName: 'Ali' });
         expect(card.content).toContain("You're down as coming.");
-        expect(card.content).not.toContain('Can you make it? Tap below.');
+        expect(card.content).not.toContain('Can you make it?');
         expect(card.content).not.toMatch(/calendar\.google|\.ics/);
         expect(ids(card)).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
     });
@@ -143,7 +142,7 @@ describe('planCard asides', () => {
     //Advice about this send, so it has to land before what the card is asking them to do
     it('puts an aside after the plan and before the call to action', () => {
         const { content } = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali', aside: 'Worth a proper look.' });
-        expect(content.indexOf('Worth a proper look.')).toBeLessThan(content.indexOf('Can you make it? Tap below.'));
+        expect(content.indexOf('Worth a proper look.')).toBeLessThan(content.indexOf('Can you make it?'));
         expect(content.indexOf('meet at the station')).toBeLessThan(content.indexOf('Worth a proper look.'));
     });
 
@@ -160,6 +159,24 @@ describe('planCard asides', () => {
 
     it('swaps the banner for this send and no rebuild after it', () => {
         expect(planCard(collecting, nobody, { title: 'REMINDER' }).content).toMatch(/^\*\*REMINDER\*\*/);
-        expect(planCard(collecting, nobody, {}).content).toMatch(/^\*\*INVITED TO A PLAN\*\*/);
+        expect(planCard(collecting, nobody, {}).content).toMatch(/^\*\*INVITED\*\*/);
+    });
+});
+
+//The words are one per thing everywhere, and a line that only points at a button says nothing the button does not
+describe('planCard wording', () => {
+    const cards = () => [
+        planCard(collecting, nobody, { actorName: 'Ali' }),
+        planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali' }),
+        planCard({ ...set, probeActive: true }, { vote: 'yes' }, {}),
+        planCard({ ...set, status: 'cancelled' }, nobody, { actorName: 'Ali' })
+    ];
+
+    it('uses only the new banners', () => {
+        expect(cards().map((c) => c.content.match(/^\*\*([A-Z ]+)\*\*/)[1])).toEqual(['INVITED', 'DAY SET', 'DAY SET', 'CALLED OFF']);
+    });
+
+    it('never tells anyone to hit or tap a button', () => {
+        for (const card of cards()) expect(card.content).not.toMatch(/\b(Hit|Tap)\b/);
     });
 });

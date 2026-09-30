@@ -168,7 +168,7 @@ describe('syncPlanCards', () => {
         const a = edits.find((e) => e.userId === 'a').payload.content;
         const b = edits.find((e) => e.userId === 'b').payload.content;
         expect(a).toContain("You're down as coming.");
-        expect(b).toContain('Can you make it? Tap below.');
+        expect(b).toContain('Can you make it?');
     });
 
     it('tells somebody narrowed off the list that they are not on this one', async () => {
@@ -285,7 +285,7 @@ describe('inviting someone left off the day', () => {
 
         expect(reached).toBe(true);
         expect(sends).toHaveLength(1);
-        expect(sends[0].payload.content).toContain('Can you make it? Tap below.');
+        expect(sends[0].payload.content).toContain('Can you make it?');
         expect(sends[0].payload.components).toHaveLength(1);
         expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { actorName: '' });
         //The NOT THIS ONE card goes, or it sits above the yes/no saying the opposite
@@ -297,6 +297,15 @@ describe('inviting someone left off the day', () => {
         inbox.set('a', {});
         await applyAttendanceMove(invited(), 'invite', 'a');
         expect(sends[0].payload.content).not.toContain('Ali');
+    });
+
+    //Said on this send only, so a later rewrite of the card does not keep saying it
+    it('says who invited them, under an INVITED banner', async () => {
+        inbox.set('a', {});
+        await applyAttendanceMove(invited(), 'invite', 'a', 'Jo');
+        expect(sends[0].payload.content).toMatch(/^\*\*INVITED\*\*/);
+        expect(sends[0].payload.content).toContain('Jo invited you.');
+        expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { actorName: '' });
     });
 
     it('says so when their DMs are closed', async () => {
@@ -351,8 +360,9 @@ describe('a fresh card over an old one', () => {
         await remindVoters(asking(), 'Ali');
 
         expect(sends).toHaveLength(1);
+        expect(sends[0].payload.content).toMatch(/^\*\*REMINDER\*\*/);
         expect(sends[0].payload.content).toContain('Ali is still waiting to hear whether you can make it.');
-        expect(sends[0].payload.content).toContain('Can you make it? Tap below.');
+        expect(sends[0].payload.content).toContain('Can you make it?');
         expect(sends[0].payload.components).toHaveLength(1);
         expect(deletes).toEqual(['m-a']);
         //A reminder is nobody setting anything, so the lead the card had stays on record
@@ -364,7 +374,8 @@ describe('a fresh card over an old one', () => {
         await announceWhenEdit(asking({ vote: 'yes' }), { guildName: 'The server' }, { actorName: 'Bo', was: { time: '18:00', note: 'meet at the station' } });
 
         expect(sends).toHaveLength(1);
-        expect(sends[0].payload.content).toContain('Bo changed it: it starts at 7pm now.');
+        expect(sends[0].payload.content).toMatch(/^\*\*CHANGED\*\*/);
+        expect(sends[0].payload.content).toContain('Bo changed the time.');
         expect(sends[0].payload.content).toContain("You're down as coming.");
         expect(deletes).toEqual(['m-a']);
     });

@@ -460,7 +460,7 @@ router.post('/:planId/repair', requirePlanner, async (req, res) => {
     that person will not answer. dm says whether an invite's DM landed.
 */
 router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, res) => {
-    const { plan } = req;
+    const { plan, ctx } = req;
     if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then sort out who is coming.' });
 
     const { userId, status } = req.body || {};
@@ -479,7 +479,7 @@ router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, 
     await setAttendanceOverride(plan.planId, userId, override, { reinvite: invite });
 
     //Waited on, since the answer has to say whether the invite's DM landed
-    const reached = await announceAfter(plan.planId, 'attendance move', (current) => applyAttendanceMove(current, status, userId));
+    const reached = await announceAfter(plan.planId, 'attendance move', (current) => applyAttendanceMove(current, status, userId, ctx.member.displayName));
 
     res.json(invite ? { ok: true, dm: reached === true } : { ok: true });
 });

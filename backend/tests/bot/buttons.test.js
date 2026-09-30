@@ -56,7 +56,7 @@ const cal = vi.hoisted(() => ({
 }));
 vi.mock('../../src/db/availability.js', () => cal);
 
-const { handleVote, handleBlockDay, handleUnblockDay, handleDropModal, handleUndrop } = await import('../../src/bot/plans.js');
+const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleDropModal, handleUndrop } = await import('../../src/bot/plans.js');
 
 const day = shiftDate(today(), 3);
 const ids = (payload) => payload.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
@@ -171,6 +171,24 @@ describe('the offer under the card', () => {
         expect(cal.blockDay).not.toHaveBeenCalled();
         expect(cal.setDayFree).not.toHaveBeenCalled();
         expect(click.update.mock.calls[0][0].content).toContain('expired');
+    });
+});
+
+describe('the reason boxes', () => {
+    const described = (click) => click.showModal.mock.calls[0][0].toJSON().components[0].description;
+
+    it("says who reads a can't make it reason", async () => {
+        store.plan = setPlan();
+        const click = press('vote|no|ab12cd34ef|r0');
+        await handleVote(click);
+        expect(described(click)).toBe('Only whoever runs the plan sees this.');
+    });
+
+    it('says the same on a drop out', async () => {
+        store.plan = { ...setPlan(), status: 'collecting', chosenDate: null };
+        const click = press('drop|ab12cd34ef');
+        await handleDrop(click);
+        expect(described(click)).toBe('Only whoever runs the plan sees this.');
     });
 });
 

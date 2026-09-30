@@ -375,3 +375,28 @@ describe('the pinned opener', () => {
         expect(row.components.map((b) => b.data)).toEqual([expect.objectContaining({ label: 'Add my dates', url: expect.stringMatching(/#\/plan\/p1$/) })]);
     });
 });
+
+//Everyone on the plan reads these, so they carry nothing meant only for whoever runs it
+describe('thread posts guests read', () => {
+    it('says a plan was called off without telling anyone to delete the thread', async () => {
+        store.plan = setDay({ threadId: 'thread1', status: 'cancelled' });
+        await announceCancel(store.plan, 'Ali');
+
+        expect(posts.at(-1).content).toBe('**CALLED OFF**\n\nAli called off **Board games**. Nothing more to fill in.');
+    });
+
+    it('opens a collecting plan with no line for planners', async () => {
+        store.plan = collecting();
+        await announcePlan(store.plan, cfg, 'Ali');
+
+        expect(posts[0].content).toMatch(/^\*\*INVITED\*\*/);
+        expect(posts[0].content).not.toMatch(/planner|\/overview/i);
+    });
+
+    it('banners a moved day as a change', async () => {
+        store.plan = setDay({ threadId: 'thread1' });
+        await announceOutcome(store.plan, cfg, { changed: true, actorName: 'Ali' });
+
+        expect(posts[0].content).toMatch(/^\*\*CHANGED\*\*\n\nAli moved \*\*Board games\*\* to Sat 8 Aug 2026\.\nCan you make it\?$/);
+    });
+});

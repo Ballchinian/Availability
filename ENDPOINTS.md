@@ -442,7 +442,7 @@ Planner role only.
 ### Effects
 
 * `coming` and `cant` lay an override over whatever the person answered. `waiting` clears it, so their own answer stands again.
-* `invite` is for someone left off the list when the date was locked. It puts them back on with no answer, so they land in Waiting to answer, and DMs them the same yes/no everyone else got as a new message. Their old DM said they weren't on the list and has no buttons.
+* `invite` is for someone left off the list when the date was locked. It puts them back on with no answer, so they land in Waiting to answer, and DMs them the same yes/no everyone else got as a new message, saying who invited them. Their old DM said they weren't on the list and has no buttons.
 * The thread tally is refreshed.
 
 ### Returns

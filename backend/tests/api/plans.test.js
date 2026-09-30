@@ -844,7 +844,7 @@ describe('the attendance board', () => {
 
         expect(await res.json()).toEqual({ ok: true, dm: true });
         expect(db.setAttendanceOverride).toHaveBeenCalledWith('ab12cd34ef', 'ann', null, { reinvite: true });
-        expect(applyAttendanceMove).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'invite', 'ann');
+        expect(applyAttendanceMove).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'invite', 'ann', 'Ali');
     });
 
     it('does not claim a DM that never landed', async () => {

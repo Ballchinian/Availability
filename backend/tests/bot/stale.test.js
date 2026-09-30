@@ -126,7 +126,7 @@ describe('a press on a card older than the one on record', () => {
         await handleVote(click);
 
         const shown = click.update.mock.calls[0][0];
-        expect(shown.content).toContain('Can you make it? Tap below.');
+        expect(shown.content).toContain('Can you make it?');
         expect(shown.components).toHaveLength(1);
         expect(db.recordVote).not.toHaveBeenCalled();
         expect(click.showModal).not.toHaveBeenCalled();

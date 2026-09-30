@@ -1,4 +1,4 @@
-import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
@@ -292,7 +292,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
         //Never the stored actor, which is whoever set the day or sent the invite
         const lead = actorName ? `${actorName} called off "${plan.name}"${where}.` : `"${plan.name}"${where} is off.`;
         return {
-            content: top('PLAN CANCELLED') + `${lead} Nothing more to fill in.`,
+            content: top('CALLED OFF') + `${lead} Nothing more to fill in.`,
             components: []
         };
     }
@@ -309,11 +309,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
         //Left off rather than guessed at when there is no thread yet, since the card outlives the send
         if (plan.threadId) links.addComponents(linkButton('Open the thread', threadUrl(plan.guildId, plan.threadId)));
         return {
-            content: top(again ? 'ROUND AGAIN' : 'INVITED TO A PLAN') +
-                `${lead}\n` +
-                aboutLine(plan) +
-                (aside ? `${aside}\n` : '') +
-                `\nHit "Drop out" below to leave the plan`,
+            content: top('INVITED') + [lead, aboutLine(plan).trimEnd(), aside].filter(Boolean).join('\n'),
             components: [links, dropRow(plan.planId)]
         };
     }
@@ -338,28 +334,27 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
                 ? `${who} moved the plan "${plan.name}"${where} to ${when}.`
                 : `${who} set the plan "${plan.name}"${where} for ${when}.`
             : `"${plan.name}"${where} is set for ${when}.`;
+    const day = !again && wasMoved ? 'CHANGED' : 'DAY SET';
 
     //Their answer, kept on the card so a rewrite cannot undo what ackVote put there
     const vote = plan.probeActive ? p.vote || null : null;
     if (vote) {
         const line = vote === 'yes' ? "You're down as coming." : "You're down as not coming.";
         return {
-            content: top('CAN YOU MAKE IT?') +
-                `**${plan.name}** is set for ${when}.${about}${note}${extra}\n` +
-                `${line} Tap the other button if that changes.`,
+            content: top(day) + `**${plan.name}** is set for ${when}.${about}${note}${extra}\n${line}`,
             components: [votedDmRow(plan, vote)]
         };
     }
 
     if (plan.probeActive) {
         return {
-            content: top('CAN YOU MAKE IT?') + lead + about + note + extra + `\n\nCan you make it? Tap below.`,
+            content: top(day) + lead + about + note + extra + `\n\nCan you make it?`,
             components: [probeRow(plan)]
         };
     }
 
     return {
-        content: top(again ? 'ROUND AGAIN' : wasMoved ? 'PLAN CHANGED' : 'DATE SET') +
+        content: top(day) +
             lead + about + note + extra,
         components: []
     };
@@ -435,7 +430,7 @@ function opener(plan) {
     const quietly = { allowedMentions: { parse: [] } };
 
     if (plan.status === 'cancelled') {
-        return { content: banner('PLAN CANCELLED') + `**${plan.name}** was called off.`, components: [], ...quietly };
+        return { content: banner('CALLED OFF') + `**${plan.name}** was called off.`, components: [], ...quietly };
     }
 
     if (plan.status === 'closed' && plan.chosenDate) {
@@ -444,9 +439,9 @@ function opener(plan) {
         //A closed one keeps its tally: what people said still stands, it is only the asking that stopped
         const asking = Boolean(plan.probeActive);
         return {
-            content: banner(again ? 'ROUND AGAIN' : 'PLAN SET') +
+            content: banner('DAY SET') +
                 `**${plan.name}** is set for ${whenLine(plan)}.${about}${note}\n` +
-                (asking ? 'Tap below to let everyone know.' : 'Confirmations are closed.') +
+                (asking ? 'Can you make it?' : 'Confirmations are closed.') +
                 `\n\n${probeTally(plan)}`,
             components: asking ? [probeRow(plan)] : [],
             ...quietly
@@ -455,11 +450,10 @@ function opener(plan) {
 
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     return {
-        content: banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
+        content: banner('INVITED') +
             (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
             aboutLine(plan) +
-            `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
-            `A planner can run \`/overview\` any time to see where things stand, even before everyone is in.`,
+            `\`/free\` in this thread ticks off your days without leaving Discord.`,
         components: [new ActionRowBuilder().addComponents(datesButton(plan))],
         ...quietly
     };
@@ -700,7 +694,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
 
     //Anyone whose horizon sits before the date never really answered for it, so their card says so
     const prefs = await getPlanningPrefs(ids).catch(() => ({}));
-    const nudge = 'This lands past the date you said you could plan up to, so it is worth a proper look.';
+    const nudge = 'This is past the date you said you could plan up to.';
 
     const sent = await sendCards(plan, ids, (id) =>
         planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
@@ -715,9 +709,9 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
-                content: banner('CAN YOU MAKE IT?') +
+                content: banner(changed ? 'CHANGED' : 'DAY SET') +
                     `${actorName} ${changed ? 'moved' : 'set'} **${plan.name}** ${changed ? 'to' : 'for'} ${whenLine(plan)}.\n` +
-                    `Tap below to let everyone know.`,
+                    `Can you make it?`,
                 components: [probeRow(plan)]
             });
         }
@@ -753,13 +747,14 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
     const timeMoved = (was.time || null) !== (plan.chosenTime || null);
     const noteMoved = (was.note || null) !== (plan.chosenNote || null);
 
+    //The card under the aside has the new time and note, so the aside only says which moved
     const bits = [];
-    if (timeMoved) bits.push(plan.chosenTime ? `it starts at ${formatTime(plan.chosenTime)} now` : 'there is no set time any more');
-    if (noteMoved) bits.push(plan.chosenNote ? `the note now reads "${plan.chosenNote}"` : 'the note is gone');
+    if (timeMoved) bits.push(plan.chosenTime ? 'changed the time' : 'took the time off');
+    if (noteMoved) bits.push(plan.chosenNote ? 'changed the note' : 'took the note off');
     //A later save put it back how it was
     if (!bits.length) return;
 
-    await resendCards(plan, ids, cfg, { title: 'PLAN UPDATED', aside: `${actorName} changed it: ${bits.join(', and ')}.` });
+    await resendCards(plan, ids, cfg, { title: 'CHANGED', aside: `${actorName} ${bits.join(' and ')}.` });
 }
 
 /*
@@ -779,8 +774,8 @@ export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false 
     if (!ids.length) return;
 
     await resendCards(plan, ids, cfg, {
-        title: 'PLAN UPDATED',
-        aside: plan.description ? `${actorName} changed what it says it is about.` : `${actorName} took out what it said it is about.`
+        title: 'CHANGED',
+        aside: plan.description ? `${actorName} changed what it's about.` : `${actorName} took out what it's about.`
     });
 }
 
@@ -806,10 +801,11 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
     const tail = reopened ? '' : ' Nothing to do, your saved days still stand.';
     const extra = note ? `\n${note}` : '';
 
+    //The card carries the range itself, so the aside leaves it out
     const sent = dm && ids.length
         ? await resendCards(plan, ids, cfg, {
-            title: 'DATES CHANGED',
-            aside: `${actorName} is asking about different dates: ${range}${days}.${tail}${extra}`
+            title: 'CHANGED',
+            aside: `${actorName} is asking about different dates${daysLabel ? `, ${daysLabel} only` : ''}.${tail}${extra}`
         })
         : [];
 
@@ -818,7 +814,7 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
-                content: banner('DATES CHANGED') +
+                content: banner('CHANGED') +
                     `${actorName} is asking about different dates for **${plan.name}**: ${range}${days}.${tail}${extra}`,
                 components: reopened ? [new ActionRowBuilder().addComponents(datesButton(plan))] : []
             });
@@ -857,10 +853,7 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
-                content:
-                    banner('PLAN CANCELLED') +
-                    `${actorName} called off **${plan.name}**. Nothing more to fill in.\n` +
-                    `This thread stays until someone deletes it by hand, and deleting it clears the plan for good.`
+                content: banner('CALLED OFF') + `${actorName} called off **${plan.name}**. Nothing more to fill in.`
             });
         }
     }
@@ -907,21 +900,22 @@ export async function handleDrop(interaction) {
         return interaction.update({ content: `You are not on "${plan.name}" anymore.`, components: [] });
     }
     if (await answeredOldCard(interaction, plan)) return;
-    return interaction.showModal(
-        new ModalBuilder()
-            .setCustomId(`dropmodal|${planId}`)
-            .setTitle('Drop out')
-            .addComponents(
-                new ActionRowBuilder().addComponents(
-                    new TextInputBuilder()
-                        .setCustomId('reason')
-                        .setLabel("Why can't you make it? (optional)")
-                        .setStyle(TextInputStyle.Short)
-                        .setMaxLength(200)
-                        .setRequired(false)
+    return interaction.showModal(reasonModal(`dropmodal|${planId}`, 'Drop out', "Why can't you make it? (optional)"));
+}
+
+//The box for a reason, which only ever goes to whoever runs the plan
+function reasonModal(customId, title, question) {
+    return new ModalBuilder()
+        .setCustomId(customId)
+        .setTitle(title)
+        .addLabelComponents(
+            new LabelBuilder()
+                .setLabel(question)
+                .setDescription('Only whoever runs the plan sees this.')
+                .setTextInputComponent(
+                    new TextInputBuilder().setCustomId('reason').setStyle(TextInputStyle.Short).setMaxLength(200).setRequired(false)
                 )
-            )
-    );
+        );
 }
 
 //Swapped onto the DM after a drop out, lets the person climb back on in one tap
@@ -952,7 +946,7 @@ export async function handleDropModal(interaction) {
 
     const passed = reason ? ` I passed your reason on.` : '';
     await interaction.update({
-        content: banner('DROPPED OUT') + `Done, you have dropped out of "${plan.name}". I will not nudge you about it again.${passed}\n\nChanged your mind? Hit undo below.`,
+        content: banner('DROPPED OUT') + `Done, you have dropped out of "${plan.name}". I will not nudge you about it again.${passed}`,
         components: [undropRow(planId)]
     });
     await afterLeaving(updated);
@@ -992,7 +986,7 @@ export async function handleUndrop(interaction) {
     }).catch(() => {});
 
     await interaction.update({
-        content: banner('BACK IN') + `You are back on "${plan.name}". Hit "Drop out" below if that changes again.`,
+        content: banner('BACK IN') + `You are back on "${plan.name}".`,
         components: [dropRow(planId)]
     });
     await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
@@ -1017,22 +1011,8 @@ export async function handleVote(interaction) {
     if (moved) return respondStale(interaction, moved);
 
     if (choice === 'no') {
-        return interaction.showModal(
-            new ModalBuilder()
-                //The day can move while the box is open, so the round goes with it
-                .setCustomId(`votemodal|${planId}|r${round}`)
-                .setTitle("Can't make it")
-                .addComponents(
-                    new ActionRowBuilder().addComponents(
-                        new TextInputBuilder()
-                            .setCustomId('reason')
-                            .setLabel('Why not? (optional)')
-                            .setStyle(TextInputStyle.Short)
-                            .setMaxLength(200)
-                            .setRequired(false)
-                    )
-                )
-        );
+        //The day can move while the box is open, so the round goes with it
+        return interaction.showModal(reasonModal(`votemodal|${planId}|r${round}`, "Can't make it", 'Why not? (optional)'));
     }
 
     //Whether they were already down as coming, so a re-tap does not re-offer the day block
@@ -1275,19 +1255,23 @@ async function notifyCreatorAllYes(plan) {
     will not answer, and an override only stops them being nudged: they keep the buttons
     on their card, and voting clears the override, so their own word still wins.
 */
-export async function applyAttendanceMove(plan, status, userId) {
-    const reached = status === 'invite' ? await sendInvite(plan, userId) : null;
+export async function applyAttendanceMove(plan, status, userId, actorName = '') {
+    const reached = status === 'invite' ? await sendInvite(plan, userId, actorName) : null;
     await updateOpener(plan).catch(() => {});
     if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
     return reached;
 }
 
-//No actor on the lead: whoever set the day is not who let them in
-async function sendInvite(plan, userId) {
+/*
+    No actor on the lead, which is kept for rewrites and would call them whoever set the
+    day. Who let them in is said once, on this send.
+*/
+async function sendInvite(plan, userId, actorName) {
     const p = plan.participants.find((q) => q.userId === userId);
     if (!p || p.invited === false) return false;
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    const sent = await sendCards(plan, [userId], planCard(plan, p, { guildName: cfg?.guildName || '', actorName: '' }), { actorName: '' });
+    const card = planCard(plan, p, { guildName: cfg?.guildName || '', actorName: '', title: 'INVITED', aside: actorName ? `${actorName} invited you.` : '' });
+    const sent = await sendCards(plan, [userId], card, { actorName: '' });
     return sent.length > 0;
 }
 
@@ -1447,8 +1431,8 @@ export async function remindStragglers(plan, actorName) {
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
     await resendCards(plan, pending, cfg, {
         title: 'REMINDER',
-        //The people this reaches are the ones who have not clicked the link, so the other way is worth saying
-        aside: `${actorName} has asked you to fill in your dates. If they are already on your calendar, open Add my dates and save, or run \`/free\` in the plan's thread.`
+        //A calendar that already has the days does not answer for them yet, which nothing else on the card says
+        aside: `${actorName} is still waiting on your dates. If your calendar already has them, open Add my dates and save.`
     });
 
     return pending.length;
@@ -1468,7 +1452,7 @@ export async function remindVoters(plan, actorName) {
     if (!pending.length) return 0;
 
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    await resendCards(plan, pending, cfg, { aside: `${actorName} is still waiting to hear whether you can make it.` });
+    await resendCards(plan, pending, cfg, { title: 'REMINDER', aside: `${actorName} is still waiting to hear whether you can make it.` });
 
     return pending.length;
 }
