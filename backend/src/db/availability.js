@@ -86,6 +86,23 @@ export async function getAvailabilitySummary(userId) {
 }
 
 /*
+    The latest save of each of a set of people, keyed by user id, for the line under a
+    card's Count me in. Sorted the way the { userId, updatedAt } index is, so each person
+    costs the one key at the front of their run.
+*/
+export async function getLastUpdated(userIds) {
+    if (!userIds.length) return {};
+    const rows = await col(collections.availability)
+        .aggregate([
+            { $match: { userId: { $in: userIds } } },
+            { $sort: { userId: 1, updatedAt: -1 } },
+            { $group: { _id: '$userId', at: { $first: '$updatedAt' } } }
+        ])
+        .toArray();
+    return Object.fromEntries(rows.map((r) => [r._id, r.at]));
+}
+
+/*
     Replace the free days inside one date range with exactly what they just sent.
     Anything in range they left out is now not free and gets dropped. Days outside
     the range are untouched, so their wider timetable carries over to other plans.

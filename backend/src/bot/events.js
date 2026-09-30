@@ -3,7 +3,7 @@ import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
 import { handleTimeZone, handleZoneAutocomplete } from './timezone.js';
 import { handleFree, handleFreeComponent } from './availability.js';
-import { handleOverview, handleMyLink, handleMyCalendar, handleCancel, handlePlanComponent, handleDrop, handleDropModal, handleUndrop, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
+import { handleOverview, handleMyLink, handleMyCalendar, handleCancel, handlePlanComponent, handleDrop, handleUndrop, handleJoin, handleJoinModal, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
@@ -80,8 +80,9 @@ export function attachEvents(client) {
             if (interaction.isModalSubmit() && interaction.customId.startsWith('votemodal|')) {
                 return await handleVoteModal(interaction);
             }
-            if (interaction.isModalSubmit() && interaction.customId.startsWith('dropmodal|')) {
-                return await handleDropModal(interaction);
+            //dropmodal is the box drop out opened before it became Not for me
+            if (interaction.isModalSubmit() && (interaction.customId.startsWith('joinmodal|') || interaction.customId.startsWith('dropmodal|'))) {
+                return await handleJoinModal(interaction);
             }
             //Covers the day selects and the two buttons beside them, which all rewrite the same message
             if (interaction.isMessageComponent() && interaction.customId.startsWith('free|')) {
@@ -95,6 +96,9 @@ export function attachEvents(client) {
             }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('vote|')) {
                 return await handleVote(interaction);
+            }
+            if (interaction.isMessageComponent() && interaction.customId.startsWith('join|')) {
+                return await handleJoin(interaction);
             }
             if (interaction.isMessageComponent() && interaction.customId.startsWith('undrop|')) {
                 return await handleUndrop(interaction);

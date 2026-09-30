@@ -44,7 +44,33 @@ describe('planCard while a plan is still collecting', () => {
             ['Add my dates', expect.stringMatching(/#\/plan\/ab12cd34ef$/)],
             ['Open the thread', 'https://discord.com/channels/g1/t1']
         ]);
-        expect(ids(card)).toEqual(['drop|ab12cd34ef']);
+        expect(ids(card)).toEqual(['join|yes|ab12cd34ef', 'join|no|ab12cd34ef']);
+    });
+
+    it('asks if they are in, with what their calendar already answers', () => {
+        const card = planCard(collecting, nobody, { ask: 'Then fill in your dates.' });
+        expect(card.content.endsWith('\n\nAre you in? Then fill in your dates.')).toBe(true);
+        expect(card.components[0].components.map((b) => b.data.label)).toEqual(['Count me in', 'Not for me']);
+    });
+
+    //The question is the thing to answer, so it comes before the way to the dates
+    it('puts the question above the links', () => {
+        expect(planCard(collecting, nobody, {}).components.map((row) => row.components[0].data.label)).toEqual(['Count me in', 'Add my dates']);
+    });
+
+    it('says where they stand once they have answered, with their answer ticked', () => {
+        const inCard = planCard(collecting, { in: true }, { ask: "That's all I need." });
+        expect(inCard.content.endsWith("\n\nYou're in. That's all I need.")).toBe(true);
+        expect(inCard.components[0].components.map((b) => b.data.label)).toEqual(["✓ I'm in", 'Not for me']);
+
+        const outCard = planCard(collecting, { in: false }, { ask: 'Then fill in your dates.' });
+        expect(outCard.content.endsWith("\n\nYou said it's not for you.")).toBe(true);
+        expect(outCard.components[0].components.map((b) => b.data.label)).toEqual(['Count me in', '✓ Not for me']);
+    });
+
+    //Nobody from before the question has an answer stored, and filling in counted as in
+    it('reads someone who filled in before the question as in', () => {
+        expect(planCard(collecting, { confirmed: true }, {}).content).toContain("You're in.");
     });
 
     /*

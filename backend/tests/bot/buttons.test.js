@@ -39,6 +39,7 @@ const db = vi.hoisted(() => ({
     getPlan: vi.fn(async () => store.plan && { ...store.plan }),
     recordVote: vi.fn(async () => store.after),
     removeParticipant: vi.fn(async () => store.after),
+    setIn: vi.fn(async () => store.after),
     addParticipants: vi.fn(async () => store.after),
     addPlanEvent: vi.fn(async () => {}),
     markAllInNotified: vi.fn(async () => {}),
@@ -52,11 +53,13 @@ vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({
 const cal = vi.hoisted(() => ({
     getAvailabilityInRange: vi.fn(async () => []),
     blockDay: vi.fn(async () => {}),
-    setDayFree: vi.fn(async () => {})
+    setDayFree: vi.fn(async () => {}),
+    getAvailabilityForUsersInRange: vi.fn(async () => []),
+    getLastUpdated: vi.fn(async () => ({}))
 }));
 vi.mock('../../src/db/availability.js', () => cal);
 
-const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleDropModal, handleUndrop, setDayReply } = await import('../../src/bot/plans.js');
+const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleJoin, handleJoinModal, handleUndrop, setDayReply } = await import('../../src/bot/plans.js');
 const { getPlanningPrefs } = await import('../../src/db/users.js');
 
 const day = shiftDate(today(), 3);
@@ -204,7 +207,7 @@ describe('the reason boxes', () => {
         expect(described(click)).toBe('Only whoever runs the plan sees this.');
     });
 
-    it('says the same on a drop out', async () => {
+    it('says the same on not for me', async () => {
         store.plan = { ...setPlan(), status: 'collecting', chosenDate: null };
         const click = press('drop|ab12cd34ef');
         await handleDrop(click);
@@ -212,38 +215,93 @@ describe('the reason boxes', () => {
     });
 });
 
-describe('dropping out and coming back', () => {
+describe('count me in and not for me', () => {
     const collecting = (participants) => ({ ...setPlan(), status: 'collecting', probeActive: false, chosenDate: null, participants });
     const planner = { userId: 'planner', invited: true, confirmed: true };
+    const bo = (over = {}) => ({ userId: 'bo', invited: true, cardMessageId: 'card', ...over });
+    const answer = (click) => click.update.mock.calls[0][0];
 
-    it('answers the drop out before telling whoever runs the plan', async () => {
-        store.plan = collecting([{ userId: 'bo', invited: true }, planner]);
-        store.after = collecting([planner]);
-        const submit = press('dropmodal|ab12cd34ef', { fields: { getTextInputValue: () => 'Away' } });
+    it('turns the card into their answer, and asks nothing more of someone in', async () => {
+        store.plan = collecting([bo(), planner]);
+        store.after = collecting([bo({ in: true }), planner]);
+        const click = press('join|yes|ab12cd34ef');
 
-        await handleDropModal(submit);
+        await handleJoin(click);
 
-        expect(order[0]).toBe('answered');
-        expect(order.slice(1)).toContain('dm planner');
+        expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'bo', true, null);
+        expect(answer(click).content).toContain("You're in.");
+        expect(answer(click).components[0].components.map((b) => b.data.label)).toEqual(["✓ I'm in", 'Not for me']);
     });
 
-    it('answers the undo before telling them', async () => {
+    it('opens the reason box for a no, and writes nothing yet', async () => {
+        store.plan = collecting([bo(), planner]);
+        const click = press('join|no|ab12cd34ef');
+
+        await handleJoin(click);
+
+        expect(click.showModal.mock.calls[0][0].toJSON().custom_id).toBe('joinmodal|ab12cd34ef');
+        expect(db.setIn).not.toHaveBeenCalled();
+    });
+
+    it('answers a not for me before telling whoever runs the plan, and keeps them on it', async () => {
+        store.plan = collecting([bo(), planner]);
+        store.after = collecting([bo({ in: false, inReason: 'Away' }), planner]);
+        const submit = press('joinmodal|ab12cd34ef', { fields: { getTextInputValue: () => ' Away ' } });
+
+        await handleJoinModal(submit);
+
+        expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'bo', false, 'Away');
+        expect(db.removeParticipant).not.toHaveBeenCalled();
+        expect(order[0]).toBe('answered');
+        expect(order.slice(1)).toContain('dm planner');
+        expect(answer(submit).content).toContain("You said it's not for you.");
+        expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', expect.objectContaining({ type: 'left', by: 'bo' }));
+    });
+
+    //A card from before the question still carries Drop out, and a box opened from it can still come back
+    it('takes an old drop out as not for me', async () => {
+        store.plan = collecting([bo(), planner]);
+        store.after = collecting([bo({ in: false }), planner]);
+        const click = press('drop|ab12cd34ef');
+        await handleDrop(click);
+        expect(click.showModal.mock.calls[0][0].toJSON().custom_id).toBe('joinmodal|ab12cd34ef');
+
+        await handleJoinModal(press('dropmodal|ab12cd34ef', { fields: { getTextInputValue: () => '' } }));
+        expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'bo', false, null);
+    });
+
+    it('hands back the card for the day, and writes nothing, once the plan has one', async () => {
+        store.plan = setPlan({ cardMessageId: 'card' });
+        const click = press('join|yes|ab12cd34ef');
+
+        await handleJoin(click);
+
+        expect(db.setIn).not.toHaveBeenCalled();
+        expect(ids(answer(click))).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
+    });
+
+    //Dropping out used to take people off the plan, so its undo puts them back on first
+    it('puts someone an old drop out took off back on, and counts them in', async () => {
         store.plan = collecting([planner]);
-        store.after = collecting([{ userId: 'bo', invited: true }, planner]);
+        store.after = collecting([bo({ in: true }), planner]);
 
         await handleUndrop(press('undrop|ab12cd34ef'));
 
+        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['bo']);
+        expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'bo', true);
         expect(order).toEqual(['answered', 'dm planner']);
+        expect(dms[0].payload).toBe('**BACK IN**\n\nBo is in for "Board games" in The server after all.');
     });
 
     //The one everyone-in DM this sets off, which carries the overview as a button
     it('hands the planner the overview as a button, not a link in the text', async () => {
-        store.plan = collecting([{ userId: 'bo', invited: true }, planner]);
-        store.after = collecting([planner]);
+        store.plan = collecting([bo(), planner]);
+        store.after = collecting([bo({ in: false }), planner]);
         //Their own calendar answers the one day, so the planner is all that is left and done
-        getPlanningPrefs.mockResolvedValueOnce({ planner: { answered: [{ start: day, end: day, allowedWeekdays: null }] } });
+        getPlanningPrefs.mockResolvedValue({ planner: { answered: [{ start: day, end: day, allowedWeekdays: null }] } });
 
-        await handleDropModal(press('dropmodal|ab12cd34ef', { fields: { getTextInputValue: () => '' } }));
+        await handleJoinModal(press('joinmodal|ab12cd34ef', { fields: { getTextInputValue: () => '' } }));
+        getPlanningPrefs.mockResolvedValue({});
 
         const allIn = dms.find((d) => d.payload.content?.includes('EVERYONE IS IN')).payload;
         expect(allIn.content).not.toMatch(/https?:\/\//);

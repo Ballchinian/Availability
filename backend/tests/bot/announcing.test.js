@@ -77,8 +77,16 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanningPrefs: vi.fn(async () => ({})) }));
+vi.mock('../../src/db/availability.js', async (real) => ({
+    ...(await real()),
+    getAvailabilityForUsersInRange: vi.fn(async () => []),
+    getLastUpdated: vi.fn(async () => ({}))
+}));
 
 const { announcePlan, announceSetPlan, announceOutcome, announceCancel, mentionPosts } = await import('../../src/bot/plans.js');
+const { getPlanningPrefs } = await import('../../src/db/users.js');
+const { todayIn } = await import('../../src/lib/zones.js');
+const { shiftDate } = await import('../../src/lib/dates.js');
 
 const cfg = { guildName: 'The server', plansChannelId: 'c2' };
 const buttons = (message) => (message.components || []).flatMap((row) => row.components.map((b) => b.data.custom_id));
@@ -196,6 +204,19 @@ describe('setting a day on a running plan', () => {
         expect(posts).toEqual([]);
         expect(dms).toEqual([]);
         expect(buttons(edited.find((e) => e.id === 'op1'))).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
+    });
+});
+
+describe('the line under Count me in', () => {
+    it("tells each person what their own calendar already answers", async () => {
+        const soon = { start: shiftDate(todayIn('Europe/London'), 5), end: shiftDate(todayIn('Europe/London'), 7) };
+        getPlanningPrefs.mockResolvedValueOnce({ ali: { coveredUntil: soon.end, answered: [], timeZone: 'Europe/London' } });
+
+        await announcePlan({ ...collecting(), dateRange: soon }, cfg, 'Ali');
+
+        const card = (id) => dms.find((d) => d.userId === id).content;
+        expect(card('ali').endsWith("Are you in? Your calendar already answers this: you're not free on any of the 3 days.")).toBe(true);
+        expect(card('bo').endsWith('Are you in? Then fill in your dates.')).toBe(true);
     });
 });
 

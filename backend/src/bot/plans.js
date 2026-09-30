@@ -1,16 +1,16 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed, setIn } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
-import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
+import { getAvailabilityInRange, getAvailabilityForUsersInRange, getLastUpdated, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
-import { formatDay, formatDate, formatTime } from '../lib/dates.js';
-import { answersOn, coverageOf, standing } from '../lib/coverage.js';
+import { formatDay, formatDate, formatTime, shiftDate } from '../lib/dates.js';
+import { answersOn, coverageOf, standing, askFor, inOf } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 
 /*
@@ -58,9 +58,43 @@ async function sendCards(plan, ids, build, lead = {}) {
 }
 
 //Their card again with a line saying why it came, the lead they already had left as it is
-function resendCards(plan, ids, cfg, opts) {
+async function resendCards(plan, ids, cfg, opts) {
+    const asks = await askLines(plan, ids);
     return sendCards(plan, ids, (id) =>
-        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, { guildName: cfg?.guildName || '', ...opts }), { keepLead: true });
+        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, { guildName: cfg?.guildName || '', ...opts, ask: asks[id] }), { keepLead: true });
+}
+
+/*
+    The line under Count me in for each of ids, keyed by id: what their calendar already
+    answers. Only a plan still finding its day asks. Three reads for the lot rather than
+    three a person, and a card goes out without the line rather than not at all.
+*/
+async function askLines(plan, ids) {
+    if (plan.status !== 'collecting' || !ids.length) return {};
+    try {
+        const { start, end } = plan.dateRange;
+        const [prefs, rows, updated] = await Promise.all([
+            getPlanningPrefs(ids),
+            getAvailabilityForUsersInRange(ids, shiftDate(start, -1), shiftDate(end, 1)),
+            getLastUpdated(ids)
+        ]);
+        const theirs = {};
+        for (const r of rows) (theirs[r.userId] ||= []).push(r);
+        const lines = {};
+        for (const p of plan.participants.filter((q) => ids.includes(q.userId))) {
+            lines[p.userId] = askFor(plan, p, prefs[p.userId], theirs[p.userId] || [], updated[p.userId]);
+        }
+        return lines;
+    } catch (err) {
+        console.error('[plans] ask lines failed:', err);
+        return {};
+    }
+}
+
+//One person's card as the plan stands now, line and all
+async function cardFor(plan, p, opts = {}) {
+    const [cfg, asks] = await Promise.all([getGuildConfig(plan.guildId).catch(() => null), askLines(plan, [p.userId])]);
+    return planCard(plan, p, { guildName: cfg?.guildName || '', ...opts, ask: asks[p.userId] });
 }
 
 //Discord can refuse the delete, and then the card at least loses its buttons
@@ -157,10 +191,17 @@ function renameThread(thread, name) {
     });
 }
 
-//The drop out button that rides along on the DMs for a plan that is still collecting
-function dropRow(planId) {
+//Count me in / Not for me, with their answer ticked once there is one, the way votedDmRow shows a vote
+function joinRow(planId, joined) {
     return new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`drop|${planId}`).setLabel('Drop out of this plan').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder()
+            .setCustomId(`join|yes|${planId}`)
+            .setLabel(joined === true ? "✓ I'm in" : 'Count me in')
+            .setStyle(joined === false ? ButtonStyle.Secondary : ButtonStyle.Success),
+        new ButtonBuilder()
+            .setCustomId(`join|no|${planId}`)
+            .setLabel(joined === false ? '✓ Not for me' : 'Not for me')
+            .setStyle(joined === true ? ButtonStyle.Secondary : ButtonStyle.Danger)
     );
 }
 
@@ -281,9 +322,10 @@ function probeTally(plan) {
     actor and moved fall back to the participant, which is how a rebuild months later still
     names the right person. Their own vote goes on it, or a rewrite would blank a voted DM
     back to the question. title and aside are for this send only, so a banner or a line
-    about why it arrived does not outlive its moment.
+    about why it arrived does not outlive its moment. ask is the line under Count me in,
+    from askLines, and a card built without one just asks.
 */
-export function planCard(plan, p, { guildName = '', actorName = null, moved = null, title = null, aside = '' } = {}) {
+export function planCard(plan, p, { guildName = '', actorName = null, moved = null, title = null, aside = '', ask = '' } = {}) {
     const who = actorName ?? p.cardActor ?? '';
     const wasMoved = moved ?? Boolean(p.cardMoved);
     const again = Boolean(plan.repeatedFrom);
@@ -306,7 +348,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
         };
     }
 
-    //Still collecting: the card is the invitation, and the way to the dates and the thread
+    //Still collecting: the card is the invitation, the question, and the way to the dates and the thread
     if (plan.status !== 'closed' || !plan.chosenDate) {
         const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
         const lead = again
@@ -314,12 +356,14 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
             : who
                 ? `${who} added you to the plan "${plan.name}"${where} (${range}).`
                 : `You are on the plan "${plan.name}"${where} (${range}).`;
+        const joined = inOf(p);
+        const stand = joined === false ? "You said it's not for you." : [joined ? "You're in." : 'Are you in?', ask].filter(Boolean).join(' ');
         const links = new ActionRowBuilder().addComponents(datesButton(plan));
         //Left off rather than guessed at when there is no thread yet, since the card outlives the send
         if (plan.threadId) links.addComponents(linkButton('Open the thread', threadUrl(plan.guildId, plan.threadId)));
         return {
-            content: top('INVITED') + [lead, aboutLine(plan).trimEnd(), aside].filter(Boolean).join('\n'),
-            components: [links, dropRow(plan.planId)]
+            content: top('INVITED') + [lead, aboutLine(plan).trimEnd(), aside].filter(Boolean).join('\n') + `\n\n${stand}`,
+            components: [joinRow(plan.planId, joined), links]
         };
     }
 
@@ -539,11 +583,13 @@ export async function announcePlan(plan, cfg, actorName) {
 
     //The thread id is only in the database yet, so it is patched on or the card has no thread button
     const withThread = { ...plan, threadId: thread.id };
+    const asks = await askLines(plan, ids);
     //A repeat has no actor: nobody did this, it just came round, so the card says that instead
     await sendCards(plan, ids, (id) =>
         planCard(withThread, plan.participants.find((p) => p.userId === id) || {}, {
             guildName: guild.name,
-            actorName: plan.repeatedFrom ? '' : actorName
+            actorName: plan.repeatedFrom ? '' : actorName,
+            ask: asks[id]
         }), { actorName: plan.repeatedFrom ? '' : actorName });
 
     return thread;
@@ -569,10 +615,9 @@ export async function announceSetPlan(plan, cfg, actorName) {
 
 /*
     Pull extra people into a plan that is already running. They slip into the
-    thread quietly, no ping and no post about it. The welcome goes by DM instead:
-    what it is about, the range, the link and a way to the thread, plus a drop out
-    button, same as the start. The DM is optional, dm off just adds them to the
-    thread. actorName is the planner who added them.
+    thread quietly, no ping and no post about it. The welcome goes by DM instead,
+    the same card everyone got at the start. The DM is optional, dm off just adds
+    them to the thread. actorName is the planner who added them.
 */
 export async function announceAddition(plan, newIds, actorName, { dm = true } = {}) {
     //Anyone gone again by the time this runs would be invited to a plan they are not on
@@ -592,10 +637,12 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
 
     //The same card everyone else holds, so a late joiner rides the same rewrites
     if (dm) {
+        const asks = await askLines(plan, newIds);
         await sendCards(plan, newIds, (id) =>
             planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
                 guildName: guild.name,
-                actorName
+                actorName,
+                ask: asks[id]
             }), { actorName });
     }
 }
@@ -616,6 +663,7 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
 
     const conf = cfg || (await getGuildConfig(plan.guildId).catch(() => null));
     const guildName = conf?.guildName || '';
+    const asks = await askLines(plan, holders.map((p) => p.userId));
 
     let done = 0;
     await fanOut(holders, async (p) => {
@@ -623,7 +671,7 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
             const user = await client.users.fetch(p.userId);
             const dm = await user.createDM();
             const msg = await dm.messages.fetch(p.cardMessageId);
-            await msg.edit(planCard(plan, p, { guildName }));
+            await msg.edit(planCard(plan, p, { guildName, ask: asks[p.userId] }));
             done++;
         } catch (err) {
             //10008 is Discord's unknown message: they deleted it, so stop paying for it every pass
@@ -855,10 +903,9 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
 }
 
 /*
-    Drop one person out of a plan, from the site or the DM button. We take them
-    off the guest list so they are no longer pinged or DMed about it, but leave
-    them in the thread so they can still follow along if they want. No note goes
-    to the thread, a quiet exit, nobody needs telling who bowed out.
+    Take one person off a plan, from the site's drop out on a set day. They are left in
+    the thread so they can still follow along, and nothing is posted there. A plan still
+    finding its day asks Not for me instead, which keeps them on it.
 */
 export async function leavePlan(plan, userId, actorName) {
     await afterLeaving(await dropOut(plan, userId, actorName));
@@ -882,20 +929,61 @@ async function afterLeaving(updated) {
 }
 
 /*
-    The drop out button on a DM. Rather than leaving on the spot, it opens a short modal
-    so the person can say why they cannot make it, optional, before they actually go.
+    Count me in or Not for me on a DM card. Not for me opens the reason box first, and
+    the answer lands when that comes back.
 */
+export async function handleJoin(interaction) {
+    const [, choice, planId] = interaction.customId.split('|');
+    const me = await joinable(interaction, await getPlan(planId));
+    if (!me) return;
+    if (choice === 'no') return interaction.showModal(notForMeBox(planId));
+    await answerJoin(interaction, me, true, null);
+}
+
+//The reason came back, from the Not for me box or a drop out box opened before there was one
+export async function handleJoinModal(interaction) {
+    const me = await joinable(interaction, await getPlan(interaction.customId.split('|')[1]));
+    if (!me) return;
+    await answerJoin(interaction, me, false, (interaction.fields.getTextInputValue('reason') || '').trim().slice(0, 200) || null);
+}
+
+//Drop out on a card from before Count me in, which is Not for me now
 export async function handleDrop(interaction) {
     const planId = interaction.customId.split('|')[1];
-    const plan = await getPlan(planId);
+    if (await joinable(interaction, await getPlan(planId))) return interaction.showModal(notForMeBox(planId));
+}
+
+const notForMeBox = (planId) => reasonModal(`joinmodal|${planId}`, 'Not for me', 'Why not? (optional)');
+
+/*
+    Who pressed, with the plan they pressed about, while it is still asking. Otherwise the
+    press is answered here from the plan as it is now, writing nothing: an older card, a plan
+    that has its day, or one called off each get the current card, and null comes back.
+*/
+async function joinable(interaction, plan) {
     if (!plan) {
-        return interaction.update({ content: 'That plan is no longer around.', components: [] });
+        await interaction.update({ content: 'That plan is no longer around.', components: [] });
+        return null;
     }
-    if (!plan.participants.some((p) => p.userId === interaction.user.id)) {
-        return interaction.update({ content: `You are not on "${plan.name}" anymore.`, components: [] });
+    const me = plan.participants.find((p) => p.userId === interaction.user.id);
+    if (!me) {
+        await interaction.update({ content: `You are not on "${plan.name}" anymore.`, components: [] });
+        return null;
     }
-    if (await answeredOldCard(interaction, plan)) return;
-    return interaction.showModal(reasonModal(`dropmodal|${planId}`, 'Drop out', "Why can't you make it? (optional)"));
+    if (await answeredOldCard(interaction, plan)) return null;
+    if (plan.status !== 'collecting') {
+        await interaction.update(await cardFor(plan, me));
+        return null;
+    }
+    return { plan, p: me };
+}
+
+//The card turns into the answer first, and whoever runs the plan hears after
+async function answerJoin(interaction, { plan, p }, value, reason) {
+    const updated = await setIn(plan.planId, p.userId, value, reason);
+    const now = updated.participants.find((q) => q.userId === p.userId) || { ...p, in: value };
+    await interaction.update(await cardFor(updated, now));
+    await announceJoin(updated, p.userId, inOf(p), reason, { card: false });
 }
 
 //The box for a reason, which only ever goes to whoever runs the plan
@@ -913,44 +1001,10 @@ function reasonModal(customId, title, question) {
         );
 }
 
-//Swapped onto the DM after a drop out, lets the person climb back on in one tap
-function undropRow(planId) {
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`undrop|${planId}`).setLabel('Undo, I can make it after all').setStyle(ButtonStyle.Success)
-    );
-}
-
 /*
-    The drop out reason came back, so take them off the plan. We leave them in the thread,
-    a quiet exit as before, but now the creator gets a DM with the reason and the person
-    gets an undo button in case they spoke too soon.
-*/
-export async function handleDropModal(interaction) {
-    const planId = interaction.customId.split('|')[1];
-    const plan = await getPlan(planId);
-    if (!plan) {
-        return interaction.update({ content: 'That plan is no longer around.', components: [] });
-    }
-    if (!plan.participants.some((p) => p.userId === interaction.user.id)) {
-        return interaction.update({ content: `You are not on "${plan.name}" anymore.`, components: [] });
-    }
-    const reason = (interaction.fields.getTextInputValue('reason') || '').trim().slice(0, 200) || null;
-
-    //A drop out is a DM, so there is no member to read a nickname off, only the account name
-    const updated = await dropOut(plan, interaction.user.id, interaction.member?.displayName || interaction.user.username);
-
-    const passed = reason ? ` I passed your reason on.` : '';
-    await interaction.update({
-        content: banner('DROPPED OUT') + `Done, you have dropped out of "${plan.name}". I will not nudge you about it again.${passed}`,
-        components: [undropRow(planId)]
-    });
-    await afterLeaving(updated);
-    await notifyCreatorDropped(plan, interaction.user.id, reason).catch(() => {});
-}
-
-/*
-    The undo button after a drop out. Puts the person back on the plan, fresh, and tells
-    the creator they are back in. They were left in the thread, so nothing to re-add there.
+    Undo on a drop out from before Count me in, when dropping out took people off the plan.
+    Puts them back on first when that is still where they are, then counts them in. They
+    were left in the thread, so nothing to add there.
 */
 export async function handleUndrop(interaction) {
     const planId = interaction.customId.split('|')[1];
@@ -964,27 +1018,20 @@ export async function handleUndrop(interaction) {
     if (dayHasPassed(plan)) {
         return interaction.update({ content: `"${plan.name}" was on ${formatDate(plan.chosenDate)}, so there is nothing to rejoin.`, components: [] });
     }
-    if (plan.participants.some((p) => p.userId === interaction.user.id)) {
-        return interaction.update({ content: `You are already back on "${plan.name}".`, components: [dropRow(planId)] });
-    }
-    //Pressed from a DM, which says nothing about whether they are still in the server
-    const guild = await client.guilds.fetch(plan.guildId).catch(() => null);
-    if (!guild || !(await realMembers(guild, [interaction.user.id])).length) {
-        return interaction.update({ content: `You are not in the server "${plan.name}" is in anymore, so I cannot put you back on it.`, components: [] });
+    const onPlan = plan.participants.find((p) => p.userId === interaction.user.id);
+    if (!onPlan) {
+        //Pressed from a DM, which says nothing about whether they are still in the server
+        const guild = await client.guilds.fetch(plan.guildId).catch(() => null);
+        if (!guild || !(await realMembers(guild, [interaction.user.id])).length) {
+            return interaction.update({ content: `You are not in the server "${plan.name}" is in anymore, so I cannot put you back on it.`, components: [] });
+        }
+        await addParticipants(planId, [interaction.user.id]);
     }
 
-    const updated = await addParticipants(planId, [interaction.user.id]);
-    await addPlanEvent(planId, {
-        type: 'rejoined',
-        by: interaction.user.id,
-        byName: interaction.member?.displayName || interaction.user.username
-    }).catch(() => {});
-
-    await interaction.update({
-        content: banner('BACK IN') + `You are back on "${plan.name}".`,
-        components: [dropRow(planId)]
-    });
-    await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
+    const updated = await setIn(planId, interaction.user.id, true);
+    await interaction.update(await cardFor(updated, updated.participants.find((p) => p.userId === interaction.user.id)));
+    await announceJoin(updated, interaction.user.id, onPlan ? inOf(onPlan) : false, null, { card: false });
+    //A set day's pin counts them again
     await updateOpener(updated).catch(() => {});
 }
 
@@ -1086,8 +1133,7 @@ async function answeredOldCard(interaction, plan, moved = null) {
     const onRecord = p.cardMessageId === interaction.message.id;
     if (!moved && (onRecord || !p.cardMessageId)) return false;
 
-    const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    await interaction.update(planCard(plan, p, { guildName: cfg?.guildName || '', aside: moved || '' }));
+    await interaction.update(await cardFor(plan, p, { aside: moved || '' }));
     if (!onRecord) {
         await setPlanCards(plan.planId, [{ userId: p.userId, messageId: interaction.message.id }], { keepLead: true });
         if (p.cardMessageId) await retireCard(p.userId, p.cardMessageId);
@@ -1202,8 +1248,7 @@ async function currentCard(planId, userId) {
     const plan = await getPlan(planId);
     const p = plan?.participants.find((q) => q.userId === userId);
     if (!p) return { content: plan ? `You are not on "${plan.name}" anymore.` : 'That plan is no longer around.', components: [] };
-    const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    return planCard(plan, p, { guildName: cfg?.guildName || '' });
+    return cardFor(plan, p);
 }
 
 //Yes packs the day's hours onto the undo before clearing it, so a part day comes back as it was
@@ -1343,8 +1388,14 @@ export async function announceJoin(plan, userId, was, reason = null, { card = tr
     if (card) await syncPlanCards(plan, null, { only: [userId] }).catch(() => {});
 
     let heard = { told: [], missed: [] };
-    if (p.in === false && was !== false) heard = await notifyCreatorOut(plan, userId, reason).catch(() => heard);
-    if (p.in === true && was === false) await notifyCreatorUndropped(plan, userId).catch(() => {});
+    const out = p.in === false && was !== false;
+    const back = p.in === true && was === false;
+    if (out || back) {
+        const byName = await memberName(plan.guildId, userId, '');
+        await addPlanEvent(plan.planId, { type: out ? 'left' : 'rejoined', by: userId, byName }).catch(() => {});
+    }
+    if (out) heard = await notifyCreatorOut(plan, userId, reason).catch(() => heard);
+    if (back) await notifyCreatorUndropped(plan, userId).catch(() => {});
     await notifyCreatorIfAllIn(plan).catch(() => {});
     return heard;
 }
