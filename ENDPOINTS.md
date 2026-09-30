@@ -33,7 +33,9 @@ Nothing is stored converted. The two only meet in `GET /api/plans/:planId/compar
 Three kinds of Discord message belong to a plan, and every route that changes it brings all three back in line before it does anything else.
 
 * **The pinned opener** in the plan's thread, and **the confirmation** while one exists. Both are remembered by message id, both are edited where they sit, and both are posted again if somebody deletes one. Without that second half a single deletion was permanent: every later pass fetched nothing and gave up.
-* **One card per person**, the DM that says what the plan currently is. It is rebuilt from the plan every time, so the message sent on the day and the message rewritten a fortnight later agree, and somebody's own yes or no stays on theirs. Every other DM the bot sends is a note about a moment (a nudge, a drop out) and is left alone to age.
+* **One card per person**, the DM that says what the plan currently is. It is rebuilt from the plan every time, so the message sent on the day and the message rewritten a fortnight later agree, and somebody's own yes or no stays on theirs.
+
+Anything that tells a guest something (a day set, a time moved, a nudge, a plan called off) goes as a fresh card with a line on why it came, and their old card is deleted once the new one has landed. When Discord will not delete it, it is edited down to "There's a newer message about this plan." with no buttons. That keeps one DM per person per plan with live buttons. A press on an older one anyway gets the card as it is now, becomes their card, and changes nothing. The only other DMs are the notes to whoever set the plan up about other people (everyone is in, someone cannot make it, someone dropped out).
 
 Editing a message notifies nobody in Discord. That is what the whole arrangement rests on: a wrong time or a wrong note can be put right without the correction itself becoming an event, and the people it was wrong for end up holding a DM that is simply correct.
 
@@ -510,8 +512,8 @@ Planner role only.
 
 ### Effects
 
-* While the plan is still collecting, DMs the people who have not filled their availability, with the link.
-* Once a date is locked in and a confirmation probe is running, DMs the people who have not said whether they are coming, with the probe's own yes/no buttons riding along so they can answer from the DM.
+* While the plan is still collecting, sends the people who have not filled their availability their card again, with the link and a line saying who is asking.
+* Once a date is locked in and a confirmation probe is running, sends the people who have not said whether they are coming their card again, yes/no buttons and all, so they can answer from the DM.
 
 ### Returns
 
@@ -605,7 +607,7 @@ Planner role only.
 * Updates the stored title and description, and clears any `chosenNote` the plan still carries.
 * Renames the thread to the new title.
 * Rewrites the pinned opening message and every DM card so they show the new title and description.
-* On a plan whose day is already set, DMs everyone still invited to say what it is about has changed, unless `quiet`.
+* On a plan whose day is already set, sends everyone still invited a fresh card saying what it is about has changed, unless `quiet`.
 
 ### Notes
 

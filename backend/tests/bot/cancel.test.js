@@ -24,7 +24,8 @@ const db = vi.hoisted(() => ({
         store.set(planId, { ...plan, status: 'cancelled' });
         return store.get(planId);
     }),
-    addPlanEvent: vi.fn(async () => {})
+    addPlanEvent: vi.fn(async () => {}),
+    setPlanCards: vi.fn(async () => {})
 }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/ratelimits.js', () => ({ refundAction: vi.fn(async () => {}) }));
@@ -74,7 +75,7 @@ describe('the /cancel button', () => {
         await done;
         expect(outcome).not.toHaveBeenCalled();
         expect(sends.map((s) => s.userId).sort()).toEqual(['bo', 'cass']);
-        expect(sends[0].payload).toMatch(/Ali called off "Board games"/);
+        expect(sends[0].payload.content).toMatch(/Ali called off "Board games"/);
         expect(click.editReply).toHaveBeenCalledWith({ content: expect.stringMatching(/^Done/) });
     });
 

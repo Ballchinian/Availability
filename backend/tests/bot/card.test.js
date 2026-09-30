@@ -140,7 +140,7 @@ describe('planCard for somebody who has already answered', () => {
 describe('planCard asides', () => {
     //Advice about this send, so it has to land before what the card is asking them to do
     it('puts an aside after the plan and before the call to action', () => {
-        const { content } = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali', aside: '\nWorth a proper look.' });
+        const { content } = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali', aside: 'Worth a proper look.' });
         expect(content.indexOf('Worth a proper look.')).toBeLessThan(content.indexOf('Can you make it? Tap below.'));
         expect(content.indexOf('meet at the station')).toBeLessThan(content.indexOf('Worth a proper look.'));
     });
@@ -149,5 +149,15 @@ describe('planCard asides', () => {
     it('carries no aside when none is passed', () => {
         const { content } = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali' });
         expect(content).not.toContain('Worth a proper look.');
+    });
+
+    it('puts it above the link on a card still collecting dates', () => {
+        const { content } = planCard(collecting, nobody, { actorName: 'Ali', aside: 'Ali has asked you to fill in your dates.' });
+        expect(content.indexOf('Ali has asked you')).toBeLessThan(content.indexOf('Fill in your dates here'));
+    });
+
+    it('swaps the banner for this send and no rebuild after it', () => {
+        expect(planCard(collecting, nobody, { title: 'REMINDER' }).content).toMatch(/^\*\*REMINDER\*\*/);
+        expect(planCard(collecting, nobody, {}).content).toMatch(/^\*\*INVITED TO A PLAN\*\*/);
     });
 });

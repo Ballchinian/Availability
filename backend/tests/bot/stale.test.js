@@ -12,7 +12,8 @@ const db = vi.hoisted(() => ({
     getPlan: vi.fn(async () => store.plan && { ...store.plan }),
     recordVote: vi.fn(async () => store.plan),
     addParticipants: vi.fn(async () => store.plan),
-    addPlanEvent: vi.fn(async () => {})
+    addPlanEvent: vi.fn(async () => {}),
+    setPlanCards: vi.fn(async () => {})
 }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
@@ -33,8 +34,8 @@ vi.mock('../../src/bot/client.js', () => ({
 
 const { handleVote, handleUndrop } = await import('../../src/bot/plans.js');
 
-function press(customId) {
-    return { customId, user: { id: 'bo', username: 'bo' }, inGuild: () => false, update: vi.fn(async () => {}) };
+function press(customId, message = null) {
+    return { customId, message, user: { id: 'bo', username: 'bo' }, inGuild: () => false, update: vi.fn(async () => {}), showModal: vi.fn(async () => {}) };
 }
 
 const setPlan = (chosenDate) => ({
@@ -108,5 +109,39 @@ describe('undoing a drop out', () => {
         store.plan = dropped({ status: 'cancelled' });
         await handleUndrop(press('undrop|ab12cd34ef'));
         expect(db.addParticipants).not.toHaveBeenCalled();
+    });
+});
+
+/*
+    A card that should have been taken down when a newer one went out. The newer one may say
+    a different time, so a yes from here could be a yes to something that no longer stands.
+*/
+describe('a press on a card older than the one on record', () => {
+    const holding = () => ({ ...setPlan(shiftDate(today(), 3)), participants: [{ userId: 'bo', invited: true, vote: null, cardMessageId: 'newer' }] });
+
+    it('answers with the card as it is now and writes nothing', async () => {
+        store.plan = holding();
+        const click = press('vote|yes|ab12cd34ef', { id: 'older' });
+
+        await handleVote(click);
+
+        const shown = click.update.mock.calls[0][0];
+        expect(shown.content).toContain('Can you make it? Tap below.');
+        expect(shown.components).toHaveLength(1);
+        expect(db.recordVote).not.toHaveBeenCalled();
+        expect(click.showModal).not.toHaveBeenCalled();
+    });
+
+    //The one they pressed is where they are looking, so it is the one kept live
+    it('makes the message they pressed their card', async () => {
+        store.plan = holding();
+        await handleVote(press('vote|no|ab12cd34ef', { id: 'older' }));
+        expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'bo', messageId: 'older' }], { keepLead: true });
+    });
+
+    it('counts a press on the card on record as ever', async () => {
+        store.plan = holding();
+        await handleVote(press('vote|yes|ab12cd34ef', { id: 'newer' })).catch(() => {});
+        expect(db.recordVote).toHaveBeenCalled();
     });
 });

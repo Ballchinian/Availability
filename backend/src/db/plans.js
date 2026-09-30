@@ -546,21 +546,17 @@ export async function setAttendanceOverride(planId, userId, override, { reinvite
 /*
     Remember the DM that told each person what the plan is, so a later change rewrites it
     rather than sending a correction after it. One card per person, one write for the lot.
-    actorName and moved are what the card's lead line needs and nothing else stores.
+    actorName and moved are what the card's lead line needs and nothing else stores, and
+    keepLead leaves the stored ones alone for a card sent without a lead of its own.
 */
-export async function setPlanCards(planId, cards, { actorName = '', moved = false } = {}) {
+export async function setPlanCards(planId, cards, { actorName = '', moved = false, keepLead = false } = {}) {
     if (!cards.length) return;
+    const lead = keepLead ? {} : { 'participants.$.cardActor': actorName, 'participants.$.cardMoved': moved };
     await col(collections.plans).bulkWrite(
         cards.map(({ userId, messageId }) => ({
             updateOne: {
                 filter: { planId, 'participants.userId': userId },
-                update: {
-                    $set: {
-                        'participants.$.cardMessageId': messageId,
-                        'participants.$.cardActor': actorName,
-                        'participants.$.cardMoved': moved
-                    }
-                }
+                update: { $set: { 'participants.$.cardMessageId': messageId, ...lead } }
             }
         })),
         { ordered: false }
@@ -574,10 +570,14 @@ export async function setDmsClosed(planId, userId, closed) {
     );
 }
 
-//Forget one person's card, for when the message behind it has gone and a rewrite found out
-export async function clearPlanCard(planId, userId) {
+/*
+    Forget one person's card, for when the message behind it has gone and a rewrite found out.
+    Only while it is still the one on record: a rewrite running off an older read would
+    otherwise forget the card that replaced it.
+*/
+export async function clearPlanCard(planId, userId, messageId) {
     await col(collections.plans).updateOne(
-        { planId, 'participants.userId': userId },
+        { planId, participants: { $elemMatch: { userId, cardMessageId: messageId } } },
         { $set: { 'participants.$.cardMessageId': null } }
     );
 }

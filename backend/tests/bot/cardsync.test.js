@@ -10,6 +10,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const inbox = new Map();
 const edits = [];
 const sends = [];
+const deletes = [];
+//Sends, edits and deletes in the order they happened
+const order = [];
 
 vi.mock('../../src/bot/client.js', () => ({
     client: {
@@ -21,8 +24,9 @@ vi.mock('../../src/bot/client.js', () => ({
                 if (!box) throw new Error('unknown user');
                 return {
                     send: async (payload) => {
-                        if (box.dmsOff) throw Object.assign(new Error('cannot send'), { code: 50007 });
+                        if (box.dmsOff || box.sendsOff) throw Object.assign(new Error('cannot send'), { code: 50007 });
                         sends.push({ userId: id, payload });
+                        order.push(`send ${id}`);
                         return { id: `sent-${id}` };
                     },
                     createDM: async () => {
@@ -34,7 +38,15 @@ vi.mock('../../src/bot/client.js', () => ({
                                     if (box.wobbly) throw Object.assign(new Error('service unavailable'), { code: 0 });
                                     return {
                                         id: messageId,
-                                        edit: async (payload) => edits.push({ userId: id, messageId, payload })
+                                        edit: async (payload) => {
+                                            order.push(`edit ${messageId}`);
+                                            return edits.push({ userId: id, messageId, payload });
+                                        },
+                                        delete: async () => {
+                                            if (box.undeletable) throw Object.assign(new Error('missing access'), { code: 50001 });
+                                            order.push(`delete ${messageId}`);
+                                            deletes.push(messageId);
+                                        }
                                     };
                                 }
                             }
@@ -50,14 +62,15 @@ const db = vi.hoisted(() => ({
     clearPlanCard: vi.fn(async () => {}),
     setProbe: vi.fn(async () => {}),
     setPlanOpener: vi.fn(async () => {}),
-    setPlanCards: vi.fn(async () => {})
+    setPlanCards: vi.fn(async () => {}),
+    setDmsClosed: vi.fn(async () => {})
 }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 
 vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
 
-const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition, applyAttendanceMove } = await import('../../src/bot/plans.js');
+const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition, applyAttendanceMove, remindVoters, announceCancel } = await import('../../src/bot/plans.js');
 
 const person = (userId, over = {}) => ({
     userId,
@@ -90,6 +103,8 @@ beforeEach(() => {
     inbox.clear();
     edits.length = 0;
     sends.length = 0;
+    deletes.length = 0;
+    order.length = 0;
     db.clearPlanCard.mockClear();
     db.setPlanCards.mockClear();
 });
@@ -136,7 +151,7 @@ describe('syncPlanCards', () => {
     it('forgets a card whose message has really gone', async () => {
         inbox.set('a', { deleted: true });
         await syncPlanCards(plan([person('a')]));
-        expect(db.clearPlanCard).toHaveBeenCalledWith('ab12cd34ef', 'a');
+        expect(db.clearPlanCard).toHaveBeenCalledWith('ab12cd34ef', 'a', 'm-a');
     });
 
     //A blip is not a deletion: forgetting here would cost somebody their DM for good
@@ -274,6 +289,8 @@ describe('inviting someone left off the day', () => {
         expect(sends[0].payload.content).toContain('Can you make it? Tap below.');
         expect(sends[0].payload.components).toHaveLength(1);
         expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { actorName: '' });
+        //The NOT THIS ONE card goes, or it sits above the yes/no saying the opposite
+        expect(deletes).toEqual(['m-old']);
     });
 
     //Ali set the day, which is not the same as Ali inviting them
@@ -293,5 +310,72 @@ describe('inviting someone left off the day', () => {
         inbox.set('a', {});
         expect(await applyAttendanceMove(invited(), 'cant', 'a')).toBeNull();
         expect(sends).toHaveLength(0);
+    });
+});
+
+/*
+    One card per person carries live buttons. Anything loud sends a fresh one and takes the
+    old one down, so a DM from before the change cannot be pressed as if it were current.
+*/
+describe('a fresh card over an old one', () => {
+    const asking = (over = {}) => plan([person('a', over)], { probeActive: true });
+
+    it('takes the old card down once the new one has landed', async () => {
+        inbox.set('a', {});
+        await announceOutcome(asking(), { guildName: 'The server' }, { changed: true, actorName: 'Ali' });
+
+        expect(deletes).toEqual(['m-a']);
+        expect(order.indexOf('send a')).toBeLessThan(order.indexOf('delete m-a'));
+        expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { actorName: 'Ali', moved: true });
+    });
+
+    it('leaves the old card with no buttons when Discord will not delete it', async () => {
+        inbox.set('a', { undeletable: true });
+        await announceOutcome(asking(), { guildName: 'The server' }, { changed: true, actorName: 'Ali' });
+
+        expect(deletes).toEqual([]);
+        expect(edits).toEqual([{ userId: 'a', messageId: 'm-a', payload: { content: "There's a newer message about this plan.", components: [] } }]);
+    });
+
+    //The old card is the only thing they have, so it is kept and brought up to the new day
+    it('keeps and rewrites the old card when the new one cannot be sent', async () => {
+        inbox.set('a', { sendsOff: true });
+        await announceOutcome(asking(), { guildName: 'The server' }, { changed: true, actorName: 'Ali' });
+
+        expect(deletes).toEqual([]);
+        expect(edits.map((e) => e.messageId)).toEqual(['m-a']);
+        expect(edits[0].payload.content).toContain('7pm');
+    });
+
+    it('sends a reminder as the card itself, buttons and all', async () => {
+        inbox.set('a', {});
+        await remindVoters(asking(), 'Ali');
+
+        expect(sends).toHaveLength(1);
+        expect(sends[0].payload.content).toContain('Ali is still waiting to hear whether you can make it.');
+        expect(sends[0].payload.content).toContain('Can you make it? Tap below.');
+        expect(sends[0].payload.components).toHaveLength(1);
+        expect(deletes).toEqual(['m-a']);
+        //A reminder is nobody setting anything, so the lead the card had stays on record
+        expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { keepLead: true });
+    });
+
+    it('sends a moved time as the card, keeping their answer on it', async () => {
+        inbox.set('a', {});
+        await announceWhenEdit(asking({ vote: 'yes' }), { guildName: 'The server' }, { actorName: 'Bo', was: { time: '18:00', note: 'meet at the station' } });
+
+        expect(sends).toHaveLength(1);
+        expect(sends[0].payload.content).toContain('Bo changed it: it starts at 7pm now.');
+        expect(sends[0].payload.content).toContain("You're down as coming.");
+        expect(deletes).toEqual(['m-a']);
+    });
+
+    it('says who called it off on the card that replaces theirs', async () => {
+        inbox.set('a', {});
+        await announceCancel(plan([person('a')], { status: 'cancelled' }), 'Ali');
+
+        expect(sends[0].payload.content).toContain('Ali called off "Camping" in The server.');
+        expect(sends[0].payload.components).toEqual([]);
+        expect(deletes).toEqual(['m-a']);
     });
 });
