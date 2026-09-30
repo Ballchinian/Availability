@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, setProbe, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
@@ -13,40 +13,85 @@ import { formatDate, formatTime } from '../lib/dates.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 
 /*
-    Sends the same line to a list of people by DM, best effort, since some have
-    DMs closed. The thread ping still reaches anyone the DM cannot. An optional
-    set of components rides along so a DM can carry a button, like drop out.
+    Every DM about a plan goes out through here, and never throws. Discord answers 50007
+    when someone has DMs from the server off or has blocked the bot, which is written onto
+    them so whoever runs the plan knows the thread is the only way to reach them. Any other
+    failure is a blip or someone gone, which says nothing about their settings.
+
+    Hands back the message, or null when it did not land.
 */
-async function dmEach(ids, text, components = []) {
-    const reached = [];
-    await fanOut(ids, async (id) => {
-        try {
-            const user = await client.users.fetch(id);
-            await user.send(components.length ? { content: text, components } : text);
-            reached.push(id);
-        } catch {
-            //DMs off, the thread ping still reaches them
-        }
-    });
-    return reached;
+async function deliver(plan, userId, payload) {
+    const p = plan.participants?.find((q) => q.userId === userId);
+    try {
+        const user = await client.users.fetch(userId);
+        const msg = await user.send(payload);
+        if (p?.dmsClosed) await setDmsClosed(plan.planId, userId, false).catch(() => {});
+        return msg;
+    } catch (err) {
+        if (err?.code === 50007 && p && !p.dmsClosed) await setDmsClosed(plan.planId, userId, true).catch(() => {});
+        return null;
+    }
 }
 
-/*
-    The same for a message meant to stay current: each person gets their own payload and the
-    ids that landed come back to be written down. DMs off just means no card for them.
-*/
-async function dmCards(ids, build) {
+//build is one payload for everybody or a function of the id. Hands back what landed.
+async function deliverEach(plan, ids, build) {
     const sent = [];
     await fanOut(ids, async (id) => {
-        try {
-            const user = await client.users.fetch(id);
-            const msg = await user.send(build(id));
-            sent.push({ userId: id, messageId: msg.id });
-        } catch {
-            //DMs off, the thread is the backstop
-        }
+        const msg = await deliver(plan, id, typeof build === 'function' ? build(id) : build);
+        if (msg) sent.push({ userId: id, messageId: msg.id });
     });
     return sent;
+}
+
+//Whoever of ids the DMs did not reach, which is who a thread post still has to ping
+function missedBy(ids, sent) {
+    const reached = new Set(sent.map((s) => s.userId));
+    return ids.filter((id) => !reached.has(id));
+}
+
+//Discord refuses a post past 2000 characters, and allowedMentions takes at most 100 users
+const POST_CHARS = 2000;
+const POST_MENTIONS = 100;
+
+/*
+    A thread post pinging ids, as however many posts that takes. The mentions lead the
+    first post as far as both limits allow, and the rest follow in posts of their own.
+    With nobody to ping it is the one post, pinging nobody.
+*/
+export function mentionPosts(ids, payload) {
+    const tag = (id) => `<@${id}>`;
+    const posts = [];
+    let batch = [];
+    let length = 0;
+    //The first post shares its room with the body under it
+    let room = POST_CHARS - payload.content.length - 2;
+
+    const flush = () => {
+        const lead = batch.map(tag).join(' ');
+        posts.push(posts.length
+            ? { content: lead, allowedMentions: { users: batch } }
+            : { ...payload, content: batch.length ? `${lead}\n\n${payload.content}` : payload.content, allowedMentions: { users: batch } });
+        batch = [];
+        length = 0;
+        room = POST_CHARS;
+    };
+
+    //Each tag is counted with a space after it, one more than the joined lead needs
+    for (const id of ids) {
+        if (batch.length === POST_MENTIONS || length + tag(id).length + 1 > room) flush();
+        length += tag(id).length + 1;
+        batch.push(id);
+    }
+    flush();
+    return posts;
+}
+
+//Hands back the first post, the one carrying the body. The overflow pings are best effort.
+async function postMentioning(thread, ids, payload) {
+    const [first, ...rest] = mentionPosts(ids, payload);
+    const msg = await thread.send(first);
+    for (const post of rest) await thread.send(post).catch(() => {});
+    return msg;
 }
 
 //Pulls people into a plan's thread, best effort: someone who has left the server
@@ -362,7 +407,7 @@ export async function notifyCreatorIfAllIn(plan) {
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const count = ids.length === 1 ? '1 person has' : `all ${ids.length} people have`;
-    await dmEach([plan.createdBy],
+    await deliver(plan, plan.createdBy,
         banner('EVERYONE IS IN') +
         `Everyone is in for "${plan.name}"${where}. ${count} filled in their dates, so you can pick a day now.\n` +
         `Open the overview here: ${compareUrl(plan.planId)}\n` +
@@ -421,7 +466,7 @@ export async function announcePlan(plan, cfg, actorName) {
     //The thread id is only in the database yet, so it is patched on or the card has no jump link
     const withThread = { ...plan, threadId: thread.id };
     //A repeat has no actor: nobody did this, it just came round, so the card says that instead
-    const sent = await dmCards(ids, (id) =>
+    const sent = await deliverEach(plan, ids, (id) =>
         planCard(withThread, plan.participants.find((p) => p.userId === id) || {}, {
             guildName: guild.name,
             actorName: plan.repeatedFrom ? '' : actorName
@@ -462,7 +507,7 @@ export async function announceSetPlan(plan, cfg, actorName) {
 
     //Off the plan setProbe handed back, or the cards go out without the buttons
     const who = plan.repeatedFrom ? '' : actorName;
-    const sent = await dmCards(ids, (id) =>
+    const sent = await deliverEach(plan, ids, (id) =>
         planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
             guildName: cfg.guildName,
             actorName: who
@@ -493,7 +538,7 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
 
     //The same card everyone else holds, so a late joiner rides the same rewrites
     if (dm) {
-        const sent = await dmCards(newIds, (id) =>
+        const sent = await deliverEach(plan, newIds, (id) =>
             planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
                 guildName: guild.name,
                 actorName
@@ -568,10 +613,10 @@ export async function syncPlan(plan, { cfg = null, rename = false } = {}) {
 }
 
 /*
-    Once a planner locks the winning date the plan closes. The outcome always lands
-    in the thread, pinging the people still invited, and those same people always get
-    a DM, so nobody who is meant to be there can miss it. Anyone the planner left off
-    the invite list hears nothing. The DM names who set or moved it.
+    Once a planner locks the winning date the plan closes. Everyone still invited gets a
+    DM, then the outcome lands in the thread pinging whoever the DM missed, so nobody who
+    is meant to be there can miss it. Anyone the planner left off the invite list hears
+    nothing. The DM names who set or moved it.
 
     The thread post is the yes/no itself, a set day always asking who can make it.
 
@@ -595,16 +640,30 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
     //Sent back out for dates since this was queued, which announces itself
     if (!plan.chosenDate) return;
 
+    let sent = [];
+    if (!quiet) {
+        //Anyone whose horizon sits before the date never really answered for it, so their card says so
+        const prefs = await getPlanningPrefs(ids).catch(() => ({}));
+        const nudge = '\nThis lands past the date you said you could plan up to, so it is worth a proper look.';
+
+        sent = await deliverEach(plan, ids, (id) =>
+            planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+                guildName: cfg.guildName,
+                actorName,
+                moved: changed,
+                aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
+            }));
+        await setPlanCards(plan.planId, sent, { actorName, moved: changed });
+    }
+
     if (plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
-            const lead = ids.length && !quiet ? `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` : '';
             //Remembered so its tally can be kept current as votes come in
-            const probeMsg = await thread.send({
-                content: lead + probeText(plan),
-                components: [probeRow(plan.planId)],
-                allowedMentions: quiet ? { parse: [] } : { users: ids }
+            const probeMsg = await postMentioning(thread, quiet ? [] : missedBy(ids, sent), {
+                content: probeText(plan),
+                components: [probeRow(plan.planId)]
             });
             plan = await setProbe(plan.planId, { active: true, threadMessageId: probeMsg.id });
         }
@@ -623,19 +682,6 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
         await syncPlan(relabelled, { cfg }).catch((err) => console.error('[plans] quiet outcome sync failed:', err));
         return;
     }
-
-    //Anyone whose horizon sits before the date never really answered for it, so their card says so
-    const prefs = await getPlanningPrefs(ids).catch(() => ({}));
-    const nudge = '\nThis lands past the date you said you could plan up to, so it is worth a proper look.';
-
-    const sent = await dmCards(ids, (id) =>
-        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
-            guildName: cfg.guildName,
-            actorName,
-            moved: changed,
-            aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
-        }));
-    await setPlanCards(plan.planId, sent, { actorName, moved: changed });
 
     //Narrowed off the list hear nothing, but their card would still be asking about the day
     const dropped = plan.participants.filter((p) => p.invited === false).map((p) => p.userId);
@@ -673,10 +719,11 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
     const about = plan.description ? `\nWhat it is about: ${plan.description}` : '';
     const recheck = plan.probeActive && timeMoved ? `\n\nIf that no longer works, change your answer below.` : '';
 
-    await dmEach(ids,
-        banner('PLAN UPDATED') +
-        `${actorName} updated "${plan.name}" in ${cfg.guildName} on ${whenLine(plan)}: ${bits.join(', and ')}.${about}${recheck}`,
-        plan.probeActive && timeMoved ? [probeRow(plan.planId)] : []);
+    await deliverEach(plan, ids, {
+        content: banner('PLAN UPDATED') +
+            `${actorName} updated "${plan.name}" in ${cfg.guildName} on ${whenLine(plan)}: ${bits.join(', and ')}.${about}${recheck}`,
+        components: plan.probeActive && timeMoved ? [probeRow(plan.planId)] : []
+    });
 }
 
 /*
@@ -696,7 +743,7 @@ export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false,
     if (!ids.length) return;
 
     const about = plan.description ? `\n${plan.description}` : '\nThere is nothing written about it now.';
-    await dmEach(ids,
+    await deliverEach(plan, ids,
         banner('PLAN UPDATED') +
         `${actorName} changed what "${plan.name}" in ${cfg.guildName} says it is about, on ${whenLine(plan)}:${about}`);
 }
@@ -763,30 +810,29 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
     const tail = reopened ? `Fill in your dates here: ${url}` : 'Nothing to do, your saved days still stand.';
     const extra = note ? `\n${note}` : '';
 
+    const sent = dm && ids.length
+        ? await deliverEach(plan, ids,
+            banner('DATES CHANGED') +
+            `${actorName} is asking about different dates for "${plan.name}" in ${cfg.guildName}: ${range}${days}. ${tail}${extra}`)
+        : [];
+
     if (post && plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
-            await thread.send({
+            await postMentioning(thread, missedBy(ids, sent), {
                 content: banner('DATES CHANGED') +
-                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n${actorName} is asking about different dates for **${plan.name}**: ${range}${days}. ${tail}${extra}`,
-                allowedMentions: { users: ids }
+                    `${actorName} is asking about different dates for **${plan.name}**: ${range}${days}. ${tail}${extra}`
             });
         }
-    }
-
-    if (dm && ids.length) {
-        await dmEach(ids,
-            banner('DATES CHANGED') +
-            `${actorName} is asking about different dates for "${plan.name}" in ${cfg.guildName}: ${range}${days}. ${tail}${extra}`);
     }
 
     if (added.length) await announceAddition(plan, added, actorName, { dm });
 }
 
 /*
-    Cancel a plan. It gets marked cancelled and, when post is on, the thread is told
-    with a ping, but the thread is left in place: deleting it by hand is what finally
+    Cancel a plan. It gets marked cancelled and, when post is on, the thread is told,
+    but the thread is left in place: deleting it by hand is what finally
     clears the plan. When dm is on everyone gets a DM. The creator gets their daily
     plan slot back since the plan never really ran. actorName is whoever cancelled it.
 */
@@ -805,23 +851,20 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
     await syncPlan(plan).catch((err) => console.error('[plans] cancel sync failed:', err));
 
     const ids = plan.participants.map((p) => p.userId);
+    const sent = dm ? await deliverEach(plan, ids, banner('PLAN CANCELLED') + `${actorName} called off "${plan.name}".`) : [];
 
     if (post && plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
-            await thread.send({
+            await postMentioning(thread, missedBy(ids, sent), {
                 content:
                     banner('PLAN CANCELLED') +
-                    `${ids.map((id) => `<@${id}>`).join(' ')}\n\n` +
                     `${actorName} called off **${plan.name}**. Nothing more to fill in.\n` +
-                    `This thread stays until someone deletes it by hand, and deleting it clears the plan for good.`,
-                allowedMentions: { users: ids }
+                    `This thread stays until someone deletes it by hand, and deleting it clears the plan for good.`
             });
         }
     }
-
-    if (dm) await dmEach(ids, banner('PLAN CANCELLED') + `${actorName} called off "${plan.name}".`);
 }
 
 /*
@@ -1190,7 +1233,7 @@ async function notifyCreatorAllYes(plan) {
 
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    await dmEach([plan.createdBy],
+    await deliver(plan, plan.createdBy,
         banner('EVERYONE IS COMING') +
         `Everyone confirmed they can make "${plan.name}"${where} on ${whenLine(plan)}. You are good to go.`);
 }
@@ -1216,7 +1259,7 @@ async function sendInvite(plan, userId) {
     const p = plan.participants.find((q) => q.userId === userId);
     if (!p || p.invited === false) return false;
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    const sent = await dmCards([userId], () => planCard(plan, p, { guildName: cfg?.guildName || '', actorName: '' }));
+    const sent = await deliverEach(plan, [userId], planCard(plan, p, { guildName: cfg?.guildName || '', actorName: '' }));
     await setPlanCards(plan.planId, sent, { actorName: '' });
     return sent.length > 0;
 }
@@ -1232,7 +1275,7 @@ async function notifyCreatorVoteNo(plan, userId, reason) {
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const name = await memberName(plan.guildId, userId);
     const why = reason ? `\nReason: ${reason}` : '\nThey did not give a reason.';
-    await dmEach([plan.createdBy],
+    await deliver(plan, plan.createdBy,
         banner('SOMEONE CANNOT MAKE IT') +
         `${name} cannot make "${plan.name}"${where} on ${whenLine(plan)}.${why}\n` +
         `The vote is still going. To move the date, run \`/overview\` in the thread or here: ${compareUrl(plan.planId)}`);
@@ -1248,9 +1291,9 @@ export async function notifyCreatorDropped(plan, userId, reason) {
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const name = await memberName(plan.guildId, userId);
     const why = reason ? `\nReason: ${reason}` : '';
-    const reached = await dmEach([plan.createdBy], banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${why}`);
+    const reached = await deliver(plan, plan.createdBy, banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${why}`);
     const creator = await memberName(plan.guildId, plan.createdBy, 'whoever set it up');
-    return reached.length ? { told: [creator], missed: [] } : { told: [], missed: [creator] };
+    return reached ? { told: [creator], missed: [] } : { told: [], missed: [creator] };
 }
 
 //Let the creator know someone who had dropped out is back on the plan
@@ -1259,7 +1302,7 @@ async function notifyCreatorUndropped(plan, userId) {
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const name = await memberName(plan.guildId, userId);
-    await dmEach([plan.createdBy], banner('BACK IN') + `${name} is back on "${plan.name}"${where} after dropping out.`);
+    await deliver(plan, plan.createdBy, banner('BACK IN') + `${name} is back on "${plan.name}"${where} after dropping out.`);
 }
 
 /*
@@ -1372,7 +1415,7 @@ export async function remindStragglers(plan, actorName) {
     if (!pending.length) return 0;
 
     const url = planUrl(plan.planId);
-    await dmEach(pending,
+    await deliverEach(plan, pending,
         banner('REMINDER') +
         `${actorName} has asked you to fill in your dates for "${plan.name}". ` +
         `Do it when you are next free, or just confirm if they are already filled in: ${url}\n` +
@@ -1395,12 +1438,13 @@ export async function remindVoters(plan, actorName) {
     const pending = invitedOnly(plan).filter((p) => !effectiveVote(p)).map((p) => p.userId);
     if (!pending.length) return 0;
 
-    await dmEach(pending,
-        banner('CAN YOU MAKE IT?') +
-        `${actorName} is still waiting to hear whether you can make "${plan.name}" on ${whenLine(plan)}.\n` +
-        aboutLine(plan) +
-        `\nTap below to let everyone know.`,
-        [probeRow(plan.planId)]);
+    await deliverEach(plan, pending, {
+        content: banner('CAN YOU MAKE IT?') +
+            `${actorName} is still waiting to hear whether you can make "${plan.name}" on ${whenLine(plan)}.\n` +
+            aboutLine(plan) +
+            `\nTap below to let everyone know.`,
+        components: [probeRow(plan.planId)]
+    });
 
     return pending.length;
 }

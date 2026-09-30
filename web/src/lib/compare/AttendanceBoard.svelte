@@ -104,6 +104,7 @@
                                     onclick={() => (picked = picked === p.userId ? null : p.userId)}
                                 >
                                     {p.displayName}
+                                    {#if p.dmsClosed}<span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}
                                     {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
                                     {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
                                 </button>
@@ -131,7 +132,7 @@
                 <ul>
                     {#each board.uninvited as p (p.userId)}
                         <li>
-                            <span>{p.displayName}</span>
+                            <span>{p.displayName}{#if p.dmsClosed} <span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}</span>
                             <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, 'invite', board.uninvited, (dm) => invitedLine(p.displayName, dm))}>Invite them</button>
                         </li>
                     {/each}

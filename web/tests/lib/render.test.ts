@@ -706,6 +706,13 @@ describe('the attendance board', () => {
         expect(invitedLine('Ann', false)).not.toContain('in their DMs');
         expect(invitedLine('Ann', false)).toContain('thread');
     });
+
+    //Nothing else on the page can show it, and it says where they can still be reached
+    it('says whose DMs are closed beside their name, in a column or off the day', () => {
+        const body = draw([{ ...person('c', null), dmsClosed: true }, { ...person('d', null), invited: false, dmsClosed: true }]);
+        expect(body.match(/\(DMs closed, only reachable in the thread\)/g)).toHaveLength(2);
+        expect(draw()).not.toContain('DMs closed');
+    });
 });
 
 /*
@@ -871,6 +878,12 @@ describe('the nudge', () => {
         expect(body).toContain('<p class="muted small">Still out: ANN, BO.</p>');
         expect(body).not.toContain('wait for everyone');
     });
+
+    it('says whose DMs are closed, since a nudge is a DM', () => {
+        const closed = [waiting[0], { ...waiting[1], dmsClosed: true }];
+        const body = render(RemindPanel, { props: { planId: 'ab12cd34ef', waiting: closed } }).body;
+        expect(body).toContain('Still out: ANN, BO (DMs closed, only reachable in the thread).');
+    });
 });
 
 //Svelte's markers for where a block starts and ends, which say nothing about what shows
@@ -1008,6 +1021,10 @@ describe('the privacy policy', () => {
     it("keeps a plan's history and the DMs it can rewrite on the list", () => {
         expect(body).toMatch(/last 100 events/);
         expect(body).toMatch(/<strong>The bot's DMs:<\/strong>/);
+    });
+
+    it('keeps whether your DMs were closed, and says who sees it', () => {
+        expect(body).toMatch(/whether your DMs were closed the last time it\s+tried, so the overview can show planners/);
     });
 
     it('says who can see your days', () => {

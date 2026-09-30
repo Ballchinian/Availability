@@ -37,7 +37,7 @@
     <!--Only before a date is set. Once one is, the board above lists these people in a
         column of their own and naming them again says nothing new.-->
     {#if !chasingVotes}
-        <p class="muted small">Still out: {waiting.map((p) => p.displayName).join(', ')}.</p>
+        <p class="muted small">Still out: {waiting.map((p) => (p.dmsClosed ? `${p.displayName} (DMs closed, only reachable in the thread)` : p.displayName)).join(', ')}.</p>
     {/if}
     <button class="ghost" onclick={remind} disabled={panel.busy}>
         {#if panel.busy}

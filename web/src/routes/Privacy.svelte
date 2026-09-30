@@ -33,7 +33,8 @@
         tell what the link is for. That's all a logged-out visitor sees.
         <br />
         <strong>The bot's DMs:</strong> the ID of the message the bot last sent you about each plan, so it
-        can rewrite that message when the plan changes.
+        can rewrite that message when the plan changes, and whether your DMs were closed the last time it
+        tried, so the overview can show planners that the thread is the only way to reach you.
         <br />
         <strong>Server settings:</strong> for each server, which channel is the plans channel, which role
         can plan, the time zone its plans run on, who ran /setup, and the intro message the

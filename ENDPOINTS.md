@@ -39,6 +39,12 @@ Editing a message notifies nobody in Discord. That is what the whole arrangement
 
 A card that cannot be reached is skipped, never replaced, since sending a new one would ping them. A card whose message has really gone (Discord's `10008`) is forgotten so later passes stop paying for it; any other failure is left alone and tried again.
 
+## Who gets pinged
+
+The DMs always go out before the thread post, and the post mentions only the people the DM could not reach. Everyone else already has the news in their DMs. A plan of 150 whose DMs all fail still reaches everyone: the mentions are spread over as many posts as it takes to stay inside Discord's 2000 characters and 100 mentions a post. The thread post used to go first and name the whole guest list, so a plan of about 55 broke the limit and the DMs queued behind it never went out.
+
+When Discord refuses a DM because the person has DMs closed (its `50007`), that is written against them on the plan, and the overview shows "DMs closed, only reachable in the thread" beside their name. The next DM that gets through clears it. Any other failure is a blip or somebody gone, and is not written down.
+
 ## Quiet
 
 Most plan routes take an optional `quiet: true`, which forces off everything that would reach somebody who is not already looking: no new DM, no new thread post, and no mentions on anything that still has to be posted. It always beats a `post` or `dm` the caller also sent, so the site and the server cannot disagree about how loud something was.
@@ -322,7 +328,7 @@ Planner role only.
 ### Returns
 
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
-* Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and their sure-up-to date
+* Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, their sure-up-to date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap
 * The plan's history: what has happened to it, oldest first
@@ -384,7 +390,7 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 
 * Sets the chosen date.
 * Narrows the invite list when asked. Anyone left off is not pinged, not DMed, and does not count in the confirmation tally. Moving or undoing the date invites everyone back.
-* Always posts the outcome in the thread, pinging the people still invited, and always DMs them. Setting a different date counts as a reorganise.
+* Always DMs the people still invited, then posts the outcome in the thread, pinging only the ones the DM could not reach. Setting a different date counts as a reorganise.
 * With the probe on, the outcome carries yes/no buttons in the thread and the DMs, and the thread tally keeps itself current as votes land. Anyone whose sure-up-to date sits before the chosen day gets an extra line in their DM saying this landed past what they could plan for.
 
 ### Notes
@@ -534,7 +540,7 @@ Shared by both modes:
 
 * `participantIds` (optional): the full guest list as the screen has it
 * `repeatWeeks` (optional): 1, 2, 4, or `null` for a one off
-* `post` (optional, default true): whether to ping the change in the thread
+* `post` (optional, default true): whether to post the change in the thread
 * `dm` (optional, default true): whether to DM everyone
 * `quiet` (optional): forces both of the above off
 
@@ -627,7 +633,7 @@ Planner role only.
 ### Effects
 
 * Marks the plan cancelled.
-* Pings the thread and DMs everyone, each according to `post` and `dm`.
+* DMs everyone, then posts in the thread pinging whoever the DM missed, each according to `dm` and `post`.
 
 ### Notes
 

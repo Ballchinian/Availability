@@ -27,7 +27,9 @@ function freshParticipant(userId) {
         //The DM saying what the plan is, rewritten in place when it changes. See setPlanCards.
         cardMessageId: null,
         cardActor: '',
-        cardMoved: false
+        cardMoved: false,
+        //Discord's 50007 on the last DM tried, see deliver in bot/plans.js
+        dmsClosed: false
     };
 }
 
@@ -562,6 +564,13 @@ export async function setPlanCards(planId, cards, { actorName = '', moved = fals
             }
         })),
         { ordered: false }
+    );
+}
+
+export async function setDmsClosed(planId, userId, closed) {
+    await col(collections.plans).updateOne(
+        { planId, 'participants.userId': userId },
+        { $set: { 'participants.$.dmsClosed': closed } }
     );
 }
 

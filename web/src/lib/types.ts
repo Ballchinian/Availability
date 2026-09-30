@@ -35,6 +35,8 @@ export interface Participant {
     override: Answer | null;
     invited: boolean;
     sureUntil: string | null;
+    //Missing from a backend older than the site, for the few minutes a deploy takes
+    dmsClosed?: boolean;
 }
 
 //A day someone marked free, with the hours they narrowed it to

@@ -259,7 +259,8 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
             //Whether they are still on the invite list for the set date
             invited: p.invited !== false,
             //How far ahead they said they could plan, days past it read as unsure not busy
-            sureUntil: prefs[p.userId]?.sureUntil || null
+            sureUntil: prefs[p.userId]?.sureUntil || null,
+            dmsClosed: Boolean(p.dmsClosed)
         };
     });
 
