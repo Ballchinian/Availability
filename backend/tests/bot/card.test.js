@@ -59,8 +59,8 @@ describe('planCard while a plan is still collecting', () => {
     });
 
     it('says where they stand once they have answered, with their answer ticked', () => {
-        const inCard = planCard(collecting, { in: true }, { ask: "That's all I need." });
-        expect(inCard.content.endsWith("\n\nYou're in. That's all I need.")).toBe(true);
+        const inCard = planCard(collecting, { in: true }, { ask: '' });
+        expect(inCard.content.endsWith("\n\nYou're in.")).toBe(true);
         expect(inCard.components[0].components.map((b) => b.data.label)).toEqual(["✓ I'm in", 'Not for me']);
 
         const outCard = planCard(collecting, { in: false }, { ask: 'Then fill in your dates.' });

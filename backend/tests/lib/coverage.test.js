@@ -160,7 +160,7 @@ describe('daysToFill', () => {
 describe('askLine', () => {
     it('gives the free count when the calendar answers it all', () => {
         expect(askLine(covered, { free: 3, updated: '2026-09-01' })).toBe(
-            "Your calendar (last updated Tue 1 Sep) already answers this: you're free on 3 of the 5 days. That's all I need."
+            "Your calendar (last updated Tue 1 Sep) already answers this: you're free on 3 of the 5 days."
         );
     });
 
@@ -171,12 +171,12 @@ describe('askLine', () => {
     });
 
     it('leaves the date out when there is no record of the last save', () => {
-        expect(askLine(covered, { free: 2 })).toBe("Your calendar already answers this: you're free on 2 of the 5 days. That's all I need.");
+        expect(askLine(covered, { free: 2 })).toBe("Your calendar already answers this: you're free on 2 of the 5 days.");
     });
 
     it('reads naturally for a plan with one day left to ask about', () => {
         const one = { state: 'covered', daysLeft: 0, lastCovered: '2026-09-11', total: 1 };
-        expect(askLine(one, { free: 1 })).toBe("Your calendar already answers this: you're free that day. That's all I need.");
+        expect(askLine(one, { free: 1 })).toBe("Your calendar already answers this: you're free that day.");
         expect(askLine(one, { free: 0 })).toBe("Your calendar already answers this: you're not free that day.");
     });
 
@@ -203,7 +203,7 @@ describe('askLine', () => {
     });
 
     it('tells someone already in only what is left to do', () => {
-        expect(askLine(covered, { free: 3, updated: '2026-09-01', joined: true })).toBe("That's all I need.");
+        expect(askLine(covered, { free: 3, updated: '2026-09-01', joined: true })).toBe('');
         expect(askLine(partial, { joined: true })).toBe('Your calendar answers up to Tue 8 Sep, so there are 3 days after that to fill in.');
         expect(askLine(none, { joined: true })).toBe('Now fill in your dates.');
     });

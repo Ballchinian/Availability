@@ -95,20 +95,19 @@ export function owes(p, coverage) {
     else to send them. Blank when every day it asked about has gone.
 
     joined is for someone already in, who has nothing left to be told about a
-    calendar that answers everything.
+    calendar that answers everything, so theirs is blank.
 */
 export function askLine(coverage, { free = 0, updated = null, joined = false } = {}) {
     const { state, daysLeft, lastCovered, total } = coverage;
-    if (!total) return '';
-    if (joined && state === 'covered') return "That's all I need.";
+    if (!total || (joined && state === 'covered')) return '';
 
     if (state === 'covered') {
         const lead = updated
             ? `Your calendar (last updated ${formatDay(updated)}) already answers this`
             : 'Your calendar already answers this';
-        if (total === 1) return free ? `${lead}: you're free that day. That's all I need.` : `${lead}: you're not free that day.`;
+        if (total === 1) return `${lead}: you're ${free ? '' : 'not '}free that day.`;
         if (!free) return `${lead}: you're not free on any of the ${total} days.`;
-        return `${lead}: you're free on ${free} of the ${total} days. That's all I need.`;
+        return `${lead}: you're free on ${free} of the ${total} days.`;
     }
 
     if (state === 'partial') {

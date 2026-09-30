@@ -888,7 +888,7 @@ describe('where someone stands on the plan page', () => {
             .mockResolvedValueOnce({ guest: { answered: [{ start: ahead(1), end: ahead(14), allowedWeekdays: null }] } });
 
         const body = await (await post('/ab12cd34ef/availability', { days: [] })).json();
-        expect(body).toMatchObject({ in: true, ask: "That's all I need.", toFill: [] });
+        expect(body).toMatchObject({ in: true, ask: '', toFill: [] });
     });
 });
 
