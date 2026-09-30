@@ -56,6 +56,7 @@ vi.mock('../../src/db/plans.js', () => ({
         'addParticipants',
         'setPlanDetails',
         'setAttendanceOverride',
+        'setSentBack',
         'setIn',
         'setPlanRepeat',
         'addPlanEvent'
@@ -1050,7 +1051,7 @@ describe('the attendance board', () => {
 
         expect(await res.json()).toEqual({ ok: true, dm: true });
         expect(db.setAttendanceOverride).toHaveBeenCalledWith('ab12cd34ef', 'ann', null, { reinvite: true });
-        expect(applyAttendanceMove).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'invite', 'ann', 'Ali');
+        expect(applyAttendanceMove).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'invite', 'ann', 'Ali', { rewrite: false });
     });
 
     it('does not claim a DM that never landed', async () => {
@@ -1086,5 +1087,39 @@ describe('the attendance board', () => {
 
         expect(await res.json()).toEqual({ ok: true });
         expect(db.setAttendanceOverride).toHaveBeenCalledWith('ab12cd34ef', 'bo', 'yes', { reinvite: false });
+    });
+
+    describe('sending someone back', () => {
+        const yes = { vote: 'yes', voteReason: null, votedAt: null, override: null };
+        const back = { byName: 'Ali', at: new Date().toISOString(), was: yes };
+
+        it('keeps what they said and clears it, rewriting their card', async () => {
+            set([{ userId: 'bo', invited: true, vote: 'yes' }]);
+            queue();
+            await post('/ab12cd34ef/attendance', { userId: 'bo', status: 'waiting' });
+
+            expect(db.setSentBack).toHaveBeenCalledWith('ab12cd34ef', 'bo', expect.objectContaining({ byName: 'Ali', was: yes }), null);
+            expect(applyAttendanceMove.mock.calls[0][4]).toEqual({ rewrite: true });
+        });
+
+        it('turns away someone already waiting', async () => {
+            const res = await post('/ab12cd34ef/attendance', { userId: 'bo', status: 'waiting' });
+            expect(res.status).toBe(400);
+            expect(db.setSentBack).not.toHaveBeenCalled();
+        });
+
+        it('puts back exactly what they had when moved to the column they left', async () => {
+            set([{ userId: 'bo', invited: true, sentBack: back }]);
+            await post('/ab12cd34ef/attendance', { userId: 'bo', status: 'coming' });
+            expect(db.setSentBack).toHaveBeenCalledWith('ab12cd34ef', 'bo', null, yes);
+            expect(db.setAttendanceOverride).not.toHaveBeenCalled();
+        });
+
+        //Their own yes stays under the call, so the board can still say what they said
+        it('lays the new column over what they had anywhere else', async () => {
+            set([{ userId: 'bo', invited: true, sentBack: back }]);
+            await post('/ab12cd34ef/attendance', { userId: 'bo', status: 'cant' });
+            expect(db.setSentBack).toHaveBeenCalledWith('ab12cd34ef', 'bo', null, { ...yes, override: 'no' });
+        });
     });
 });

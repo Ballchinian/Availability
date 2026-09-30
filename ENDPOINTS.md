@@ -341,7 +341,7 @@ Planner role only.
 
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
-* Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, and their `coveredUntil`
+* Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
 * For anyone who is in, `unanswered`: the plan's days they haven't answered yet, as `[first, last]` runs rather than one date each, since a two year window would otherwise be hundreds of dates per person
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap. Only people who are in count, and only on days their answer reaches: a day marked on their calendar past their answer date doesn't show until they answer it
@@ -451,7 +451,9 @@ Planner role only.
 
 ### Effects
 
-* `coming` and `cant` lay an override over whatever the person answered. `waiting` clears it, so their own answer stands again.
+* `coming` and `cant` lay an override over whatever the person answered.
+* `waiting` sends them back to answer again. Their answer and any override are put aside and cleared, and their DM is edited back to the question. Nothing is sent then; the next nudge opens with who moved them back.
+* Moving someone out of Waiting before they've answered gives them back exactly what they had if it's the column they were moved from. Anywhere else, what they had comes back with the new column laid over it, so the board can still say what they said. Their DM is edited to match.
 * `invite` is for someone left off the list when the date was locked. It puts them back on with no answer, so they land in Waiting to answer, and DMs them the same yes/no everyone else got as a new message, saying who invited them. Their old DM said they weren't on the list and has no buttons.
 * The thread tally is refreshed.
 
@@ -461,7 +463,8 @@ Planner role only.
 
 ### Notes
 
-* `400` if no date is set yet, the person is not on the plan, `invite` names someone already invited, or any other move names someone who isn't.
+* `400` if no date is set yet, the person is not on the plan, `invite` names someone already invited, any other move names someone who isn't, or `waiting` names someone already waiting.
+* What someone sent back had only comes back while the day stays put. Setting or moving the day starts everyone afresh.
 * Nobody is DMed about any other move. A planner reaches for the board because they have decided that person is not going to answer, so telling them second guesses a call already made. An override only stops them being nudged: they keep the thread and the buttons on their own DM, and casting a vote clears the override, so their own answer still wins whenever they give it.
 * `409` if the plan was cancelled.
 

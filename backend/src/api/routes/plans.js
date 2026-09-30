@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
@@ -323,7 +323,9 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
             override: p.override || null,
             //Whether they are still on the invite list for the set date
             invited: p.invited !== false,
-            dmsClosed: Boolean(p.dmsClosed)
+            dmsClosed: Boolean(p.dmsClosed),
+            //Only who moved them: what they had is for putting back, not for showing
+            sentBack: p.sentBack ? { byName: p.sentBack.byName || '' } : null
         };
     });
 
@@ -516,8 +518,11 @@ router.post('/:planId/repair', requirePlanner, async (req, res) => {
 /*
     A planner's manual call on someone's attendance for the set date, the moves on
     the compare page's board. "coming" and "cant" lay an override over whatever the
-    person answered, "waiting" clears it and their own answer stands again. "invite"
-    is the one move for someone left off the day's list: back on it with no answer.
+    person answered. "waiting" sends them back: what they had goes in sentBack and
+    the column is cleared, so the next nudge asks them again. Moved out of Waiting
+    before they answer, they get back exactly what they had if it is the column they
+    left, and otherwise that with the new column laid over it. "invite" is the one move
+    for someone left off the day's list: back on it with no answer.
 
     Silent for the person moved, except an invite, which DMs them the yes/no. The board
     is a planner's own working state, and the reason to reach for it is having decided
@@ -540,10 +545,27 @@ router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, 
     }
 
     const override = status === 'coming' ? 'yes' : status === 'cant' ? 'no' : null;
-    await setAttendanceOverride(plan.planId, userId, override, { reinvite: invite });
+    const answer = { vote: person.vote || null, voteReason: person.voteReason || null, votedAt: person.votedAt || null, override: person.override || null };
+    const columnOf = (a) => a.override || a.vote || null;
+
+    //Their card shows their own answer, so it is rewritten whenever that moves
+    let rewrite = false;
+    if (status === 'waiting') {
+        if (!columnOf(answer)) return res.status(400).json({ error: 'They are already waiting to answer.' });
+        await setSentBack(plan.planId, userId, { byName: ctx.member.displayName, at: new Date(), was: answer }, null);
+        rewrite = true;
+    } else if (person.sentBack?.was && !invite) {
+        const was = person.sentBack.was;
+        await setSentBack(plan.planId, userId, null, columnOf(was) === override ? was : { ...was, override });
+        rewrite = true;
+    } else {
+        await setAttendanceOverride(plan.planId, userId, override, { reinvite: invite });
+    }
 
     //Waited on, since the answer has to say whether the invite's DM landed
-    const reached = await announceAfter(plan.planId, 'attendance move', (current) => applyAttendanceMove(current, status, userId, ctx.member.displayName));
+    const reached = await announceAfter(plan.planId, 'attendance move', (current) =>
+        applyAttendanceMove(current, status, userId, ctx.member.displayName, { rewrite })
+    );
 
     res.json(invite ? { ok: true, dm: reached === true } : { ok: true });
 });

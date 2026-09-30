@@ -105,6 +105,7 @@
                                 >
                                     {p.displayName}
                                     {#if p.dmsClosed}<span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}
+                                    {#if p.sentBack}<span class="muted small">(moved back by {p.sentBack.byName})</span>{/if}
                                     {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
                                     {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
                                 </button>

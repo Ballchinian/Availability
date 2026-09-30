@@ -103,6 +103,13 @@ describe('moving the day', () => {
         expect(store.bulk[0].updateOne.update.$set['participants.$.vote']).toBe('yes');
     });
 
+    //What someone sent back held belongs to the day they were sent back from
+    it('ends everyone being sent back', async () => {
+        store.plan = onDay(SAT);
+        await setPlanChosen('p1', SUN);
+        expect(store.writes[0].update.$set['participants.$[].sentBack']).toBeNull();
+    });
+
     it('puts nothing back on a day the plan has not been on', async () => {
         store.plan = onDay(SAT);
         await setPlanChosen('p1', SUN);

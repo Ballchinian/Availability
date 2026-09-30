@@ -703,6 +703,11 @@ describe('the attendance board', () => {
         expect(body).not.toContain('move-row');
     });
 
+    it('says who moved someone back to waiting', () => {
+        const body = bare(draw([{ ...person('c', null), sentBack: { byName: 'Ali' } }]));
+        expect(body).toMatch(/data-user="c"[^>]*>C\s+<span class="muted small">\(moved back by Ali\)<\/span>/);
+    });
+
     it('heads the people left off the day like the columns, with nothing else said', () => {
         const body = draw([{ ...person('c', null), invited: false }]);
         expect(body).toMatch(/<div class="uninvited"><h3>Not invited to this date \(1\)<\/h3>\s*<ul>/);

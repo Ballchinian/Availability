@@ -18,7 +18,7 @@ vi.mock('../../src/db/mongo.js', () => ({
     })
 }));
 
-const { confirmParticipant, recordVote, setIn } = await import('../../src/db/plans.js');
+const { confirmParticipant, recordVote, setIn, setSentBack } = await import('../../src/db/plans.js');
 
 const bo = () => store.doc.participants[0];
 
@@ -63,5 +63,27 @@ describe('Count me in / Not for me', () => {
         Object.assign(bo(), { in: false, inReason: 'Away' });
         await setIn('p1', 'bo', true, 'ignored');
         expect(bo()).toMatchObject({ in: true, inReason: null });
+    });
+});
+
+describe('a host sending someone back', () => {
+    const back = { byName: 'Ali', at: 'now', was: { vote: 'yes', voteReason: null, votedAt: 'then', override: null } };
+
+    it('clears the vote it was handed null for', async () => {
+        Object.assign(bo(), { sentBack: null, vote: 'yes', votedAt: 'then', override: 'no' });
+        await setSentBack('p1', 'bo', back, null);
+        expect(bo()).toMatchObject({ sentBack: back, vote: null, votedAt: null, override: null });
+    });
+
+    it('puts back the vote it is handed', async () => {
+        Object.assign(bo(), { sentBack: back, vote: null });
+        await setSentBack('p1', 'bo', null, back.was);
+        expect(bo()).toMatchObject({ sentBack: null, vote: 'yes', votedAt: 'then', override: null });
+    });
+
+    it('leaves the vote alone when handed none', async () => {
+        Object.assign(bo(), { sentBack: null, vote: 'no' });
+        await setSentBack('p1', 'bo', back);
+        expect(bo()).toMatchObject({ sentBack: back, vote: 'no' });
     });
 });

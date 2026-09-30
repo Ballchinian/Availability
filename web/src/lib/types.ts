@@ -44,6 +44,8 @@ export interface Participant {
     coveredUntil?: string | null;
     //The plan's days they are in for and haven't answered yet, as [first, last] runs
     unanswered?: [string, string][];
+    //A host sent them back to answer again, and hasn't taken it back
+    sentBack?: { byName: string } | null;
 }
 
 //A day someone marked free, with the hours they narrowed it to

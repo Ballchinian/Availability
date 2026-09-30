@@ -52,11 +52,13 @@ function freshParticipant(userId) {
     two paths reaching the same element have to be merged, two matched filters cannot.
 */
 function clearedProbe(invitedIds = null) {
+    //sentBack too, so what one sent back holds can only come back in the round it was taken
     const wipe = (who) => ({
         [`participants.${who}.vote`]: null,
         [`participants.${who}.voteReason`]: null,
         [`participants.${who}.votedAt`]: null,
-        [`participants.${who}.override`]: null
+        [`participants.${who}.override`]: null,
+        [`participants.${who}.sentBack`]: null
     });
     //No probeThreadMessageId: an old plan's own yes/no message waits for updateOpener to delete it
     const probe = {
@@ -610,6 +612,25 @@ export async function setAttendanceOverride(planId, userId, override, { reinvite
         { planId, 'participants.userId': userId },
         { $set: set }
     );
+    return getPlan(planId);
+}
+
+/*
+    A host sending someone back (sentBack is { byName, at, was }) or taking them out of it
+    again (null). vote is the answer to leave live, left alone when it is missing, which is
+    how a collect plan's Ask again keeps in and only stops their calendar answering.
+*/
+export async function setSentBack(planId, userId, sentBack, vote = undefined) {
+    const set = { 'participants.$.sentBack': sentBack };
+    if (vote !== undefined) {
+        Object.assign(set, {
+            'participants.$.vote': vote?.vote || null,
+            'participants.$.voteReason': vote?.voteReason || null,
+            'participants.$.votedAt': vote?.votedAt || null,
+            'participants.$.override': vote?.override || null
+        });
+    }
+    await col(collections.plans).updateOne({ planId, 'participants.userId': userId }, { $set: set });
     return getPlan(planId);
 }
 

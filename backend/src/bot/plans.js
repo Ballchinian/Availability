@@ -1306,11 +1306,14 @@ async function notifyCreatorAllYes(plan) {
 
     Anyone else moved is never told. A planner reaches for the board having decided they
     will not answer, and an override only stops them being nudged: they keep the buttons
-    on their card, and voting clears the override, so their own word still wins.
+    on their card, and voting clears the override, so their own word still wins. Sending
+    them back, or out of it again, moves the answer their card shows, so rewrite edits it
+    where it sits.
 */
-export async function applyAttendanceMove(plan, status, userId, actorName = '') {
+export async function applyAttendanceMove(plan, status, userId, actorName = '', { rewrite = false } = {}) {
     const reached = status === 'invite' ? await sendInvite(plan, userId, actorName) : null;
     await updateOpener(plan).catch(() => {});
+    if (rewrite) await syncPlanCards(plan, null, { only: [userId] }).catch(() => {});
     if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
     return reached;
 }
