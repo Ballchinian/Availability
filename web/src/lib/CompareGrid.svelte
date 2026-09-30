@@ -91,6 +91,7 @@
         evals[focusDate] ? focusDate : selectedDate && evals[selectedDate] ? selectedDate : (Object.keys(evals)[0] ?? '')
     );
     let wrap: HTMLDivElement;
+    const uid = $props.id();
 
     //Moves focus only: the day is picked by Enter or a click, as before
     function arrow(e: KeyboardEvent, date: string) {
@@ -103,7 +104,9 @@
     }
 </script>
 
-<div class="grid-wrap" bind:this={wrap}>
+<p class="offscreen" id="{uid}-keys">Arrow keys move between days.</p>
+
+<div class="grid-wrap" role="group" aria-describedby="{uid}-keys" bind:this={wrap}>
     {#each months as month (month.year + '-' + month.month)}
         <section class="cal">
             <svelte:element this={`h${level}`}>{month.label} {month.year}</svelte:element>

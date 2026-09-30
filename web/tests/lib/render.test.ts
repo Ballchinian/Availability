@@ -331,6 +331,10 @@ describe('the compare grid', () => {
         expect(draw({})).not.toContain('title=');
     });
 
+    it('says the arrows move it, off the screen, where it is read out on the way in', () => {
+        expect(draw({})).toMatch(/<p class="offscreen" id="([^"]+)">Arrow keys move between days\.<\/p>\s*<div class="grid-wrap" role="group" aria-describedby="\1"/);
+    });
+
     //Under "Everyone's days" on the compare page, straight under the h1 on the dates screen
     it('heads its months one level under wherever it sits', () => {
         expect(draw({})).toMatch(/<h3>August 2026(<!---->)?<\/h3>/);
@@ -396,9 +400,16 @@ describe('the fill-in grid', () => {
         expect(inOrder[0][0]).toContain(formatLong(isoFromNow(0, 'day')));
     });
 
-    it('says how a keyboard gets round, where it is read out on the way in', () => {
+    it('says how a keyboard gets round, off the screen, where it is read out on the way in', () => {
         const body = draw();
-        expect(body).toMatch(/<p class="legend small" id="([^"]+)">[^<]*Shift\+Enter marks the stretch[^<]*<\/p>[\s\S]*role="group" aria-describedby="\1"/);
+        expect(body).toMatch(/<p class="offscreen" id="([^"]+)">Arrow keys move between days\. Shift\+Enter marks the stretch[^<]*<\/p>[\s\S]*role="group" aria-describedby="\1"/);
+    });
+
+    //The brightness and the clocks read for themselves, and each day's name already says the rest
+    it('explains nothing on the screen', () => {
+        const body = draw({ [isoFromNow(1, 'day')]: [17, 18] });
+        expect(body).not.toContain('Brighter means');
+        expect(body).not.toContain('title=');
     });
 });
 
@@ -668,6 +679,12 @@ describe('the attendance board', () => {
         expect(body).not.toContain('move-row');
     });
 
+    it('heads the people left off the day like the columns, with nothing else said', () => {
+        const body = draw([{ ...person('c', null), invited: false }]);
+        expect(body).toMatch(/<div class="uninvited"><h3>Not invited to this date \(1\)<\/h3>\s*<ul>/);
+        expect(body).not.toContain('no ping and no DM');
+    });
+
     //Named to match "Not invited to this date", and it asks them rather than answering for them
     it('invites someone left off the day', () => {
         const body = draw([{ ...person('c', null), invited: false }]);
@@ -819,6 +836,31 @@ describe('the miss slider', () => {
         const body = draw();
         expect(body).toContain('aria-valuetext="nobody"');
         expect(body).toContain('<strong aria-hidden="true">0</strong>');
+    });
+
+    //Each day shows its count and its hours, and tapping one says why it is dim
+    it('explains nothing about the grid under it', () => {
+        expect(draw()).not.toContain('Brighter means');
+    });
+});
+
+describe('the nudge', () => {
+    const waiting = ['ann', 'bo'].map((userId) => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: false,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        sureUntil: null
+    }));
+
+    it('names who is still out and nothing more', () => {
+        const body = render(RemindPanel, { props: { planId: 'ab12cd34ef', waiting } }).body;
+        expect(body).toContain('<p class="muted small">Still out: ANN, BO.</p>');
+        expect(body).not.toContain('wait for everyone');
     });
 });
 

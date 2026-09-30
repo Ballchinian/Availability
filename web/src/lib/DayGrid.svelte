@@ -199,20 +199,15 @@
 
 <svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} onkeydown={press.keydown} />
 
-<!--What the colours mean, which nothing said before: the same shading on the compare
-    grid means something else entirely, and it has had a legend all along-->
-<p class="legend small" id="{uid}-legend">
-    Brighter means more of the day free. A clock showing a number, like 5h, counts the hours you kept. A clock on its
-    own means all of them. On a keyboard the arrows move between days, and Shift+Enter marks the stretch back to the
-    last day you pressed.
-</p>
+<!--Only the keys: the brightness and the clocks read for themselves, and each day's name carries its hours-->
+<p class="offscreen" id="{uid}-keys">Arrow keys move between days. Shift+Enter marks the stretch back to the last day you pressed.</p>
 
-<!--A group so the legend above is read out on the way in, whichever day Tab lands on-->
+<!--A group so the keys are read out on the way in, whichever day Tab lands on-->
 <div
     class="grid-wrap"
     class:painting={press.phase === 'painting'}
     role="group"
-    aria-describedby="{uid}-legend"
+    aria-describedby="{uid}-keys"
     bind:this={wrap}
     {@attach press.stopScroll}
 >
@@ -249,14 +244,12 @@
                                 onclick={(e) => keyToggle(e, cell.date)}
                                 onkeydown={(e) => arrow(e, cell.date)}
                                 onfocus={() => (focusDate = cell.date)}
-                                title={day.far ? 'Past your sure-up-to date, reads as too far to say rather than busy' : ''}
                             >
                                 {cell.day}
                             </button>
                             {#if day.free}
                                 <button
                                     class="clock"
-                                    title="Set specific hours"
                                     aria-label={clockLabel(cell.date)}
                                     tabindex={cell.date === stop ? 0 : -1}
                                     onpointerdown={(e) => e.stopPropagation()}

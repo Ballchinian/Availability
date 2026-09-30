@@ -1081,11 +1081,6 @@ a.primary {
     margin-inline: 0;
 }
 
-.legend {
-    margin-top: 8px;
-    color: var(--muted);
-}
-
 .cday {
     position: relative;
     width: 100%;
@@ -1277,7 +1272,8 @@ a.ghost:hover {
     padding: 10px;
 }
 
-.bcol h3 {
+.bcol h3,
+.uninvited h3 {
     margin: 0 0 8px;
     font-size: 13px;
     font-weight: 600;
@@ -1350,7 +1346,7 @@ a.ghost:hover {
 
 .uninvited ul {
     list-style: none;
-    margin: 6px 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-wrap: wrap;

@@ -2,7 +2,7 @@
     import { onMount, tick } from 'svelte';
     import { api, errorText, ApiError } from '../lib/api.js';
     import { auth, loadMe, loginHref } from '../lib/auth.svelte.js';
-    import { formatDate, formatTime, describeWeekdays } from '../lib/format.js';
+    import { formatDate, formatTime } from '../lib/format.js';
     import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
@@ -70,7 +70,6 @@
 
     //Which weekdays this plan asks about, null when it wants the whole range
     const allowedWeekdays = $derived<number[] | null>(data?.plan.allowedWeekdays ?? null);
-    const weekdayLabel = $derived(describeWeekdays(allowedWeekdays));
 
     //Only days the plan still asks about count towards the tally and the total, the same days the grid leaves open
     const freeCount = $derived(Object.keys(selection).filter((d) => d >= todayIso && isWeekdayAllowed(d, allowedWeekdays)).length);
@@ -269,18 +268,9 @@
 
         <p class="prompt">{promptText}</p>
 
-        {#if weekdayLabel}
-            <p class="prompt">This plan only asks about {weekdayLabel}, so the other days are greyed out.</p>
-        {/if}
-
-        <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
+        <p class="muted small">Press and drag to mark several days.</p>
         {#if clocksDiffer}
             <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
-            <p class="muted small">
-                Mark your own days and hours as you read them. Everyone's get lined up against each other
-                when the group compares, so a night out that starts at 8 for you counts against whatever
-                that comes to for the rest of them.
-            </p>
         {/if}
 
         <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} sureUntil={sureUntil || null} bind:selection />
@@ -300,11 +290,7 @@
 
         <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Count these as my answer on any other plan they fully cover</label>
 
-        <p class="muted small">
-            These dates save to your calendar, not just this plan, so every other plan sees them too.
-            For days outside {formatDate(data.plan.start)} to {formatDate(data.plan.end)},
-            <a href="#/availability">open your calendar</a>.
-        </p>
+        <p class="muted small">These are your days for every plan, not just this one. <a href="#/availability">Open your calendar</a>.</p>
 
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
             and whatever the last save said are all in reach of a two year page-->

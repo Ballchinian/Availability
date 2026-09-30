@@ -125,7 +125,7 @@
         </div>
         {#if board.uninvited.length}
             <div class="uninvited">
-                <p class="muted small">Not invited to this date, so no ping and no DM. Moving or undoing the date invites everyone back.</p>
+                <h3>Not invited to this date ({board.uninvited.length})</h3>
                 <ul>
                     {#each board.uninvited as p (p.userId)}
                         <li>

@@ -155,18 +155,9 @@
             </div>
         </div>
 
-        <!--These two read like a filter and are actually the scope of the save, which is
-            worth saying before somebody narrows the window and expects the rest to go up-->
-        <p class="muted small">
-            Only the window you have on screen gets saved. Narrowing it leaves every day outside exactly as it was.
-        </p>
-
-        <p class="muted small">Tap a day, press and drag across several, or shift-click the other end of a stretch. The clock on a free day narrows it to certain hours.</p>
+        <p class="muted small">Press and drag to mark several days.</p>
         {#if timeZone}
-            <p class="muted small">
-                Your days and hours are read on {describeZone(timeZone)}, which this device told me. Say 8pm and
-                you mean 8pm where you are: a plan works out what that comes to for everyone else.
-            </p>
+            <p class="muted small">Times are {describeZone(timeZone)}.</p>
         {/if}
 
         <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} sureUntil={sureUntil || null} bind:selection />
