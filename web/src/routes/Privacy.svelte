@@ -27,7 +27,8 @@
         we know when your calendar is still needed by anyone.
         <br />
         <strong>Plans:</strong> a plan's name, optional description, date range, who's invited, who has
-        filled in their dates, and the day, time and any note it's set for. Once a day is set, also each
+        filled in their dates, whether each person is in or said it's not for them, with any short reason
+        they gave, and the day, time and any note it's set for. Once a day is set, also each
         person's yes or no, any short reason given for a no, a planner's call on the board, and who is on
         that day's list. When the day moves, those answers are kept for the last three days the plan has
         been on, so they come back if it moves back. Each plan keeps its last 100 events: what happened, when, and who did it, under
@@ -57,7 +58,7 @@
     <p>
         Anyone with the planner role in a server can open the overview of any plan there. Once you've
         filled in your dates for a plan, the overview shows them the days and hours you marked free within
-        that plan's dates. It also shows your yes
+        that plan's dates. It also shows whether you're in, your yes
         or no on a set day, and any reason you gave. Everyone else on the plan only sees counts: how many
         have filled in their dates, and how many are coming.
     </p>

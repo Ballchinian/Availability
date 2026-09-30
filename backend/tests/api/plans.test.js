@@ -3,9 +3,10 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, announceJoin } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
-import { addAnswered, setCoveredUntil, getUserById, getPlanningPrefs } from '../../src/db/users.js';
+import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
+import { formatDay } from '../../src/lib/dates.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -54,6 +55,7 @@ vi.mock('../../src/db/plans.js', () => ({
         'addParticipants',
         'setPlanDetails',
         'setAttendanceOverride',
+        'setIn',
         'setPlanRepeat',
         'addPlanEvent'
     )
@@ -75,7 +77,6 @@ vi.mock('../../src/db/availability.js', () => ({
     getAvailabilitySummary: vi.fn(async () => ({ lastFilled: null, lastUpdatedAt: null }))
 }));
 vi.mock('../../src/db/users.js', () => ({
-    getUserById: vi.fn(async () => ({ timeZone: 'Europe/London' })),
     setCoveredUntil: vi.fn(),
     getPlanningPrefs: vi.fn(async () => ({})),
     addAnswered: vi.fn()
@@ -93,7 +94,8 @@ vi.mock('../../src/bot/plans.js', () =>
         'announceAddition',
         'notifyCreatorIfAllIn',
         'syncPlan',
-        'applyAttendanceMove'
+        'applyAttendanceMove',
+        'announceJoin'
     )
 );
 
@@ -837,10 +839,110 @@ describe('saving dates on the plan page', () => {
     });
 
     it('hands it back with the page', async () => {
-        getUserById.mockResolvedValueOnce({ timeZone: 'Europe/London', coveredUntil: ahead(30), sureUntil: ahead(3) });
+        getPlanningPrefs.mockResolvedValueOnce({ guest: { timeZone: 'Europe/London', coveredUntil: ahead(30), answered: [] } });
         const body = await (await get('/ab12cd34ef')).json();
         expect(body.coveredUntil).toBe(ahead(30));
         expect(body).not.toHaveProperty('sureUntil');
+    });
+});
+
+describe('where someone stands on the plan page', () => {
+    beforeEach(() => (sessionUser = guest));
+
+    it('asks if they are in, with what their calendar already answers', async () => {
+        const body = await (await get('/ab12cd34ef')).json();
+        expect(body).toMatchObject({ in: null, inReason: null, ask: 'Then fill in your dates.' });
+        expect(body.toFill).toHaveLength(14);
+    });
+
+    it('leaves out the days their calendar answers', async () => {
+        getPlanningPrefs.mockResolvedValueOnce({ guest: { coveredUntil: ahead(10), answered: [], timeZone: null } });
+        const body = await (await get('/ab12cd34ef')).json();
+        expect(body.toFill).toEqual([ahead(11), ahead(12), ahead(13), ahead(14)]);
+        expect(body.ask).toBe(`Your calendar answers up to ${formatDay(ahead(10))}, so there are 4 days after that to fill in.`);
+    });
+
+    it('reads someone from before the question as in when they had filled in', async () => {
+        plans.set('ab12cd34ef', plan({ participants: [{ userId: 'guest', confirmed: true }] }));
+        expect((await (await get('/ab12cd34ef')).json()).in).toBe(true);
+    });
+
+    it('asks nothing on a plan that has its day', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow }));
+        expect(await (await get('/ab12cd34ef')).json()).toMatchObject({ ask: '', toFill: [] });
+    });
+
+    it('hands the new line back after a save, which answers every day of the plan', async () => {
+        const saved = plan({ participants: [{ userId: 'guest', confirmed: true, in: true }] });
+        db.confirmParticipant.mockResolvedValueOnce(saved);
+        getPlanningPrefs
+            .mockResolvedValueOnce({})
+            .mockResolvedValueOnce({ guest: { answered: [{ start: ahead(1), end: ahead(14), allowedWeekdays: null }] } });
+
+        const body = await (await post('/ab12cd34ef/availability', { days: [] })).json();
+        expect(body).toMatchObject({ in: true, ask: "That's all I need.", toFill: [] });
+    });
+});
+
+describe('count me in or not for me on the site', () => {
+    beforeEach(() => {
+        sessionUser = guest;
+        //Writes the answer onto the stored plan, the way the real one does
+        db.setIn.mockImplementation(async (planId, userId, value, reason) => {
+            const was = plans.get(planId);
+            const next = { ...was, participants: was.participants.map((p) => (p.userId === userId ? { ...p, in: value, inReason: reason } : p)) };
+            plans.set(planId, next);
+            return next;
+        });
+    });
+
+    it('records a no with its reason, and says who was told', async () => {
+        announceAfter.mockImplementationOnce(async (planId, label, run) => run(plans.get(planId)));
+        announceJoin.mockResolvedValueOnce({ told: ['Ali'], missed: [] });
+
+        const res = await post('/ab12cd34ef/join', { in: false, reason: `  ${'x'.repeat(250)}  ` });
+
+        expect(res.status).toBe(200);
+        expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'guest', false, 'x'.repeat(200));
+        expect(announceJoin).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', null, 'x'.repeat(200));
+        expect(await res.json()).toMatchObject({ ok: true, in: false, inReason: 'x'.repeat(200), told: ['Ali'], missed: [] });
+    });
+
+    it('hands back the line for someone now in', async () => {
+        const body = await (await post('/ab12cd34ef/join', { in: true })).json();
+        expect(body).toMatchObject({ in: true, ask: 'Now fill in your dates.', told: [], missed: [] });
+        expect(body.toFill).toHaveLength(14);
+    });
+
+    it('drops any reason sent with a yes', async () => {
+        await post('/ab12cd34ef/join', { in: true, reason: 'ignored' });
+        expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'guest', true, null);
+    });
+
+    it('passes on where they stood before, so coming back in can be told apart', async () => {
+        plans.set('ab12cd34ef', plan({ participants: [{ userId: 'guest', in: false }] }));
+        announceAfter.mockImplementationOnce(async (planId, label, run) => run(plans.get(planId)));
+        await post('/ab12cd34ef/join', { in: true });
+        expect(announceJoin).toHaveBeenCalledWith(expect.anything(), 'guest', false, null);
+    });
+
+    it('refuses an answer that is neither', async () => {
+        const res = await post('/ab12cd34ef/join', { in: 'yes' });
+        expect(res.status).toBe(400);
+        expect(db.setIn).not.toHaveBeenCalled();
+    });
+
+    it('refuses once the plan has its day, or has been called off', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow }));
+        expect((await post('/ab12cd34ef/join', { in: true })).status).toBe(409);
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        expect((await post('/ab12cd34ef/join', { in: true })).status).toBe(409);
+        expect(db.setIn).not.toHaveBeenCalled();
+    });
+
+    it('refuses someone not on the plan', async () => {
+        sessionUser = stranger;
+        expect((await post('/ab12cd34ef/join', { in: true })).status).toBe(403);
     });
 });
 

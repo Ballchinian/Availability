@@ -32,13 +32,16 @@ export interface Answerer {
 
 export function askedDays(window?: Partial<Window>): string[];
 export function answeredOn(date: string, answers?: Answers): boolean;
-export function coverageOf(input: Answers & {
+export interface PlanAnswers extends Answers {
     window: Window;
     today?: string;
     sentBack?: unknown;
     theirDays?: (date: string) => string[];
-}): Coverage;
+}
+
+export function coverageOf(answers: PlanAnswers): Coverage;
+export function daysToFill(answers: PlanAnswers): string[];
 export function inOf(p: Answerer): boolean | null;
 export function standing(p: Answerer, coverage: Coverage): Standing;
 export function owes(p: Answerer, coverage: Coverage): 'answer' | 'days' | null;
-export function askLine(coverage: Coverage, extra?: { free?: number; updated?: string | null }): string;
+export function askLine(coverage: Coverage, extra?: { free?: number; updated?: string | null; joined?: boolean }): string;

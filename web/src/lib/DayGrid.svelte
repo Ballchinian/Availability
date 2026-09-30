@@ -25,14 +25,18 @@
         stretch from the last day pressed, which is all a keyboard gets. Escape
         before letting go puts the days back.
     */
-    let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, coveredUntil = null }: {
+    let { start, end, selection = $bindable({}), highlightFrom = null, toFill = null, allowedWeekdays = null, coveredUntil = null }: {
         start: string;
         end: string;
         selection?: Record<string, number[]>;
         highlightFrom?: string | null;
+        //A plan's days their calendar does not answer yet, picked out the same way
+        toFill?: string[] | null;
         allowedWeekdays?: number[] | null;
         coveredUntil?: string | null;
     } = $props();
+
+    const unanswered = $derived(new Set(toFill ?? []));
 
     let editingDate = $state('');
 
@@ -144,6 +148,7 @@
 
     //The whole date, since the button itself only says the day number
     function dayLabel(date: string) {
+        if (unanswered.has(date)) return `${names[date]}, still to answer`;
         return pastCovered(date) ? `${names[date]}, not counted as your answer` : names[date];
     }
 
@@ -249,7 +254,7 @@
                             <button
                                 class="day"
                                 class:free={day.free}
-                                class:is-new={highlightFrom && cell.date >= highlightFrom}
+                                class:is-new={(highlightFrom && cell.date >= highlightFrom) || unanswered.has(cell.date)}
                                 class:far={day.far}
                                 style={day.style}
                                 aria-label={day.label}

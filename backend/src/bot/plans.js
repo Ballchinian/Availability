@@ -1275,27 +1275,54 @@ async function notifyCreatorVoteNo(plan, userId, reason) {
 }
 
 /*
-    Let the creator know someone bowed out, with their reason if they left one. Hands back
-    the names of who heard and who the DM could not reach, so the site can say which.
+    A note to whoever set the plan up about someone on it, built from that person's name and
+    the " in {server}" to put after the plan. Hands back the names of who heard and who the
+    DM could not reach, so the site can say which. Nobody is told about themselves.
 */
-export async function notifyCreatorDropped(plan, userId, reason) {
+async function tellCreator(plan, userId, write) {
     if (userId === plan.createdBy) return { told: [], missed: [] };
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    const name = await memberName(plan.guildId, userId);
-    const why = reason ? `\nReason: ${reason}` : '';
-    const reached = await deliver(plan, plan.createdBy, banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${why}`);
+    const reached = await deliver(plan, plan.createdBy, write(await memberName(plan.guildId, userId), where));
     const creator = await memberName(plan.guildId, plan.createdBy, 'whoever set it up');
     return reached ? { told: [creator], missed: [] } : { told: [], missed: [creator] };
 }
 
-//Let the creator know someone who had dropped out is back on the plan
-async function notifyCreatorUndropped(plan, userId) {
-    if (userId === plan.createdBy) return;
-    const cfg = await getGuildConfig(plan.guildId);
-    const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    const name = await memberName(plan.guildId, userId);
-    await deliver(plan, plan.createdBy, banner('BACK IN') + `${name} is back on "${plan.name}"${where} after dropping out.`);
+const reasonLine = (reason) => (reason ? `\nReason: ${reason}` : '');
+
+export function notifyCreatorDropped(plan, userId, reason) {
+    return tellCreator(plan, userId, (name, where) =>
+        banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${reasonLine(reason)}`);
+}
+
+//Not for me on a plan still finding its day. They stay on it, and can say they're in again.
+function notifyCreatorOut(plan, userId, reason) {
+    return tellCreator(plan, userId, (name, where) => ({
+        content: banner('SOMEONE CANNOT MAKE IT') + `${name} can't make "${plan.name}"${where}.${reasonLine(reason)}`,
+        components: [overviewRow(plan)]
+    }));
+}
+
+function notifyCreatorUndropped(plan, userId) {
+    return tellCreator(plan, userId, (name, where) => banner('BACK IN') + `${name} is in for "${plan.name}"${where} after all.`);
+}
+
+/*
+    Count me in or Not for me having landed, from the site or a DM. Their card is brought in
+    line unless the press that did it has already rewritten it, and whoever set the plan up
+    hears about someone going out or coming back in. was is where they stood before. Hands
+    back who that DM reached.
+*/
+export async function announceJoin(plan, userId, was, reason = null, { card = true } = {}) {
+    const p = plan.participants.find((q) => q.userId === userId);
+    if (!p) return { told: [], missed: [] };
+    if (card) await syncPlanCards(plan, null, { only: [userId] }).catch(() => {});
+
+    let heard = { told: [], missed: [] };
+    if (p.in === false && was !== false) heard = await notifyCreatorOut(plan, userId, reason).catch(() => heard);
+    if (p.in === true && was === false) await notifyCreatorUndropped(plan, userId).catch(() => {});
+    await notifyCreatorIfAllIn(plan).catch(() => {});
+    return heard;
 }
 
 /*

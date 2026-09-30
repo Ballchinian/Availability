@@ -284,9 +284,17 @@ Everything the availability page needs to draw the grid.
 * Whether the requester is a participant, and whether they have confirmed
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled
-* When they last filled their timetable
 * `coveredUntil`: the date their calendar answers plans up to, if they set one
+* `in`: `true` for Count me in, `false` for Not for me, `null` while they haven't said. Someone on a plan from before the question reads as in if they had filled in or said yes.
+* `inReason`: the reason they gave for Not for me, if any
+* `ask`: the line under Count me in, the same one their DM carries, e.g. "Your calendar answers up to Tue 8 Sep, so there are 3 days after that to fill in." Blank once the plan has its day.
+* `toFill`: the plan's days, from today on, that their calendar doesn't answer yet. Empty once the plan has its day.
 * Their own clock, so the page can say when it is not the server's
+
+### Notes
+
+* A saved window answers the plan's days by name. `coveredUntil` is a date on their own clock, so it answers a plan's day only once every one of their days that day falls on is on or before it.
+* The free count in `ask` is read on the plan's clock, the way the overview reads it.
 
 ---
 
@@ -313,6 +321,7 @@ Participants only.
 
 * The running confirmed count out of the total
 * `answers`: the other plans still finding a day that this save left their calendar answering in full, where it did not before, each as `{ planId, name }`. Plans they have said are not for them are left out.
+* `in`, `inReason`, `ask` and `toFill` as the GET above has them, now the save has moved them
 
 ### Notes
 
@@ -642,9 +651,40 @@ Planner role only.
 
 ---
 
+## POST `/api/plans/:planId/join` (session)
+
+Count me in or Not for me, on a plan still finding its day. The website side of the same buttons on the DM.
+
+Participants only.
+
+### Input
+
+* `in`: `true` for Count me in, `false` for Not for me
+* `reason` (optional): why not, with a `false`, capped at 200 characters. Only whoever runs the plan sees it.
+
+### Effects
+
+* Records the answer. Someone who says Not for me stays on the plan and can say they're in again.
+* Rewrites their DM card to match.
+* DMs whoever set the plan up when someone says Not for me, with the reason, and when someone who had said it is in after all.
+* If that leaves everyone answered, DMs the planner to go and pick a day.
+
+### Returns
+
+* `in`, `inReason`, `ask` and `toFill` as `GET /api/plans/:planId` has them
+* `told`: the names the Not for me DM reached
+* `missed`: the names it could not reach
+
+### Notes
+
+* `409` once the plan has its day, where the question is I'm coming or Can't make it, and on a cancelled plan.
+* Limited to 30 answers a day per person per server, since a no and a change of mind each send a DM.
+
+---
+
 ## POST `/api/plans/:planId/leave` (session)
 
-Drop yourself out of a plan you were invited to. This is the website side of the leave button in the DM.
+Drop yourself out of a plan you were invited to. The website side of dropping out once a day is set; a plan still finding its day asks Not for me through `/join` instead.
 
 Participants only.
 

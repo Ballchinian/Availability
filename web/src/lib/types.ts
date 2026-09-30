@@ -71,10 +71,17 @@ export interface PlanScreen {
     confirmedCount: number;
     totalParticipants: number;
     availability: AvailabilityDay[];
-    lastFilled: string | null;
-    lastUpdatedAt: string | null;
-    //"Take my calendar as my answer up to". Missing from a backend older than the site, for the few minutes a deploy takes.
+    /*
+        "Take my calendar as my answer up to", then where they stand. All four are missing
+        from a backend older than the site, for the few minutes a deploy takes.
+    */
     coveredUntil?: string | null;
+    in?: Joining;
+    inReason?: string | null;
+    //The line under Count me in, blank once the plan has its day
+    ask?: string;
+    //The plan's days their calendar does not answer yet
+    toFill?: string[];
     //Their own clock, which their hours are read on. Only worth mentioning when it is not the plan's.
     timeZone: string;
 }
@@ -151,8 +158,23 @@ export interface SavedForPlan {
     confirmedCount: number;
     totalParticipants: number;
     savedDays: number;
-    //The other plans this save answered. Missing from a backend older than the site.
+    //The other plans this save answered, and where it leaves them on this one. Missing from a backend older than the site.
     answers?: PlanLink[];
+    in?: Joining;
+    ask?: string;
+    toFill?: string[];
+}
+
+//Count me in (true), Not for me (false), or not said yet
+export type Joining = boolean | null;
+
+//POST /plans/:planId/join, where it leaves them and who a Not for me was passed on to
+export interface Joined {
+    in: boolean;
+    ask: string;
+    toFill: string[];
+    told: string[];
+    missed: string[];
 }
 
 //POST /plans/:planId/leave, the names the drop out DM reached and the ones it could not

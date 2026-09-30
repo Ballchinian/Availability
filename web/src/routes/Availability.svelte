@@ -3,12 +3,12 @@
     import { api, errorText, ApiError } from '../lib/api.js';
     import { auth, loadMe, loginHref } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
-    import { countDays, daysSince, isoFromNow, isWeekdayAllowed, nextDay } from '../lib/calendar.js';
+    import { countDays, isoFromNow, isWeekdayAllowed } from '../lib/calendar.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import { measureBar } from '../lib/actionbar.js';
     import { refocus } from '../lib/focus.js';
-    import type { PlanScreen, SavedForPlan, LeftPlan } from '../lib/types.js';
+    import type { PlanScreen, SavedForPlan, LeftPlan, Joined } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import PlanList from '../lib/PlanList.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
@@ -41,13 +41,13 @@
     let left = $state<LeftPlan | null>(null);
     let leaveError = $state('');
 
-    /*
-        Set by a save, and everything below about what they have not looked at yet reads
-        it first. Both of those are worked out from where their timetable reached when
-        the page loaded, which a save has just moved: without this, saving leaves the
-        page still telling them to look at days they were looking at when they saved.
-    */
-    let reviewed = $state(false);
+    //Count me in or Not for me, and the reason box the second one opens
+    let answering = $state(false);
+    let answerError = $state('');
+    let outArmed = $state(false);
+    let reason = $state('');
+    //Who heard about a Not for me just now, which a reload has no way of knowing
+    let outTold = $state<LeftPlan | null>(null);
 
     const unsaved = $derived(selectionKey(selection) !== savedKey);
     guardUnsaved(() => unsaved);
@@ -73,37 +73,8 @@
     const freeCount = $derived(Object.keys(selection).filter((d) => d >= todayIso && isWeekdayAllowed(d, allowedWeekdays)).length);
     const totalDays = $derived(data ? countDays(data.plan.start > todayIso ? data.plan.start : todayIso, data.plan.end, allowedWeekdays) : 0);
 
-    //The first day past the front edge of their timetable, or null if it reaches the end
-    const newFrom = $derived.by(() => {
-        if (reviewed || !data || !data.lastFilled) return null;
-        const { start, end } = data.plan;
-        if (data.lastFilled >= end) return null;
-        const nd = nextDay(data.lastFilled);
-        return nd > start ? nd : start;
-    });
-
-    //Has it been a while since they last touched their availability
-    const stale = $derived.by(() => {
-        if (reviewed || !data || !data.lastUpdatedAt) return false;
-        return daysSince(data.lastUpdatedAt) >= 30;
-    });
-
-    //The reminder line, built from how fresh and how complete their timetable is
-    const promptText = $derived.by(() => {
-        if (!data) return '';
-        if (data.confirmed) {
-            return 'Your dates are in for this plan. Change anything below and save again if your plans shift.';
-        }
-        //What to do with the grid is said under it either way, so this only says where they stand
-        if (!data.lastFilled) {
-            return 'First time filling in your calendar, so nothing is marked yet.';
-        }
-        const parts = [];
-        if (stale) parts.push('It has been over a month since you last updated your calendar.');
-        if (newFrom) parts.push(`You have not touched anything past ${formatDate(data.lastFilled)}. The days from there are highlighted below.`);
-        if (!parts.length) parts.push('Your calendar already covers this range. Give it a once-over and save.');
-        return parts.join(' ');
-    });
+    //Read the way the backend reads a participant from before the question, for a backend from before it too
+    const joined = $derived(data ? (data.in !== undefined ? data.in : data.confirmed ? true : null) : null);
 
     onMount(async () => {
         await loadMe();
@@ -143,8 +114,7 @@
                 body: JSON.stringify({ days, coveredUntil: coveredUntil || null })
             });
             savedKey = selectionKey(selection);
-            reviewed = true;
-            if (data) data.confirmed = true;
+            if (data) Object.assign(data, { confirmed: true, in: saved.in ?? true, ask: saved.ask ?? '', toFill: saved.toFill ?? [] });
         } catch (err) {
             saveError = errorText(err);
             tick().then(() => saveLine?.focus());
@@ -156,6 +126,39 @@
     function clearCovered() {
         coveredUntil = '';
         refocus(() => document.getElementById('covered'));
+    }
+
+    let answerLine = $state<HTMLElement>();
+    let outButton = $state<HTMLButtonElement>();
+
+    function armOut() {
+        outArmed = true;
+        refocus(() => document.getElementById('reason'));
+    }
+
+    function keepOn() {
+        outArmed = false;
+        refocus(() => outButton);
+    }
+
+    //The buttons go with the answer, so the line saying where they now stand takes focus
+    async function answer(value: boolean) {
+        answerError = '';
+        answering = true;
+        try {
+            const res = await api<Joined>(`/plans/${params.planId}/join`, {
+                method: 'POST',
+                body: JSON.stringify({ in: value, reason: value ? null : reason })
+            });
+            if (data) Object.assign(data, { in: res.in, ask: res.ask, toFill: res.toFill });
+            outTold = value ? null : { told: res.told, missed: res.missed };
+            outArmed = false;
+            reason = '';
+            refocus(() => answerLine);
+        } catch (err) {
+            answerError = errorText(err);
+        }
+        answering = false;
     }
 
     let dropButton = $state<HTMLButtonElement>();
@@ -188,8 +191,32 @@
     {#if saved?.answers?.length}Your calendar now answers <PlanList plans={saved.answers} /> too.{/if}
 {/snippet}
 
-<!--Offered while a plan is still ahead of you, whether or not it is still asking for dates:
-    a day that is already set is exactly when somebody finds out they cannot come-->
+{#snippet notForMe()}
+    {#if !outArmed}
+        <button class="ghost danger-btn" onclick={armOut} bind:this={outButton}>Not for me</button>
+    {:else}
+        <form
+            class="confirm"
+            onsubmit={(e) => {
+                e.preventDefault();
+                answer(false);
+            }}
+        >
+            <div class="field">
+                <label for="reason">Why not? (optional)</label>
+                <input id="reason" type="text" maxlength="200" bind:value={reason} aria-describedby="reason-who" />
+            </div>
+            <p class="muted small" id="reason-who">Only whoever runs the plan sees this.</p>
+            <div class="answer">
+                <button class="ghost danger-btn" disabled={answering}>{answering ? 'Saving...' : 'Not for me'}</button>
+                <button type="button" class="ghost" onclick={keepOn}>Back</button>
+            </div>
+        </form>
+    {/if}
+{/snippet}
+
+<!--Offered on a set day that is still ahead of you, which is exactly when somebody finds
+    out they cannot come. A plan still finding its day asks Not for me instead.-->
 {#snippet dropOut()}
     <div class="danger">
         {#if !leaveArmed}
@@ -263,44 +290,69 @@
             <p class="muted small">{data.plan.description}</p>
         {/if}
 
-        <p class="prompt">{promptText}</p>
+        {#if joined === false}
+            <div class="prompt">
+                <p tabindex="-1" bind:this={answerLine}>
+                    You said this one's not for you.
+                    {#if outTold?.told.length}I DMed {outTold.told.join(', ')} to say so.{/if}
+                    {#if outTold?.missed.length}I could not DM {outTold.missed.join(', ')}, so let them know yourself.{/if}
+                </p>
+                <div class="answer">
+                    <button class="primary" onclick={() => answer(true)} disabled={answering}>Count me in</button>
+                </div>
+            </div>
+            <Status class="status" msg={answerError} error />
+        {:else}
+            <div class="prompt">
+                <p tabindex="-1" bind:this={answerLine}>{joined ? "You're in." : 'Are you in?'} {data.ask ?? ''}</p>
+                {#if joined === null}
+                    <div class="answer">
+                        {#if !outArmed}
+                            <button class="primary" onclick={() => answer(true)} disabled={answering}>Count me in</button>
+                        {/if}
+                        {@render notForMe()}
+                    </div>
+                {/if}
+            </div>
+            <Status class="status" msg={answerError} error />
 
-        <p class="muted small">Press and drag to mark several days.</p>
-        {#if clocksDiffer}
-            <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
+            <p class="muted small">Press and drag to mark several days.</p>
+            {#if clocksDiffer}
+                <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
+            {/if}
+
+            <DayGrid start={data.plan.start} end={data.plan.end} toFill={data.toFill ?? null} {allowedWeekdays} bind:selection />
+
+            <div class="horizon">
+                <div class="horizon-row">
+                    <label class="lbl" for="covered">Take my calendar as my answer up to</label>
+                    <input id="covered" type="date" bind:value={coveredUntil} min={todayIso} max={maxDate} />
+                    {#if coveredUntil}<button class="link-btn" onclick={clearCovered}>clear</button>{/if}
+                </div>
+                <p class="muted small">These will be counted as your answers on any plan this window covers.</p>
+            </div>
+
+            <p class="muted small">These are your days for every plan, not just this one. <a href="#/availability">Open your calendar</a>.</p>
+
+            <!--Pinned to the bottom while the grid runs on above it, so the count, the button
+                and whatever the last save said are all in reach of a two year page-->
+            <div class="actionbar" {@attach measureBar}>
+                <div class="bar-row">
+                    <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
+                    <button class="primary" onclick={confirm} disabled={submitting}>
+                        {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
+                    </button>
+                </div>
+                <Status
+                    class="status msg {saved ? 'good' : ''}"
+                    msg={saveError}
+                    error={Boolean(saveError)}
+                    children={saved ? savedLine : undefined}
+                    bind:this={saveLine}
+                />
+            </div>
+
+            {#if joined}<div class="danger">{@render notForMe()}</div>{/if}
         {/if}
-
-        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} bind:selection />
-
-        <div class="horizon">
-            <div class="horizon-row">
-                <label class="lbl" for="covered">Take my calendar as my answer up to</label>
-                <input id="covered" type="date" bind:value={coveredUntil} min={todayIso} max={maxDate} />
-                {#if coveredUntil}<button class="link-btn" onclick={clearCovered}>clear</button>{/if}
-            </div>
-            <p class="muted small">These will be counted as your answers on any plan this window covers.</p>
-        </div>
-
-        <p class="muted small">These are your days for every plan, not just this one. <a href="#/availability">Open your calendar</a>.</p>
-
-        <!--Pinned to the bottom while the grid runs on above it, so the count, the button
-            and whatever the last save said are all in reach of a two year page-->
-        <div class="actionbar" {@attach measureBar}>
-            <div class="bar-row">
-                <p class="status">{freeCount} of {totalDays} day{totalDays === 1 ? '' : 's'} marked free.</p>
-                <button class="primary" onclick={confirm} disabled={submitting}>
-                    {submitting ? 'Saving...' : data.confirmed ? 'Update my dates' : 'Save my dates'}
-                </button>
-            </div>
-            <Status
-                class="status msg {saved ? 'good' : ''}"
-                msg={saveError}
-                error={Boolean(saveError)}
-                children={saved ? savedLine : undefined}
-                bind:this={saveLine}
-            />
-        </div>
-
-        {@render dropOut()}
     {/if}
 </section>

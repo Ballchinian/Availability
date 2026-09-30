@@ -351,6 +351,19 @@ describe('the fill-in grid', () => {
         expect(buttons(draw())).toBe(4);
     });
 
+    it('picks out the days still to answer, on screen and by name', () => {
+        const left = isoFromNow(2, 'day');
+        const body = render(DayGrid, { props: { start: isoFromNow(0, 'day'), end: isoFromNow(3, 'day'), toFill: [left] } }).body;
+        expect(body.match(/class="day is-new"/g)).toHaveLength(1);
+        expect(body).toContain(`aria-label="${formatLong(left)}, still to answer"`);
+    });
+
+    it('says which days are past the date the calendar answers up to', () => {
+        const body = render(DayGrid, { props: { start: isoFromNow(0, 'day'), end: isoFromNow(3, 'day'), coveredUntil: isoFromNow(2, 'day') } }).body;
+        expect(body).toContain(`aria-label="${formatLong(isoFromNow(3, 'day'))}, not counted as your answer"`);
+        expect(body.match(/not counted as your answer/g)).toHaveLength(1);
+    });
+
     //Both pages it is on have only their h1 above it
     it('heads its months at h2', () => {
         const body = draw();

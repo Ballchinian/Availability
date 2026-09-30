@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { askedDays, answeredOn, coverageOf, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
+import { askedDays, answeredOn, coverageOf, daysToFill, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
 import { shiftDate } from '../../../shared/dates.js';
 
 //Mon 7 to Fri 11 Sep 2026
@@ -142,6 +142,21 @@ describe('coverageOf', () => {
     });
 });
 
+describe('daysToFill', () => {
+    it('lists the days coverageOf counts as left, from today on', () => {
+        const gap = [{ start: '2026-09-07', end: '2026-09-07' }];
+        expect(daysToFill({ window: week, answered: gap, today: '2026-09-08', coveredUntil: '2026-09-09' })).toEqual(['2026-09-10', '2026-09-11']);
+    });
+
+    it('keeps to the pinned weekdays', () => {
+        expect(daysToFill({ window: weekends, coveredUntil: '2026-09-07' })).toEqual(['2026-09-12', '2026-09-13']);
+    });
+
+    it('lists every day while someone is sent back', () => {
+        expect(daysToFill({ window: week, coveredUntil: '2026-09-30', sentBack: { byName: 'Ali' } })).toEqual(askedDays(week));
+    });
+});
+
 describe('askLine', () => {
     it('gives the free count when the calendar answers it all', () => {
         expect(askLine(covered, { free: 3, updated: '2026-09-01' })).toBe(
@@ -185,6 +200,12 @@ describe('askLine', () => {
 
     it('is blank once every day it asked about has gone', () => {
         expect(askLine({ state: 'covered', daysLeft: 0, lastCovered: null, total: 0 })).toBe('');
+    });
+
+    it('tells someone already in only what is left to do', () => {
+        expect(askLine(covered, { free: 3, updated: '2026-09-01', joined: true })).toBe("That's all I need.");
+        expect(askLine(partial, { joined: true })).toBe('Your calendar answers up to Tue 8 Sep, so there are 3 days after that to fill in.');
+        expect(askLine(none, { joined: true })).toBe('Now fill in your dates.');
     });
 
     it('has no link in any line', () => {

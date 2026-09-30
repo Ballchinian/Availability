@@ -2,17 +2,17 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, getCollectingPlansForUser, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getUserById, setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove } from '../../bot/plans.js';
+import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, announceJoin } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
-import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
+import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone, todayIn } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
-import { newlyCovered } from '../../lib/coverage.js';
+import { newlyCovered, answersOn, askFor, daysToFill, inOf } from '../../lib/coverage.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
@@ -111,12 +111,15 @@ router.get('/:planId', async (req, res) => {
     if (!me) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
 
     //None of the four reads the others, so they go together: one wait rather than four
-    const [cfg, availability, summary, userDoc] = await Promise.all([
+    const { start, end } = plan.dateRange;
+    const [cfg, rows, summary, prefs] = await Promise.all([
         getGuildConfig(plan.guildId),
-        getAvailabilityInRange(req.user.id, plan.dateRange.start, plan.dateRange.end),
+        //A day either side, which is where their free days on the plan's clock spill in from
+        getAvailabilityInRange(req.user.id, shiftDate(start, -1), shiftDate(end, 1)),
         getAvailabilitySummary(req.user.id),
-        getUserById(req.user.id)
+        getPlanningPrefs([req.user.id])
     ]);
+    const mine = prefs[req.user.id];
 
     res.json({
         plan: {
@@ -142,14 +145,34 @@ router.get('/:planId', async (req, res) => {
         confirmed: Boolean(me.confirmed),
         confirmedCount: plan.participants.filter((p) => p.confirmed).length,
         totalParticipants: plan.participants.length,
-        availability,
-        lastFilled: summary.lastFilled,
-        lastUpdatedAt: summary.lastUpdatedAt,
-        coveredUntil: userDoc?.coveredUntil || null,
+        availability: rows.filter((r) => r.date >= start && r.date <= end),
+        coveredUntil: mine?.coveredUntil || null,
+        ...answerOf(plan, me, mine, rows, summary.lastUpdatedAt),
         //The clock their own hours are read in, which is whatever their browser last said
-        timeZone: safeZone(userDoc?.timeZone)
+        timeZone: safeZone(mine?.timeZone)
     });
 });
+
+//Where someone stands: in or not, and on a plan still finding its day, the line under the question and the days left to fill
+function answerOf(plan, me, prefs, rows, lastUpdatedAt) {
+    const collecting = plan.status === 'collecting';
+    return {
+        in: inOf(me),
+        inReason: me.inReason || null,
+        ask: collecting ? askFor(plan, me, prefs, rows, lastUpdatedAt) : '',
+        toFill: collecting ? daysToFill(answersOn(plan, prefs, me)) : []
+    };
+}
+
+//The same, read fresh after something they did has moved it
+async function answerNow(plan, me, prefs) {
+    const { start, end } = plan.dateRange;
+    const [rows, summary] = await Promise.all([
+        getAvailabilityInRange(me.userId, shiftDate(start, -1), shiftDate(end, 1)),
+        getAvailabilitySummary(me.userId)
+    ]);
+    return answerOf(plan, me, prefs, rows, summary.lastUpdatedAt);
+}
 
 router.post('/:planId/availability', async (req, res) => {
     const { plan } = req;
@@ -193,6 +216,7 @@ router.post('/:planId/availability', async (req, res) => {
     const updated = await confirmParticipant(plan.planId, req.user.id);
     const after = await getPlanningPrefs([req.user.id]);
     const others = plans.filter((p) => p.planId !== plan.planId);
+    const meNow = updated.participants.find((p) => p.userId === req.user.id) || me;
 
     //No thread post here on purpose, a confirmation is quiet, the planner sees it on the compare page.
     //If that was the last person though, the planner gets a DM nudging them to compare.
@@ -207,8 +231,46 @@ router.post('/:planId/availability', async (req, res) => {
         confirmedCount: updated.participants.filter((p) => p.confirmed).length,
         totalParticipants: updated.participants.length,
         savedDays,
-        answers: newlyCovered(others, req.user.id, before[req.user.id], after[req.user.id])
+        answers: newlyCovered(others, req.user.id, before[req.user.id], after[req.user.id]),
+        ...(await answerNow(updated, meNow, after[req.user.id]))
     });
+});
+
+/*
+    Count me in or Not for me, the plan page's side of the buttons on the DM. Only while
+    the plan is still finding its day: once it has one, the question is I'm coming or
+    Can't make it. A reason only rides along with a no, and only whoever runs the plan
+    reads it. Answers with who the note about it reached.
+*/
+router.post('/:planId/join', async (req, res) => {
+    const { plan } = req;
+
+    const me = plan.participants.find((p) => p.userId === req.user.id);
+    if (!me) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    if (plan.chosenDate) return res.status(409).json({ error: `This plan is set for ${formatDate(plan.chosenDate)} now.` });
+
+    const { in: value, reason } = req.body || {};
+    if (typeof value !== 'boolean') return res.status(400).json({ error: 'Something was off with that answer.' });
+
+    //Each no, and each change of mind after one, DMs whoever runs the plan
+    const rl = await takeAction(req.user.id, plan.guildId, 'join', DAILY_LIMIT);
+    if (!rl.allowed) {
+        return res.status(429).json({ error: `You have answered ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    const was = inOf(me);
+    const why = value ? null : String(reason || '').trim().slice(0, 200) || null;
+    const updated = await setIn(plan.planId, req.user.id, value, why);
+    const meNow = updated.participants.find((p) => p.userId === req.user.id) || me;
+    const prefs = await getPlanningPrefs([req.user.id]);
+
+    const [heard, answer] = await Promise.all([
+        announceAfter(plan.planId, 'join', (current) => announceJoin(current, req.user.id, was, why)),
+        answerNow(updated, meNow, prefs[req.user.id])
+    ]);
+
+    res.json({ ok: true, ...answer, told: heard?.told ?? [], missed: heard?.missed ?? [] });
 });
 
 //Everything the compare page needs: who is in, and how many are free each day

@@ -674,6 +674,19 @@ a.primary {
     margin: 0;
 }
 
+/* Count me in and Not for me, and the buttons under the reason box */
+.answer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.answer .primary {
+    margin-top: 0;
+}
+
 /* The quiet switch, loud on screen so it cannot be left on without being noticed */
 .hush {
     margin: 14px 0;
@@ -806,7 +819,7 @@ a.primary {
     padding-top: 8px;
 }
 
-/* Days past the front edge of their timetable, the bit they have not looked at */
+/* Days past the front edge of their timetable, or a plan's days their calendar does not answer yet */
 .day.is-new {
     border-style: dashed;
     border-color: var(--accent);

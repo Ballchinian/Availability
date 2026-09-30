@@ -36,14 +36,15 @@ export function answeredOn(date, { coveredUntil = null, answered = [] } = {}) {
     their clock, so it answers a plan's day only once every day of theirs that the
     plan's day touches is on or before it. theirDays does that mapping (retimeDay's
     dates) and can be left out when both clocks agree.
-
-    lastCovered is the end of the answered run at the front, null when the first day
-    still to come is unanswered.
 */
-export function coverageOf({ window, coveredUntil = null, answered = [], today = '', sentBack = null, theirDays = (d) => [d] }) {
-    const days = askedDays(window).filter((d) => d >= today);
-    const done = (d) =>
-        !sentBack && (inWindows(d, answered) || Boolean(coveredUntil && theirDays(d).every((t) => t <= coveredUntil)));
+function answeredBy({ coveredUntil = null, answered = [], sentBack = null, theirDays = (d) => [d] }) {
+    return (d) => !sentBack && (inWindows(d, answered) || Boolean(coveredUntil && theirDays(d).every((t) => t <= coveredUntil)));
+}
+
+//lastCovered is the end of the answered run at the front, null when the first day still to come is unanswered
+export function coverageOf(answers) {
+    const days = askedDays(answers.window).filter((d) => d >= (answers.today || ''));
+    const done = answeredBy(answers);
 
     let daysLeft = 0;
     let lastCovered = null;
@@ -54,6 +55,12 @@ export function coverageOf({ window, coveredUntil = null, answered = [], today =
 
     const state = daysLeft === 0 ? 'covered' : daysLeft === days.length ? 'none' : 'partial';
     return { state, daysLeft, lastCovered, total: days.length };
+}
+
+//The days coverageOf counts as left, for a calendar to pick out
+export function daysToFill(answers) {
+    const done = answeredBy(answers);
+    return askedDays(answers.window).filter((d) => d >= (answers.today || '') && !done(d));
 }
 
 /*
@@ -86,10 +93,14 @@ export function owes(p, coverage) {
     The line under Count me in / Not for me. It stops where a link used to go: the
     DM's Add my dates button does that job, and on the plan page there is nowhere
     else to send them. Blank when every day it asked about has gone.
+
+    joined is for someone already in, who has nothing left to be told about a
+    calendar that answers everything.
 */
-export function askLine(coverage, { free = 0, updated = null } = {}) {
+export function askLine(coverage, { free = 0, updated = null, joined = false } = {}) {
     const { state, daysLeft, lastCovered, total } = coverage;
     if (!total) return '';
+    if (joined && state === 'covered') return "That's all I need.";
 
     if (state === 'covered') {
         const lead = updated
@@ -106,5 +117,5 @@ export function askLine(coverage, { free = 0, updated = null } = {}) {
         return `Your calendar answers ${total - daysLeft} of the ${total} days, so there ${are} left to fill in.`;
     }
 
-    return 'Then fill in your dates.';
+    return joined ? 'Now fill in your dates.' : 'Then fill in your dates.';
 }
