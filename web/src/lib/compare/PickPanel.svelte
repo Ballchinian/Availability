@@ -1,3 +1,10 @@
+<script module lang="ts">
+    //Who a narrowed list keeps, both what is sent and what the line above the button counts
+    export function invitees(canMake: string[], unanswered: string[], askThem: boolean): string[] {
+        return askThem ? [...canMake, ...unanswered] : canMake;
+    }
+</script>
+
 <script lang="ts">
     import { untrack } from 'svelte';
     import { api } from '../api.js';
@@ -49,6 +56,8 @@
     let time = $state(untrack(() => chosen?.time || ''));
     //Who stays invited once the date is set: just the people who fit, or everyone
     let inviteMode = $state('attending');
+    //Most of them just have not got round to it, and would say yes once there is a day
+    let askUnanswered = $state(true);
 
     const byId = $derived.by(() => {
         const m: Record<string, Participant> = {};
@@ -70,6 +79,8 @@
         const unsureIds = new Set(unsurePeople.map((p) => p.userId));
         //Confirmed, near enough to say, and did not mark the day: the half of "why is this dim" that has names
         const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId) && !unsureIds.has(p.userId));
+        //Not filled in, or filled in only up to a sure-up-to date before this day
+        const unanswered = participants.filter((p) => !p.confirmed || unsureIds.has(p.userId));
         /*
             Nobody is dropped on a day that failed. keptIds comes back empty there,
             which read as everyone having been left out and struck the whole list through.
@@ -80,8 +91,8 @@
             ev,
             droppedSet,
             counted: confirmedCount - unsure,
-            unsurePeople,
             missing,
+            unanswered,
             reason: ev.viable ? null : explainDay(free, confirmedCount, missAllowed, unsure)
         };
     });
@@ -103,6 +114,8 @@
     */
     const canNarrow = $derived(attendIds.length > 0);
 
+    const inviteIds = $derived(invitees(attendIds, sel ? sel.unanswered.map((p) => p.userId) : [], askUnanswered));
+
     //The day the plan is already on, so the button edits the time rather than moving anything
     const isUpdate = $derived(Boolean(chosen && selectedDate === chosen.date));
 
@@ -112,7 +125,7 @@
         narrowing there had the line naming fewer people than it goes on to DM.
     */
     const dropping = $derived(
-        !isUpdate && canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - attendIds.length) : 0
+        !isUpdate && canNarrow && inviteMode === 'attending' ? Math.max(0, totalParticipants - inviteIds.length) : 0
     );
 
     //Who an edit to a day that is staying put reaches: the list as it already stands, narrowed or not
@@ -167,7 +180,7 @@
                     date: selectedDate,
                     time: time || null,
                     inviteMode: canNarrow ? inviteMode : 'all',
-                    attendingIds: attendIds,
+                    attendingIds: inviteIds,
                     quiet
                 })
             });
@@ -224,11 +237,8 @@
             <p class="muted small">Not free on this day: {sel.missing.map((p) => p.displayName).join(', ')}.</p>
         {/if}
 
-        {#if sel.unsurePeople.length}
-            <p class="muted small">
-                Too far ahead to say for {sel.unsurePeople.map((p) => p.displayName).join(', ')}.
-                They are not counted either way, and once the date is set you can move them onto the board yourself.
-            </p>
+        {#if sel.unanswered.length && confirmedCount > 0}
+            <p class="muted small">Haven't answered this day: {sel.unanswered.map((p) => p.displayName).join(', ')}.</p>
         {/if}
 
         <label class="lbl" for="when">Time (optional)</label>
@@ -240,6 +250,9 @@
             <fieldset>
                 <legend class="lbl">Who is still invited?</legend>
                 <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+                {#if inviteMode === 'attending' && sel.unanswered.length}
+                    <label class="check sub"><input type="checkbox" bind:checked={askUnanswered} /> Ask the {sel.unanswered.length} who {sel.unanswered.length === 1 ? "hasn't" : "haven't"} answered this day too</label>
+                {/if}
                 <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
             </fieldset>
         {/if}

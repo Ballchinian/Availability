@@ -1628,3 +1628,8 @@ a.ghost:hover {
 .check input {
     margin-right: 6px;
 }
+
+/* Under the radio it belongs to */
+.check.sub {
+    margin-left: 22px;
+}

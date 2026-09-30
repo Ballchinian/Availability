@@ -390,8 +390,8 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
 
     /*
         Who is still invited once the date is set. "attending" narrows the plan to
-        the people the site worked out can make the day, so only they get pinged,
-        DMed and counted in the confirmation tally. Anything else keeps everyone on
+        the people the site worked out can make the day, plus by default anyone who
+        has not answered for it, so only they get pinged, DMed and counted in the tally. Anything else keeps everyone on
         the list, and moving the date invites everyone back too.
     */
     let invitedIds = null;

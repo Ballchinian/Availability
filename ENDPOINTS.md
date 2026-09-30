@@ -370,7 +370,7 @@ Planner role only.
 * Date (must sit inside the plan range)
 * Time (optional)
 * `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list.
-* `attendingIds`: who can make the day, worked out by the compare page
+* `attendingIds`: who stays invited, worked out by the compare page: the people who can make the day, plus anyone who hasn't answered for it unless the planner unticked that
 * `probe` (optional): whether to ask everyone to confirm they are coming with yes/no buttons
 * `quiet` (optional): only read on an edit, see below
 

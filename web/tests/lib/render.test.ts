@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'svelte/server';
 import ClockNote from '../../src/lib/ClockNote.svelte';
-import PickPanel from '../../src/lib/compare/PickPanel.svelte';
+import PickPanel, { invitees } from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import AboutPanel from '../../src/lib/compare/AboutPanel.svelte';
 import AddPeople from '../../src/lib/compare/AddPeople.svelte';
@@ -193,6 +193,74 @@ describe('what setting a day says it will do', () => {
 
     it('tells nobody about a quiet edit to a day that is staying put', () => {
         expect(draw({ quiet: true, chosen: { date: '2026-08-12', time: '', note: '' } })).toContain('tells nobody');
+    });
+});
+
+/*
+    Most people who have not answered just have not got round to it, and would say yes once
+    there is a day, so narrowing keeps them unless the planner says otherwise.
+*/
+describe('keeping the people who have not answered', () => {
+    const person = (userId: string, confirmed: boolean, sureUntil: string | null = null): Participant => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        sureUntil
+    });
+    //Ann is free, Bo and Cy are not, Di and Ed never filled in, Flo can only say up to the 1st
+    const crowd = [person('ann', true), person('bo', true), person('cy', true), person('di', false), person('ed', false), person('flo', true, '2026-08-01')];
+    const draw = (props: Record<string, unknown> = {}) =>
+        render(PickPanel, {
+            props: {
+                planId: 'ab12cd34ef',
+                selectedDate: '2026-08-12',
+                participants: crowd,
+                confirmedCount: 4,
+                totalParticipants: 6,
+                freeByDate: { '2026-08-12': [{ userId: 'ann', hours: [] }] },
+                unsureByDate: { '2026-08-12': 1 },
+                onsaved: async () => {},
+                ...props
+            }
+        }).body;
+
+    it('asks them too, ticked to start', () => {
+        expect(draw()).toMatch(/<label class="check sub"><input type="checkbox"[^>]* checked[^>]*\/?> Ask the 3 who haven't answered this day too<\/label>/);
+    });
+
+    it('counts them among the people pinged, and only the ones who cannot make it as coming off', () => {
+        const body = draw();
+        expect(body).toContain('pings 4 people');
+        expect(body).toContain('2 people come off the list');
+    });
+
+    it('names them', () => {
+        expect(draw()).toContain("Haven't answered this day: DI, ED, FLO.");
+    });
+
+    it('keeps them while ticked and lets them go when not', () => {
+        expect(invitees(['ann'], ['di', 'ed'], true)).toEqual(['ann', 'di', 'ed']);
+        expect(invitees(['ann'], ['di', 'ed'], false)).toEqual(['ann']);
+    });
+
+    it('is not there when everyone has answered', () => {
+        const body = draw({ participants: crowd.slice(0, 3), totalParticipants: 3, confirmedCount: 3, unsureByDate: {} });
+        expect(body).not.toContain('answered this day too');
+        expect(body).not.toContain("Haven't answered");
+    });
+
+    //Editing the day the plan is already on never touches the list
+    it('is not there on the day the plan is already on', () => {
+        expect(draw({ chosen: { date: '2026-08-12', time: '', note: '' } })).not.toContain('answered this day too');
+    });
+
+    it('says one person in the singular', () => {
+        expect(draw({ participants: crowd.slice(0, 4), totalParticipants: 4, unsureByDate: {} })).toContain("Ask the 1 who hasn't answered this day too");
     });
 });
 
