@@ -497,8 +497,9 @@ Planner role only.
 
 ### Effects
 
-* While the plan is still collecting, sends the people who have not filled their availability their card again, with the link and a line saying who is asking.
+* While the plan is still collecting, sends their card again to whoever it is waiting on: anyone who hasn't said if they're in, and anyone in whose calendar still leaves days to fill. The card says what each of them has left, and the line on top who is waiting. Nobody who is done, or who said Not for me, hears anything.
 * Once a date is locked in and a confirmation probe is running, sends the people who have not said whether they are coming their card again, yes/no buttons and all, so they can answer from the DM.
+* Someone a host moved back to waiting hears "Sam moved you back to waiting for "Bowling"." in place of who is waiting.
 
 ### Returns
 

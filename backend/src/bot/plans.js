@@ -10,7 +10,7 @@ import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
 import { formatDay, formatDate, formatTime, shiftDate } from '../lib/dates.js';
-import { answersOn, coverageOf, standing, askFor, inOf } from '../lib/coverage.js';
+import { answersOn, coverageOf, standing, owes, askFor, inOf } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 
 /*
@@ -57,11 +57,15 @@ async function sendCards(plan, ids, build, lead = {}) {
     return sent;
 }
 
-//Their card again with a line saying why it came, the lead they already had left as it is
+//Their card again with a line saying why it came, the lead they already had left as it is. opts can be a function of the id.
 async function resendCards(plan, ids, cfg, opts) {
     const asks = await askLines(plan, ids);
     return sendCards(plan, ids, (id) =>
-        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, { guildName: cfg?.guildName || '', ...opts, ask: asks[id] }), { keepLead: true });
+        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+            guildName: cfg?.guildName || '',
+            ...(typeof opts === 'function' ? opts(id) : opts),
+            ask: asks[id]
+        }), { keepLead: true });
 }
 
 /*
@@ -1503,21 +1507,31 @@ export async function handlePlanComponent(interaction) {
 }
 
 /*
-    Nudges the people who have not confirmed yet with a fresh card, no thread post. The
-    /remind route caps this to once a day. actorName is whoever asked for it.
+    Nudges everyone a plan still finding its day is waiting on with a fresh card, no thread
+    post: whoever has not said if they're in, and whoever is in with days still to fill. The
+    card says what is left, so the line on top only says who is waiting. The /remind route
+    caps this to once a day. actorName is whoever asked for it.
 */
 export async function remindStragglers(plan, actorName) {
-    const pending = plan.participants.filter((p) => !p.confirmed).map((p) => p.userId);
-    if (!pending.length) return 0;
+    const on = onIt(plan);
+    const prefs = await getPlanningPrefs(on.map((p) => p.userId));
+    const owing = new Map();
+    for (const p of on) {
+        const owed = owes(p, coverageOf(answersOn(plan, prefs[p.userId], p)));
+        if (owed) owing.set(p.userId, owed === 'answer' ? "is still waiting to hear if you're in." : 'is still waiting on your dates.');
+    }
+    if (!owing.size) return 0;
 
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    await resendCards(plan, pending, cfg, {
-        title: 'REMINDER',
-        //A calendar that already has the days does not answer for them yet, which nothing else on the card says
-        aside: `${actorName} is still waiting on your dates. If your calendar already has them, open Add my dates and save.`
-    });
+    await resendCards(plan, [...owing.keys()], cfg, (id) => ({ title: 'REMINDER', aside: nudgeLine(plan, id, `${actorName} ${owing.get(id)}`) }));
 
-    return pending.length;
+    return owing.size;
+}
+
+//Someone a host moved back hears that first, and nothing about who is waiting
+function nudgeLine(plan, userId, waiting) {
+    const back = plan.participants.find((p) => p.userId === userId)?.sentBack;
+    return back?.byName ? `${back.byName} moved you back to waiting for "${plan.name}".` : waiting;
 }
 
 /*
@@ -1534,7 +1548,10 @@ export async function remindVoters(plan, actorName) {
     if (!pending.length) return 0;
 
     const cfg = await getGuildConfig(plan.guildId).catch(() => null);
-    await resendCards(plan, pending, cfg, { title: 'REMINDER', aside: `${actorName} is still waiting to hear whether you can make it.` });
+    await resendCards(plan, pending, cfg, (id) => ({
+        title: 'REMINDER',
+        aside: nudgeLine(plan, id, `${actorName} is still waiting to hear whether you can make it.`)
+    }));
 
     return pending.length;
 }
