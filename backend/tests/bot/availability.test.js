@@ -93,7 +93,13 @@ describe('pickerComponents', () => {
         const rows = build(plan('2026-08-01', '2026-08-14'));
         expect(rows).toHaveLength(2);
         expect(rows[0].components[0].options).toHaveLength(14);
-        expect(rows[1].components).toHaveLength(2);
+        expect(rows[1].components).toHaveLength(3);
+    });
+
+    it('ends on a button to the page, where the hours and the rest of the days go', () => {
+        const link = build(plan('2026-08-01', '2026-08-14')).at(-1).components.at(-1);
+        expect(link.label).toBe('Add my dates');
+        expect(link.url).toMatch(/#\/plan\/ab12cd34ef$/);
     });
 
     //Five rows is the cap on a message, four of days and one of buttons
@@ -121,7 +127,7 @@ describe('pickerComponents', () => {
     });
 
     it('carries the whole span on the two buttons', () => {
-        const buttons = build(plan('2026-08-01', '2026-09-09')).at(-1).components;
+        const buttons = build(plan('2026-08-01', '2026-09-09')).at(-1).components.filter((b) => b.custom_id);
         expect(buttons.map((b) => b.custom_id)).toEqual([
             'free|all|ab12cd34ef|2026-08-01|2026-09-09',
             'free|none|ab12cd34ef|2026-08-01|2026-09-09'
@@ -130,7 +136,7 @@ describe('pickerComponents', () => {
 
     it('keeps every id inside the hundred characters an id gets', () => {
         for (const row of build(plan('2026-08-01', '2026-12-31'))) {
-            for (const component of row.components) expect(component.custom_id.length).toBeLessThanOrEqual(100);
+            for (const component of row.components) expect((component.custom_id || '').length).toBeLessThanOrEqual(100);
         }
     });
 });
@@ -144,14 +150,15 @@ describe('pickerText', () => {
         expect(pickerText(plan('2026-08-01', '2026-08-01'), 0, 1, 0)).toContain('of the 1 day this plan asks about');
     });
 
-    //The cut days are the one case where the link is not optional, so it leads with them
-    it('points at the page when there are days it could not show', () => {
-        const text = pickerText(plan('2026-08-01', '2026-12-31'), 3, 100, 53);
-        expect(text).toContain('53 more');
-        expect(text).toContain('ab12cd34ef');
+    //The cut days are the one case where the page is not optional, so it says so
+    it('says how many days are only on the page', () => {
+        expect(pickerText(plan('2026-08-01', '2026-12-31'), 3, 100, 53)).toContain('the other 53 are on the page');
     });
 
-    it('still offers the page when everything fitted', () => {
-        expect(pickerText(plan('2026-08-01', '2026-08-14'), 3, 14, 0)).toContain('ab12cd34ef');
+    //The button carries the link, so the text never does
+    it('says the page is for hours when everything fitted, with no link in the text', () => {
+        const text = pickerText(plan('2026-08-01', '2026-08-14'), 3, 14, 0);
+        expect(text).toContain('Hours go on the page.');
+        expect(text).not.toMatch(/https?:\/\//);
     });
 });

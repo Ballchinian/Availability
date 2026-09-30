@@ -29,30 +29,32 @@ const set = {
 };
 
 const nobody = {};
-const ids = (card) => card.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
+const ids = (card) => card.components.flatMap((row) => row.components.filter((b) => b.data.custom_id).map((b) => b.data.custom_id));
+const links = (card) => card.components.flatMap((row) => row.components.filter((b) => b.data.url).map((b) => [b.data.label, b.data.url]));
 
 describe('planCard while a plan is still collecting', () => {
-    it('reads as the invitation, with the actor, the link and the way to the thread', () => {
-        const { content, components } = planCard(collecting, nobody, { guildName: 'The server', actorName: 'Ali' });
-        expect(content).toContain('INVITED TO A PLAN');
-        expect(content).toContain('Ali added you to the plan "Camping" in The server');
-        expect(content).toContain('Sat 1 Aug 2026 to Sun 30 Aug 2026');
-        expect(content).toContain('a weekend away');
-        expect(content).toContain('Fill in your dates here: ');
-        expect(content).toContain('#/plan/ab12cd34ef');
-        expect(content).toContain('/channels/g1/t1');
-        expect(ids({ components })).toEqual(['drop|ab12cd34ef']);
+    it('reads as the invitation, with the actor, and buttons to the dates and the thread', () => {
+        const card = planCard(collecting, nobody, { guildName: 'The server', actorName: 'Ali' });
+        expect(card.content).toContain('INVITED TO A PLAN');
+        expect(card.content).toContain('Ali added you to the plan "Camping" in The server');
+        expect(card.content).toContain('Sat 1 Aug 2026 to Sun 30 Aug 2026');
+        expect(card.content).toContain('a weekend away');
+        expect(card.content).not.toMatch(/https?:\/\//);
+        expect(links(card)).toEqual([
+            ['Add my dates', expect.stringMatching(/#\/plan\/ab12cd34ef$/)],
+            ['Open the thread', 'https://discord.com/channels/g1/t1']
+        ]);
+        expect(ids(card)).toEqual(['drop|ab12cd34ef']);
     });
 
     /*
         The card is built before setPlanThread has been read back on the create path, and
-        a jump link to a thread that is not there yet would be a dead link on a message
-        meant to outlive the send.
+        a button to a thread that is not there yet would lead nowhere on a message meant to
+        outlive the send.
     */
-    it('drops the jump line rather than guessing when there is no thread yet', () => {
-        const { content } = planCard({ ...collecting, threadId: null }, nobody, { actorName: 'Ali' });
-        expect(content).not.toContain('Jump straight to the thread');
-        expect(content).toContain('#/plan/ab12cd34ef');
+    it('leaves the thread button off rather than guessing when there is no thread yet', () => {
+        const card = planCard({ ...collecting, threadId: null }, nobody, { actorName: 'Ali' });
+        expect(links(card).map(([label]) => label)).toEqual(['Add my dates']);
     });
 
     //Nobody did this, it came round on a timer, so the line cannot name anyone
@@ -151,9 +153,9 @@ describe('planCard asides', () => {
         expect(content).not.toContain('Worth a proper look.');
     });
 
-    it('puts it above the link on a card still collecting dates', () => {
+    it('puts it under the plan on a card still collecting dates', () => {
         const { content } = planCard(collecting, nobody, { actorName: 'Ali', aside: 'Ali has asked you to fill in your dates.' });
-        expect(content.indexOf('Ali has asked you')).toBeLessThan(content.indexOf('Fill in your dates here'));
+        expect(content.indexOf('a weekend away')).toBeLessThan(content.indexOf('Ali has asked you'));
     });
 
     it('swaps the banner for this send and no rebuild after it', () => {

@@ -61,14 +61,15 @@ describe('the command list', () => {
 });
 
 describe('running the renamed commands', () => {
-    it('answers /overview with the plan overview link', async () => {
+    it('answers /overview with a button to the plan overview', async () => {
         const { interactionCreate } = fakeClient();
         const interaction = slash('overview');
         await interactionCreate(interaction);
         expect(interaction.reply).toHaveBeenCalledTimes(1);
-        const { content } = interaction.reply.mock.calls[0][0];
-        expect(content).toContain('overview for **Board games**');
-        expect(content).toContain(compareUrl('ab12cd34ef'));
+        const { content, components } = interaction.reply.mock.calls[0][0];
+        expect(content).toBe('**Board games**');
+        const [button] = components[0].components;
+        expect(button.data).toMatchObject({ label: 'Open the overview', url: compareUrl('ab12cd34ef') });
     });
 
     it('answers /mycalendar with the calendar link', async () => {

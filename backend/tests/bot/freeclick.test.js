@@ -17,7 +17,8 @@ vi.mock('../../src/db/plans.js', () => ({
 const saved = vi.hoisted(() => ({ replaceAvailabilityInRange: vi.fn(async () => 0), getAvailabilityInRange: vi.fn(async () => []) }));
 vi.mock('../../src/db/availability.js', () => saved);
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn() }));
-vi.mock('../../src/bot/plans.js', () => ({ notifyCreatorIfAllIn: vi.fn(async () => {}) }));
+const order = vi.hoisted(() => []);
+vi.mock('../../src/bot/plans.js', () => ({ notifyCreatorIfAllIn: vi.fn(async () => order.push('planner told')) }));
 vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/plan' }));
 
 const { handleFreeComponent } = await import('../../src/bot/availability.js');
@@ -75,5 +76,16 @@ describe('a picker that still matches', () => {
 
         expect(saved.replaceAvailabilityInRange).toHaveBeenCalledWith('bo', day(10), day(20), [{ date: day(12), hours: [] }], expect.any(Array));
         expect(click.update.mock.calls[0][0].content).not.toMatch(/saved nothing/);
+    });
+
+    //A slow DM to the planner used to hold the answer up past Discord's three seconds
+    it('answers the click before telling the planner', async () => {
+        order.length = 0;
+        const click = pick(`free|all|ab12cd34ef|${day(10)}|${day(20)}`);
+        click.update = vi.fn(async () => order.push('answered'));
+
+        await handleFreeComponent(click);
+
+        expect(order).toEqual(['answered', 'planner told']);
     });
 });

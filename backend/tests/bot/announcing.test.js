@@ -313,10 +313,11 @@ describe('the pinned opener', () => {
         expect(pin.components).toEqual([]);
     });
 
-    //Sent back out for dates: the edit has to say no buttons, or the old ones stay on the pin
-    it('drops the buttons when a plan goes back to collecting', async () => {
+    //Sent back out for dates: the edit has to name its buttons, or the old yes/no stays on the pin
+    it('swaps the yes/no for Add my dates when a plan goes back to collecting', async () => {
         const { syncPlan } = await import('../../src/bot/plans.js');
         await syncPlan({ ...collecting(), threadId: 'thread1', openerMessageId: 'op1' });
-        expect(edited.find((e) => e.id === 'op1').components).toEqual([]);
+        const [row] = edited.find((e) => e.id === 'op1').components;
+        expect(row.components.map((b) => b.data)).toEqual([expect.objectContaining({ label: 'Add my dates', url: expect.stringMatching(/#\/plan\/p1$/) })]);
     });
 });

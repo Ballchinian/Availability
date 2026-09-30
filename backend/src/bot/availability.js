@@ -50,11 +50,7 @@ export function pickerText(plan, freeCount, shownCount, cut) {
         `Tick the days you are free. Each list saves as you close it, so there is nothing to submit.`,
         `You are down as free on **${freeCount}** of the ${shownCount} day${shownCount === 1 ? '' : 's'} this plan asks about.`
     ];
-    if (cut > 0) {
-        lines.push(`The first ${shownCount} days are here, ${cut} more are on the page: ${planUrl(plan.planId)}`);
-    } else {
-        lines.push(`Only free part of a day, or want to see how it lines up with everyone else? ${planUrl(plan.planId)}`);
-    }
+    lines.push(cut > 0 ? `The first ${shownCount} days are here, and the other ${cut} are on the page.` : 'These mark whole days. Hours go on the page.');
     return lines.join('\n');
 }
 
@@ -88,7 +84,8 @@ export function pickerComponents(plan, chunks, freeSet) {
 
     const buttons = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`free|all|${plan.planId}|${span}`).setLabel('Free every day').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`free|none|${plan.planId}|${span}`).setLabel('Free on none of them').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(`free|none|${plan.planId}|${span}`).setLabel('Free on none of them').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setLabel('Add my dates').setStyle(ButtonStyle.Link).setURL(planUrl(plan.planId))
     );
 
     return [...rows, buttons];
@@ -145,12 +142,7 @@ async function saveDays(userId, plan, dates, answering) {
         answering
     );
 
-    const updated = await confirmParticipant(plan.planId, userId);
-    try {
-        await notifyCreatorIfAllIn(updated);
-    } catch (err) {
-        console.error('[free] all-in notify failed:', err);
-    }
+    return confirmParticipant(plan.planId, userId);
 }
 
 //The /free command: the picker for the plan in this thread, or a way to say which plan
@@ -217,18 +209,20 @@ export async function handleFreeComponent(interaction) {
     if (error) return interaction.update({ content: error, components: [] });
 
     const { chunks } = dayChunks(plan);
+    let updated = null;
 
     if (step === 'day') {
         const [index, first, last] = rest;
         const chunk = chunks[Number(index)];
         if (!chunk || !sameDays(chunk, first, last)) return interaction.update(await pickerPayload(plan, interaction.user.id, MOVED));
-        await saveDays(interaction.user.id, plan, interaction.values, chunk);
+        updated = await saveDays(interaction.user.id, plan, interaction.values, chunk);
     } else if (step === 'all' || step === 'none') {
         const [first, last] = rest;
         const every = chunks.flat();
         if (!sameDays(every, first, last)) return interaction.update(await pickerPayload(plan, interaction.user.id, MOVED));
-        await saveDays(interaction.user.id, plan, step === 'all' ? every : [], every);
+        updated = await saveDays(interaction.user.id, plan, step === 'all' ? every : [], every);
     }
 
-    return interaction.update(await pickerPayload(plan, interaction.user.id));
+    await interaction.update(await pickerPayload(plan, interaction.user.id));
+    if (updated) await notifyCreatorIfAllIn(updated).catch((err) => console.error('[free] all-in notify failed:', err));
 }

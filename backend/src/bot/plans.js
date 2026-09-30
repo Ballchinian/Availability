@@ -138,6 +138,13 @@ function dropRow(planId) {
     );
 }
 
+function linkButton(label, url) {
+    return new ButtonBuilder().setLabel(label).setStyle(ButtonStyle.Link).setURL(url);
+}
+
+const datesButton = (plan) => linkButton('Add my dates', planUrl(plan.planId));
+const overviewRow = (plan) => new ActionRowBuilder().addComponents(linkButton('Open the overview', compareUrl(plan.planId)));
+
 //A bold banner topping a thread post or DM so you can tell at a glance what it is about
 function banner(title) {
     return `**${title}**\n\n`;
@@ -273,17 +280,16 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
             : who
                 ? `${who} added you to the plan "${plan.name}"${where} (${range}).`
                 : `You are on the plan "${plan.name}"${where} (${range}).`;
-        //Dropped rather than guessed at when there is no thread yet, since the card outlives the send
-        const jump = plan.threadId ? `Jump straight to the thread: ${threadUrl(plan.guildId, plan.threadId)}\n` : '';
+        const links = new ActionRowBuilder().addComponents(datesButton(plan));
+        //Left off rather than guessed at when there is no thread yet, since the card outlives the send
+        if (plan.threadId) links.addComponents(linkButton('Open the thread', threadUrl(plan.guildId, plan.threadId)));
         return {
             content: top(again ? 'ROUND AGAIN' : 'INVITED TO A PLAN') +
                 `${lead}\n` +
                 aboutLine(plan) +
                 (aside ? `${aside}\n` : '') +
-                `Fill in your dates here: ${planUrl(plan.planId)}\n` +
-                `${jump}\n` +
-                `Hit "Drop out" below to leave the plan`,
-            components: [dropRow(plan.planId)]
+                `\nHit "Drop out" below to leave the plan`,
+            components: [links, dropRow(plan.planId)]
         };
     }
 
@@ -427,11 +433,9 @@ function opener(plan) {
         content: banner(again ? 'ROUND AGAIN' : 'EVENT CREATED') +
             (again ? `**${plan.name}** is back round (${range}).\n` : `New plan: **${plan.name}** (${range}).\n`) +
             aboutLine(plan) +
-            `Fill in your dates here: ${planUrl(plan.planId)}\n` +
-            //The link is the fuller thing, so it stays first, but a lot of people will only ever use this
             `Or run \`/free\` in this thread and tick them off without going anywhere.\n` +
             `A planner can run \`/overview\` any time to see where things stand, even before everyone is in.`,
-        components: [],
+        components: [new ActionRowBuilder().addComponents(datesButton(plan))],
         ...quietly
     };
 }
@@ -454,11 +458,11 @@ export async function notifyCreatorIfAllIn(plan) {
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const count = ids.length === 1 ? '1 person has' : `all ${ids.length} people have`;
-    await deliver(plan, plan.createdBy,
-        banner('EVERYONE IS IN') +
-        `Everyone is in for "${plan.name}"${where}. ${count} filled in their dates, so you can pick a day now.\n` +
-        `Open the overview here: ${compareUrl(plan.planId)}\n` +
-        `Or run \`/overview\` in the plan's thread.`);
+    await deliver(plan, plan.createdBy, {
+        content: banner('EVERYONE IS IN') +
+            `Everyone is in for "${plan.name}"${where}. ${count} filled in their dates, so you can pick a day now.`,
+        components: [overviewRow(plan)]
+    });
 }
 
 /*
@@ -780,18 +784,16 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
 
     const isNew = new Set(added);
     const ids = plan.participants.map((p) => p.userId).filter((id) => !isNew.has(id));
-    const url = planUrl(plan.planId);
     const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
     const days = daysLabel ? `, ${daysLabel} only` : '';
-    //A round reopened means fill it in, anything narrower means nothing to do
-    const tail = reopened ? `Fill in your dates here: ${url}` : 'Nothing to do, your saved days still stand.';
+    //A round reopened means fill it in, which the button says, and anything narrower means nothing to do
+    const tail = reopened ? '' : ' Nothing to do, your saved days still stand.';
     const extra = note ? `\n${note}` : '';
 
-    //The card has the link already, so it only needs the half of tail that says there is nothing to do
     const sent = dm && ids.length
         ? await resendCards(plan, ids, cfg, {
             title: 'DATES CHANGED',
-            aside: `${actorName} is asking about different dates: ${range}${days}.${reopened ? '' : ` ${tail}`}${extra}`
+            aside: `${actorName} is asking about different dates: ${range}${days}.${tail}${extra}`
         })
         : [];
 
@@ -801,7 +803,8 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
                 content: banner('DATES CHANGED') +
-                    `${actorName} is asking about different dates for **${plan.name}**: ${range}${days}. ${tail}${extra}`
+                    `${actorName} is asking about different dates for **${plan.name}**: ${range}${days}.${tail}${extra}`,
+                components: reopened ? [new ActionRowBuilder().addComponents(datesButton(plan))] : []
             });
         }
     }
@@ -854,8 +857,16 @@ export async function announceCancel(plan, actorName, { post = true, dm = true }
     to the thread, a quiet exit, nobody needs telling who bowed out.
 */
 export async function leavePlan(plan, userId, actorName) {
+    await afterLeaving(await dropOut(plan, userId, actorName));
+}
+
+async function dropOut(plan, userId, actorName) {
     const updated = await removeParticipant(plan.planId, userId);
     await addPlanEvent(plan.planId, { type: 'left', by: userId, byName: actorName || '' }).catch(() => {});
+    return updated;
+}
+
+async function afterLeaving(updated) {
     //A set day's pin was counting them
     await updateOpener(updated).catch(() => {});
 
@@ -921,14 +932,15 @@ export async function handleDropModal(interaction) {
     const reason = (interaction.fields.getTextInputValue('reason') || '').trim().slice(0, 200) || null;
 
     //A drop out is a DM, so there is no member to read a nickname off, only the account name
-    await leavePlan(plan, interaction.user.id, interaction.member?.displayName || interaction.user.username);
-    await notifyCreatorDropped(plan, interaction.user.id, reason).catch(() => {});
+    const updated = await dropOut(plan, interaction.user.id, interaction.member?.displayName || interaction.user.username);
 
     const passed = reason ? ` I passed your reason on.` : '';
-    return interaction.update({
+    await interaction.update({
         content: banner('DROPPED OUT') + `Done, you have dropped out of "${plan.name}". I will not nudge you about it again.${passed}\n\nChanged your mind? Hit undo below.`,
         components: [undropRow(planId)]
     });
+    await afterLeaving(updated);
+    await notifyCreatorDropped(plan, interaction.user.id, reason).catch(() => {});
 }
 
 /*
@@ -962,13 +974,13 @@ export async function handleUndrop(interaction) {
         by: interaction.user.id,
         byName: interaction.member?.displayName || interaction.user.username
     }).catch(() => {});
-    await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
-    await updateOpener(updated).catch(() => {});
 
-    return interaction.update({
+    await interaction.update({
         content: banner('BACK IN') + `You are back on "${plan.name}". Hit "Drop out" below if that changes again.`,
         components: [dropRow(planId)]
     });
+    await notifyCreatorUndropped(updated, interaction.user.id).catch(() => {});
+    await updateOpener(updated).catch(() => {});
 }
 
 /*
@@ -1011,11 +1023,9 @@ export async function handleVote(interaction) {
     const wasYes = plan.participants.find((p) => p.userId === interaction.user.id)?.vote === 'yes';
 
     const updated = await recordVote(planId, interaction.user.id, 'yes');
-    await ackVote(interaction, updated, 'yes');
+    const offer = !interaction.inGuild() && !wasYes ? await blockOffer(updated, interaction.user.id).catch(() => null) : null;
+    await ackVote(interaction, updated, 'yes', offer);
     await notifyCreatorAllYes(updated).catch(() => {});
-
-    //A fresh yes from a DM: offer to clear that day out of their general availability
-    if (!interaction.inGuild() && !wasYes) await offerBlockDay(interaction, updated).catch(() => {});
 }
 
 /*
@@ -1097,25 +1107,28 @@ async function respondStale(interaction, message) {
 }
 
 /*
-    Tell the voter their answer landed, then refresh the shared tally. In a DM we lock the
-    buttons to their pick so it stays on screen. In a thread the buttons are shared, so we
-    answer them privately instead, no DM and no notification. We respond first so a slow
-    tally edit cannot hold the click up past Discord's window.
+    Tell the voter their answer landed, then refresh the shared tally. In a DM the card
+    itself becomes their answer, with the offer under it when there is one. In a thread the
+    buttons are shared, so we answer them privately instead, no DM and no notification. We
+    respond first so a slow tally edit cannot hold the click up past Discord's window.
 */
-async function ackVote(interaction, plan, vote) {
-    const line = vote === 'yes' ? "You're down as coming." : "You're down as not coming.";
-
+async function ackVote(interaction, plan, vote, offer = null) {
     if (interaction.inGuild()) {
+        const line = vote === 'yes' ? "You're down as coming." : "You're down as not coming.";
         await interaction.reply({ content: `${line} Tap the buttons again any time to change it.`, flags: MessageFlags.Ephemeral });
         //A tap in the thread leaves their own DM still asking the question, so it is brought into line
         await syncPlanCards(plan, null, { only: [interaction.user.id] }).catch(() => {});
     } else {
-        await interaction.update({
-            content: banner('CAN YOU MAKE IT?') + `**${plan.name}** is set for ${whenLine(plan)}.\n${line} Tap the other button if that changes.`,
-            components: [votedDmRow(plan, vote)]
-        });
+        const me = { ...plan.participants.find((p) => p.userId === interaction.user.id), vote };
+        await interaction.update(underCard(planCard(plan, me), offer));
     }
     await updateOpener(plan).catch(() => {});
+}
+
+//The card with a line and a row of buttons of the moment added below it
+function underCard(card, extra) {
+    if (!extra) return card;
+    return { content: `${card.content}\n\n${extra.line}`, components: [...card.components, extra.row] };
 }
 
 /*
@@ -1134,27 +1147,29 @@ function unpackHours(mask) {
     return hours;
 }
 
-//The offer buttons: clear the locked day out of their general availability, or leave it be
-function blockOfferRow(planId) {
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`block|yes|${planId}`).setLabel('Yes, keep it free').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`block|no|${planId}`).setLabel('No, leave it').setStyle(ButtonStyle.Secondary)
-    );
+//Dated, so a press lands on the day that was offered whatever the plan has done since
+function offerOn(planId, date) {
+    return {
+        line: `Your calendar has you free on ${formatDate(date)}.`,
+        row: new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`block|yes|${planId}|${date}`).setLabel('Mark me busy that day').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`block|no|${planId}|${date}`).setLabel('Leave my calendar').setStyle(ButtonStyle.Secondary)
+        )
+    };
 }
 
-//Swapped on once the day is blocked, undo restores the exact hours carried in the mask
-function blockedRow(planId, mask) {
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`unblock|${planId}|${mask}`).setLabel('Undo, put that day back as free').setStyle(ButtonStyle.Success)
-    );
+//The undo puts back the exact hours carried in the mask
+function blockedOn(planId, date, mask) {
+    return {
+        line: `Marked ${formatDate(date)} busy in your calendar.`,
+        row: new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`unblock|${planId}|${date}|${mask}`).setLabel('Undo').setStyle(ButtonStyle.Secondary)
+        )
+    };
 }
 
-//Swapped on after an undo, lets them block the day off again in one tap
-function reblockRow(planId) {
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`block|yes|${planId}`).setLabel('Block it off again').setStyle(ButtonStyle.Secondary)
-    );
-}
+//The offer buttons from before they carried a day read "Yes, keep it free" for marking it busy, so a press on one is not trusted
+const EXPIRED_OFFER = { content: 'That offer has expired, so I left your calendar as it is.', components: [] };
 
 /*
     Which of this person's own days a plan lands on. The plan's day is the server's, and a
@@ -1172,71 +1187,46 @@ async function theirDayFor(plan, userId) {
 }
 
 /*
-    Once someone confirms they are coming to a set date, follow up in the same DM with the
-    offer to clear that day out of their general availability, so other plans stop counting
-    them free then. We only ask when they are actually free that day, since a day already
-    off the timetable has nothing to block.
+    The offer that rides under someone's card once they say they are coming: mark that day
+    busy in their calendar, so other plans stop counting them free then. Only made when they
+    are free that day, since a day already off their calendar has nothing to mark.
 */
-async function offerBlockDay(interaction, plan) {
-    if (!plan.chosenDate) return;
-    const theirs = await theirDayFor(plan, interaction.user.id);
-    const free = await getAvailabilityInRange(interaction.user.id, theirs, theirs);
-    if (!free.length) return;
-    await interaction.followUp({
-        content: banner('KEEP THAT DAY CLEAR?') +
-            `Since you are coming to "${plan.name}" on ${whenLine(plan)}, I can mark that day unavailable in your calendar so other plans do not count you as free then.`,
-        components: [blockOfferRow(plan.planId)]
-    });
+async function blockOffer(plan, userId) {
+    const theirs = await theirDayFor(plan, userId);
+    const free = await getAvailabilityInRange(userId, theirs, theirs);
+    return free.length ? offerOn(plan.planId, theirs) : null;
 }
 
-/*
-    A tap on the day-block offer. Yes reads the day's current hours, packs them onto the undo
-    button, then clears the day. No just leaves the timetable alone. Both are DM only, so we
-    rewrite the message in place either way.
-*/
+//Their card as the plan stands now, for a press on the offer under it
+async function currentCard(planId, userId) {
+    const plan = await getPlan(planId);
+    const p = plan?.participants.find((q) => q.userId === userId);
+    if (!p) return { content: plan ? `You are not on "${plan.name}" anymore.` : 'That plan is no longer around.', components: [] };
+    const cfg = await getGuildConfig(plan.guildId).catch(() => null);
+    return planCard(plan, p, { guildName: cfg?.guildName || '' });
+}
+
+//Yes packs the day's hours onto the undo before clearing it, so a part day comes back as it was
 export async function handleBlockDay(interaction) {
-    const [, choice, planId] = interaction.customId.split('|');
-    const plan = await getPlan(planId);
-    if (!plan || !plan.chosenDate) {
-        return interaction.update({ content: 'That plan is no longer around.', components: [] });
+    const [, choice, planId, date] = interaction.customId.split('|');
+    if (!date) return interaction.update(EXPIRED_OFFER);
+
+    let blocked = null;
+    if (choice === 'yes') {
+        const [day] = await getAvailabilityInRange(interaction.user.id, date, date);
+        await blockDay(interaction.user.id, date);
+        blocked = blockedOn(planId, date, packHours(day?.hours || []));
     }
-
-    if (choice === 'no') {
-        return interaction.update({ content: 'No problem, I left your calendar as it is.', components: [] });
-    }
-
-    const theirs = await theirDayFor(plan, interaction.user.id);
-    const [day] = await getAvailabilityInRange(interaction.user.id, theirs, theirs);
-    const mask = packHours(day?.hours || []);
-    await blockDay(interaction.user.id, theirs);
-
-    return interaction.update({
-        content: banner('DAY BLOCKED OFF') +
-            `Done, I marked ${formatDate(theirs)} as unavailable in your calendar. Other plans will not see you free that day.\n\nChanged your mind? Hit undo below.`,
-        components: [blockedRow(planId, mask)]
-    });
+    return interaction.update(underCard(await currentCard(planId, interaction.user.id), blocked));
 }
 
-/*
-    The undo on a blocked day. The mask carried on the button says what hours the day had, so
-    we put it back exactly, then offer to block it off again in case they flip once more.
-*/
+//Back to how it was before they pressed, offer and all
 export async function handleUnblockDay(interaction) {
-    const [, planId, mask] = interaction.customId.split('|');
-    const plan = await getPlan(planId);
-    if (!plan || !plan.chosenDate) {
-        return interaction.update({ content: 'That plan is no longer around.', components: [] });
-    }
+    const [, planId, date, mask] = interaction.customId.split('|');
+    if (!mask) return interaction.update(EXPIRED_OFFER);
 
-    //Worked out the same way it was blocked, so the undo lands on the day that went missing
-    const theirs = await theirDayFor(plan, interaction.user.id);
-    await setDayFree(interaction.user.id, theirs, unpackHours(Number(mask)));
-
-    return interaction.update({
-        content: banner('BACK TO FREE') +
-            `Put ${formatDate(theirs)} back as free in your calendar.`,
-        components: [reblockRow(planId)]
-    });
+    await setDayFree(interaction.user.id, date, unpackHours(Number(mask)));
+    return interaction.update(underCard(await currentCard(planId, interaction.user.id), offerOn(planId, date)));
 }
 
 /*
@@ -1296,10 +1286,12 @@ async function notifyCreatorVoteNo(plan, userId, reason) {
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
     const name = await memberName(plan.guildId, userId);
     const why = reason ? `\nReason: ${reason}` : '\nThey did not give a reason.';
-    await deliver(plan, plan.createdBy,
-        banner('SOMEONE CANNOT MAKE IT') +
-        `${name} cannot make "${plan.name}"${where} on ${whenLine(plan)}.${why}\n` +
-        `The vote is still going. To move the date, run \`/overview\` in the thread or here: ${compareUrl(plan.planId)}`);
+    await deliver(plan, plan.createdBy, {
+        content: banner('SOMEONE CANNOT MAKE IT') +
+            `${name} cannot make "${plan.name}"${where} on ${whenLine(plan)}.${why}\n` +
+            `The vote is still going.`,
+        components: [overviewRow(plan)]
+    });
 }
 
 /*
@@ -1352,7 +1344,8 @@ export async function handleOverview(interaction) {
     }
 
     return interaction.reply({
-        content: `The overview for **${plan.name}**: ${compareUrl(plan.planId)}`,
+        content: `**${plan.name}**`,
+        components: [overviewRow(plan)],
         flags: MessageFlags.Ephemeral
     });
 }
@@ -1439,7 +1432,7 @@ export async function remindStragglers(plan, actorName) {
     await resendCards(plan, pending, cfg, {
         title: 'REMINDER',
         //The people this reaches are the ones who have not clicked the link, so the other way is worth saying
-        aside: `${actorName} has asked you to fill in your dates. If they are already on your calendar, open the link and confirm, or run \`/free\` in the plan's thread.`
+        aside: `${actorName} has asked you to fill in your dates. If they are already on your calendar, open Add my dates and save, or run \`/free\` in the plan's thread.`
     });
 
     return pending.length;
