@@ -132,15 +132,18 @@ export async function warmGuildMembers(guild) {
 
 /*
     Opens a thread off a channel. The longer auto archive windows (3 and 7 days)
-    are gated to boosted servers, so we ask for the preferred length and quietly
+    were gated to boosted servers, so we ask for the preferred length and quietly
     fall back to 24 hours when the server will not allow it.
+
+    A private thread is made uninvitable, so only the bot puts people on it.
 */
-export async function createThread(channel, name, type = ChannelType.PublicThread, preferredDuration = 1440) {
+export async function createThread(channel, name, type = ChannelType.PublicThread, preferredDuration = 10080) {
     const durations = [...new Set([preferredDuration, 1440])];
+    const invitable = type === ChannelType.PrivateThread ? { invitable: false } : {};
     let lastErr;
     for (const autoArchiveDuration of durations) {
         try {
-            return await channel.threads.create({ name, type, autoArchiveDuration });
+            return await channel.threads.create({ name, type, autoArchiveDuration, ...invitable });
         } catch (err) {
             lastErr = err;
         }

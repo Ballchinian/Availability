@@ -31,7 +31,7 @@ Endpoint docs live in [ENDPOINTS.md](./ENDPOINTS.md).
 
 Everything lives in one place per server. `/setup` makes a planner role (or adopts one you already have) and a read only `plan-bot-info` channel, with the link and a short intro pinned at the top. Every plan thread spawns off that channel, so it stays the one tidy home for planning.
 
-When a planner starts a plan, the bot spins up a private thread named after it, pulls in the invited people, and pings them there. Everyone also gets a DM with the link by default, though the planner can untick that to keep it to the thread. As people fill in their days the thread keeps a running count, and once everyone's in, the planner who made the plan gets a DM to go and compare.
+When a planner starts a plan, the bot spins up a private thread named after it, with the day on the end once there is one, so a plan that repeats doesn't leave a row of threads all called the same thing. It pins the plan at the top first and only then pulls in the invited people and whoever made it, so nobody lands in an empty thread. Everyone also gets a DM with buttons to fill in their dates and to jump to the thread. As people fill in their days the thread keeps a running count, and once everyone's in, the planner who made the plan gets a DM to go and compare.
 
 Anyone who would rather not click the link can run `/free` in the plan's thread instead and tick their days off a list right there. It writes exactly what the site writes, so the two can be used on the same plan interchangeably. The one thing it can't do is narrow a day to certain hours, since a Discord list has nowhere to put that: a day ticked there is a day free all through, and the reply says where to go if that isn't true.
 

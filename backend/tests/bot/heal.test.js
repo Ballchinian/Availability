@@ -24,7 +24,7 @@ const { syncPlan, updateOpener } = await import('../../src/bot/plans.js');
     held is which message ids the thread still has. Anything else fetches as gone, which
     is what a deleted message looks like from here.
 */
-function fakeThread(held = [], { undeletable = false } = {}) {
+function fakeThread(held = [], { undeletable = false, id = 't1', name = 'Camping', stuck = false } = {}) {
     const log = [];
     const messages = new Map(
         held.map((id) => [id, {
@@ -37,9 +37,12 @@ function fakeThread(held = [], { undeletable = false } = {}) {
         }])
     );
     return {
+        id,
+        name,
         log,
         archived: false,
-        setName: async (name) => log.push({ setName: name }),
+        //stuck is Discord's rename limit, which discord.js waits out for up to ten minutes
+        setName: (to) => (log.push({ setName: to }), stuck ? new Promise(() => {}) : Promise.resolve()),
         send: async (payload) => {
             const id = `new${log.length}`;
             log.push({ send: id, payload });
@@ -118,21 +121,45 @@ describe('the pinned opener', () => {
     });
 
     it('does nothing at all when the thread itself is gone', async () => {
-        await syncPlan(plan(), { rename: true });
+        await syncPlan(plan());
         expect(db.setPlanOpener).not.toHaveBeenCalled();
         expect(pins.pinMessage).not.toHaveBeenCalled();
     });
+});
 
-    //Discord caps thread renames, so the call is only worth making when the title moved
-    it('only renames the thread when the title actually changed', async () => {
+describe("the thread's name", () => {
+    //Discord caps thread renames, so the call is only worth making when the name moved
+    it('is only renamed when it is not what the plan says', async () => {
         const thread = fakeThread(['op1']);
         channels.set('t1', thread);
 
         await syncPlan(plan());
         expect(thread.log.some((e) => e.setName)).toBe(false);
 
-        await syncPlan(plan(), { rename: true });
-        expect(thread.log.some((e) => e.setName === 'Camping')).toBe(true);
+        await syncPlan(plan({ name: 'Camping trip' }));
+        expect(thread.log.filter((e) => e.setName)).toEqual([{ setName: 'Camping trip' }]);
+    });
+
+    //A repeating series would otherwise be a row of threads all called the same thing
+    it('carries the day once one is set, and loses it when the plan goes back to collecting', async () => {
+        const thread = fakeThread(['op1'], { id: 't2' });
+        channels.set('t1', thread);
+
+        await syncPlan(plan({ status: 'closed', chosenDate: '2026-08-12', timeZone: 'Europe/London' }));
+        thread.name = 'Camping · Wed 12 Aug';
+        await syncPlan(plan());
+
+        expect(thread.log.filter((e) => e.setName)).toEqual([{ setName: 'Camping · Wed 12 Aug' }, { setName: 'Camping' }]);
+    });
+
+    it('goes last, and nothing waits on it', async () => {
+        const thread = fakeThread(['op1'], { id: 't3', name: 'Old name', stuck: true });
+        channels.set('t1', thread);
+
+        await syncPlan(plan());
+        await syncPlan(plan());
+
+        expect(thread.log.map((e) => Object.keys(e)[0])).toEqual(['edit', 'setName', 'edit']);
     });
 });
 

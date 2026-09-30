@@ -766,14 +766,13 @@ router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res
         return res.status(400).json({ error: 'Nothing changed there. Edit the title or the description to update it.' });
     }
 
-    //Only the title drives a thread rename, which Discord rate limits, so track it separately
     const renamed = cleanName !== plan.name;
     await setPlanDetails(plan.planId, cleanName, cleanDescription);
 
     await addPlanEvent(plan.planId, { type: 'details', by: req.user.id, byName: ctx.member.displayName, renamed });
 
     announceAfter(plan.planId, 'details edit', (current) =>
-        announceDetailsEdit(current, ctx.cfg, { actorName: ctx.member.displayName, quiet, rename: renamed })
+        announceDetailsEdit(current, ctx.cfg, { actorName: ctx.member.displayName, quiet })
     );
 
     res.json({ ok: true, name: cleanName, description: cleanDescription, quiet });

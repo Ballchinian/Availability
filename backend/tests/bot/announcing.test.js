@@ -12,14 +12,17 @@ const edited = [];
 const dms = [];
 //Who has DMs from the server off, and whether the thread refuses every post
 const closed = new Set();
-const broken = { thread: false };
+const broken = { thread: false, week: false };
 let made = 0;
+//What each new thread was asked for, and posts and adds in the order they happened
+const created = [];
+const timeline = [];
 
 vi.mock('../../src/bot/client.js', () => {
     const thread = (id) => ({
         id,
         archived: false,
-        members: { add: async () => {} },
+        members: { add: async (userId) => timeline.push(`add ${userId}`) },
         messages: {
             fetch: async (messageId) => ({
                 id: messageId,
@@ -32,9 +35,15 @@ vi.mock('../../src/bot/client.js', () => {
         send: async (payload) => {
             if (broken.thread) throw new Error('service unavailable');
             posts.push({ threadId: id, ...payload });
+            timeline.push('post');
             return { id: `post${posts.length}` };
         }
     });
+    const create = async (options) => {
+        created.push(options);
+        if (broken.week && options.autoArchiveDuration === 10080) throw new Error('invalid auto archive duration');
+        return thread(`t${++made}`);
+    };
     return {
         client: {
             users: {
@@ -51,7 +60,7 @@ vi.mock('../../src/bot/client.js', () => {
                 fetch: async () => ({
                     name: 'The server',
                     channels: {
-                        fetch: async (channelId) => ({ id: channelId, threads: { create: async () => thread(`t${++made}`) } })
+                        fetch: async (channelId) => ({ id: channelId, threads: { create } })
                     }
                 })
             }
@@ -107,7 +116,10 @@ beforeEach(() => {
     dms.length = 0;
     closed.clear();
     broken.thread = false;
+    broken.week = false;
     made = 0;
+    created.length = 0;
+    timeline.length = 0;
 });
 
 describe('announcing a plan with its day already set', () => {
@@ -198,6 +210,48 @@ describe('opening a plan thread', () => {
         store.plan = setDay();
         await announceSetPlan(store.plan, cfg, 'Ali');
         expect(db.setPlanThread).toHaveBeenCalledWith('p1', 't1', 'c2');
+    });
+
+    //Adding someone to a thread pings them, and they used to land in an empty one
+    it('posts the opener before anyone is added', async () => {
+        store.plan = collecting();
+        await announcePlan(store.plan, cfg, 'Ali');
+        expect(timeline[0]).toBe('post');
+        expect(timeline.slice(1).sort()).toEqual(['add ali', 'add bo']);
+    });
+
+    //A private thread is invisible to anyone not on it, whoever made the plan included
+    it('adds whoever made the plan even when they are not a guest', async () => {
+        store.plan = { ...setDay(), createdBy: 'cy' };
+        await announceSetPlan(store.plan, cfg, 'Cy');
+        expect(timeline.filter((t) => t.startsWith('add')).sort()).toEqual(['add ali', 'add bo', 'add cy']);
+    });
+
+    it('asks for a week before archiving, and for nobody else to invite people in', async () => {
+        store.plan = collecting();
+        await announcePlan(store.plan, cfg, 'Ali');
+        expect(created).toEqual([expect.objectContaining({ name: 'Board games', autoArchiveDuration: 10080, invitable: false })]);
+    });
+
+    it('falls back to a day when the server will not take a week', async () => {
+        store.plan = collecting();
+        broken.week = true;
+        await announcePlan(store.plan, cfg, 'Ali');
+        expect(created.map((c) => c.autoArchiveDuration)).toEqual([10080, 1440]);
+    });
+
+    //A repeating series would otherwise be a row of threads all called the same thing
+    it('names a set plan thread with its day', async () => {
+        store.plan = setDay();
+        await announceSetPlan(store.plan, cfg, 'Ali');
+        expect(created[0].name).toBe('Board games · Sat 8 Aug');
+    });
+
+    it('keeps a long name inside the hundred characters a thread name gets, day and all', async () => {
+        store.plan = setDay({ name: 'x'.repeat(120) });
+        await announceSetPlan(store.plan, cfg, 'Ali');
+        expect(created[0].name).toHaveLength(100);
+        expect(created[0].name.endsWith(' · Sat 8 Aug')).toBe(true);
     });
 });
 

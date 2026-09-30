@@ -9,7 +9,7 @@ import { refundAction } from '../db/ratelimits.js';
 import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
-import { formatDate, formatTime } from '../lib/dates.js';
+import { formatDay, formatDate, formatTime } from '../lib/dates.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 
 /*
@@ -129,6 +129,31 @@ async function postMentioning(thread, ids, payload) {
 //just does not arrive, and the rest of the list still gets in
 async function addToThread(thread, ids) {
     await fanOut(ids, (id) => thread.members.add(id).catch(() => {}));
+}
+
+//Whoever should be on the thread from the start: the guests, and whoever made the plan even when not one of them
+function threadPeople(plan) {
+    return [...new Set([...plan.participants.map((p) => p.userId), plan.createdBy].filter(Boolean))];
+}
+
+//Thread names cap at 100 characters. The day is on a set plan's, so a repeating series is not a row of the same name.
+export function threadName(plan) {
+    const day = plan.chosenDate ? ` · ${formatDay(plan.chosenDate)}` : '';
+    return `${plan.name.slice(0, 100 - day.length)}${day}`;
+}
+
+/*
+    Never awaited. Discord allows two renames a thread per ten minutes and discord.js waits
+    out the rest, which would hold up whatever was waiting on it. One already waiting for
+    the same name is not asked for again.
+*/
+const renaming = new Map();
+function renameThread(thread, name) {
+    if (thread.name === name || renaming.get(thread.id) === name) return;
+    renaming.set(thread.id, name);
+    Promise.resolve().then(() => thread.setName(name)).catch(() => {}).finally(() => {
+        if (renaming.get(thread.id) === name) renaming.delete(thread.id);
+    });
 }
 
 //The drop out button that rides along on the DMs for a plan that is still collecting
@@ -490,31 +515,36 @@ export async function autoConfirmCoveredPlans(userId, start, end) {
 }
 
 /*
-    When a plan is created on the site this is the Discord side of it: open a
-    private thread named after the plan, pull the invited people in, and ping them
-    in the thread. Everyone also gets a DM with the range, what the plan is about, a
-    jump to the thread and a drop out button. actorName is whoever started it.
+    A new plan's private thread, with the opener posted and pinned before anybody is
+    added, so everyone arrives to it rather than to an empty thread.
 */
-export async function announcePlan(plan, cfg, actorName) {
+async function openThread(plan, cfg) {
     const guild = await client.guilds.fetch(plan.guildId);
     const channel = await guild.channels.fetch(cfg.plansChannelId);
-
-    //Thread names cap at 100 characters
-    const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
+    const thread = await createThread(channel, threadName(plan), ChannelType.PrivateThread);
     await setPlanThread(plan.planId, thread.id, channel.id);
-
-    const ids = plan.participants.map((p) => p.userId);
-    await addToThread(thread, ids);
 
     //No @ here, adding people to the thread already pings them
     const pinned = await thread.send(opener(plan));
-    //Pin the opener so the link and the details stay at the top of the thread, best effort:
-    //a server that has not given the bot Manage Messages still gets its thread
+    //Best effort: a server that has not given the bot Pin Messages still gets its thread
     await pinMessage(pinned).catch(() => {});
     //Remember it so editing the title or description later can rewrite this same post
     await setPlanOpener(plan.planId, pinned.id);
 
-    //The thread id is only in the database yet, so it is patched on or the card has no jump link
+    await addToThread(thread, threadPeople(plan));
+    return { guild, thread };
+}
+
+/*
+    When a plan is created on the site this is the Discord side of it: its thread, and a
+    DM to everyone with the range, what the plan is about, buttons to their dates and the
+    thread, and a drop out button. actorName is whoever started it.
+*/
+export async function announcePlan(plan, cfg, actorName) {
+    const { guild, thread } = await openThread(plan, cfg);
+    const ids = plan.participants.map((p) => p.userId);
+
+    //The thread id is only in the database yet, so it is patched on or the card has no thread button
     const withThread = { ...plan, threadId: thread.id };
     //A repeat has no actor: nobody did this, it just came round, so the card says that instead
     await sendCards(plan, ids, (id) =>
@@ -529,23 +559,12 @@ export async function announcePlan(plan, cfg, actorName) {
 /*
     The announce-a-set-plan path: the planner already knows the date, so there is
     nothing to collect. The thread is always opened, same as a normal plan, so /overview
-    keeps working and the plan can be reached and managed later. Adding people to a
-    private thread already pings them, so the opener goes up quietly. Everyone is asked
+    keeps working and the plan can be reached and managed later. Everyone is asked
     whether they can make it, on the pinned opener and by DM. actorName is whoever set it up.
 */
 export async function announceSetPlan(plan, cfg, actorName) {
     const ids = plan.participants.map((p) => p.userId);
-
-    const guild = await client.guilds.fetch(plan.guildId);
-    const channel = await guild.channels.fetch(cfg.plansChannelId);
-    const thread = await createThread(channel, plan.name.slice(0, 100), ChannelType.PrivateThread);
-    await setPlanThread(plan.planId, thread.id, channel.id);
-    await addToThread(thread, ids);
-
-    //No @ here, adding people to the thread already pings them
-    const pinned = await thread.send(opener(plan));
-    await pinMessage(pinned).catch(() => {});
-    await setPlanOpener(plan.planId, pinned.id);
+    await openThread(plan, cfg);
 
     const who = plan.repeatedFrom ? '' : actorName;
     await sendCards(plan, ids, (id) =>
@@ -623,22 +642,19 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
 
 /*
     Everything Discord holds about a plan, brought back in line with it: the pinned opener,
-    which is the yes/no on a set day, and every card. All edits, so this pings nobody.
-
-    rename is asked for rather than done every pass, Discord capping thread renames at twice
-    per ten minutes. cards: false is for an announcement about to send everyone a fresh one.
+    which is the yes/no on a set day, every card, and the thread's name. All edits, so this
+    pings nobody. cards: false is for an announcement about to send everyone a fresh one.
 */
-export async function syncPlan(plan, { cfg = null, rename = false, cards = true } = {}) {
-    if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            if (rename) await thread.setName(plan.name.slice(0, 100)).catch(() => {});
-            await updateOpener(plan, thread);
-        }
+export async function syncPlan(plan, { cfg = null, cards = true } = {}) {
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    if (thread) {
+        await reviveThread(thread);
+        await updateOpener(plan, thread);
     }
 
-    return cards ? syncPlanCards(plan, cfg) : 0;
+    const done = cards ? await syncPlanCards(plan, cfg) : 0;
+    if (thread) renameThread(thread, threadName(plan));
+    return done;
 }
 
 /*
@@ -755,8 +771,8 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
     Nothing goes in the thread. A plan still out looking for a day says nothing at all:
     there is no arrangement yet for a correction to be about.
 */
-export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false, rename = false }) {
-    await syncPlan(plan, { cfg, rename }).catch((err) => console.error('[plans] details sync failed:', err));
+export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false }) {
+    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] details sync failed:', err));
     if (quiet || !plan.chosenDate) return;
 
     const ids = invitedOnly(plan).map((p) => p.userId);

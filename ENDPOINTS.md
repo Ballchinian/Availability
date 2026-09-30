@@ -396,6 +396,7 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 * Always DMs the people still invited, then posts the outcome in the thread, pinging only the ones the DM could not reach. Setting a different date counts as a reorganise.
 * The pinned opener becomes the yes/no before anything is sent, and its tally keeps itself current as votes land. The thread post carries the buttons too, for the people it pings. Anyone whose sure-up-to date sits before the chosen day gets an extra line in their DM saying this landed past what they could plan for.
 * `quiet` on a move posts nothing: the pin and everyone's card are rewritten where they sit.
+* The thread is renamed to carry the new day, last and best effort, quiet or not.
 
 ### Notes
 
@@ -415,6 +416,7 @@ Planner role only.
 ### Effects
 
 * Rewrites the pinned opener, tally and all, and every DM card, from the plan as it currently stands. Anything deleted since is posted again, except a card, since sending one would ping them.
+* Puts the thread's name back to the plan's, day and all, if it has drifted.
 * Sends nothing and pings nobody, so it is safe to press whenever something looks out of step.
 
 ### Notes
@@ -534,7 +536,7 @@ Asking about a window:
 
 ### Effects
 
-Both modes set the window, the weekdays and the repeat in a single write, then add anyone new to the guest list, and send one thread post and one round of DMs for the whole change. Anyone added gets the ordinary invitation instead, since it already carries the day or the new window.
+Both modes set the window, the weekdays and the repeat in a single write, then add anyone new to the guest list, and send one thread post and one round of DMs for the whole change. Anyone added gets the ordinary invitation instead, since it already carries the day or the new window. The thread's name follows along: the day goes on the end when one is named and comes off when the plan goes back to asking.
 
 Naming a day:
 
@@ -580,7 +582,7 @@ Planner role only.
 ### Effects
 
 * Updates the stored title and description, and clears any `chosenNote` the plan still carries.
-* Renames the thread to the new title.
+* Renames the thread to the new title, with the day still on the end if the plan has one.
 * Rewrites the pinned opening message and every DM card so they show the new title and description.
 * On a plan whose day is already set, sends everyone still invited a fresh card saying what it is about has changed, unless `quiet`.
 
@@ -592,7 +594,7 @@ Planner role only.
 * Same rules as creating a plan: the name is required and caps at 90 characters, the description at 280.
 * `409` if the plan was cancelled.
 * A no-op edit, where nothing changed and there is no note to fold in, is rejected.
-* The thread rename is best effort, since Discord rate limits renames hard.
+* The thread rename is best effort and goes last, with nothing waiting on it, since Discord allows two renames a thread every ten minutes.
 
 ---
 
