@@ -3,9 +3,10 @@ import { getPlan, getPlanByThread, getOpenPlansForUser, confirmParticipant } fro
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange } from '../db/availability.js';
 import { addAnswered } from '../db/users.js';
-import { notifyCreatorIfAllIn } from './plans.js';
+import { notifyCreatorIfAllIn, setDayReply } from './plans.js';
 import { planUrl } from './util.js';
-import { allowedDaysInRange, formatDay } from '../lib/dates.js';
+import { allowedDaysInRange, formatDay, formatDate } from '../lib/dates.js';
+import { todayIn } from '../lib/zones.js';
 
 /*
     Filling in your dates without leaving Discord, for the people who never click the
@@ -29,15 +30,17 @@ const MAX_SELECTS = 4;
 const MAX_DAYS = PER_SELECT * MAX_SELECTS;
 
 /*
-    The days this plan asks about, split into the runs one select can hold. Chunks are
-    fixed by position rather than by week, so the same day is always in the same select.
+    The days this plan asks about from today on, split into the runs one select can hold.
+    Chunks are fixed by position rather than by week, so the same day is always in the
+    same select, until midnight moves them all along one and an open picker redraws.
 
     A plan longer than four selects is cut off rather than paginated. The link does the
     whole range and is right there in the message, and a plan asking about more than a
     hundred days is not one anybody is filling in from a dropdown.
 */
-export function dayChunks(plan) {
-    const days = allowedDaysInRange(plan.dateRange.start, plan.dateRange.end, plan.allowedWeekdays || null);
+export function dayChunks(plan, today = todayIn(plan.timeZone)) {
+    const from = plan.dateRange.start > today ? plan.dateRange.start : today;
+    const days = allowedDaysInRange(from, plan.dateRange.end, plan.allowedWeekdays || null);
     const shown = days.slice(0, MAX_DAYS);
     const chunks = [];
     for (let at = 0; at < shown.length; at += PER_SELECT) chunks.push(shown.slice(at, at + PER_SELECT));
@@ -124,6 +127,7 @@ async function usablePlan(interaction, planId) {
     if (!plan.participants.some((p) => p.userId === interaction.user.id)) {
         return { error: 'You are not on the guest list for that plan.' };
     }
+    if (plan.chosenDate) return { error: `"${plan.name}" is set for ${formatDate(plan.chosenDate)} now, so there are no dates to fill in.` };
     if (!dayChunks(plan).chunks.length) return { error: 'That plan has no days left to ask about.' };
     return { plan };
 }
@@ -157,6 +161,7 @@ export async function handleFree(interaction) {
 
     //Run in a plan's own thread it needs no asking, which is where most people will be
     const here = await getPlanByThread(interaction.channelId);
+    if (here?.chosenDate) return interaction.reply({ ...setDayReply(here, interaction.user.id), flags: MessageFlags.Ephemeral });
     if (here) {
         const { plan, error } = await usablePlan(interaction, here.planId);
         if (error) return interaction.reply({ content: error, flags: MessageFlags.Ephemeral });

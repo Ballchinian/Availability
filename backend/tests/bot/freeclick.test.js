@@ -20,10 +20,15 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn() }));
 const users = vi.hoisted(() => ({ addAnswered: vi.fn(async () => []) }));
 vi.mock('../../src/db/users.js', () => users);
 const order = vi.hoisted(() => []);
-vi.mock('../../src/bot/plans.js', () => ({ notifyCreatorIfAllIn: vi.fn(async () => order.push('planner told')) }));
+vi.mock('../../src/bot/plans.js', () => ({
+    notifyCreatorIfAllIn: vi.fn(async () => order.push('planner told')),
+    setDayReply: vi.fn(() => ({ content: 'The day and the yes/no', components: [] }))
+}));
 vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/plan' }));
 
-const { handleFreeComponent } = await import('../../src/bot/availability.js');
+const { handleFree, handleFreeComponent } = await import('../../src/bot/availability.js');
+const { getPlanByThread } = await import('../../src/db/plans.js');
+const { getGuildConfig } = await import('../../src/db/guilds.js');
 
 const day = (n) => shiftDate(today(), n);
 const window = (start, end) => ({
@@ -68,6 +73,31 @@ describe('a picker drawn before the dates moved', () => {
     it('redraws an id from before the days were carried', async () => {
         await handleFreeComponent(pick('free|day|ab12cd34ef|0', [day(12)]));
         expect(saved.replaceAvailabilityInRange).not.toHaveBeenCalled();
+    });
+});
+
+describe('a plan that has its day', () => {
+    beforeEach(() => {
+        store.plan = { ...window(10, 20), status: 'closed', chosenDate: day(12) };
+    });
+
+    it('answers /free in its thread with the yes/no and no day picker', async () => {
+        getGuildConfig.mockResolvedValueOnce({ setupComplete: true });
+        getPlanByThread.mockResolvedValueOnce(store.plan);
+        const run = { inGuild: () => true, guildId: 'g1', channelId: 't1', user: { id: 'bo' }, reply: vi.fn(async () => {}) };
+
+        await handleFree(run);
+
+        expect(run.reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'The day and the yes/no', flags: expect.any(Number) }));
+    });
+
+    it('saves nothing from a picker opened before the day was set', async () => {
+        const click = pick(`free|day|ab12cd34ef|0|${day(10)}|${day(20)}`, [day(12)]);
+
+        await handleFreeComponent(click);
+
+        expect(saved.replaceAvailabilityInRange).not.toHaveBeenCalled();
+        expect(click.update.mock.calls[0][0]).toEqual({ content: expect.stringMatching(/is set for .* now, so there are no dates to fill in/), components: [] });
     });
 });
 

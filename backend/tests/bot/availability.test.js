@@ -1,11 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { dayChunks, pickerComponents, pickerText } from '../../src/bot/availability.js';
 import { weekdayOf } from '../../src/lib/dates.js';
 
 /*
     Mostly the parts that decide what goes on screen, which is where this can go wrong
     quietly, then a click on a picker drawn before the plan's dates moved.
+
+    The picker starts at today, so the clock is held before every date written here.
 */
+
+beforeAll(() => vi.setSystemTime(new Date('2026-07-01T12:00:00Z')));
+afterAll(() => vi.useRealTimers());
 
 const plan = (start, end, allowedWeekdays = null) => ({
     planId: 'ab12cd34ef',
@@ -78,6 +83,24 @@ describe('dayChunks', () => {
         const { chunks, total } = dayChunks(plan('2026-08-03', '2026-08-07', [0, 6]));
         expect(chunks).toEqual([]);
         expect(total).toBe(0);
+    });
+
+    it('never offers a day that has gone', () => {
+        const { chunks, total } = dayChunks(plan('2026-08-01', '2026-08-14'), '2026-08-10');
+        expect(chunks.flat()).toEqual(['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14']);
+        expect(total).toBe(5);
+    });
+
+    it('has nothing left once the last day has gone', () => {
+        expect(dayChunks(plan('2026-08-01', '2026-08-14'), '2026-08-15').chunks).toEqual([]);
+    });
+
+    //Today on the plan's clock, not the machine's
+    it('reads today where the plan is', () => {
+        vi.setSystemTime(new Date('2026-08-09T20:00:00Z'));
+        const auckland = { ...plan('2026-08-01', '2026-08-14'), timeZone: 'Pacific/Auckland' };
+        expect(dayChunks(auckland).chunks.flat()[0]).toBe('2026-08-10');
+        vi.setSystemTime(new Date('2026-07-01T12:00:00Z'));
     });
 });
 

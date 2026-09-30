@@ -1062,6 +1062,15 @@ function voteStale(plan, userId) {
     return null;
 }
 
+//What /free answers in a set plan's thread: the day and the yes/no, with no day picker
+export function setDayReply(plan, userId) {
+    const stale = voteStale(plan, userId);
+    if (stale) return { content: stale, components: [] };
+    const vote = effectiveVote(plan.participants.find((p) => p.userId === userId));
+    const line = vote === 'yes' ? "You're down as coming." : vote === 'no' ? "You're down as not coming." : 'Can you make it?';
+    return { content: `**${plan.name}** is set for ${whenLine(plan)}.\n${line}`, components: [probeRow(plan)] };
+}
+
 //The line for a press from a round the plan has moved on from, or null when it is this one
 function roundMoved(plan, round) {
     if (round === (plan.round || 0)) return null;

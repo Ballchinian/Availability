@@ -56,7 +56,7 @@ const cal = vi.hoisted(() => ({
 }));
 vi.mock('../../src/db/availability.js', () => cal);
 
-const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleDropModal, handleUndrop } = await import('../../src/bot/plans.js');
+const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleDropModal, handleUndrop, setDayReply } = await import('../../src/bot/plans.js');
 
 const day = shiftDate(today(), 3);
 const ids = (payload) => payload.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
@@ -92,6 +92,25 @@ beforeEach(() => {
     order.length = 0;
     dms.length = 0;
     cal.getAvailabilityInRange.mockImplementation(async () => []);
+});
+
+describe("/free in a set plan's thread", () => {
+    it('answers with the day and the yes/no', () => {
+        const reply = setDayReply(setPlan(), 'bo');
+        expect(reply.content).toBe(`**Board games** is set for ${formatDate(day)}.\nCan you make it?`);
+        expect(ids(reply)).toEqual(['vote|yes|ab12cd34ef|r0', 'vote|no|ab12cd34ef|r0']);
+    });
+
+    it('says where they stand once they have answered', () => {
+        expect(setDayReply(setPlan({ vote: 'yes' }), 'bo').content).toContain("You're down as coming.");
+        expect(setDayReply(setPlan({ override: 'no' }), 'bo').content).toContain("You're down as not coming.");
+    });
+
+    it('gives no buttons to someone off the list for this date', () => {
+        const reply = setDayReply(setPlan({ invited: false }), 'bo');
+        expect(reply.content).toMatch(/not on the invite list/);
+        expect(reply.components).toEqual([]);
+    });
 });
 
 describe("saying I'm coming from a DM", () => {
