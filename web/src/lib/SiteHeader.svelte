@@ -28,7 +28,8 @@
 
 <header class="site-head">
     <a class="skip" href="#content" onclick={skip}>Skip to content</a>
-    <a class="brand" href="#/">Availability</a>
+    <!--Not a link: My plans already goes home-->
+    <span class="brand">Availability</span>
     <nav class="tabs">
         {#each tabs as tab (tab.path)}
             <a href="#{tab.path}" aria-current={router.location === tab.path ? 'page' : undefined}>{tab.label}</a>

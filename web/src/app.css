@@ -179,7 +179,6 @@ legend {
 .site-head .brand {
     color: var(--heading);
     font-weight: 600;
-    text-decoration: none;
 }
 
 /* The first thing a keyboard reaches, and out of sight until then */

@@ -33,6 +33,13 @@ describe('the page frame', () => {
         expect(footer).toBeGreaterThan(mainEnd);
     });
 
+    //My plans goes home already, so the name is only a name
+    it('names the site without linking it', () => {
+        const head = page().match(/<header[\s\S]*?<\/header>/)?.[0] || '';
+        expect(head).toContain('<span class="brand">Availability</span>');
+        expect(head.match(/href="#\/"/g)).toHaveLength(1);
+    });
+
     it('starts with a link that skips to the content', () => {
         const first = page().match(/<a [^>]*>[^<]*<\/a>/)?.[0];
         expect(first).toContain('href="#content"');
