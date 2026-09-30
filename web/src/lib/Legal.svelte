@@ -11,7 +11,7 @@
     let { title, children }: { title: string; children: Snippet } = $props();
 
     const CONTACT_EMAIL = 'ethantnewiss@gmail.com';
-    const LAST_UPDATED = '1 July 2026';
+    const LAST_UPDATED = '30 September 2026';
 </script>
 
 <svelte:head><title>{title}</title></svelte:head>

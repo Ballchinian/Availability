@@ -24,6 +24,7 @@ import WeekdayPicker from '../../src/lib/WeekdayPicker.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import Home from '../../src/routes/Home.svelte';
+import Terms from '../../src/routes/Terms.svelte';
 import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong } from '../../src/lib/format.js';
@@ -770,5 +771,27 @@ describe('the front door', () => {
             auth.loaded = false;
             auth.user = null;
         }
+    });
+});
+
+//What the legal pages promise has to be what the site does
+describe('the terms', () => {
+    const body = render(Terms).body;
+
+    it('never says a planner can take someone off a plan', () => {
+        expect(body).not.toMatch(/remove you/i);
+    });
+
+    it("says being left off a day's list keeps you on the plan", () => {
+        expect(body).toMatch(/leave you off that day's list/);
+        expect(body).toMatch(/you stay on the plan/);
+    });
+
+    it('says dropping out tells whoever set the plan up', () => {
+        expect(body).toMatch(/Whoever set the plan up gets a DM saying you did/);
+    });
+
+    it('speaks as we rather than as the Service', () => {
+        expect(body).not.toContain('the Service');
     });
 });
