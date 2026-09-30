@@ -25,13 +25,13 @@
         stretch from the last day pressed, which is all a keyboard gets. Escape
         before letting go puts the days back.
     */
-    let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, sureUntil = null }: {
+    let { start, end, selection = $bindable({}), highlightFrom = null, allowedWeekdays = null, coveredUntil = null }: {
         start: string;
         end: string;
         selection?: Record<string, number[]>;
         highlightFrom?: string | null;
         allowedWeekdays?: number[] | null;
-        sureUntil?: string | null;
+        coveredUntil?: string | null;
     } = $props();
 
     let editingDate = $state('');
@@ -137,14 +137,14 @@
         return badge ? `${badge}, set ${rest}` : `Set ${rest}`;
     }
 
-    //Whether this day is past the point they said they can honestly plan to
-    function beyondHorizon(date: string) {
-        return Boolean(sureUntil && date > sureUntil && !isFree(date));
+    //Marked free or not, a day past it is not taken as their answer
+    function pastCovered(date: string) {
+        return Boolean(coveredUntil && date > coveredUntil);
     }
 
     //The whole date, since the button itself only says the day number
     function dayLabel(date: string) {
-        return beyondHorizon(date) ? `${names[date]}, past your sure-up-to date` : names[date];
+        return pastCovered(date) ? `${names[date]}, not counted as your answer` : names[date];
     }
 
     /*
@@ -169,7 +169,7 @@
                 days[cell.date] = {
                     selectable: can,
                     free,
-                    far: beyondHorizon(cell.date),
+                    far: pastCovered(cell.date),
                     style: free ? dayStyle(cell.date) : '',
                     label: dayLabel(cell.date)
                 };

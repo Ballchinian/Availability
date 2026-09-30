@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getUserById, setSureUntil } from '../../db/users.js';
-import { autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { getUserById, setCoveredUntil } from '../../db/users.js';
 import { maxEnd } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone } from '../../lib/zones.js';
@@ -12,8 +11,7 @@ import { SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 /*
     The general availability page, not tied to any plan. People can fill their
     timetable ahead of time, say if they know they will be away. It is the same
-    grid as a plan, the only difference is they choose the window themselves. With
-    auto-accept on, saving confirms them for any plan they have now fully covered.
+    grid as a plan, the only difference is they choose the window themselves.
 */
 
 const router = Router();
@@ -31,14 +29,14 @@ router.get('/', requireUser, async (req, res) => {
         availability,
         lastFilled: summary.lastFilled,
         lastUpdatedAt: summary.lastUpdatedAt,
-        sureUntil: userDoc?.sureUntil || null,
+        coveredUntil: userDoc?.coveredUntil || null,
         //The clock these hours are read in when a plan lines them up against someone else's
         timeZone: safeZone(userDoc?.timeZone)
     });
 });
 
 router.post('/', requireUser, async (req, res) => {
-    const { start, end, days, autoConfirm, sureUntil } = req.body || {};
+    const { start, end, days, coveredUntil } = req.body || {};
     if (!SHAPE.test(start || '') || !SHAPE.test(end || '') || start > end) {
         return res.status(400).json({ error: 'Pick a valid range.' });
     }
@@ -55,24 +53,14 @@ router.post('/', requireUser, async (req, res) => {
         return res.status(429).json({ error: `You have saved ${SAVE_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
-    //Their certainty horizon rides along with the save, empty meaning no limit
-    if (sureUntil === null || SHAPE.test(sureUntil || '')) {
-        await setSureUntil(req.user.id, sureUntil || null);
+    //Left alone when it is missing, which is how a page from before the field saves
+    if (coveredUntil === null || SHAPE.test(coveredUntil || '')) {
+        await setCoveredUntil(req.user.id, coveredUntil || null);
     }
 
     const savedDays = await replaceAvailabilityInRange(req.user.id, start, end, valid);
 
-    //Accept any plan the new window fully covers, if they asked us to
-    let confirmedPlans = [];
-    if (autoConfirm) {
-        try {
-            confirmedPlans = await autoConfirmCoveredPlans(req.user.id, start, end);
-        } catch (err) {
-            console.error('[availability] auto-confirm failed:', err);
-        }
-    }
-
-    res.json({ ok: true, savedDays, confirmedPlans });
+    res.json({ ok: true, savedDays });
 });
 
 export default router;

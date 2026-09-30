@@ -294,22 +294,6 @@ export async function getPlansNeedingRepair(limit = 25) {
     return col(collections.plans).find({ needsRepair: true }).limit(limit).toArray();
 }
 
-/*
-    Open plans the person is in whose whole range sits inside the dates they just
-    filled. Used by the general availability page to auto-accept any plan they
-    have now fully covered, across every server.
-*/
-export async function getPlansCoveredBy(userId, start, end) {
-    return col(collections.plans)
-        .find({
-            'participants.userId': userId,
-            status: 'collecting',
-            'dateRange.start': { $gte: start },
-            'dateRange.end': { $lte: end }
-        })
-        .toArray();
-}
-
 //How many days moved away from keep their answers, in case the plan comes back to one
 const PAST_VOTES = 3;
 

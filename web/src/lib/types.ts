@@ -34,7 +34,6 @@ export interface Participant {
     voteReason: string | null;
     override: Answer | null;
     invited: boolean;
-    sureUntil: string | null;
     //Missing from a backend older than the site, for the few minutes a deploy takes
     dmsClosed?: boolean;
 }
@@ -74,7 +73,8 @@ export interface PlanScreen {
     availability: AvailabilityDay[];
     lastFilled: string | null;
     lastUpdatedAt: string | null;
-    sureUntil: string | null;
+    //"Take my calendar as my answer up to". Missing from a backend older than the site, for the few minutes a deploy takes.
+    coveredUntil?: string | null;
     //Their own clock, which their hours are read on. Only worth mentioning when it is not the plan's.
     timeZone: string;
 }
@@ -145,8 +145,6 @@ export interface SavedForPlan {
     confirmedCount: number;
     totalParticipants: number;
     savedDays: number;
-    //The names of any other plans this save auto-confirmed them for
-    confirmedPlans: string[];
 }
 
 //POST /plans/:planId/leave, the names the drop out DM reached and the ones it could not
@@ -160,7 +158,8 @@ export interface TimetableScreen {
     availability: AvailabilityDay[];
     lastFilled: string | null;
     lastUpdatedAt: string | null;
-    sureUntil: string | null;
+    //Missing from a backend older than the site, for the few minutes a deploy takes
+    coveredUntil?: string | null;
     //The clock these hours get read on when a plan lines them up against somebody else's
     timeZone: string;
 }
@@ -168,7 +167,6 @@ export interface TimetableScreen {
 //POST /availability
 export interface SavedTimetable {
     savedDays: number;
-    confirmedPlans: string[];
 }
 
 //GET /guilds/:guildId, where the requester stands in one server

@@ -1,10 +1,10 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, getPlansCoveredBy, confirmParticipant, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../db/availability.js';
-import { getPlanningPrefs, addAnswered } from '../db/users.js';
+import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
@@ -485,31 +485,6 @@ export async function notifyCreatorIfAllIn(plan) {
 }
 
 /*
-    Confirm this person for every open plan whose whole window sits inside the range
-    they just filled, the auto-accept behind the availability pages. Quiet on the
-    thread as ever, but if someone was the last one in, the planner gets their
-    compare nudge. Returns the names of the plans it confirmed, for the saved message.
-*/
-export async function autoConfirmCoveredPlans(userId, start, end) {
-    const names = [];
-    const plans = await getPlansCoveredBy(userId, start, end);
-    for (const plan of plans) {
-        const me = plan.participants.find((p) => p.userId === userId);
-        if (me && !me.confirmed) {
-            await addAnswered(userId, { start: plan.dateRange.start, end: plan.dateRange.end, allowedWeekdays: plan.allowedWeekdays || null });
-            const updated = await confirmParticipant(plan.planId, userId);
-            names.push(plan.name);
-            try {
-                await notifyCreatorIfAllIn(updated);
-            } catch (err) {
-                console.error('[plans] all-in notify failed:', err);
-            }
-        }
-    }
-    return names;
-}
-
-/*
     A new plan's private thread, with the opener posted and pinned before anybody is
     added, so everyone arrives to it rather than to an empty thread.
 */
@@ -693,16 +668,11 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
 
     await syncPlan(plan, { cfg, cards: false }).catch((err) => console.error('[plans] outcome sync failed:', err));
 
-    //Anyone whose horizon sits before the date never really answered for it, so their card says so
-    const prefs = await getPlanningPrefs(ids).catch(() => ({}));
-    const nudge = 'This is past the date you said you could plan up to.';
-
     const sent = await sendCards(plan, ids, (id) =>
         planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
             guildName: cfg.guildName,
             actorName,
-            moved: changed,
-            aside: prefs[id]?.sureUntil && plan.chosenDate > prefs[id].sureUntil ? nudge : ''
+            moved: changed
         }), { actorName, moved: changed });
 
     if (plan.threadId) {

@@ -127,8 +127,7 @@ describe('what setting a day says it will do', () => {
         vote: null,
         voteReason: null,
         override: null,
-        invited: true,
-        sureUntil: null
+        invited: true
     }));
 
     const draw = (props: Record<string, unknown> = {}) =>
@@ -206,7 +205,7 @@ describe('what setting a day says it will do', () => {
     there is a day, so narrowing keeps them unless the planner says otherwise.
 */
 describe('keeping the people who have not answered', () => {
-    const person = (userId: string, confirmed: boolean, sureUntil: string | null = null): Participant => ({
+    const person = (userId: string, confirmed: boolean): Participant => ({
         userId,
         displayName: userId.toUpperCase(),
         avatarUrl: '',
@@ -214,36 +213,34 @@ describe('keeping the people who have not answered', () => {
         vote: null,
         voteReason: null,
         override: null,
-        invited: true,
-        sureUntil
+        invited: true
     });
-    //Ann is free, Bo and Cy are not, Di and Ed never filled in, Flo can only say up to the 1st
-    const crowd = [person('ann', true), person('bo', true), person('cy', true), person('di', false), person('ed', false), person('flo', true, '2026-08-01')];
+    //Ann is free, Bo and Cy are not, Di and Ed never filled in
+    const crowd = [person('ann', true), person('bo', true), person('cy', true), person('di', false), person('ed', false)];
     const draw = (props: Record<string, unknown> = {}) =>
         render(PickPanel, {
             props: {
                 planId: 'ab12cd34ef',
                 selectedDate: '2026-08-12',
                 participants: crowd,
-                confirmedCount: 4,
-                totalParticipants: 6,
+                confirmedCount: 3,
+                totalParticipants: 5,
                 freeByDate: { '2026-08-12': [{ userId: 'ann', hours: [] }] },
-                unsureByDate: { '2026-08-12': 1 },
                 onsaved: async () => {},
                 ...props
             }
         }).body;
 
     it('asks them too, ticked to start', () => {
-        expect(draw()).toMatch(/<label class="check sub"><input type="checkbox"[^>]* checked[^>]*\/?> Ask the 3 who haven't answered this day too<\/label>/);
+        expect(draw()).toMatch(/<label class="check sub"><input type="checkbox"[^>]* checked[^>]*\/?> Ask the 2 who haven't answered this day too<\/label>/);
     });
 
     it('counts them among the people pinged', () => {
-        expect(draw()).toContain('pings 4 people');
+        expect(draw()).toContain('pings 3 people');
     });
 
     it('names them', () => {
-        expect(draw()).toContain("Haven't answered this day: DI, ED, FLO.");
+        expect(draw()).toContain("Haven't answered this day: DI, ED.");
     });
 
     it('keeps them while ticked and lets them go when not', () => {
@@ -252,7 +249,7 @@ describe('keeping the people who have not answered', () => {
     });
 
     it('is not there when everyone has answered', () => {
-        const body = draw({ participants: crowd.slice(0, 3), totalParticipants: 3, confirmedCount: 3, unsureByDate: {} });
+        const body = draw({ participants: crowd.slice(0, 3), totalParticipants: 3, confirmedCount: 3 });
         expect(body).not.toContain('answered this day too');
         expect(body).not.toContain("Haven't answered");
     });
@@ -263,7 +260,7 @@ describe('keeping the people who have not answered', () => {
     });
 
     it('says one person in the singular', () => {
-        expect(draw({ participants: crowd.slice(0, 4), totalParticipants: 4, unsureByDate: {} })).toContain("Ask the 1 who hasn't answered this day too");
+        expect(draw({ participants: crowd.slice(0, 4), totalParticipants: 4 })).toContain("Ask the 1 who hasn't answered this day too");
     });
 });
 
@@ -661,8 +658,7 @@ describe('the attendance board', () => {
         vote,
         voteReason: null,
         override: null,
-        invited: true,
-        sureUntil: null
+        invited: true
     });
     const draw = (extra: Participant[] = []) =>
         render(AttendanceBoard, {
@@ -732,7 +728,6 @@ describe('where a set plan stands', () => {
         voteReason: null,
         override: null,
         invited: true,
-        sureUntil: null,
         ...over
     });
     const screen = (start: string, end: string, participants: Participant[]): CompareScreen => ({
@@ -871,8 +866,7 @@ describe('the nudge', () => {
         vote: null,
         voteReason: null,
         override: null,
-        invited: true,
-        sureUntil: null
+        invited: true
     }));
 
     it('names who is still out and nothing more', () => {

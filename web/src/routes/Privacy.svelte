@@ -18,9 +18,10 @@
         <strong>Your time zone:</strong> the one your browser reports, saved whenever it changes, so the
         hours you mark are read on your own clock.
         <br />
-        <strong>Your calendar:</strong> the days you mark as free, any hours you narrow a day down to, and
-        your "sure up to" date if you set one. This is saved against your account and carried across plans
-        and servers, so you don't have to fill it in twice.
+        <strong>Your calendar:</strong> the days you mark as free, any hours you narrow a day down to, the
+        date you take your calendar as your answer up to if you set one, and the stretches of days you've
+        answered on a plan's page or with /free. This is saved against your account and carried across
+        plans and servers, so you don't have to fill it in twice.
         <br />
         <strong>Servers you share with the bot:</strong> which servers (that have the bot) you're in, so
         we know when your calendar is still needed by anyone.
@@ -56,7 +57,7 @@
     <p>
         Anyone with the planner role in a server can open the overview of any plan there. Once you've
         filled in your dates for a plan, the overview shows them the days and hours you marked free within
-        that plan's dates, and which of those days are past your "sure up to" date. It also shows your yes
+        that plan's dates. It also shows your yes
         or no on a set day, and any reason you gave. Everyone else on the plan only sees counts: how many
         have filled in their dates, and how many are coming.
     </p>

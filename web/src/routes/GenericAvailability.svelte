@@ -30,9 +30,13 @@
     let selection = $state<Record<string, number[]>>({});
     //What the server holds, mirrored so a close can tell whether anything moved
     let savedDays = $state<Record<string, number[]>>({});
-    let autoConfirm = $state(true);
-    //How far ahead they can honestly plan, empty for no limit
-    let sureUntil = $state('');
+    /*
+        The date this calendar answers plans up to. Until one is stored or typed, it is
+        the end of the window being saved, and moves with it.
+    */
+    let coveredUntil = $state('');
+    let coveredOwn = $state(false);
+    const coveredShown = $derived(coveredOwn ? coveredUntil : displayEnd);
     //The clock these hours are read on, which is whatever the browser last told the server
     let timeZone = $state('');
     let saving = $state(false);
@@ -76,7 +80,8 @@
             savedDays = { ...obj };
             lastFilled = res.lastFilled;
             lastUpdatedAt = res.lastUpdatedAt;
-            sureUntil = res.sureUntil || '';
+            coveredUntil = res.coveredUntil || '';
+            coveredOwn = Boolean(res.coveredUntil);
             timeZone = res.timeZone || '';
         } catch (err) {
             loadError = errorText(err);
@@ -86,14 +91,19 @@
 
     const savedText = $derived(
         saved
-            ? `Saved ${saved.savedDays} day${saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.${saved.confirmedPlans.length ? ` These also answered: ${saved.confirmedPlans.join(', ')}.` : ''}`
+            ? `Saved ${saved.savedDays} day${saved.savedDays === 1 ? '' : 's'}. Every plan you are part of sees these dates.`
             : ''
     );
 
+    function setCovered(date: string) {
+        coveredUntil = date;
+        coveredOwn = true;
+    }
+
     //The button goes once pressed, so the date it cleared takes focus
-    function clearSure() {
-        sureUntil = '';
-        refocus(() => document.getElementById('sure'));
+    function clearCovered() {
+        setCovered('');
+        refocus(() => document.getElementById('covered'));
     }
 
     async function save() {
@@ -108,8 +118,9 @@
                 .map(([date, hours]) => ({ date, hours }));
             saved = await api<SavedTimetable>('/availability', {
                 method: 'POST',
-                body: JSON.stringify({ start: displayStart, end: displayEnd, days, autoConfirm, sureUntil: sureUntil || null })
+                body: JSON.stringify({ start: displayStart, end: displayEnd, days, coveredUntil: coveredShown || null })
             });
+            setCovered(coveredShown);
             //Only the shown window went up, so only that part of the mirror is now vouched for
             const mirror = { ...savedDays };
             for (const date of Object.keys(mirror)) {
@@ -160,21 +171,16 @@
             <p class="muted small">Times are {describeZone(timeZone)}.</p>
         {/if}
 
-        <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} sureUntil={sureUntil || null} bind:selection />
+        <DayGrid start={displayStart} end={displayEnd} highlightFrom={newFrom} coveredUntil={coveredShown || null} bind:selection />
 
         <div class="horizon">
             <div class="horizon-row">
-                <label class="lbl" for="sure">Sure up to (optional)</label>
-                <input id="sure" type="date" bind:value={sureUntil} min={minStart} max={maxDate} />
-                {#if sureUntil}<button class="link-btn" onclick={clearSure}>clear</button>{/if}
+                <label class="lbl" for="covered">Take my calendar as my answer up to</label>
+                <input id="covered" type="date" bind:value={() => coveredShown, setCovered} min={minStart} max={maxDate} />
+                {#if coveredShown}<button class="link-btn" onclick={clearCovered}>clear</button>{/if}
             </div>
-            <p class="muted small">
-                Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,
-                so you don't have to mark no on months you just can't call yet.
-            </p>
+            <p class="muted small">These will be counted as your answers on any plan this window covers.</p>
         </div>
-
-        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Count these as my answer on any plan this window fully covers</label>
 
         <!--Pinned to the bottom while the grid runs on above it, so the count, the button
             and whatever the last save said are all in reach of a two year page-->

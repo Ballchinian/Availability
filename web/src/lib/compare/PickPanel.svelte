@@ -73,14 +73,8 @@
         const unsure = unsureByDate[day] || 0;
         const ev = evaluateDay(free, confirmedCount, missAllowed, unsure);
         const freeSet = new Set(free.map((f) => f.userId));
-        const unsurePeople = participants.filter(
-            (p) => p.confirmed && p.sureUntil && day > p.sureUntil && !freeSet.has(p.userId)
-        );
-        const unsureIds = new Set(unsurePeople.map((p) => p.userId));
-        //Confirmed, near enough to say, and did not mark the day
-        const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId) && !unsureIds.has(p.userId));
-        //Not filled in, or filled in only up to a sure-up-to date before this day
-        const unanswered = participants.filter((p) => !p.confirmed || unsureIds.has(p.userId));
+        const missing = participants.filter((p) => p.confirmed && !freeSet.has(p.userId));
+        const unanswered = participants.filter((p) => !p.confirmed);
         /*
             Nobody is dropped on a day that failed. keptIds comes back empty there,
             which read as everyone having been left out and struck the whole list through.

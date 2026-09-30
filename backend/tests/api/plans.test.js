@@ -5,7 +5,7 @@ import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
 import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
-import { addAnswered } from '../../src/db/users.js';
+import { addAnswered, setCoveredUntil, getUserById } from '../../src/db/users.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -75,7 +75,7 @@ vi.mock('../../src/db/availability.js', () => ({
 }));
 vi.mock('../../src/db/users.js', () => ({
     getUserById: vi.fn(async () => ({ timeZone: 'Europe/London' })),
-    setSureUntil: vi.fn(),
+    setCoveredUntil: vi.fn(),
     getPlanningPrefs: vi.fn(async () => ({})),
     addAnswered: vi.fn()
 }));
@@ -92,8 +92,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'announceAddition',
         'notifyCreatorIfAllIn',
         'syncPlan',
-        'applyAttendanceMove',
-        'autoConfirmCoveredPlans'
+        'applyAttendanceMove'
     )
 );
 
@@ -807,6 +806,30 @@ describe('saving dates on the plan page', () => {
 
         expect(res.status).toBe(200);
         expect(addAnswered).toHaveBeenCalledWith('guest', { start: ahead(1), end: ahead(14), allowedWeekdays: [0, 6] });
+    });
+
+    it('saves the date their calendar answers up to, and clears it when told to', async () => {
+        db.confirmParticipant.mockResolvedValue(plans.get('ab12cd34ef'));
+
+        await post('/ab12cd34ef/availability', { days: [], coveredUntil: ahead(30) });
+        expect(setCoveredUntil).toHaveBeenLastCalledWith('guest', ahead(30));
+
+        await post('/ab12cd34ef/availability', { days: [], coveredUntil: null });
+        expect(setCoveredUntil).toHaveBeenLastCalledWith('guest', null);
+    });
+
+    //A page from before the field sends none, and must not wipe the one they have
+    it('leaves it alone when the save says nothing about it', async () => {
+        db.confirmParticipant.mockResolvedValueOnce(plans.get('ab12cd34ef'));
+        await post('/ab12cd34ef/availability', { days: [], sureUntil: ahead(30), autoConfirm: true });
+        expect(setCoveredUntil).not.toHaveBeenCalled();
+    });
+
+    it('hands it back with the page', async () => {
+        getUserById.mockResolvedValueOnce({ timeZone: 'Europe/London', coveredUntil: ahead(30), sureUntil: ahead(3) });
+        const body = await (await get('/ab12cd34ef')).json();
+        expect(body.coveredUntil).toBe(ahead(30));
+        expect(body).not.toHaveProperty('sureUntil');
     });
 });
 

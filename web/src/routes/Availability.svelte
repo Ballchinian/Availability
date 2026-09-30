@@ -32,10 +32,8 @@
     let saveError = $state('');
     let saveLine = $state<Status>();
 
-    //Auto-accept any other plan this save fully covers, same as the general page
-    let autoConfirm = $state(true);
-    //How far ahead they can honestly plan, empty for no limit
-    let sureUntil = $state('');
+    //The one date across every plan they are in, so the page takes the same ends as My calendar
+    let coveredUntil = $state('');
 
     let leaveArmed = $state(false);
     let leaving = $state(false);
@@ -64,7 +62,6 @@
 
     //A day already picked and already been, so all this page has left to do is say so
     const todayIso = isoFromNow(0, 'day');
-    //The horizon is one date across everything they are in, so it takes the same ends here as it does on the general page
     const maxDate = isoFromNow(2, 'year');
     const beenAndGone = $derived(Boolean(data?.plan.chosenDate && data.plan.chosenDate < todayIso));
 
@@ -124,7 +121,7 @@
             for (const a of data.availability) obj[a.date] = a.hours || [];
             selection = obj;
             savedKey = selectionKey(obj);
-            sureUntil = data.sureUntil || '';
+            coveredUntil = data.coveredUntil || '';
         } catch (err) {
             loadError = errorText(err);
         }
@@ -133,7 +130,7 @@
 
     const savedText = $derived(
         saved
-            ? `Saved. I'll DM you when a day is picked.${saved.confirmedPlans?.length ? ` These also answered: ${saved.confirmedPlans.join(', ')}.` : ''}`
+            ? "Saved. I'll DM you when a day is picked."
             : ''
     );
 
@@ -148,7 +145,7 @@
                 .map(([date, hours]) => ({ date, hours }));
             saved = await api<SavedForPlan>(`/plans/${params.planId}/availability`, {
                 method: 'POST',
-                body: JSON.stringify({ days, autoConfirm, sureUntil: sureUntil || null })
+                body: JSON.stringify({ days, coveredUntil: coveredUntil || null })
             });
             savedKey = selectionKey(selection);
             reviewed = true;
@@ -161,9 +158,9 @@
     }
 
     //The button goes once pressed, so the date it cleared takes focus
-    function clearSure() {
-        sureUntil = '';
-        refocus(() => document.getElementById('sure'));
+    function clearCovered() {
+        coveredUntil = '';
+        refocus(() => document.getElementById('covered'));
     }
 
     let dropButton = $state<HTMLButtonElement>();
@@ -273,22 +270,16 @@
             <ClockNote zone={data.plan.timeZone} what={`${data.plan.guildName || 'This server'} plans`} />
         {/if}
 
-        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} sureUntil={sureUntil || null} bind:selection />
+        <DayGrid start={data.plan.start} end={data.plan.end} highlightFrom={newFrom} {allowedWeekdays} bind:selection />
 
         <div class="horizon">
             <div class="horizon-row">
-                <label class="lbl" for="sure">Sure up to (optional)</label>
-                <input id="sure" type="date" bind:value={sureUntil} min={todayIso} max={maxDate} />
-                {#if sureUntil}<button class="link-btn" onclick={clearSure}>clear</button>{/if}
+                <label class="lbl" for="covered">Take my calendar as my answer up to</label>
+                <input id="covered" type="date" bind:value={coveredUntil} min={todayIso} max={maxDate} />
+                {#if coveredUntil}<button class="link-btn" onclick={clearCovered}>clear</button>{/if}
             </div>
-            <p class="muted small">
-                Can't plan that far ahead? Days past this date count as "too far to say" instead of busy,
-                so you don't have to mark no on months you just can't call yet. It is one date for every
-                plan you are in rather than this one on its own.
-            </p>
+            <p class="muted small">These will be counted as your answers on any plan this window covers.</p>
         </div>
-
-        <label class="check"><input type="checkbox" bind:checked={autoConfirm} /> Count these as my answer on any other plan they fully cover</label>
 
         <p class="muted small">These are your days for every plan, not just this one. <a href="#/availability">Open your calendar</a>.</p>
 

@@ -285,7 +285,7 @@ Everything the availability page needs to draw the grid.
 * The running confirmed count out of the total
 * The requester's saved days inside the range, so the grid comes up prefilled
 * When they last filled their timetable
-* Their sure-up-to date, if they set one
+* `coveredUntil`: the date their calendar answers plans up to, if they set one
 * Their own clock, so the page can say when it is not the server's
 
 ---
@@ -299,22 +299,19 @@ Participants only.
 ### Input
 
 * The days they are free, optionally narrowed to certain hours
-* `autoConfirm` (optional): whether to auto-accept any other plan these dates now fully cover, same as the general page
-* `sureUntil` (optional): how far ahead they can honestly plan, or `null` for no limit. Days past it read as "too far to say" rather than busy.
+* `coveredUntil` (optional): the date their calendar answers plans up to, on their own clock, or `null` to stop it answering any. Left out, the one they have stands.
 
 ### Effects
 
 * Replaces their saved days inside the plan range.
 * Marks them confirmed for the plan, which counts as in.
 * Remembers the plan's window, weekdays and all, as days they've answered, so every other plan over the same days counts them as answered too. `/free` does the same for each list it saves.
-* Saves their sure-up-to date when one rides along.
-* With auto-accept on, quietly confirms them for any other plan the range covers.
+* Saves `coveredUntil` when it rides along.
 * If that was the last person, DMs the planner to go and compare.
 
 ### Returns
 
 * The running confirmed count out of the total
-* The names of any other plans this auto-confirmed them for
 
 ### Notes
 
@@ -333,7 +330,7 @@ Planner role only.
 ### Returns
 
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
-* Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, their sure-up-to date, and `dmsClosed` when the last DM was refused because their DMs are closed
+* Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Whether the requester is on the guest list themselves
 * For each day, who is free and the hours they gave, so the page can work out the overlap
 * The plan's history: what has happened to it, oldest first
@@ -395,7 +392,7 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 * Sets the chosen date.
 * Narrows the invite list when asked. Anyone left off is not pinged, not DMed, and does not count in the confirmation tally. Moving or undoing the date invites everyone back.
 * Always DMs the people still invited, then posts the outcome in the thread, pinging only the ones the DM could not reach. Setting a different date counts as a reorganise.
-* The pinned opener becomes the yes/no before anything is sent, and its tally keeps itself current as votes land. The thread post carries the buttons too, for the people it pings. Anyone whose sure-up-to date sits before the chosen day gets an extra line in their DM saying this landed past what they could plan for.
+* The pinned opener becomes the yes/no before anything is sent, and its tally keeps itself current as votes land. The thread post carries the buttons too, for the people it pings.
 * `quiet` on a move posts nothing: the pin and everyone's card are rewritten where they sit.
 * The thread is renamed to carry the new day, last and best effort, quiet or not.
 
@@ -682,7 +679,7 @@ The requester's saved days inside a window they choose.
 
 * Their saved days in that window
 * When they last filled their timetable
-* Their sure-up-to date, if they set one
+* `coveredUntil`: the date their calendar answers plans up to, if they set one
 * The clock those days and hours are read on
 
 ---
@@ -695,19 +692,16 @@ Save the requester's general timetable for a window.
 
 * Start and end date
 * The days they are free, optionally narrowed to certain hours
-* Whether to auto-accept any plan the new window now fully covers
-* `sureUntil` (optional): how far ahead they can honestly plan, or `null` for no limit. Days past it read as "too far to say" rather than busy, so nobody has to paint fake no's across far-off months.
+* `coveredUntil` (optional): the date their calendar answers plans up to, on their own clock, or `null` to stop it answering any. Left out, the one they have stands.
 
 ### Effects
 
 * Replaces their saved days inside the window.
-* Saves their sure-up-to date when one rides along.
-* With auto-accept on, quietly confirms them for any plan the window covers, and DMs the planner if that filled the last slot.
+* Saves `coveredUntil` when it rides along. A plan's day counts as answered once every one of their own days it falls on is on or before it.
 
 ### Returns
 
 * How many days were saved
-* The names of any plans this confirmed them for
 
 ### Notes
 

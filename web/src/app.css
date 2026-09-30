@@ -812,11 +812,6 @@ a.primary {
     border-color: var(--accent);
 }
 
-/*
-    Days past the person's certainty horizon. Hatched amber to read as "too far to
-    say" rather than busy. Still tappable, marking one free beats the horizon.
-    Any stronger a hatch and the muted number on it drops under 4.5:1.
-*/
 /* Above the calendar while new days take the hours a clock was last closed on */
 .brush {
     display: inline-flex;
@@ -836,13 +831,17 @@ a.primary {
     font-size: 12px;
 }
 
+/*
+    Days past the date their calendar stands as their answer. Still tappable. Any
+    stronger a hatch and the muted number on it drops under 4.5:1.
+*/
 .day.far {
     background: repeating-linear-gradient(45deg, transparent 0 4px, rgba(230, 180, 80, 0.1) 4px 8px);
     border-color: rgba(230, 180, 80, 0.55);
     color: var(--muted);
 }
 
-/* The horizon control that sits under an availability grid */
+/* The answer date that sits under a calendar */
 .horizon {
     margin-top: 16px;
     padding: 12px 14px;

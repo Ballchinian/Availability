@@ -5,8 +5,8 @@ import { announceAfter } from '../announce.js';
 import { getPlan, confirmParticipant, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
-import { getUserById, setSureUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove, autoConfirmCoveredPlans } from '../../bot/plans.js';
+import { getUserById, setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, notifyCreatorIfAllIn, syncPlan, applyAttendanceMove } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -144,7 +144,7 @@ router.get('/:planId', async (req, res) => {
         availability,
         lastFilled: summary.lastFilled,
         lastUpdatedAt: summary.lastUpdatedAt,
-        sureUntil: userDoc?.sureUntil || null,
+        coveredUntil: userDoc?.coveredUntil || null,
         //The clock their own hours are read in, which is whatever their browser last said
         timeZone: safeZone(userDoc?.timeZone)
     });
@@ -157,7 +157,7 @@ router.post('/:planId/availability', async (req, res) => {
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
     if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
 
-    const { days, autoConfirm, sureUntil } = req.body || {};
+    const { days, coveredUntil } = req.body || {};
     if (!Array.isArray(days)) return res.status(400).json({ error: 'Something was off with the dates you sent.' });
 
     const { start, end } = plan.dateRange;
@@ -176,9 +176,9 @@ router.post('/:planId/availability', async (req, res) => {
         return res.status(429).json({ error: `You have saved ${SAVE_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
     }
 
-    //Their certainty horizon rides along with the save, empty meaning no limit
-    if (sureUntil === null || /^\d{4}-\d{2}-\d{2}$/.test(sureUntil || '')) {
-        await setSureUntil(req.user.id, sureUntil || null);
+    //Left alone when it is missing, which is how a page from before the field saves
+    if (coveredUntil === null || /^\d{4}-\d{2}-\d{2}$/.test(coveredUntil || '')) {
+        await setCoveredUntil(req.user.id, coveredUntil || null);
     }
 
     //A weekday-pinned plan only rewrites the days it asks about, so a person's saved
@@ -196,22 +196,11 @@ router.post('/:planId/availability', async (req, res) => {
         console.error('[plans] all-in notify failed:', err);
     }
 
-    //The same auto-accept the general page has: confirm any other plan this window covers
-    let confirmedPlans = [];
-    if (autoConfirm) {
-        try {
-            confirmedPlans = await autoConfirmCoveredPlans(req.user.id, start, end);
-        } catch (err) {
-            console.error('[plans] auto-confirm failed:', err);
-        }
-    }
-
     res.json({
         ok: true,
         confirmedCount: updated.participants.filter((p) => p.confirmed).length,
         totalParticipants: updated.participants.length,
-        savedDays,
-        confirmedPlans
+        savedDays
     });
 });
 
@@ -230,7 +219,7 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
     const confirmed = plan.participants.filter((p) => p.confirmed);
 
     /*
-        The three reads this page needs, together: everyone's horizons and clocks, their
+        The three reads this page needs, together: everyone's clocks, their
         names and avatars, and the hours themselves. Who is confirmed comes off the plan
         we already hold, so nothing here waits on anything else here. The member fetches
         are one wait for twenty people rather than twenty on their own.
@@ -259,8 +248,6 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
             override: p.override || null,
             //Whether they are still on the invite list for the set date
             invited: p.invited !== false,
-            //How far ahead they said they could plan, days past it read as unsure not busy
-            sureUntil: prefs[p.userId]?.sureUntil || null,
             dmsClosed: Boolean(p.dmsClosed)
         };
     });
