@@ -119,16 +119,6 @@ const planner = { id: 'planner', displayName: 'Ali' };
 const guest = { id: 'guest', displayName: 'Bo' };
 const stranger = { id: 'stranger', displayName: 'Cass' };
 
-const asPlanner = {
-    guild: { members: { fetch: async () => null } },
-    cfg: { guildId: 'g1', guildName: 'The server', timeZone: 'Europe/London' },
-    member: { displayName: 'Ali' },
-    isMember: true,
-    isPlanner: true,
-    canManage: false
-};
-//In the server with no planner role, which is all running a plan takes
-const asMember = { ...asPlanner, isPlanner: false };
 //A server where only these people are still members, each named by their id in capitals
 const serverOf = (...here) => ({
     members: {
@@ -139,6 +129,17 @@ const serverOf = (...here) => ({
         }
     }
 });
+
+const asPlanner = {
+    guild: serverOf('planner', 'guest', 'stranger'),
+    cfg: { guildId: 'g1', guildName: 'The server', timeZone: 'Europe/London' },
+    member: { displayName: 'Ali' },
+    isMember: true,
+    isPlanner: true,
+    canManage: false
+};
+//In the server with no planner role, which is all running a plan takes
+const asMember = { ...asPlanner, isPlanner: false };
 //What guildContext hands back when it is asked to insist on the role
 const notPlanner = { error: 403, message: 'You need the planner role to do that.' };
 
@@ -371,7 +372,7 @@ describe('the plan gate', () => {
     these are about what comes back, and the dates never being in it is the point.
 */
 describe('a plan as a template', () => {
-    it('carries the name, the description, the days and the crowd', async () => {
+    it('carries the name, the description, the days, the crowd and whoever ran it', async () => {
         plans.set(
             'ab12cd34ef',
             plan({
@@ -385,15 +386,23 @@ describe('a plan as a template', () => {
             name: 'Board games',
             description: 'Bring snacks',
             allowedWeekdays: [0, 6],
-            participantIds: ['guest', 'planner']
+            participantIds: ['guest', 'planner'],
+            hostIds: ['planner']
         });
+    });
+
+    //Nobody else could run the new one, and the create form would only have to drop them
+    it('leaves out anyone who ran it and has left the server', async () => {
+        plans.set('ab12cd34ef', plan({ hostIds: ['planner', 'sam', 'guest'] }));
+        const body = await (await get('/ab12cd34ef/template')).json();
+        expect(body.hostIds).toEqual(['planner', 'guest']);
     });
 
     //A new plan wants a new window, so nothing about when this one ran comes over
     it('carries no dates at all', async () => {
         plans.set('ab12cd34ef', plan({ chosenDate: inWindow, repeatWeeks: 2 }));
         const body = await (await get('/ab12cd34ef/template')).json();
-        expect(Object.keys(body).sort()).toEqual(['allowedWeekdays', 'description', 'name', 'participantIds']);
+        expect(Object.keys(body).sort()).toEqual(['allowedWeekdays', 'description', 'hostIds', 'name', 'participantIds']);
     });
 
     //Every day, which is how a plan with no restriction is stored and what the picker wants back

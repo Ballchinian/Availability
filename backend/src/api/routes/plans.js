@@ -452,19 +452,21 @@ router.get('/:planId/compare', async (req, res) => {
 
 /*
     What it takes to set another plan up like this one, for the create form to open with.
-    The crowd, the name and the days carry, the dates never do: a plan run again is the
-    same shape in a different month, and the window is the part that moves.
+    The crowd, the name, the days and whoever ran it carry, the dates never do: a plan run
+    again is the same shape in a different month, and the window is the part that moves.
 
     No refuseFinished on purpose. A plan that fell through and one that has already been
     are the two you most want to run again, and both are read only everywhere else.
 */
-router.get('/:planId/template', requirePlanner, (req, res) => {
-    const { plan } = req;
+router.get('/:planId/template', requirePlanner, async (req, res) => {
+    const { plan, ctx } = req;
     res.json({
         name: plan.name,
         description: plan.description || '',
         allowedWeekdays: plan.allowedWeekdays || null,
-        participantIds: plan.participants.map((p) => p.userId)
+        participantIds: plan.participants.map((p) => p.userId),
+        //Only the ones still in the server, since nobody else can run the new one
+        hostIds: await realMembers(ctx.guild, hostIdsOf(plan))
     });
 });
 

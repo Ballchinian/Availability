@@ -277,6 +277,8 @@ export interface PlanTemplate {
     description: string;
     allowedWeekdays: number[] | null;
     participantIds: string[];
+    //Whoever ran it and is still in the server. Missing from a backend older than the site.
+    hostIds?: string[];
 }
 
 //POST /guilds/:guildId/plans, what comes back from the create form

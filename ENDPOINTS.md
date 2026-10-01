@@ -393,12 +393,13 @@ Planner role only, and only for someone on the plan.
 * The name and description
 * Which weekdays it asks about, or nothing at all if it asks about every day
 * Everyone on the guest list, by id
+* `hostIds`: whoever ran it and is still in the server, by id, for the new plan to start with
 
 ### Notes
 
 * No dates in it, on purpose. A plan run again is the same crowd in a different month, so the range is the one thing that does not carry, and the create form leaves its own default in place.
 * Works on a cancelled plan and on one whose day has been. Those are the two most worth running again, and this only reads.
-* The ids come back as they are stored. Anyone who has since left the server is dropped by the create form, which has the member list to check against, and again by the create route.
+* The guest list ids come back as they are stored. Anyone who has since left the server is dropped by the create form, which has the member list to check against, and again by the create route.
 
 ---
 
