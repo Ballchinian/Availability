@@ -30,12 +30,13 @@ import PlanCards from '../../src/lib/PlanCards.svelte';
 import PlanList from '../../src/lib/PlanList.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import Home from '../../src/routes/Home.svelte';
+import { belongsOnOverview } from '../../src/routes/Availability.svelte';
 import Terms from '../../src/routes/Terms.svelte';
 import Privacy from '../../src/routes/Privacy.svelte';
 import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong, listNames } from '../../src/lib/format.js';
-import type { ComparePlan, CompareScreen, Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
+import type { ComparePlan, CompareScreen, Member, Participant, PlanScreen, UserGuild, UserPlan } from '../../src/lib/types.js';
 import type { FreePerson } from '../../src/lib/overlap.js';
 
 /*
@@ -43,6 +44,9 @@ import type { FreePerson } from '../../src/lib/overlap.js';
     a string with no DOM and no new dependency, which is as close as this suite gets to
     looking at a screen. Not the routes themselves, which want auth and the api behind them.
 */
+
+//The router reads window.location as it loads, and nothing drawn here goes anywhere
+vi.mock('svelte-spa-router', () => ({ replace: async () => {}, push: async () => {} }));
 
 //The clock the device is on, which is all ClockNote asks the browser
 const device = vi.hoisted(() => ({ zone: 'America/New_York' }));
@@ -1218,6 +1222,26 @@ describe('a list of plans', () => {
         expect(draw(['a'])).toBe('<a href="#/plan/a">A</a>');
         expect(draw(['a', 'b'])).toBe('<a href="#/plan/a">A</a> and <a href="#/plan/b">B</a>');
         expect(draw(['a', 'b', 'c'])).toBe('<a href="#/plan/a">A</a>, <a href="#/plan/b">B</a> and <a href="#/plan/c">C</a>');
+    });
+});
+
+//Old DMs and My plans both link a set plan to the page that asks for dates, which has none left to ask for
+describe('the page of a plan that has its day', () => {
+    const page = (status: string, role?: 'host' | 'guest') => ({ plan: { status }, role }) as PlanScreen;
+
+    it('hands over to the overview, for a guest and for whoever runs it', () => {
+        expect(belongsOnOverview(page('closed', 'guest'))).toBe(true);
+        expect(belongsOnOverview(page('closed', 'host'))).toBe(true);
+    });
+
+    it('stays where it is while the plan is finding its day, or was called off', () => {
+        expect(belongsOnOverview(page('collecting', 'guest'))).toBe(false);
+        expect(belongsOnOverview(page('cancelled', 'guest'))).toBe(false);
+    });
+
+    //For the few minutes a deploy takes, when the overview would turn a guest away
+    it('stays where it is on a backend that still keeps the overview to planners', () => {
+        expect(belongsOnOverview(page('closed'))).toBe(false);
     });
 });
 

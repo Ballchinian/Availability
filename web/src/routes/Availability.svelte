@@ -1,5 +1,20 @@
+<script module lang="ts">
+    import type { PlanScreen } from '../lib/types.js';
+
+    /*
+        A plan with its day set has no dates left to ask for, and its overview is where
+        someone says if they're coming, so this page hands over to it. Only when the answer
+        carries a role: a backend from before that keeps the overview to planners, and
+        would turn a guest away.
+    */
+    export function belongsOnOverview(screen: PlanScreen): boolean {
+        return screen.plan.status === 'closed' && Boolean(screen.role);
+    }
+</script>
+
 <script lang="ts">
     import { onMount, tick } from 'svelte';
+    import { replace } from 'svelte-spa-router';
     import { api, errorText, ApiError } from '../lib/api.js';
     import { auth, loadMe, loginHref } from '../lib/auth.svelte.js';
     import { formatDate, formatTime } from '../lib/format.js';
@@ -8,7 +23,7 @@
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
     import { measureBar } from '../lib/actionbar.js';
     import { refocus } from '../lib/focus.js';
-    import type { PlanScreen, SavedForPlan, LeftPlan, Joined } from '../lib/types.js';
+    import type { SavedForPlan, LeftPlan, Joined } from '../lib/types.js';
     import DayGrid from '../lib/DayGrid.svelte';
     import PlanList from '../lib/PlanList.svelte';
     import ClockNote from '../lib/ClockNote.svelte';
@@ -88,7 +103,10 @@
             return;
         }
         try {
-            data = await api<PlanScreen>(`/plans/${params.planId}`);
+            const screen = await api<PlanScreen>(`/plans/${params.planId}`);
+            //Replaced rather than pushed, so Back does not land here and bounce straight on again
+            if (belongsOnOverview(screen)) return replace(`/plan/${params.planId}/overview`);
+            data = screen;
             const obj: Record<string, number[]> = {};
             for (const a of data.availability) obj[a.date] = a.hours || [];
             selection = obj;
@@ -259,8 +277,8 @@
     {:else if data.plan.status === 'cancelled'}
         <p class="prompt">This plan was called off, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
     {:else if data.plan.status === 'closed'}
-        <!--The day is picked, so asking which days suit is asking about a question that has been
-            answered. This is where the plans under Past plans end up too.-->
+        <!--Only reached while the backend is older than the site, for the few minutes a deploy
+            takes: every other time a plan with its day goes to its overview.-->
         {#if data.plan.guildName}<p class="muted">In {data.plan.guildName}</p>{/if}
         {#if data.plan.description}
             <p class="muted small">{data.plan.description}</p>

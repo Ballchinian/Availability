@@ -80,6 +80,8 @@ export interface Plan {
 //GET /plans/:planId, everything the availability page draws
 export interface PlanScreen {
     plan: Plan;
+    //Missing from a backend older than the site, which is one that keeps the overview to planners
+    role?: 'host' | 'guest';
     confirmed: boolean;
     confirmedCount: number;
     totalParticipants: number;

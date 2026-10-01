@@ -367,6 +367,15 @@ describe('the plan gate', () => {
         const res = await get('/ab12cd34ef');
         expect(res.status).toBe(403);
     });
+
+    //What the site goes by to send someone on a set plan to its overview
+    it('says where they stand on the plan they are reading', async () => {
+        sessionUser = guest;
+        expect((await (await get('/ab12cd34ef')).json()).role).toBe('guest');
+
+        plans.set('ab12cd34ef', plan({ hostIds: ['guest'] }));
+        expect((await (await get('/ab12cd34ef')).json()).role).toBe('host');
+    });
 });
 
 /*

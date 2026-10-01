@@ -169,6 +169,8 @@ router.get('/:planId', async (req, res) => {
             timeZone: safeZone(cfg?.timeZone),
             guildName: cfg?.guildName || ''
         },
+        //Whether they run it as well as being on it. The site also reads it as word that the overview is theirs to open.
+        role: planRole(plan, req.user.id),
         confirmed: Boolean(me.confirmed),
         confirmedCount: plan.participants.filter((p) => p.confirmed).length,
         totalParticipants: plan.participants.length,
