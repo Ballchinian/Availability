@@ -31,6 +31,7 @@ export interface Answerer {
 }
 
 export function askedDays(window?: Partial<Window>): string[];
+export function datesPassed(window: Partial<Window>, today: string): boolean;
 export function answeredOn(date: string, answers?: Answers): boolean;
 export interface PlanAnswers extends Answers {
     window: Window;
@@ -49,10 +50,12 @@ export function owes(p: Answerer, coverage: Coverage): 'answer' | 'days' | null;
 //Where someone stands on one plan, as GET /me/plans sends it
 export interface PlanRow {
     status: string;
+    role?: 'host' | 'guest';
     onList?: boolean;
     standing?: Standing | null;
     daysLeft?: number;
     movedBack?: boolean;
+    datesPassed?: boolean;
     answer?: string | null;
     invited?: boolean;
     readyToPick?: boolean;
@@ -61,7 +64,8 @@ export interface PlanRow {
 
 export interface NextStep {
     label: string;
-    page: 'plan' | 'overview';
+    page: 'plan' | 'overview' | 'dates';
+    asks: boolean;
 }
 
 export function nextStep(row: PlanRow): NextStep;

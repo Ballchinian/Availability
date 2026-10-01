@@ -67,7 +67,15 @@ const { addHost, getActivePlansForUser, getFinishedPlansForUser, getLivePlansFor
 const { hostIdsOf } = await import('../../src/lib/hosts.js');
 const { canTakeOn } = await import('../../src/api/roles.js');
 
-const plan = (planId, over = {}) => ({ planId, guildId: 'g1', createdBy: 'ali', status: 'collecting', participants: [{ userId: 'bo' }], ...over });
+const plan = (planId, over = {}) => ({
+    planId,
+    guildId: 'g1',
+    createdBy: 'ali',
+    status: 'collecting',
+    dateRange: { start: '2026-10-05', end: '2026-10-09' },
+    participants: [{ userId: 'bo' }],
+    ...over
+});
 const hostsOf = (planId) => rows.find((p) => p.planId === planId).hostIds;
 const ids = (plans) => plans.map((p) => p.planId).sort();
 
@@ -111,6 +119,33 @@ describe('the plans someone is on', () => {
         expect(ids(await getFinishedPlansForUser('sam', '2026-10-01'))).toEqual(['been']);
         expect(ids(await getFinishedPlansForUser('ali', '2026-10-01'))).toEqual(['off']);
         expect(ids(await getFinishedPlansForUser('bo', '2026-10-01'))).toEqual(['been', 'off']);
+    });
+
+    /*
+        A plan whose dates went by with no day picked. It stays on for thirty days, for
+        whoever runs it to ask about new ones, and the day after that it never got a day.
+    */
+    describe('with no day and its dates gone', () => {
+        beforeEach(() => {
+            rows.splice(0, rows.length);
+            rows.push(
+                plan('ten-ago', { hostIds: ['sam'], dateRange: { start: '2026-09-14', end: '2026-09-21' } }),
+                plan('thirty-ago', { hostIds: ['sam'], dateRange: { start: '2026-08-25', end: '2026-09-01' } }),
+                plan('thirty-one-ago', { hostIds: ['sam'], dateRange: { start: '2026-08-24', end: '2026-08-31' } })
+            );
+        });
+
+        it('is still on for thirty days, for its guests and whoever runs it', async () => {
+            expect(ids(await getActivePlansForUser('sam', '2026-10-01'))).toEqual(['ten-ago', 'thirty-ago']);
+            expect(ids(await getActivePlansForUser('bo', '2026-10-01'))).toEqual(['ten-ago', 'thirty-ago']);
+            expect(ids(await getLivePlansForUser('g1', 'bo', '2026-10-01'))).toEqual(['ten-ago', 'thirty-ago']);
+        });
+
+        it('is over the day after, and in neither list twice', async () => {
+            expect(ids(await getFinishedPlansForUser('sam', '2026-10-01'))).toEqual(['thirty-one-ago']);
+            expect(ids(await getFinishedPlansForUser('bo', '2026-10-02'))).toEqual(['thirty-ago', 'thirty-one-ago']);
+            expect(ids(await getActivePlansForUser('bo', '2026-10-02'))).toEqual(['ten-ago']);
+        });
     });
 });
 

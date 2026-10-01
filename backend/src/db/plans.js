@@ -1,6 +1,6 @@
 import { col, collections } from './mongo.js';
 import { shortId } from '../lib/ids.js';
-import { weekdayAllowed } from '../lib/dates.js';
+import { weekdayAllowed, shiftDate, LAPSE_DAYS } from '../lib/dates.js';
 import { hostIdsOf } from '../lib/hosts.js';
 
 /*
@@ -206,8 +206,21 @@ function onPlan(userId) {
 }
 
 /*
-    Everything this person still has on, across every server: plans still collecting
-    dates, plus set ones whose day has not come round yet. Backs the landing page
+    Still on as of fromDate: a set plan whose day has not come round yet, or one still
+    finding its day. That one stays on for LAPSE_DAYS after the last day it asked
+    about, which is how long whoever runs it has to ask about new dates.
+*/
+function stillOn(fromDate) {
+    return {
+        $or: [
+            { status: 'collecting', 'dateRange.end': { $gte: shiftDate(fromDate, -LAPSE_DAYS) } },
+            { status: 'closed', chosenDate: { $gte: fromDate } }
+        ]
+    };
+}
+
+/*
+    Everything this person still has on, across every server. Backs the landing page
     list, which is the only way back into a plan for someone who lost the DM.
     Cancelled plans and days gone by fall out on their own.
 
@@ -217,12 +230,7 @@ function onPlan(userId) {
 */
 export async function getActivePlansForUser(userId, fromDate) {
     return col(collections.plans)
-        .find({
-            $and: [
-                onPlan(userId),
-                { $or: [{ status: 'collecting' }, { status: 'closed', chosenDate: { $gte: fromDate } }] }
-            ]
-        })
+        .find({ $and: [onPlan(userId), stillOn(fromDate)] })
         .sort({ createdAt: -1 })
         .toArray();
 }
@@ -230,22 +238,16 @@ export async function getActivePlansForUser(userId, fromDate) {
 //The same within one server, for /mylink. fromDate wants to be a day behind, since a day passes on the server's clock, not ours.
 export async function getLivePlansForUser(guildId, userId, fromDate) {
     return col(collections.plans)
-        .find({
-            $and: [
-                { guildId },
-                onPlan(userId),
-                { $or: [{ status: 'collecting' }, { status: 'closed', chosenDate: { $gte: fromDate } }] }
-            ]
-        })
+        .find({ $and: [{ guildId }, onPlan(userId), stillOn(fromDate)] })
         .sort({ createdAt: -1 })
         .toArray();
 }
 
 /*
-    The other end of that list: plans that are over. A cancelled one, or one whose day
-    has been and gone. Both drop out of the active query as they finish, which leaves
-    the overview behind them, and everything it remembers about who said what,
-    reachable only by whoever still has the link.
+    The other end of that list: plans that are over. A cancelled one, one whose day has
+    been and gone, or one that never got a day. Each drops out of the active query as
+    it finishes, which leaves the overview behind it, and everything it remembers
+    about who said what, reachable only by whoever still has the link.
 
     Capped, since this half only ever grows. A dozen is enough to find the one you
     meant and short enough to sit folded under the live ones. Newest made first rather
@@ -256,7 +258,13 @@ export async function getFinishedPlansForUser(userId, fromDate, limit = 12) {
         .find({
             $and: [
                 onPlan(userId),
-                { $or: [{ status: 'cancelled' }, { status: 'closed', chosenDate: { $lt: fromDate } }] }
+                {
+                    $or: [
+                        { status: 'cancelled' },
+                        { status: 'closed', chosenDate: { $lt: fromDate } },
+                        { status: 'collecting', 'dateRange.end': { $lt: shiftDate(fromDate, -LAPSE_DAYS) } }
+                    ]
+                }
             ]
         })
         .sort({ createdAt: -1 })

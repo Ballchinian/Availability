@@ -24,6 +24,13 @@ export function today() {
     return isoDate(new Date());
 }
 
+/*
+    How many days after its window ends a plan with no day stays on My plans, for whoever
+    runs it to ask about new dates. Past that it never got a day, and sits with the plans
+    that are over.
+*/
+export const LAPSE_DAYS = 30;
+
 export const BAD_TIME = 'Pick a time between 00:00 and 23:59.';
 
 //A time of day as HH:MM, null for none given, false for one that is not a time. Two digits apiece let "25:99" through.

@@ -1,6 +1,6 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, overviewUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
+import { createThread, planUrl, overviewUrl, datesUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getLivePlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed, setIn } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, getLastUpdated, blockDay, setDayFree } from '../db/availability.js';
@@ -11,7 +11,7 @@ import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
 import { formatDay, formatDate, formatTime, shiftDate, today } from '../lib/dates.js';
 import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered, rowFor, nextStep } from '../lib/coverage.js';
-import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
+import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed, hasLapsed } from '../lib/zones.js';
 import { hostIdsOf } from '../lib/hosts.js';
 
 /*
@@ -1485,7 +1485,7 @@ export async function handleMyLink(interaction) {
     //Left off a set day, there is nothing for them to open, unless they run it
     const leftOff = (plan) => plan.status === 'closed' && !hostIdsOf(plan).includes(userId) &&
         plan.participants.find((p) => p.userId === userId)?.invited === false;
-    const plans = found.filter((plan) => !dayHasPassed(plan) && !leftOff(plan));
+    const plans = found.filter((plan) => !dayHasPassed(plan) && !hasLapsed(plan) && !leftOff(plan));
     if (!plans.length) {
         return interaction.reply({ content: 'You are not on any plans here right now.', flags: MessageFlags.Ephemeral });
     }
@@ -1494,9 +1494,10 @@ export async function handleMyLink(interaction) {
     const running = plans.filter((plan) => plan.status === 'collecting' && hostIdsOf(plan).includes(userId));
     const prefs = await getPlanningPrefs([...new Set([userId, ...running.flatMap((plan) => plan.participants.map((p) => p.userId))])]);
 
+    const pages = { plan: planUrl, overview: overviewUrl, dates: datesUrl };
     const links = plans.slice(0, MAX_LINKS).map((plan) => {
         const step = nextStep({ status: plan.status, ...rowFor(plan, userId, prefs) });
-        return linkButton(stepLabel(plan.name, step.label), step.page === 'plan' ? planUrl(plan.planId) : overviewUrl(plan.planId));
+        return linkButton(stepLabel(plan.name, step.label), pages[step.page](plan.planId));
     });
     const rows = [];
     for (let at = 0; at < links.length; at += PER_ROW) rows.push(new ActionRowBuilder().addComponents(links.slice(at, at + PER_ROW)));

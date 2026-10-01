@@ -21,6 +21,11 @@ export function overviewUrl(planId) {
     return `${config.baseUrl}/#/plan/${planId}/overview`;
 }
 
+//Where whoever runs a plan asks about different dates
+export function datesUrl(planId) {
+    return `${config.baseUrl}/#/plan/${planId}/dates`;
+}
+
 //Everyone's own calendar, not tied to any one plan
 export function calendarUrl() {
     return `${config.baseUrl}/#/availability`;

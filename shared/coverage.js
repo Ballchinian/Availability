@@ -20,6 +20,11 @@ export function askedDays({ start, end, allowedWeekdays } = {}) {
     return days;
 }
 
+//Whether every day a window asks about has gone, which leaves nothing to answer and no day to pick
+export function datesPassed({ start, end, allowedWeekdays } = {}, today) {
+    return askedDays({ start: start > today ? start : today, end, allowedWeekdays }).length === 0;
+}
+
 function inWindows(date, answered) {
     return (answered || []).some((w) => date >= w.start && date <= w.end && weekdayAllowed(date, w.allowedWeekdays));
 }
@@ -108,32 +113,34 @@ export function owes(p, coverage) {
 
 /*
     The one thing a plan most wants from someone, as the words on a button and the page
-    it opens: 'plan' is where they fill in dates, 'overview' the plan's overview. Shared
-    so My plans and /mylink say the same thing about the same plan.
+    it opens: 'plan' is where they fill in dates, 'overview' the plan's overview, and
+    'dates' where whoever runs it asks about new ones. asks says whether it is something
+    for them to do, as against somewhere to look. Shared so My plans and /mylink say the
+    same thing about the same plan.
 
-    row is where they stand on it: the plan's status, whether they are on its guest list
-    (onList), their standing and daysLeft while it finds a day, movedBack once a host has
-    asked them to go over their dates again, their answer for a set day and whether they
-    are invited to it, readyToPick for a host once everyone has answered, and over for a
-    plan that has finished.
+    row is where they stand on it: the plan's status, their role, whether they are on
+    its guest list (onList), their standing and daysLeft while it finds a day, movedBack
+    once a host has asked them to go over their dates again, datesPassed once every day
+    it asked about has gone, their answer for a set day and whether they are invited to
+    it, readyToPick for a host once everyone has answered, and over for a plan that has
+    finished.
 */
 export function nextStep(row) {
-    const here = { label: 'Overview', page: 'overview' };
+    const here = { label: 'Overview', page: 'overview', asks: false };
+    const ask = (label, page) => ({ label, page, asks: true });
     if (row.over) return here;
 
     if (row.status === 'collecting') {
-        if (row.onList && row.movedBack) return { label: 'Go over your dates again', page: 'plan' };
-        if (row.onList && row.standing === 'not-said') return { label: "Say if you're in", page: 'plan' };
-        if (row.onList && row.standing === 'days-left') {
-            return { label: `Fill in ${row.daysLeft} ${row.daysLeft === 1 ? 'day' : 'days'}`, page: 'plan' };
-        }
-        if (row.onList && row.standing === 'no-dates') return { label: 'Fill in your dates', page: 'plan' };
-        return row.readyToPick ? { label: 'Pick the day', page: 'overview' } : here;
+        //Before what anyone owes: days that have gone can't be answered, or picked
+        if (row.datesPassed) return row.role === 'host' ? ask('Ask about new dates', 'dates') : { ...here, label: 'Waiting for new dates' };
+        if (row.onList && row.movedBack) return ask('Go over your dates again', 'plan');
+        if (row.onList && row.standing === 'not-said') return ask("Say if you're in", 'plan');
+        if (row.onList && row.standing === 'days-left') return ask(`Fill in ${row.daysLeft} ${row.daysLeft === 1 ? 'day' : 'days'}`, 'plan');
+        if (row.onList && row.standing === 'no-dates') return ask('Fill in your dates', 'plan');
+        return row.readyToPick ? ask('Pick the day', 'overview') : here;
     }
 
-    if (row.status === 'closed' && row.onList && row.invited && !row.answer) {
-        return { label: "Say if you're coming", page: 'overview' };
-    }
+    if (row.status === 'closed' && row.onList && row.invited && !row.answer) return ask("Say if you're coming", 'overview');
     return here;
 }
 

@@ -1,4 +1,4 @@
-import { coverageOf, inOf, standing, askedDays, askLine } from '../../../shared/coverage.js';
+import { coverageOf, inOf, standing, askedDays, askLine, datesPassed } from '../../../shared/coverage.js';
 import { safeZone, todayIn, retimeDay, instantToWall } from './zones.js';
 import { gatherFreeDays } from './freedays.js';
 import { hostIdsOf } from './hosts.js';
@@ -9,7 +9,7 @@ import { hostIdsOf } from './hosts.js';
     person on one plan, out of the plan and their row from getPlanningPrefs.
 */
 
-export { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine, nextStep } from '../../../shared/coverage.js';
+export { askedDays, datesPassed, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine, nextStep } from '../../../shared/coverage.js';
 
 //coverageOf's input. Only coveredUntil is a date on their own clock, so only it goes through retimeDay.
 export function answersOn(plan, prefs, p = null) {
@@ -72,12 +72,14 @@ export function rowFor(plan, userId, prefs = {}) {
     const collecting = plan.status === 'collecting';
     const hosting = hostIdsOf(plan).includes(userId);
     const coverage = me && collecting ? coverageOf(answersOn(plan, prefs[userId], me)) : null;
+    const window = { start: plan.dateRange.start, end: plan.dateRange.end, allowedWeekdays: plan.allowedWeekdays || null };
     return {
         role: hosting ? 'host' : 'guest',
         onList: Boolean(me),
         standing: coverage ? standing(me, coverage) : null,
         daysLeft: coverage ? coverage.daysLeft : 0,
         movedBack: Boolean(collecting && me?.sentBack),
+        datesPassed: collecting && datesPassed(window, todayIn(plan.timeZone)),
         answer: me ? me.override || me.vote || (inOf(me) === false ? 'no' : null) : null,
         invited: Boolean(me) && me.invited !== false,
         readyToPick: hosting && collecting && everyoneAnswered(plan, prefs)

@@ -89,10 +89,22 @@ describe('where someone stands on a plan', () => {
             standing: 'not-said',
             daysLeft: 4,
             movedBack: false,
+            datesPassed: false,
             answer: null,
             invited: true,
             readyToPick: false
         });
+    });
+
+    //Counted on the plan's own clock, and a set plan has no dates left to pass
+    it('says when every day a plan asked about has gone', () => {
+        const here = (days) => shiftDate(todayIn('Europe/London'), days);
+        const asked = (start, end, over = {}) => run([{ userId: 'bo', in: null }], { dateRange: { start: here(start), end: here(end) }, ...over });
+
+        expect(rowFor(asked(-14, -10), 'bo', {}).datesPassed).toBe(true);
+        expect(rowFor(asked(-14, -10), 'ali', {}).datesPassed).toBe(true);
+        expect(rowFor(asked(-14, 0), 'bo', {}).datesPassed).toBe(false);
+        expect(rowFor(asked(-14, -10, { status: 'closed', chosenDate: here(-12) }), 'bo', {}).datesPassed).toBe(false);
     });
 
     it('counts the days someone in still has to fill', () => {

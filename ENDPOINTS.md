@@ -177,14 +177,15 @@ Two lists, the live plans and the ones behind them, each plan with:
 * Where they stand on it, which is what the site's next-step button and `/mylink` are worked out from:
   * `onList`: whether they are on the guest list
   * `standing` and `daysLeft` while the plan is finding its day, as the overview has them, and `movedBack` once a host has asked them to go over their dates again
+  * `datesPassed`: the plan is still finding its day and every day it asked about has gone, on the server's clock. Whoever runs it is sent to ask about new dates, and a guest has nothing to do but wait.
   * `answer` for a set day, which is their own yes or no, a host's call on the board, or `no` for someone who said the plan wasn't for them, and `invited`, whether they are on that day's list
   * `readyToPick`: they run it, and everyone left on it has answered
 * `inIt`, `filledIn` and `mine`, the older names for being on the list, having saved dates, and running it
 
 ### Notes
 
-* The live list covers plans still collecting dates and set plans whose day has not passed.
-* The second list is what has finished: cancelled plans, and set ones whose day has been and gone. Newest first and capped at a dozen. The site shows it under Past plans, so the overview behind a finished plan, and everything it remembers, still has a way in.
+* The live list covers plans still collecting dates and set plans whose day has not passed. A plan whose dates went by with no day picked stays on it for thirty days after the end of its window, so whoever runs it can ask about new ones.
+* The second list is what is over: cancelled plans, set ones whose day has been and gone, and ones that never got a day, which is a plan still collecting more than thirty days after its window ended. Newest first and capped at a dozen. The site shows it under Past plans, so the overview behind a finished plan, and everything it remembers, still has a way in.
 * A plan set for today counts as live, so the two lists never overlap and nothing falls between them.
 * Plans the requester runs count as well as plans they are in, since nothing makes a planner invite themselves to their own plan. A plan made before hosts were stored is run by whoever made it.
 * A set plan the requester was left off the invite list for is left out, unless they run it.

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import { todayIn } from '../../src/lib/zones.js';
 import { shiftDate } from '../../src/lib/dates.js';
+import { nextStep } from '../../src/lib/coverage.js';
 
 /*
     My plans as the site is sent it: each plan with where this person stands on it and
@@ -166,5 +167,18 @@ describe('my plans', () => {
         const body = await read();
         expect(body.plans).toEqual([]);
         expect(body.past[0]).toMatchObject({ planId: 'been', role: 'guest', hosts: ['Ali', 'Sam'] });
+    });
+
+    //Still a live plan, and what it wants is new dates from whoever runs it
+    it('says when the dates a plan asked about have all gone, to its guests and whoever runs it', async () => {
+        live.push(plan('cinema', { dateRange: { start: ahead(-14), end: ahead(-10) } }), plan('picnic'));
+        const guest = (await read()).plans;
+        expect(guest.map((row) => row.datesPassed)).toEqual([true, false]);
+        expect(nextStep(guest[0])).toMatchObject({ label: 'Waiting for new dates', page: 'overview' });
+
+        sessionUser = { id: 'sam' };
+        const [host] = (await read()).plans;
+        expect(host.datesPassed).toBe(true);
+        expect(nextStep(host)).toMatchObject({ label: 'Ask about new dates', page: 'dates' });
     });
 });

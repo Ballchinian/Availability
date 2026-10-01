@@ -23,7 +23,7 @@ vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanni
 
 const { commands } = await import('../../src/bot/commands.js');
 const { attachEvents } = await import('../../src/bot/events.js');
-const { introText, whoCanPlan, createUrl, calendarUrl, overviewUrl, planUrl } = await import('../../src/bot/util.js');
+const { introText, whoCanPlan, createUrl, calendarUrl, overviewUrl, planUrl, datesUrl } = await import('../../src/bot/util.js');
 const { config } = await import('../../src/config.js');
 const { getLivePlansForUser } = await import('../../src/db/plans.js');
 const { todayIn } = await import('../../src/lib/zones.js');
@@ -151,6 +151,23 @@ describe('/mylink', () => {
             live('p3', 'Mine', { status: 'closed', chosenDate: ahead(4), hostIds: ['bo'], participants: [{ userId: 'bo', invited: false }] })
         ];
         expect(buttons(await run()).map(([label]) => label)).toEqual(['Mine: Overview']);
+    });
+
+    //Nothing is left to answer on either, so one sends whoever runs it to ask again and the other only says it is waiting
+    it('sends whoever runs a plan whose dates have gone to ask about new ones, and has a guest wait', async () => {
+        const gone = { dateRange: { start: ahead(-14), end: ahead(-10) } };
+        theirs.plans = [live('p1', 'Cinema', gone), live('p2', 'Picnic', { ...gone, hostIds: ['bo'] })];
+
+        expect(buttons(await run())).toEqual([
+            ['Cinema: Waiting for new dates', overviewUrl('p1')],
+            ['Picnic: Ask about new dates', datesUrl('p2')]
+        ]);
+    });
+
+    //Thirty days on it is under Past plans, so it is not listed as still on here
+    it('leaves out a plan that never got a day', async () => {
+        theirs.plans = [live('p1', 'Cinema', { dateRange: { start: ahead(-40), end: ahead(-31) } }), live('p2', 'Picnic')];
+        expect(buttons(await run()).map(([label]) => label)).toEqual(["Picnic: Say if you're in"]);
     });
 
     it('says so when there is nothing on', async () => {
