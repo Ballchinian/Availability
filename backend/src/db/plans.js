@@ -227,6 +227,20 @@ export async function getActivePlansForUser(userId, fromDate) {
         .toArray();
 }
 
+//The same within one server, for /mylink. fromDate wants to be a day behind, since a day passes on the server's clock, not ours.
+export async function getLivePlansForUser(guildId, userId, fromDate) {
+    return col(collections.plans)
+        .find({
+            $and: [
+                { guildId },
+                onPlan(userId),
+                { $or: [{ status: 'collecting' }, { status: 'closed', chosenDate: { $gte: fromDate } }] }
+            ]
+        })
+        .sort({ createdAt: -1 })
+        .toArray();
+}
+
 /*
     The other end of that list: plans that are over. A cancelled one, or one whose day
     has been and gone. Both drop out of the active query as they finish, which leaves

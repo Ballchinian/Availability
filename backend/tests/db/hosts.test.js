@@ -62,7 +62,7 @@ vi.mock('../../src/db/mongo.js', () => {
     };
 });
 
-const { addHost, getActivePlansForUser, getFinishedPlansForUser } = await import('../../src/db/plans.js');
+const { addHost, getActivePlansForUser, getFinishedPlansForUser, getLivePlansForUser } = await import('../../src/db/plans.js');
 
 const plan = (planId, over = {}) => ({ planId, guildId: 'g1', createdBy: 'ali', status: 'collecting', participants: [{ userId: 'bo' }], ...over });
 const hostsOf = (planId) => rows.find((p) => p.planId === planId).hostIds;
@@ -94,6 +94,14 @@ describe('the plans someone is on', () => {
 
     it('reads a plan from before hosts as run by whoever made it, and only those', async () => {
         expect(ids(await getActivePlansForUser('ali', '2026-10-01'))).toEqual(['listed', 'old']);
+    });
+
+    //What /mylink lists: one server's, for guests and whoever runs them alike
+    it('finds the same plans within one server', async () => {
+        rows.push(plan('elsewhere', { guildId: 'g2', hostIds: ['sam'] }));
+        expect(ids(await getLivePlansForUser('g1', 'sam', '2026-10-01'))).toEqual(['handed-on', 'listed', 'set']);
+        expect(ids(await getLivePlansForUser('g2', 'sam', '2026-10-01'))).toEqual(['elsewhere']);
+        expect(ids(await getLivePlansForUser('g1', 'bo', '2026-10-11'))).toEqual(['handed-on', 'listed', 'old']);
     });
 
     it('splits the finished ones off the same way', async () => {

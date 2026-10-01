@@ -84,7 +84,7 @@ Seven of them, and they sort into three lots: two for setting the server up, fou
 | `/setup` | Makes the read-only `plan-bot-info` channel and sorts out the planner role. Takes the server's time zone while it's there. Safe to run again: it keeps the channel it finds, the plan threads under it and the planner role you already have, and just brings the pinned intro up to date. Manage Server only. |
 | `/timezone` | Shows the clock this server's plans run on, or changes it. Planner role only to change it. |
 | `/free` | Tick the days you're free without leaving Discord. Run it in a plan's thread and it knows which plan you mean. Once the plan has its day, it asks if you're coming instead. |
-| `/mylink` | Lists the plans you're in on this server and hands you your link for each one. Handy when the DM has scrolled away. |
+| `/mylink` | Lists every plan you're on in this server, set ones too, each as a button for what it wants from you next. Handy when the DM has scrolled away. |
 | `/mycalendar` | Hands you the link to your calendar, the one that isn't tied to any one plan. |
 | `/overview` | Run inside a plan's thread, hands you that plan's overview. For anyone on the plan. |
 | `/cancel` | Run inside a plan's thread to call the whole thing off. Asks you to confirm first, then tells everyone. For whoever runs the plan, planner role or not. |

@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
 import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
-import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getOpenPlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed, setIn } from '../db/plans.js';
+import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getLivePlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed, setIn } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, getLastUpdated, blockDay, setDayFree } from '../db/availability.js';
 import { getPlanningPrefs } from '../db/users.js';
@@ -9,8 +9,8 @@ import { refundAction } from '../db/ratelimits.js';
 import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
-import { formatDay, formatDate, formatTime, shiftDate } from '../lib/dates.js';
-import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered } from '../lib/coverage.js';
+import { formatDay, formatDate, formatTime, shiftDate, today } from '../lib/dates.js';
+import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered, rowFor, nextStep } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 import { hostIdsOf } from '../lib/hosts.js';
 
@@ -1441,23 +1441,54 @@ export async function handleOverview(interaction) {
     });
 }
 
+//Discord's own caps: buttons on one row, and rows on one message
+const PER_ROW = 5;
+const MAX_LINKS = PER_ROW * 5;
+
+//A plan's name and what it wants next, with the name cut short before the step is, since a label caps at 80
+function stepLabel(name, step) {
+    const room = 80 - step.length - 2;
+    return `${name.length > room ? `${name.slice(0, room - 3)}...` : name}: ${step}`;
+}
+
 /*
-    The /mylink command. Lists the open plans the person is invited to in this
-    server, each with its availability link. Always a private reply, just to them,
-    so it works the same wherever they run it.
+    The /mylink command. Every plan still on in this server that they are on or run, set
+    ones too, each as a button that says what the plan wants from them next and goes
+    there: the same step My plans gives it. Always a private reply, just to them, so it
+    works the same wherever they run it.
 */
 export async function handleMyLink(interaction) {
     if (!interaction.inGuild()) {
         return interaction.reply({ content: 'Run this inside a server.', flags: MessageFlags.Ephemeral });
     }
 
-    const plans = await getOpenPlansForUser(interaction.guildId, interaction.user.id);
+    const userId = interaction.user.id;
+    const found = await getLivePlansForUser(interaction.guildId, userId, shiftDate(today(), -1));
+    //Left off a set day, there is nothing for them to open, unless they run it
+    const leftOff = (plan) => plan.status === 'closed' && !hostIdsOf(plan).includes(userId) &&
+        plan.participants.find((p) => p.userId === userId)?.invited === false;
+    const plans = found.filter((plan) => !dayHasPassed(plan) && !leftOff(plan));
     if (!plans.length) {
-        return interaction.reply({ content: 'You are not in any open plans here right now.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'You are not on any plans here right now.', flags: MessageFlags.Ephemeral });
     }
 
-    const lines = plans.map((p) => `- **${p.name}**: ${planUrl(p.planId)}`).join('\n');
-    return interaction.reply({ content: `Your plans here:\n${lines}`, flags: MessageFlags.Ephemeral });
+    //Their own answers, and everyone's on the plans they run, since picking the day waits on all of them
+    const running = plans.filter((plan) => plan.status === 'collecting' && hostIdsOf(plan).includes(userId));
+    const prefs = await getPlanningPrefs([...new Set([userId, ...running.flatMap((plan) => plan.participants.map((p) => p.userId))])]);
+
+    const links = plans.slice(0, MAX_LINKS).map((plan) => {
+        const step = nextStep({ status: plan.status, ...rowFor(plan, userId, prefs) });
+        return linkButton(stepLabel(plan.name, step.label), step.page === 'plan' ? planUrl(plan.planId) : compareUrl(plan.planId));
+    });
+    const rows = [];
+    for (let at = 0; at < links.length; at += PER_ROW) rows.push(new ActionRowBuilder().addComponents(links.slice(at, at + PER_ROW)));
+
+    const more = plans.length - links.length;
+    return interaction.reply({
+        content: more > 0 ? `Your plans here. The ${links.length} newest fit, and the other ${more} are on My plans.` : 'Your plans here:',
+        components: rows,
+        flags: MessageFlags.Ephemeral
+    });
 }
 
 //Hands back the link to the calendar, the page not tied to any one plan
