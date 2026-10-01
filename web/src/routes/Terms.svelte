@@ -24,7 +24,7 @@
         You log in with Discord, and Availability only ever asks for the "identify" scope, so it sees your
         Discord ID, username, display name and avatar, and never a password of yours. Sharing your days is
         up to you: you choose which days and hours to mark, and you can drop out of any plan you're on.
-        Whoever set the plan up gets a DM saying you did.
+        Whoever runs the plan gets a DM saying you did.
     </p>
     <p>
         Planners can invite you to a plan. Whoever runs it can, once its day is set, leave you off that day's list,

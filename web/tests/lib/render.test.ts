@@ -1132,8 +1132,8 @@ describe('the terms', () => {
         expect(body).toMatch(/you stay on the plan/);
     });
 
-    it('says dropping out tells whoever set the plan up', () => {
-        expect(body).toMatch(/Whoever set the plan up gets a DM saying you did/);
+    it('says dropping out tells whoever runs the plan', () => {
+        expect(body).toMatch(/Whoever runs the plan gets a DM saying you did/);
     });
 
     it('speaks as we rather than as the Service', () => {

@@ -10,7 +10,7 @@ import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
 import { realMembers } from '../lib/members.js';
 import { formatDay, formatDate, formatTime, shiftDate } from '../lib/dates.js';
-import { answersOn, coverageOf, standing, owes, askFor, inOf } from '../lib/coverage.js';
+import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
 import { hostIdsOf } from '../lib/hosts.js';
 
@@ -171,9 +171,9 @@ async function addToThread(thread, ids) {
     await fanOut(ids, (id) => thread.members.add(id).catch(() => {}));
 }
 
-//Whoever should be on the thread from the start: the guests, and whoever made the plan even when not one of them
+//Whoever should be on the thread from the start: the guests, and everyone who runs the plan even when not one of them
 function threadPeople(plan) {
-    return [...new Set([...plan.participants.map((p) => p.userId), plan.createdBy].filter(Boolean))];
+    return [...new Set([...plan.participants.map((p) => p.userId), ...hostIdsOf(plan)])];
 }
 
 //Someone who took the plan on goes in its thread, which is where /overview and /cancel are run
@@ -530,23 +530,22 @@ function opener(plan) {
 
 /*
     Once everyone left on the plan is in and their calendar answers every day of it,
-    nothing else tells the planner they can go and pick a day, so whoever created it
+    nothing else tells whoever runs it they can go and pick a day, so each of them
     gets a DM with the overview. The allInNotifiedAt flag keeps it to one nudge per
     round: adding someone or changing the dates reopens the round and lets it fire again.
 */
-export async function notifyCreatorIfAllIn(plan) {
+export async function notifyHostsIfAllIn(plan) {
     if (!plan || plan.status !== 'collecting' || plan.allInNotifiedAt) return;
     const on = onIt(plan);
     if (!on.length) return;
-    const prefs = await getPlanningPrefs(on.map((p) => p.userId));
-    if (!on.every((p) => standing(p, coverageOf(answersOn(plan, prefs[p.userId], p))) === 'done')) return;
+    if (!everyoneAnswered(plan, await getPlanningPrefs(on.map((p) => p.userId)))) return;
 
     //Set the flag before the DM so a slow send cannot let a second nudge slip through
     await markAllInNotified(plan.planId);
 
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    await deliver(plan, plan.createdBy, {
+    await deliverEach(plan, hostIdsOf(plan), {
         content: banner('EVERYONE IS IN') + `Everyone has answered "${plan.name}"${where}, so you can pick a day now.`,
         components: [overviewRow(plan)]
     });
@@ -562,7 +561,7 @@ export function answersMoved(userId, planIds) {
         announceAfter(planId, 'answers moved', async (plan) => {
             if (plan.status !== 'collecting') return;
             await syncPlanCards(plan, null, { only: [userId] });
-            await notifyCreatorIfAllIn(plan);
+            await notifyHostsIfAllIn(plan);
         });
     }
 }
@@ -937,11 +936,11 @@ async function afterLeaving(updated) {
     //A set day's pin was counting them
     await updateOpener(updated).catch(() => {});
 
-    //If that drop out leaves everyone else already in, the planner can compare now
-    await notifyCreatorIfAllIn(updated).catch(() => {});
-    //Likewise, if a probe is running and the leaver was the last to answer, the rest may
-    //now all be coming, so the creator should hear they are good to go
-    await notifyCreatorAllYes(updated).catch(() => {});
+    //If that drop out leaves everyone else already in, the day can be picked now
+    await notifyHostsIfAllIn(updated).catch(() => {});
+    //Likewise, if the leaver was the last to answer for a set day, the rest may now all
+    //be coming, so whoever runs it should hear they are good to go
+    await notifyHostsAllYes(updated).catch(() => {});
 }
 
 /*
@@ -1079,13 +1078,13 @@ export async function handleVote(interaction) {
     const updated = await recordVote(planId, interaction.user.id, 'yes');
     const offer = !interaction.inGuild() && !wasYes ? await blockOffer(updated, interaction.user.id).catch(() => null) : null;
     await ackVote(interaction, updated, 'yes', offer);
-    await notifyCreatorAllYes(updated).catch(() => {});
+    await notifyHostsAllYes(updated).catch(() => {});
 }
 
 /*
     The "can't make it" reason came back. Record the no, give the same feedback a yes
-    gets, and let the creator know who and why, but only when this is a fresh no, so a
-    re-submit of one already on record does not nudge them twice.
+    gets, and let whoever runs the plan know who and why, but only when this is a fresh
+    no, so a re-submit of one already on record does not nudge them twice.
 */
 export async function handleVoteModal(interaction) {
     const planId = interaction.customId.split('|')[1];
@@ -1103,7 +1102,7 @@ export async function handleVoteModal(interaction) {
     const updated = await recordVote(planId, interaction.user.id, 'no', reason);
     await ackVote(interaction, updated, 'no');
 
-    if (!wasNo) await notifyCreatorVoteNo(updated, interaction.user.id, reason).catch(() => {});
+    if (!wasNo) await notifyHostsVoteNo(updated, interaction.user.id, reason).catch(() => {});
 }
 
 //Why a vote cannot be counted: the plan is gone, called off, the round is over, or the
@@ -1291,11 +1290,11 @@ export async function handleUnblockDay(interaction) {
 }
 
 /*
-    When everyone has said they are coming, tell whoever set the plan up they are good to
+    When everyone has said they are coming, tell whoever runs the plan they are good to
     go. The probeAllYesNotifiedAt flag keeps it to one DM a round, the same way the
     availability all-in nudge does.
 */
-async function notifyCreatorAllYes(plan) {
+async function notifyHostsAllYes(plan) {
     if (!plan || !plan.probeActive) return;
     const invited = invitedOnly(plan);
     if (!invited.length || !invited.every((p) => effectiveVote(p) === 'yes')) return;
@@ -1306,7 +1305,7 @@ async function notifyCreatorAllYes(plan) {
 
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    await deliver(plan, plan.createdBy,
+    await deliverEach(plan, hostIdsOf(plan),
         banner('EVERYONE IS COMING') +
         `Everyone confirmed they can make "${plan.name}"${where} on ${whenLine(plan)}. You are good to go.`);
 }
@@ -1326,7 +1325,7 @@ export async function applyAttendanceMove(plan, status, userId, actorName = '', 
     const reached = status === 'invite' ? await sendInvite(plan, userId, actorName) : null;
     await updateOpener(plan).catch(() => {});
     if (rewrite) await syncPlanCards(plan, null, { only: [userId] }).catch(() => {});
-    if (status === 'coming') await notifyCreatorAllYes(plan).catch(() => {});
+    if (status === 'coming') await notifyHostsAllYes(plan).catch(() => {});
     return reached;
 }
 
@@ -1344,60 +1343,61 @@ async function sendInvite(plan, userId, actorName) {
 }
 
 /*
-    When someone says they cannot make it, let the creator know who and why, privately,
-    the thread never names them. The vote stays open, so we point them at the overview in case
-    they want to move the date. We skip it when the creator is the one who voted.
+    A note to everyone who runs the plan about someone on it, built from that person's name
+    and the " in {server}" to put after the plan. Hands back the names of who heard and who
+    the DM could not reach, in the order they run it, so the site can say which. Nobody is
+    told about themselves, so someone who runs it and answers still tells the others.
 */
-async function notifyCreatorVoteNo(plan, userId, reason) {
-    if (userId === plan.createdBy) return;
+async function tellHosts(plan, userId, write) {
+    const ids = hostIdsOf(plan).filter((id) => id !== userId);
+    if (!ids.length) return { told: [], missed: [] };
     const cfg = await getGuildConfig(plan.guildId);
     const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    const name = await memberName(plan.guildId, userId);
-    const why = reason ? `\nReason: ${reason}` : '\nThey did not give a reason.';
-    await deliver(plan, plan.createdBy, {
-        content: banner('SOMEONE CANNOT MAKE IT') +
-            `${name} cannot make "${plan.name}"${where} on ${whenLine(plan)}.${why}\n` +
-            `The vote is still going.`,
-        components: [overviewRow(plan)]
-    });
-}
-
-/*
-    A note to whoever set the plan up about someone on it, built from that person's name and
-    the " in {server}" to put after the plan. Hands back the names of who heard and who the
-    DM could not reach, so the site can say which. Nobody is told about themselves.
-*/
-async function tellCreator(plan, userId, write) {
-    if (userId === plan.createdBy) return { told: [], missed: [] };
-    const cfg = await getGuildConfig(plan.guildId);
-    const where = cfg?.guildName ? ` in ${cfg.guildName}` : '';
-    const reached = await deliver(plan, plan.createdBy, write(await memberName(plan.guildId, userId), where));
-    const creator = await memberName(plan.guildId, plan.createdBy, 'whoever set it up');
-    return reached ? { told: [creator], missed: [] } : { told: [], missed: [creator] };
+    const payload = write(await memberName(plan.guildId, userId), where);
+    const heard = await Promise.all(ids.map(async (id) => ({
+        name: await memberName(plan.guildId, id, 'whoever runs it'),
+        reached: Boolean(await deliver(plan, id, payload))
+    })));
+    return {
+        told: heard.filter((h) => h.reached).map((h) => h.name),
+        missed: heard.filter((h) => !h.reached).map((h) => h.name)
+    };
 }
 
 const reasonLine = (reason) => (reason ? `\nReason: ${reason}` : '');
 
-export function notifyCreatorDropped(plan, userId, reason) {
-    return tellCreator(plan, userId, (name, where) =>
+/*
+    Someone saying they cannot make a set day, with why, which the thread never shows. The
+    overview goes with it in case that moves the day.
+*/
+function notifyHostsVoteNo(plan, userId, reason) {
+    return tellHosts(plan, userId, (name, where) => ({
+        content: banner('SOMEONE CANNOT MAKE IT') +
+            `${name} cannot make "${plan.name}"${where} on ${whenLine(plan)}.${reason ? reasonLine(reason) : '\nThey did not give a reason.'}`,
+        components: [overviewRow(plan)]
+    }));
+}
+
+export function notifyHostsDropped(plan, userId, reason) {
+    return tellHosts(plan, userId, (name, where) =>
         banner('SOMEONE DROPPED OUT') + `${name} dropped out of "${plan.name}"${where}.${reasonLine(reason)}`);
 }
 
 //Not for me on a plan still finding its day. They stay on it, and can say they're in again.
-function notifyCreatorOut(plan, userId, reason) {
-    return tellCreator(plan, userId, (name, where) => ({
+function notifyHostsOut(plan, userId, reason) {
+    return tellHosts(plan, userId, (name, where) => ({
         content: banner('SOMEONE CANNOT MAKE IT') + `${name} can't make "${plan.name}"${where}.${reasonLine(reason)}`,
         components: [overviewRow(plan)]
     }));
 }
 
-function notifyCreatorUndropped(plan, userId) {
-    return tellCreator(plan, userId, (name, where) => banner('BACK IN') + `${name} is in for "${plan.name}"${where} after all.`);
+function notifyHostsBackIn(plan, userId) {
+    return tellHosts(plan, userId, (name, where) => banner('BACK IN') + `${name} is in for "${plan.name}"${where} after all.`);
 }
 
 /*
     Count me in or Not for me having landed, from the site or a DM. Their card is brought in
-    line unless the press that did it has already rewritten it, and whoever set the plan up
+    line unless the press that did it has already rewritten it, and whoever runs the plan
     hears about someone going out or coming back in. was is where they stood before. Hands
     back who that DM reached.
 */
@@ -1413,9 +1413,9 @@ export async function announceJoin(plan, userId, was, reason = null, { card = tr
         const byName = await memberName(plan.guildId, userId, '');
         await addPlanEvent(plan.planId, { type: out ? 'left' : 'rejoined', by: userId, byName }).catch(() => {});
     }
-    if (out) heard = await notifyCreatorOut(plan, userId, reason).catch(() => heard);
-    if (back) await notifyCreatorUndropped(plan, userId).catch(() => {});
-    await notifyCreatorIfAllIn(plan).catch(() => {});
+    if (out) heard = await notifyHostsOut(plan, userId, reason).catch(() => heard);
+    if (back) await notifyHostsBackIn(plan, userId).catch(() => {});
+    await notifyHostsIfAllIn(plan).catch(() => {});
     return heard;
 }
 

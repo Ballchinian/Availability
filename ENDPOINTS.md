@@ -38,7 +38,7 @@ Three kinds of Discord message belong to a plan, and every route that changes it
 * **The pinned opener** in the plan's thread. On a set day it is the yes/no itself: the day, what the plan is about, the running tally and the buttons. Once called off it says so, with no buttons. It is remembered by message id, edited where it sits, and posted and pinned again if somebody deletes it. Without that second half a single deletion was permanent: every later pass fetched nothing and gave up. Set plans used to post the yes/no as a second message under it, and that one is deleted the first time the plan is touched after this change.
 * **One card per person**, the DM that says what the plan currently is. It is rebuilt from the plan every time, so the message sent on the day and the message rewritten a fortnight later agree, and somebody's own yes or no stays on theirs. While a plan is still finding its day the card asks Count me in / Not for me, with the same line about what their calendar already answers that the plan page shows, and once they have answered it says where they stand, with their answer ticked. Someone who says Not for me stays on the plan and hears nothing more about it until they say they're in. Drop out and Undo buttons on cards from before Count me in land as Not for me and back in.
 
-Anything that tells a guest something (a day set, a time moved, a nudge, a plan called off) goes as a fresh card with a line on why it came, and their old card is deleted once the new one has landed. When Discord will not delete it, it is edited down to "There's a newer message about this plan." with no buttons. That keeps one DM per person per plan with live buttons. A press on an older one anyway gets the card as it is now, becomes their card, and changes nothing. The only other DMs are the notes to whoever set the plan up about other people (everyone is in, someone cannot make it, someone dropped out).
+Anything that tells a guest something (a day set, a time moved, a nudge, a plan called off) goes as a fresh card with a line on why it came, and their old card is deleted once the new one has landed. When Discord will not delete it, it is edited down to "There's a newer message about this plan." with no buttons. That keeps one DM per person per plan with live buttons. A press on an older one anyway gets the card as it is now, becomes their card, and changes nothing. The only other DMs are the notes to everyone who runs the plan about other people (everyone is in, someone cannot make it, someone dropped out, everyone is coming).
 
 Every yes/no button carries the round it was sent in, and a new day is a new round, so a button pressed after the day moved is refused with the day it was about ("That was about Sat 12 Sep 2026; the plan has moved.") and nothing is written. The answers for the last three days a plan has been on are kept, so moving back to one of them brings its answers back, and its old buttons work again. Buttons sent before rounds existed carry none and count as the plan's first day.
 
@@ -325,7 +325,7 @@ Participants only.
 * Marks them confirmed for the plan, which counts as in.
 * Remembers the plan's window, weekdays and all, as days they've answered, so every other plan over the same days counts them as answered too. `/free` does the same for each list it saves.
 * Saves `coveredUntil` when it rides along.
-* Rewrites the DM card they hold on every plan still finding a day, since each says how much is left, and DMs the planner of any plan where everyone left on it is now in and answered.
+* Rewrites the DM card they hold on every plan still finding a day, since each says how much is left, and DMs whoever runs any plan where everyone left on it is now in and answered.
 
 ### Returns
 
@@ -762,8 +762,8 @@ Participants only.
 
 * Records the answer. Someone who says Not for me stays on the plan and can say they're in again.
 * Rewrites their DM card to match.
-* DMs whoever set the plan up when someone says Not for me, with the reason, and when someone who had said it is in after all.
-* If that leaves everyone answered, DMs the planner to go and pick a day.
+* DMs everyone who runs the plan when someone says Not for me, with the reason, and when someone who had said it is in after all.
+* If that leaves everyone answered, DMs them to go and pick a day.
 
 ### Returns
 
@@ -787,7 +787,7 @@ Participants only.
 ### Effects
 
 * Takes them off the guest list, and leaves them in the thread.
-* DMs whoever set the plan up, the same message the DM's drop out sends, just without a reason. A creator dropping out of their own plan tells nobody.
+* DMs everyone who runs the plan, the same message the DM's drop out sends, just without a reason. Someone who runs it dropping out tells the others, and tells nobody when they run it alone.
 
 ### Returns
 
@@ -796,7 +796,7 @@ Participants only.
 
 ### Notes
 
-* A creator who has since left the server comes back as "whoever set it up", since there is no server nickname left to read.
+* Someone who runs it and has since left the server comes back as "whoever runs it", since there is no server nickname left to read.
 
 ---
 
@@ -835,7 +835,7 @@ Save the requester's general timetable for a window.
 
 * Replaces their saved days inside the window.
 * Saves `coveredUntil` when it rides along. A plan's day counts as answered once every one of their own days it falls on is on or before it.
-* Rewrites the DM card they hold on every plan still finding a day, and DMs the planner of any plan where everyone left on it is now in and answered.
+* Rewrites the DM card they hold on every plan still finding a day, and DMs whoever runs any plan where everyone left on it is now in and answered.
 
 ### Returns
 

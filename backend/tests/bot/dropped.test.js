@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /*
-    The DMs whoever set a plan up gets when someone drops out, says it is not for them or
-    comes back in, and the names handed back, which is all the site has to go on when it
-    tells the person who heard.
+    The DMs everyone who runs a plan gets when someone drops out, says it is not for them
+    or comes back in, and the names handed back, which is all the site has to go on when
+    it tells the person who heard.
 */
 
 const dms = [];
@@ -35,19 +35,19 @@ vi.mock('../../src/bot/client.js', () => ({
 }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 
-const { notifyCreatorDropped, announceJoin } = await import('../../src/bot/plans.js');
+const { notifyHostsDropped, announceJoin } = await import('../../src/bot/plans.js');
 
 const plan = { planId: 'p1', guildId: 'g1', name: 'Board games', createdBy: 'planner' };
 
 beforeEach(() => {
     dms.length = 0;
     closed.clear();
-    members = { planner: 'Ali', guest: 'Bo' };
+    members = { planner: 'Ali', guest: 'Bo', sam: 'Sam' };
 });
 
-describe('telling whoever set it up that someone dropped out', () => {
+describe('telling whoever runs it that someone dropped out', () => {
     it('DMs them and hands back their name as told', async () => {
-        const result = await notifyCreatorDropped(plan, 'guest', 'Away that week');
+        const result = await notifyHostsDropped(plan, 'guest', 'Away that week');
 
         expect(result).toEqual({ told: ['Ali'], missed: [] });
         expect(dms).toHaveLength(1);
@@ -58,21 +58,47 @@ describe('telling whoever set it up that someone dropped out', () => {
 
     it('hands their name back as missed when their DMs are closed', async () => {
         closed.add('planner');
-        expect(await notifyCreatorDropped(plan, 'guest', null)).toEqual({ told: [], missed: ['Ali'] });
+        expect(await notifyHostsDropped(plan, 'guest', null)).toEqual({ told: [], missed: ['Ali'] });
     });
 
     it('still reaches them after they leave the server, without a name to give', async () => {
         delete members.planner;
-        expect(await notifyCreatorDropped(plan, 'guest', null)).toEqual({ told: ['whoever set it up'], missed: [] });
+        expect(await notifyHostsDropped(plan, 'guest', null)).toEqual({ told: ['whoever runs it'], missed: [] });
     });
 
-    it('tells nobody when the one dropping out set it up', async () => {
-        expect(await notifyCreatorDropped(plan, 'planner', null)).toEqual({ told: [], missed: [] });
+    it('tells nobody when the one dropping out is the only one running it', async () => {
+        expect(await notifyHostsDropped(plan, 'planner', null)).toEqual({ told: [], missed: [] });
         expect(dms).toEqual([]);
+    });
+
+    describe('on a plan more than one person runs', () => {
+        const shared = { ...plan, hostIds: ['planner', 'sam'] };
+
+        it('tells every one of them, named in the order they run it', async () => {
+            expect(await notifyHostsDropped(shared, 'guest', null)).toEqual({ told: ['Ali', 'Sam'], missed: [] });
+            expect(dms.map((d) => d.userId).sort()).toEqual(['planner', 'sam']);
+            expect(dms[0].text).toBe(dms[1].text);
+        });
+
+        it('says which of them the DM could not reach', async () => {
+            closed.add('sam');
+            expect(await notifyHostsDropped(shared, 'guest', null)).toEqual({ told: ['Ali'], missed: ['Sam'] });
+        });
+
+        it('tells the others when the one dropping out runs it too', async () => {
+            expect(await notifyHostsDropped(shared, 'sam', null)).toEqual({ told: ['Ali'], missed: [] });
+            expect(dms.map((d) => d.userId)).toEqual(['planner']);
+        });
+
+        //Whoever made it is no longer one of them, so hears nothing
+        it('goes by who runs it now, not by who made it', async () => {
+            expect(await notifyHostsDropped({ ...plan, hostIds: ['sam'] }, 'guest', null)).toEqual({ told: ['Sam'], missed: [] });
+            expect(dms.map((d) => d.userId)).toEqual(['sam']);
+        });
     });
 });
 
-describe('telling whoever set it up about a count me in or not for me', () => {
+describe('telling whoever runs it about a count me in or not for me', () => {
     const answered = (value) => ({ ...plan, status: 'collecting', participants: [{ userId: 'guest', in: value }, { userId: 'cy', in: null }] });
 
     it('says who is out and why, and hands back who heard', async () => {

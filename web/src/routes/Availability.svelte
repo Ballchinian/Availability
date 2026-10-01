@@ -222,7 +222,7 @@
         {#if !leaveArmed}
             <button class="ghost danger-btn" onclick={() => (leaveArmed = true)} bind:this={dropButton}>Drop out of this plan</button>
         {:else}
-            <span class="small">Drop out of this plan? You come off the guest list, and I'll DM whoever set it up.</span>
+            <span class="small">Drop out of this plan? You come off the guest list, and I'll DM whoever runs it.</span>
             <button class="ghost danger-btn" onclick={leave} disabled={leaving}>
                 {leaving ? 'Dropping out...' : 'Yes, drop me out'}
             </button>

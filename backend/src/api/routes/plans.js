@@ -8,7 +8,7 @@ import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanC
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary, getLastUpdated } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyHostsDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -245,7 +245,7 @@ router.post('/:planId/availability', async (req, res) => {
     const others = plans.filter((p) => p.planId !== plan.planId);
     const meNow = updated.participants.find((p) => p.userId === req.user.id) || me;
 
-    //No thread post, a save is quiet. Their cards catch up, and a plan it finished may DM its planner.
+    //No thread post, a save is quiet. Their cards catch up, and a plan it finished may DM whoever runs it.
     answersMoved(req.user.id, [...new Set([plan.planId, ...plans.map((p) => p.planId)])]);
 
     res.json({
@@ -1086,7 +1086,7 @@ router.post('/:planId/leave', async (req, res) => {
         return res.status(500).json({ error: 'Could not drop you out of the plan.' });
     }
 
-    const { told, missed } = await notifyCreatorDropped(plan, req.user.id, null).catch(() => ({ told: [], missed: [] }));
+    const { told, missed } = await notifyHostsDropped(plan, req.user.id, null).catch(() => ({ told: [], missed: [] }));
     res.json({ ok: true, told, missed });
 });
 

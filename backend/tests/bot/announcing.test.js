@@ -271,6 +271,12 @@ describe('opening a plan thread', () => {
         expect(timeline.filter((t) => t.startsWith('add')).sort()).toEqual(['add ali', 'add bo', 'add cy']);
     });
 
+    it('adds everyone who runs it, on the guest list or not', async () => {
+        store.plan = { ...setDay(), createdBy: 'cy', hostIds: ['cy', 'sam', 'ali'] };
+        await announceSetPlan(store.plan, cfg, 'Cy');
+        expect(timeline.filter((t) => t.startsWith('add')).sort()).toEqual(['add ali', 'add bo', 'add cy', 'add sam']);
+    });
+
     //Where /overview and /cancel are run, so someone who took the plan on has to be in it
     it('adds someone who takes the plan on later, and nothing else happens', async () => {
         await addHostToThread({ ...setDay(), threadId: 't1' }, 'sam');

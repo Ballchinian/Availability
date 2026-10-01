@@ -601,7 +601,7 @@ export async function setIn(planId, userId, value, reason = null) {
     return getPlan(planId);
 }
 
-//Note that we have told the creator everyone is in, so that nudge only goes once a round
+//Note that whoever runs the plan has been told everyone is in, so that nudge only goes once a round
 export async function markAllInNotified(planId) {
     await col(collections.plans).updateOne({ planId }, { $set: { allInNotifiedAt: new Date() } });
 }
@@ -715,7 +715,7 @@ export async function forgetProbeMessage(planId) {
     await col(collections.plans).updateOne({ planId }, { $unset: { probeThreadMessageId: '' } });
 }
 
-//Note that the creator has been told everyone confirmed, so that good-to-go DM only goes once
+//Note that whoever runs the plan has been told everyone confirmed, so that good-to-go DM only goes once
 export async function markProbeAllYes(planId) {
     await col(collections.plans).updateOne({ planId }, { $set: { probeAllYesNotifiedAt: new Date() } });
 }

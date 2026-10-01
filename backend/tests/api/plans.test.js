@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
@@ -103,7 +103,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'announcePlanDates',
         'announceCancel',
         'leavePlan',
-        'notifyCreatorDropped',
+        'notifyHostsDropped',
         'announceAddition',
         'answersMoved',
         'syncPlan',
@@ -1091,24 +1091,24 @@ describe('count me in or not for me on the site', () => {
 describe('dropping out on the site', () => {
     beforeEach(() => (sessionUser = guest));
 
-    it('DMs whoever set it up, the same as the button in the DM', async () => {
-        notifyCreatorDropped.mockResolvedValueOnce({ told: ['Ali'], missed: [] });
+    it('DMs whoever runs it, the same as the button in the DM', async () => {
+        notifyHostsDropped.mockResolvedValueOnce({ told: ['Ali'], missed: [] });
         const res = await post('/ab12cd34ef/leave');
 
         expect(res.status).toBe(200);
         expect(leavePlan).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', 'Bo');
-        expect(notifyCreatorDropped).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', null);
+        expect(notifyHostsDropped).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', null);
         expect(await res.json()).toEqual({ ok: true, told: ['Ali'], missed: [] });
     });
 
     it('says who the DM could not reach', async () => {
-        notifyCreatorDropped.mockResolvedValueOnce({ told: [], missed: ['Ali'] });
+        notifyHostsDropped.mockResolvedValueOnce({ told: [], missed: ['Ali'] });
         const res = await post('/ab12cd34ef/leave');
         expect(await res.json()).toEqual({ ok: true, told: [], missed: ['Ali'] });
     });
 
     it('claims nobody was told when telling them fell over', async () => {
-        notifyCreatorDropped.mockRejectedValueOnce(new Error('no database'));
+        notifyHostsDropped.mockRejectedValueOnce(new Error('no database'));
         const res = await post('/ab12cd34ef/leave');
 
         expect(res.status).toBe(200);
@@ -1120,7 +1120,7 @@ describe('dropping out on the site', () => {
         const res = await post('/ab12cd34ef/leave');
 
         expect(res.status).toBe(403);
-        expect(notifyCreatorDropped).not.toHaveBeenCalled();
+        expect(notifyHostsDropped).not.toHaveBeenCalled();
     });
 });
 
