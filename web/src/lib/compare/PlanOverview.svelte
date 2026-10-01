@@ -1,4 +1,5 @@
 <script module lang="ts">
+    import { datesPassed } from '../../../../shared/coverage.js';
     import { formatDate, formatTime } from '../format.js';
     import type { ComparePlan } from '../types.js';
 
@@ -6,7 +7,7 @@
     export function planState(plan: ComparePlan, today: string): string {
         const when = plan.chosenDate ? `${formatDate(plan.chosenDate)}${plan.chosenTime ? ` at ${formatTime(plan.chosenTime)}` : ''}` : '';
         if (plan.status === 'cancelled') return when ? `Called off. It was set for ${when}` : 'Called off';
-        if (!when) return `Finding a day, ${formatDate(plan.start)} to ${formatDate(plan.end)}`;
+        if (!when) return datesPassed(plan, today) ? 'The dates it asked about have passed' : `Finding a day, ${formatDate(plan.start)} to ${formatDate(plan.end)}`;
         return plan.chosenDate! < today ? `Was on ${when}` : `Set for ${when}`;
     }
 </script>
@@ -55,6 +56,8 @@
     const cancelled = $derived(data.plan.status === 'cancelled');
     const over = $derived(cancelled || Boolean(data.plan.chosenDate && data.plan.chosenDate < today));
     const collecting = $derived(data.plan.status === 'collecting');
+    //Still finding its day with every day it asked about gone, so there are none left to fill in
+    const passed = $derived(collecting && datesPassed(data.plan, today));
 
     //What the plan is set for right now, null while it is still open
     const chosen = $derived(
@@ -130,7 +133,7 @@
     {#if data.plan.threadUrl}
         <a href={data.plan.threadUrl} target="_blank" rel="noopener">Open the thread in Discord</a>
     {/if}
-    {#if data.youAreIn && collecting}
+    {#if data.youAreIn && collecting && !passed}
         <a href="#/plan/{planId}">Fill in your own dates</a>
     {/if}
     <!--Offered on a cancelled or finished plan too, since one that fell through or has

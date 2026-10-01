@@ -1390,6 +1390,14 @@ describe('the state of a plan', () => {
 
     it('says a plan is still finding its day, and between when', () => {
         expect(planState(plan(), '2026-08-01')).toBe('Finding a day, Wed 5 Aug 2026 to Wed 19 Aug 2026');
+        expect(planState(plan(), '2026-08-19')).toBe('Finding a day, Wed 5 Aug 2026 to Wed 19 Aug 2026');
+    });
+
+    //It is still a live plan: whoever runs it can ask about new dates
+    it('says when every day it asked about has gone', () => {
+        expect(planState(plan(), '2026-08-20')).toBe('The dates it asked about have passed');
+        //Weekends only, and Sun 16 is the last one before the window ends on Wed 19
+        expect(planState(plan({ allowedWeekdays: [0, 6] }), '2026-08-17')).toBe('The dates it asked about have passed');
     });
 
     it('says the day a plan is set for, with its time when it has one', () => {
@@ -1484,6 +1492,14 @@ describe('a plan overview', () => {
         const body = draw(screen());
         expect(body).toContain(`<p class="muted">Finding a day, ${formatDate(ahead(3))} to ${formatDate(ahead(10))} · The server</p>`);
         expect(body).toContain('Run by Ali and Sam.');
+    });
+
+    //Nothing offers a day that has already gone, and every day of this one has
+    it('says when the dates it asked about have passed, and stops offering them to fill in', () => {
+        const body = draw(screen({}, { start: ahead(-10), end: ahead(-3) }));
+        expect(body).toContain('<p class="muted">The dates it asked about have passed · The server</p>');
+        expect(body).not.toContain('Fill in your own dates');
+        expect(draw(screen())).toContain('Fill in your own dates');
     });
 
     //The one thing everyone came for, so it keeps the box it had
