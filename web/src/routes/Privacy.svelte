@@ -26,7 +26,7 @@
         <strong>Servers you share with the bot:</strong> which servers (that have the bot) you're in, so
         we know when your calendar is still needed by anyone.
         <br />
-        <strong>Plans:</strong> a plan's name, optional description, date range, who's invited, who has
+        <strong>Plans:</strong> a plan's name, optional description, date range, who runs it, who's invited, who has
         filled in their dates, whether each person is in or said it's not for them, with any short reason
         they gave, and the day, time and any note it's set for. Once a day is set, also each
         person's yes or no, any short reason given for a no, a planner's call on the board, and who is on
@@ -37,7 +37,7 @@
         <br />
         <strong>The bot's DMs:</strong> the ID of the message the bot last sent you about each plan, so it
         can rewrite that message when the plan changes, and whether your DMs were closed the last time it
-        tried, so the overview can show planners that the thread is the only way to reach you.
+        tried, so the overview can show whoever runs the plan that the thread is the only way to reach you.
         <br />
         <strong>Server settings:</strong> for each server, which channel is the plans channel, which role
         can plan, the time zone its plans run on, who ran /setup, and the intro message the
@@ -56,11 +56,19 @@
 
     <h2>Who can see your days</h2>
     <p>
-        Anyone with the planner role in a server can open the overview of any plan there. Once you're in
-        on a plan, the overview shows them the days and hours you marked free within that plan's dates, on
-        the days your answer covers. It also shows whether you're in, how many days you have left to answer,
-        when you last updated your calendar, your yes or no on a set day, and any reason you gave. Everyone else on the plan only sees counts: how many
-        have filled in their dates, and how many are coming.
+        Whoever runs a plan sees the most, and that's the planner who made it. Once you're in on a plan,
+        its overview shows them the days and hours you marked free within that plan's dates, on the days
+        your answer covers. It also shows whether you're in, how many days you have left to answer, when
+        you last updated your calendar, your yes or no on a set day, any reason you gave, and whether
+        your DMs were closed. Having the planner role doesn't let anyone into a plan they aren't on.
+    </p>
+    <p>
+        Everyone else on the plan can open its overview too. They see whether each person is in, how many
+        days each has left to answer, and who's coming once a day is set, without being told whether you
+        said so yourself or whoever runs the plan marked it for you. They never see a reason. They also
+        see the days and hours each person who's in marked free, the same as whoever runs it. A plan made
+        before guests could see that stays as it was: guests on it see how many people are free each day,
+        and nobody's name.
     </p>
 
     <h2>What we don't do</h2>

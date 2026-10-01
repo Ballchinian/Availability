@@ -14,7 +14,7 @@ Most actions also depend on where the requester stands:
 
 * **Planner**: has the server's planner role. Only planners can pull the server's member list, start a plan, turn a repeat on, or copy a plan into a new one.
 * **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it; one made before hosts were stored reads the same way.
-* **Guest**: on a plan's guest list. They can fill in their own dates and answer for themselves.
+* **Guest**: on a plan's guest list. They can fill in their own dates, answer for themselves, and read the plan's overview.
 
 A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.
 
@@ -336,20 +336,30 @@ Participants only.
 
 ## GET `/api/plans/:planId/compare` (session)
 
-Everything the compare page needs.
+Everything a plan's overview needs.
 
-Hosts only.
+For anyone on the plan: whoever runs it, and its guests. A host gets all of it. A guest gets where everyone stands, with the parts a host works from left out.
 
 ### Returns
 
+* `role`: `host` or `guest`, which is what decides the rest
+* `hosts`: the names of whoever runs the plan, leaving out anyone no longer in the server
+* `isPlanner`: whether the requester has the planner role, so could start another plan like it
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `inReason` for someone out, `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
 * `updatedAt`: when each of them last saved anything on their calendar, null if they never have
 * For anyone who is in, `unanswered`: the plan's days they haven't answered yet, as `[first, last]` runs rather than one date each, since a two year window would otherwise be hundreds of dates per person
-* Whether the requester is on the guest list themselves
+* Whether the requester is on the guest list themselves, and as `you`, their own answer for a set day and whether they're on that day's list
 * For each day, who is free and the hours they gave, so the page can work out the overlap. Only people who are in count, and only on days their answer reaches: a day marked on their calendar past their answer date doesn't show until they answer it
 * The plan's history: what has happened to it, oldest first
+
+### What a guest gets instead
+
+* No reasons: `inReason` and `voteReason` are null, and the one history line that carries a reason comes without it.
+* `vote` is where the person stands on the day, a host's call on the board included, and `override` is null. Whether they said it themselves is the host's business. `you.vote` is still the requester's own answer.
+* `sentBack`, `updatedAt` and `coveredUntil` are null and `dmsClosed` is false for everyone.
+* `seesDays`: whether the days come with names. True for a host, and for a guest on a plan made since guests could see each other's days. People on older plans answered expecting only the planner to see, so a guest on one gets each day's free people as `free0`, `free1` and so on, in order of their hours rather than in guest list order, with no `unanswered` runs on anyone. `unansweredCounts` comes in their place: for each day, how many of the people in haven't answered it.
 
 ### Notes
 
@@ -359,7 +369,8 @@ Hosts only.
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
 * Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
 * Every line but one was done by a person. Coming round again is written by the repeat sweep on a timer, so it carries no name and reads as a sentence of its own.
-* Capped at the most recent 100, and it is the only place history is exposed, so it never leaves the planner's screen.
+* Capped at the most recent 100, and this is the only place history is exposed, so only people on the plan ever read it.
+* `403` for anyone who is not on the plan, planner role or not.
 
 ---
 

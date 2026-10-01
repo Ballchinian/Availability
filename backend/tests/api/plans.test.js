@@ -1154,6 +1154,140 @@ describe('the overview', () => {
     });
 });
 
+/*
+    The same route for a guest. They see where everyone stands, and none of what a host
+    works from: reasons, calls made on the board, who moved whom, whose DMs are closed.
+*/
+describe('what a guest is shown on the overview', () => {
+    const named = {
+        ...asMember,
+        guild: { members: { fetch: async (id) => ({ displayName: id.toUpperCase(), displayAvatarURL: () => '' }) } }
+    };
+    const london = { timeZone: 'Europe/London', coveredUntil: ahead(20), answered: [] };
+    const on = (over = {}) =>
+        plans.set(
+            'ab12cd34ef',
+            plan({
+                timeZone: 'Europe/London',
+                hostIds: ['planner', 'sam'],
+                participants: [
+                    { userId: 'guest', in: true },
+                    { userId: 'ann', in: true, sentBack: { byName: 'Ali', was: { in: true } }, dmsClosed: true },
+                    { userId: 'cy', in: false, inReason: 'Away' }
+                ],
+                history: [{ type: 'voided', at: new Date(), by: 'planner', byName: 'Ali', from: ahead(3), reason: 'Rain' }],
+                ...over
+            })
+        );
+    const read = async () => (await get('/ab12cd34ef/compare')).json();
+    const byId = (body) => Object.fromEntries(body.participants.map((p) => [p.userId, p]));
+
+    beforeEach(() => {
+        sessionUser = guest;
+        plannerAnswer = named;
+        on();
+    });
+
+    it('is read with no planner role, and says where they stand on it', async () => {
+        const res = await get('/ab12cd34ef/compare');
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ role: 'guest', isPlanner: false, youAreIn: true });
+    });
+
+    it('is kept from someone who is not on the plan, planner or not', async () => {
+        sessionUser = stranger;
+        plannerAnswer = { ...named, isPlanner: true };
+        const res = await get('/ab12cd34ef/compare');
+        expect(res.status).toBe(403);
+        expect((await res.json()).error).toMatch(/not on this plan/);
+    });
+
+    it('is kept from someone who has left the server', async () => {
+        plannerAnswer = { ...named, isMember: false };
+        expect((await get('/ab12cd34ef/compare')).status).toBe(403);
+    });
+
+    it('names whoever runs it', async () => {
+        expect((await read()).hosts).toEqual(['PLANNER', 'SAM']);
+    });
+
+    it('leaves out the reasons and everything a host works from', async () => {
+        getLastUpdated.mockResolvedValueOnce({ ann: new Date('2026-09-28T10:00:00Z') });
+        const body = await read();
+        const by = byId(body);
+
+        expect(by.cy).toMatchObject({ in: false, standing: 'out', inReason: null });
+        expect(by.ann).toMatchObject({ standing: 'no-dates', sentBack: null, dmsClosed: false, updatedAt: null, coveredUntil: null });
+        expect(body.history[0]).toMatchObject({ type: 'voided', byName: 'Ali' });
+        expect(body.history[0]).not.toHaveProperty('reason');
+        //Never asked for, so the answer queued above is still there for the host below
+        expect(getLastUpdated).not.toHaveBeenCalled();
+
+        sessionUser = planner;
+        const full = await read();
+        expect(byId(full).cy.inReason).toBe('Away');
+        expect(byId(full).ann).toMatchObject({ sentBack: { byName: 'Ali' }, dmsClosed: true, updatedAt: '2026-09-28T10:00:00.000Z' });
+        expect(full.history[0].reason).toBe('Rain');
+        expect(full.role).toBe('host');
+    });
+
+    //Their column on the board is the call, and whether it was their own answer is the host's business
+    it('folds a call made on the board into where the person stands', async () => {
+        on({
+            status: 'closed',
+            chosenDate: inWindow,
+            participants: [{ userId: 'guest', vote: 'no', voteReason: 'Working', override: 'yes' }, { userId: 'ann', vote: 'yes' }]
+        });
+        const body = await read();
+        expect(byId(body).guest).toMatchObject({ vote: 'yes', voteReason: null, override: null });
+        expect(body.you).toEqual({ vote: 'no', invited: true });
+    });
+
+    describe('and the days', () => {
+        beforeEach(() => {
+            getPlanningPrefs.mockResolvedValueOnce({ guest: london, ann: london });
+            getAvailabilityForUsersInRange.mockResolvedValueOnce([
+                { userId: 'guest', date: ahead(3), hours: [] },
+                { userId: 'ann', date: ahead(3), hours: [18, 19] },
+                { userId: 'ann', date: ahead(4), hours: [] }
+            ]);
+        });
+
+        it('come by name on a plan made since guests could see them', async () => {
+            on({ guestsSeeDays: true });
+            const body = await read();
+
+            expect(body.seesDays).toBe(true);
+            expect(body.freeByDate[ahead(3)]).toEqual([{ userId: 'guest', hours: [] }, { userId: 'ann', hours: [18, 19] }]);
+            expect(byId(body).ann.unanswered).toEqual([[ahead(1), ahead(14)]]);
+            expect(body).not.toHaveProperty('unansweredCounts');
+        });
+
+        //People on those answered expecting only the planner to see
+        it('come as counts, with no names, on a plan from before', async () => {
+            const body = await read();
+
+            expect(body.seesDays).toBe(false);
+            expect(body.freeByDate).toEqual({
+                [ahead(3)]: [{ userId: 'free0', hours: [] }, { userId: 'free1', hours: [18, 19] }],
+                [ahead(4)]: [{ userId: 'free0', hours: [] }]
+            });
+            expect(body.participants.map((p) => p.unanswered)).toEqual([[], [], []]);
+            //Ann was sent back, so every day is still hers to answer, bar the two she shows as free on
+            expect(Object.keys(body.unansweredCounts)).toHaveLength(12);
+            expect(body.unansweredCounts[ahead(1)]).toBe(1);
+            expect(body.unansweredCounts).not.toHaveProperty(ahead(3));
+        });
+
+        it('come by name to whoever runs it, on a plan of any age', async () => {
+            sessionUser = planner;
+            const body = await read();
+            expect(body.seesDays).toBe(true);
+            expect(body.freeByDate[ahead(4)]).toEqual([{ userId: 'ann', hours: [] }]);
+        });
+    });
+});
+
 describe('asking one person again', () => {
     const queue = () => announceAfter.mockImplementationOnce(async (planId, label, run) => run(plans.get(planId)));
 

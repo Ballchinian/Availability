@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { planRole } from '../roles.js';
+import { forGuest, historyForGuest, nameless, unansweredCounts } from '../guestview.js';
 import { announceAfter } from '../announce.js';
 import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
@@ -17,6 +18,7 @@ import { newlyCovered, answersOn, askFor, daysToFill, toFillRuns, coverageOf, st
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
 import { realMembers } from '../../lib/members.js';
+import { hostIdsOf } from '../../lib/hosts.js';
 import { ipLimit } from '../../lib/iplimit.js';
 
 /*
@@ -293,9 +295,23 @@ router.post('/:planId/join', async (req, res) => {
     res.json({ ok: true, ...answer, told: heard?.told ?? [], missed: heard?.missed ?? [] });
 });
 
-//Everything the compare page needs: who is in, and how many are free each day
-router.get('/:planId/compare', requireHost, async (req, res) => {
-    const { plan, ctx } = req;
+/*
+    Everything the overview needs: who is in, where each person stands, and who is free
+    each day. For anyone on the plan. Whoever runs it gets all of it, and a guest gets
+    what guestview.js leaves them.
+*/
+router.get('/:planId/compare', async (req, res) => {
+    const { plan } = req;
+
+    const ctx = await guildContext(plan.guildId, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (!ctx.isMember) return res.status(403).json({ error: 'You are not in that server.' });
+    const role = planRole(plan, req.user.id);
+    if (!role) return res.status(403).json({ error: 'You are not on this plan.' });
+
+    const host = role === 'host';
+    //Guests see each other's days by name only on a plan made since they could
+    const seesDays = host || plan.guestsSeeDays === true;
 
     /*
         Only people who are in count, and only on the days their answer reaches, since
@@ -308,29 +324,34 @@ router.get('/:planId/compare', requireHost, async (req, res) => {
     */
     const guildZone = safeZone(ctx.cfg.timeZone);
     const joined = plan.participants.filter((p) => inOf(p) === true);
+    const everyone = plan.participants.map((p) => p.userId);
+    const member = (id) => ctx.guild.members.fetch(id).catch(() => null);
 
     /*
-        The four reads this page needs, together: everyone's clocks and answers, their
-        names and avatars, the hours themselves, and when each last saved. Who is in comes off the plan
-        we already hold, so nothing here waits on anything else here. The member fetches
-        are one wait for twenty people rather than twenty on their own.
+        The reads this page needs, together: everyone's clocks and answers, their names
+        and avatars, who runs it, the hours themselves, and when each last saved, which
+        only a host is shown. Who is in comes off the plan we already hold, so nothing
+        here waits on anything else here. The member fetches are one wait for twenty
+        people rather than twenty on their own.
     */
-    const [prefs, members, rows, updated] = await Promise.all([
-        getPlanningPrefs(plan.participants.map((p) => p.userId)),
-        Promise.all(plan.participants.map((p) => ctx.guild.members.fetch(p.userId).catch(() => null))),
+    const [prefs, members, running, rows, updated] = await Promise.all([
+        getPlanningPrefs(everyone),
+        Promise.all(everyone.map(member)),
+        Promise.all(hostIdsOf(plan).map(member)),
         getAvailabilityForUsersInRange(
             joined.map((p) => p.userId),
             shiftDate(plan.dateRange.start, -1),
             shiftDate(plan.dateRange.end, 1)
         ),
-        getLastUpdated(plan.participants.map((p) => p.userId))
+        host ? getLastUpdated(everyone) : {}
     ]);
 
-    const participants = plan.participants.map((p, i) => {
+    const answers = Object.fromEntries(plan.participants.map((p) => [p.userId, answersOn(plan, prefs[p.userId], p)]));
+
+    const people = plan.participants.map((p, i) => {
         const m = members[i];
         const joinedNow = inOf(p);
-        const answers = answersOn(plan, prefs[p.userId], p);
-        const coverage = coverageOf(answers);
+        const coverage = coverageOf(answers[p.userId]);
         return {
             userId: p.userId,
             displayName: m?.displayName || 'Someone who left',
@@ -345,11 +366,11 @@ router.get('/:planId/compare', requireHost, async (req, res) => {
             //Their last save anywhere, so a host can see a calendar has gone stale
             updatedAt: updated[p.userId] ? new Date(updated[p.userId]).toISOString() : null,
             //The days still to answer, as runs, only for people whose days the grid counts
-            unanswered: joinedNow === true ? toFillRuns(answers) : [],
-            //The confirmation vote, so the planner can watch who is in without leaning on DMs
+            unanswered: joinedNow === true && seesDays ? toFillRuns(answers[p.userId]) : [],
+            //The confirmation vote, so whoever runs it can watch who is in without leaning on DMs
             vote: p.vote || null,
             voteReason: p.voteReason || null,
-            //A planner's manual call on them, sitting over whatever they answered
+            //A host's manual call on them, sitting over whatever they answered
             override: p.override || null,
             //Whether they are still on the invite list for the set date
             invited: p.invited !== false,
@@ -359,7 +380,7 @@ router.get('/:planId/compare', requireHost, async (req, res) => {
         };
     });
 
-    const freeByDate = gatherFreeDays(rows, {
+    const free = gatherFreeDays(rows, {
         userIds: joined.map((p) => p.userId),
         prefs,
         zone: guildZone,
@@ -367,6 +388,10 @@ router.get('/:planId/compare', requireHost, async (req, res) => {
         end: plan.dateRange.end,
         answeredOnly: true
     });
+
+    //Oldest first. Dates go over the wire as strings like every other date here.
+    const history = (plan.history || []).map((e) => ({ ...e, at: new Date(e.at).toISOString() }));
+    const me = plan.participants.find((p) => p.userId === req.user.id);
 
     res.json({
         plan: {
@@ -392,18 +417,24 @@ router.get('/:planId/compare', requireHost, async (req, res) => {
             //The way back to where the plan is actually being talked about
             threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null
         },
-        participants,
-        //Whether the planner is on the guest list too, so they get their own way to fill dates in
-        youAreIn: plan.participants.some((p) => p.userId === req.user.id),
+        role,
+        //Who runs it, by name, leaving out anyone no longer in the server
+        hosts: running.filter(Boolean).map((m) => m.displayName),
+        //Whether they could start another plan like it
+        isPlanner: ctx.isPlanner,
+        seesDays,
+        participants: host ? people : people.map(forGuest),
+        //Whether they are on the guest list themselves, so they get their own way to fill dates in
+        youAreIn: Boolean(me),
+        //Their own answer for a set day, which a guest's row above has a host's call folded into
+        you: me ? { vote: me.vote || null, invited: me.invited !== false } : null,
         confirmedCount: plan.participants.filter((p) => p.confirmed).length,
         totalParticipants: plan.participants.length,
-        freeByDate,
-        /*
-            Oldest first, the order it happened in. The page turns it round to show the
-            latest at the top, which is a choice about reading rather than about the data.
-            Dates go over the wire as strings like every other date here.
-        */
-        history: (plan.history || []).map((e) => ({ ...e, at: new Date(e.at).toISOString() }))
+        freeByDate: seesDays ? free : nameless(free),
+        ...(seesDays
+            ? {}
+            : { unansweredCounts: unansweredCounts(Object.fromEntries(joined.map((p) => [p.userId, daysToFill(answers[p.userId])])), free) }),
+        history: host ? history : historyForGuest(history)
     });
 });
 

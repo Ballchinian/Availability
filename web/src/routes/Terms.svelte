@@ -27,7 +27,7 @@
         Whoever set the plan up gets a DM saying you did.
     </p>
     <p>
-        Planners can invite you to a plan. Once its day is set, they can leave you off that day's list,
+        Planners can invite you to a plan. Whoever runs it can, once its day is set, leave you off that day's list,
         which means no ping and no DM about it; you stay on the plan, and moving or undoing the day invites
         you back. They can also mark you as coming or not on the plan's board, which your own answer
         replaces. What we know about you, and how to get it deleted, is in the Privacy Policy.

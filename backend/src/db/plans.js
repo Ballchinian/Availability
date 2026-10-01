@@ -131,6 +131,11 @@ export async function createPlan({
         createdBy,
         //Who can change it. Plans from before this have none, see hostIdsOf in lib/hosts.js.
         hostIds: [createdBy],
+        /*
+            Guests see each other's days by name on the overview. Never written onto a plan
+            from before it: people on those answered expecting only the planner to see.
+        */
+        guestsSeeDays: true,
         dateRange,
         /*
             The server's clock, copied on rather than looked up, because every line the

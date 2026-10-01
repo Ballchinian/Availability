@@ -1158,11 +1158,20 @@ describe('the privacy policy', () => {
     });
 
     it('keeps whether your DMs were closed, and says who sees it', () => {
-        expect(body).toMatch(/whether your DMs were closed the last time it\s+tried, so the overview can show planners/);
+        expect(body).toMatch(/whether your DMs were closed the last time it\s+tried, so the overview can show whoever runs the plan/);
     });
 
-    it('says who can see your days', () => {
-        expect(body).toMatch(/<h2>Who can see your days<\/h2>\s*<p>\s*Anyone with the planner role in a server/);
+    it('says who can see your days: whoever runs the plan, and its guests with no reasons', () => {
+        expect(body).toMatch(/<h2>Who can see your days<\/h2>\s*<p>\s*Whoever runs a plan sees the most/);
+        expect(body).toMatch(/Having the planner role doesn't let anyone into a plan they aren't on/);
+        expect(body).toMatch(/Everyone else on the plan can open its overview too/);
+        expect(body).toMatch(/They never see a reason/);
+    });
+
+    //People on those answered expecting only the planner to see
+    it('says a plan from before guests could see days keeps the names off them', () => {
+        expect(body).toMatch(/A plan made\s+before guests could see that stays as it was/);
+        expect(body).toMatch(/and nobody's name/);
     });
 
     it('says the bot DMs the people on a plan', () => {
