@@ -13,7 +13,7 @@ A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in 
 Most actions also depend on where the requester stands:
 
 * **Planner**: has the server's planner role. Only planners can pull the server's member list, start a plan, turn a repeat on, or copy a plan into a new one.
-* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it; one made before hosts were stored reads the same way.
+* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it, plus anyone who has taken it on since. One made before hosts were stored reads as run by whoever made it.
 * **Guest**: on a plan's guest list. They can fill in their own dates, answer for themselves, and read the plan's overview.
 
 A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.
@@ -345,6 +345,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * `role`: `host` or `guest`, which is what decides the rest
 * `hosts`: the names of whoever runs the plan, leaving out anyone no longer in the server
 * `isPlanner`: whether the requester has the planner role, so could start another plan like it
+* `canTakeOn`: whether the requester could make themselves a host with `/takeon`
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `inReason` for someone out, `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
@@ -367,10 +368,10 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * An empty hours list still means free all day, and survives as one from anybody whose clock matches the server's, which on most servers is everybody.
 
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
-* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, people being added, someone dropping out or coming back, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, people being added, someone dropping out or coming back, someone taking the plan on, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
 * Every line but one was done by a person. Coming round again is written by the repeat sweep on a timer, so it carries no name and reads as a sentence of its own.
 * Capped at the most recent 100, and this is the only place history is exposed, so only people on the plan ever read it.
-* `403` for anyone who is not on the plan, planner role or not.
+* `403` for anyone who is not on the plan, planner role or not. The one exception is someone who could take it on: they get `role: null`, `canTakeOn: true`, `hosts`, and of the plan only its id, name and server, which is no more than its link already gives away.
 
 ---
 
@@ -391,6 +392,27 @@ Planner role only, and only for someone on the plan.
 * No dates in it, on purpose. A plan run again is the same crowd in a different month, so the range is the one thing that does not carry, and the create form leaves its own default in place.
 * Works on a cancelled plan and on one whose day has been. Those are the two most worth running again, and this only reads.
 * The ids come back as they are stored. Anyone who has since left the server is dropped by the create form, which has the member list to check against, and again by the create route.
+
+---
+
+## POST `/api/plans/:planId/takeon` (session)
+
+Make the requester one of the people who run the plan.
+
+For a planner, once nobody who runs the plan is still in the server. For anyone who can manage the server, at any time, which is the way in on a plan being misused.
+
+### Effects
+
+* Adds them to the plan's hosts, and takes off anyone on that list who has left the server.
+* Records it in the plan's history, where everyone on the plan can read who did.
+* Puts them in the plan's thread.
+
+### Notes
+
+* "Still in the server" is asked of Discord, not read off the list, since a host who left while the bot was down is still on it.
+* Nobody is DMed about it.
+* Says yes again, and changes nothing, for someone who already runs the plan.
+* `403` for anyone else, and `409` if the plan was called off or its day has been. The `403` comes first, so someone who couldn't take it on is told nothing about the plan.
 
 ---
 

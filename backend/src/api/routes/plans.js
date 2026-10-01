@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
-import { planRole } from '../roles.js';
+import { planRole, canTakeOn } from '../roles.js';
 import { forGuest, historyForGuest, nameless, unansweredCounts } from '../guestview.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent, addHost } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary, getLastUpdated } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, answersMoved } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyCreatorDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -307,7 +307,21 @@ router.get('/:planId/compare', async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isMember) return res.status(403).json({ error: 'You are not in that server.' });
     const role = planRole(plan, req.user.id);
-    if (!role) return res.status(403).json({ error: 'You are not on this plan.' });
+
+    const member = (id) => ctx.guild.members.fetch(id).catch(() => null);
+    const running = await Promise.all(hostIdsOf(plan).map(member));
+    //Who runs it, by name, leaving out anyone no longer in the server
+    const hosts = running.filter(Boolean).map((m) => m.displayName);
+    const takeOn = canTakeOn(plan, req.user.id, ctx, hosts);
+
+    /*
+        Someone who could take the plan on gets that much and the name, which anyone
+        holding the link can already read. Anyone else not on it gets nothing.
+    */
+    if (!role) {
+        if (!takeOn) return res.status(403).json({ error: 'You are not on this plan.' });
+        return res.json({ plan: { planId: plan.planId, name: plan.name, guildName: ctx.cfg.guildName }, role: null, canTakeOn: true, hosts });
+    }
 
     const host = role === 'host';
     //Guests see each other's days by name only on a plan made since they could
@@ -325,19 +339,17 @@ router.get('/:planId/compare', async (req, res) => {
     const guildZone = safeZone(ctx.cfg.timeZone);
     const joined = plan.participants.filter((p) => inOf(p) === true);
     const everyone = plan.participants.map((p) => p.userId);
-    const member = (id) => ctx.guild.members.fetch(id).catch(() => null);
 
     /*
         The reads this page needs, together: everyone's clocks and answers, their names
-        and avatars, who runs it, the hours themselves, and when each last saved, which
-        only a host is shown. Who is in comes off the plan we already hold, so nothing
-        here waits on anything else here. The member fetches are one wait for twenty
-        people rather than twenty on their own.
+        and avatars, the hours themselves, and when each last saved, which only a host
+        is shown. Who is in comes off the plan we already hold, so nothing here waits on
+        anything else here. The member fetches are one wait for twenty people rather
+        than twenty on their own.
     */
-    const [prefs, members, running, rows, updated] = await Promise.all([
+    const [prefs, members, rows, updated] = await Promise.all([
         getPlanningPrefs(everyone),
         Promise.all(everyone.map(member)),
-        Promise.all(hostIdsOf(plan).map(member)),
         getAvailabilityForUsersInRange(
             joined.map((p) => p.userId),
             shiftDate(plan.dateRange.start, -1),
@@ -418,8 +430,8 @@ router.get('/:planId/compare', async (req, res) => {
             threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null
         },
         role,
-        //Who runs it, by name, leaving out anyone no longer in the server
-        hosts: running.filter(Boolean).map((m) => m.displayName),
+        hosts,
+        canTakeOn: takeOn,
         //Whether they could start another plan like it
         isPlanner: ctx.isPlanner,
         seesDays,
@@ -454,6 +466,35 @@ router.get('/:planId/template', requirePlanner, (req, res) => {
         allowedWeekdays: plan.allowedWeekdays || null,
         participantIds: plan.participants.map((p) => p.userId)
     });
+});
+
+/*
+    Take a plan on: the requester becomes one of the people who run it. A planner can once
+    nobody who runs it is left in the server, and anyone who can manage the server can at
+    any time, see canTakeOn. Written into the plan's history, and anyone on the list who
+    has left the server comes off it.
+*/
+router.post('/:planId/takeon', async (req, res) => {
+    const { plan } = req;
+
+    const ctx = await guildContext(plan.guildId, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    //Pressed twice, or on a page from before someone else let them in
+    if (ctx.isMember && planRole(plan, req.user.id) === 'host') return res.json({ ok: true });
+
+    const listed = hostIdsOf(plan);
+    const here = await realMembers(ctx.guild, listed);
+    if (!canTakeOn(plan, req.user.id, ctx, here)) {
+        return res.status(403).json({ error: 'A planner can take a plan on once nobody who runs it is left in the server.' });
+    }
+    const over = finished(plan);
+    if (over) return res.status(409).json({ error: over });
+
+    await addHost(plan.planId, req.user.id, listed.filter((id) => !here.includes(id)));
+    await addPlanEvent(plan.planId, { type: 'tookon', by: req.user.id, byName: ctx.member.displayName });
+    announceAfter(plan.planId, 'take on', (current) => addHostToThread(current, req.user.id));
+
+    res.json({ ok: true });
 });
 
 //Lock in the winning date, close the plan, and announce it

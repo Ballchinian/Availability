@@ -82,6 +82,8 @@ export function describeEvent(event: PlanEvent): string {
             return 'This one came round again as a new plan';
         case 'cancelled':
             return 'called the plan off';
+        case 'tookon':
+            return 'took the plan on';
     }
 }
 

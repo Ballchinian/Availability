@@ -1168,6 +1168,12 @@ describe('the privacy policy', () => {
         expect(body).toMatch(/They never see a reason/);
     });
 
+    it('says who else can end up running a plan, and that it shows', () => {
+        expect(body).toMatch(/A planner can\s+once nobody who runs it is left in the server/);
+        expect(body).toMatch(/someone who can manage the server can at any\s+time/);
+        expect(body).toMatch(/It goes in the plan's history/);
+    });
+
     //People on those answered expecting only the planner to see
     it('says a plan from before guests could see days keeps the names off them', () => {
         expect(body).toMatch(/A plan made\s+before guests could see that stays as it was/);

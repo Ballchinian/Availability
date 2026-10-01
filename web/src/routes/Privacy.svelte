@@ -63,6 +63,11 @@
         your DMs were closed. Having the planner role doesn't let anyone into a plan they aren't on.
     </p>
     <p>
+        Someone else can take a plan on, which makes them one of the people who run it. A planner can
+        once nobody who runs it is left in the server, and someone who can manage the server can at any
+        time. It goes in the plan's history, where everyone on the plan can read who did.
+    </p>
+    <p>
         Everyone else on the plan can open its overview too. They see whether each person is in, how many
         days each has left to answer, and who's coming once a day is set, without being told whether you
         said so yourself or whoever runs the plan marked it for you. They never see a reason. They also

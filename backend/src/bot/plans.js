@@ -175,6 +175,14 @@ function threadPeople(plan) {
     return [...new Set([...plan.participants.map((p) => p.userId), plan.createdBy].filter(Boolean))];
 }
 
+//Someone who took the plan on goes in its thread, which is where /overview and /cancel are run
+export async function addHostToThread(plan, userId) {
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    if (!thread) return;
+    await reviveThread(thread);
+    await addToThread(thread, [userId]);
+}
+
 //Thread names cap at 100 characters. The day is on a set plan's, so a repeating series is not a row of the same name.
 export function threadName(plan) {
     const day = plan.chosenDate ? ` · ${formatDay(plan.chosenDate)}` : '';

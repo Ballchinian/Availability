@@ -1,6 +1,7 @@
 import { col, collections } from './mongo.js';
 import { shortId } from '../lib/ids.js';
 import { weekdayAllowed } from '../lib/dates.js';
+import { hostIdsOf } from '../lib/hosts.js';
 
 /*
     A plan is one meetup someone is trying to organise: a name, a date range, the
@@ -501,6 +502,22 @@ export async function deletePlansUnderChannel(guildId, channelId, { unknownParen
     const plans = await col(collections.plans).find({ guildId, $or: under }).toArray();
     if (plans.length) await col(collections.plans).deleteMany({ planId: { $in: plans.map((p) => p.planId) } });
     return plans;
+}
+
+/*
+    Someone taking a plan on, with anyone on the list who has left the server (gone) taken
+    off it. A plan from before hosts has its list written down first, or adding to nothing
+    would lose whoever made it. Three writes, each safe to land twice, so two people taking
+    a plan on together both end up running it.
+*/
+export async function addHost(planId, userId, gone = []) {
+    const plan = await getPlan(planId);
+    if (!plan) return null;
+    const plans = col(collections.plans);
+    await plans.updateOne({ planId, hostIds: { $exists: false } }, { $set: { hostIds: hostIdsOf(plan) } });
+    if (gone.length) await plans.updateOne({ planId }, { $pull: { hostIds: { $in: gone } } });
+    await plans.updateOne({ planId }, { $addToSet: { hostIds: userId } });
+    return getPlan(planId);
 }
 
 //Drop someone from the guest list of every plan in a server when they leave it

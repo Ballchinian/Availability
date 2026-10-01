@@ -9,3 +9,17 @@ export function planRole(plan, userId) {
     if (hostIdsOf(plan).includes(userId)) return 'host';
     return plan.participants.some((p) => p.userId === userId) ? 'guest' : null;
 }
+
+/*
+    Take it on, which makes someone a host. A planner can once nobody who runs the plan
+    is still in the server. Manage Server always can, which is the way in on a plan
+    being misused.
+
+    here is the hosts still in the server, asked of Discord rather than read off the
+    plan: one who left while the bot was down is still on its list. ctx is what
+    guildContext hands back.
+*/
+export function canTakeOn(plan, userId, ctx, here) {
+    if (!ctx.isMember || hostIdsOf(plan).includes(userId)) return false;
+    return ctx.canManage || (ctx.isPlanner && here.length === 0);
+}

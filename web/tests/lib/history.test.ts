@@ -93,6 +93,11 @@ describe('describeEvent', () => {
         expect(describeEvent({ ...base, type: 'cancelled' })).toBe('called the plan off');
     });
 
+    //Someone stepping in to run a plan they did not make, which the people on it should be able to see
+    it('says who took the plan on', () => {
+        expect(describeEvent({ ...base, type: 'tookon' })).toBe('took the plan on');
+    });
+
     it('reads a repeat being set and being stopped', () => {
         expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 2 })).toBe('set this to come round every other week');
         expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 1 })).toBe('set this to come round every week');
@@ -103,7 +108,7 @@ describe('describeEvent', () => {
     it('says something for every type there is', () => {
         const types: PlanEvent['type'][] = [
             'created', 'chosen', 'moved', 'voided', 'range', 'dates', 'weekdays',
-            'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'cancelled'
+            'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'cancelled', 'tookon'
         ];
         for (const type of types) {
             const event = {

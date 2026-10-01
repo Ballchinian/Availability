@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, askAgain, announceJoin, answersMoved } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyCreatorDropped, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
@@ -61,7 +61,8 @@ vi.mock('../../src/db/plans.js', () => ({
         'setAskedAgain',
         'setIn',
         'setPlanRepeat',
-        'addPlanEvent'
+        'addPlanEvent',
+        'addHost'
     )
 }));
 
@@ -101,7 +102,8 @@ vi.mock('../../src/bot/plans.js', () =>
         'syncPlan',
         'applyAttendanceMove',
         'askAgain',
-        'announceJoin'
+        'announceJoin',
+        'addHostToThread'
     )
 );
 
@@ -115,10 +117,21 @@ const asPlanner = {
     cfg: { guildId: 'g1', guildName: 'The server', timeZone: 'Europe/London' },
     member: { displayName: 'Ali' },
     isMember: true,
-    isPlanner: true
+    isPlanner: true,
+    canManage: false
 };
 //In the server with no planner role, which is all running a plan takes
 const asMember = { ...asPlanner, isPlanner: false };
+//A server where only these people are still members, each named by their id in capitals
+const serverOf = (...here) => ({
+    members: {
+        cache: new Map(),
+        fetch: async (id) => {
+            if (!here.includes(id)) throw new Error('Unknown Member');
+            return { id, displayName: id.toUpperCase(), displayAvatarURL: () => '', user: { bot: false } };
+        }
+    }
+});
 //What guildContext hands back when it is asked to insist on the role
 const notPlanner = { error: 403, message: 'You need the planner role to do that.' };
 
@@ -1284,6 +1297,107 @@ describe('what a guest is shown on the overview', () => {
             const body = await read();
             expect(body.seesDays).toBe(true);
             expect(body.freeByDate[ahead(4)]).toEqual([{ userId: 'ann', hours: [] }]);
+        });
+    });
+});
+
+/*
+    Taking a plan on. Ali made this one and has left the server, so nobody runs it. Cass
+    has nothing to do with it but holds the planner role.
+*/
+describe('taking a plan on', () => {
+    const orphaned = { ...asPlanner, guild: serverOf('guest', 'stranger'), member: { displayName: 'Cass' } };
+
+    beforeEach(() => {
+        sessionUser = stranger;
+        plannerAnswer = orphaned;
+    });
+
+    it('lets a planner take on a plan nobody is left running, and writes it into the history', async () => {
+        const res = await post('/ab12cd34ef/takeon');
+
+        expect(res.status).toBe(200);
+        //Ali comes off the list, having left
+        expect(db.addHost).toHaveBeenCalledWith('ab12cd34ef', 'stranger', ['planner']);
+        expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', { type: 'tookon', by: 'stranger', byName: 'Cass' });
+    });
+
+    it('puts them in the plan thread', async () => {
+        await post('/ab12cd34ef/takeon');
+        await runQueued();
+        expect(addHostToThread).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'stranger');
+    });
+
+    it('refuses a planner while someone who runs it is still in the server', async () => {
+        plannerAnswer = { ...orphaned, guild: serverOf('planner', 'stranger') };
+        const res = await post('/ab12cd34ef/takeon');
+        expect(res.status).toBe(403);
+        expect(db.addHost).not.toHaveBeenCalled();
+    });
+
+    it('takes the planner role', async () => {
+        plannerAnswer = { ...orphaned, isPlanner: false };
+        expect((await post('/ab12cd34ef/takeon')).status).toBe(403);
+        expect(db.addHost).not.toHaveBeenCalled();
+    });
+
+    //The way in on a plan being misused, so it waits on nobody leaving
+    it('lets someone who can manage the server step in on any plan, and leaves whoever runs it on the list', async () => {
+        plannerAnswer = { ...orphaned, isPlanner: false, canManage: true, guild: serverOf('planner', 'stranger') };
+        expect((await post('/ab12cd34ef/takeon')).status).toBe(200);
+        expect(db.addHost).toHaveBeenCalledWith('ab12cd34ef', 'stranger', []);
+    });
+
+    it('says yes again to someone who already runs it, and writes nothing', async () => {
+        sessionUser = planner;
+        plannerAnswer = asPlanner;
+        expect((await post('/ab12cd34ef/takeon')).status).toBe(200);
+        expect(db.addHost).not.toHaveBeenCalled();
+        expect(db.addPlanEvent).not.toHaveBeenCalled();
+    });
+
+    it('refuses a plan that is over', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        expect((await post('/ab12cd34ef/takeon')).status).toBe(409);
+        expect(db.addHost).not.toHaveBeenCalled();
+    });
+
+    //A stranger who cannot take it on learns nothing about it, called off or not
+    it('turns away someone who could not take it on before saying the plan is over', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        plannerAnswer = { ...orphaned, isPlanner: false };
+        expect((await post('/ab12cd34ef/takeon')).status).toBe(403);
+    });
+
+    describe('on the overview', () => {
+        const read = async () => (await get('/ab12cd34ef/compare')).json();
+
+        it('is offered to a planner who is not on the plan, with the name and nothing else of it', async () => {
+            const body = await read();
+            expect(body).toEqual({ plan: { planId: 'ab12cd34ef', name: 'Board games', guildName: 'The server' }, role: null, canTakeOn: true, hosts: [] });
+        });
+
+        it('is offered to a guest who is a planner, on top of what a guest sees', async () => {
+            sessionUser = guest;
+            const body = await read();
+            expect(body).toMatchObject({ role: 'guest', canTakeOn: true, hosts: [] });
+            expect(body.participants).toHaveLength(1);
+        });
+
+        it('is not offered while someone still runs it, or to whoever does', async () => {
+            plannerAnswer = { ...orphaned, guild: serverOf('planner', 'guest', 'stranger') };
+            expect((await get('/ab12cd34ef/compare')).status).toBe(403);
+
+            sessionUser = guest;
+            expect(await read()).toMatchObject({ canTakeOn: false, hosts: ['PLANNER'] });
+
+            sessionUser = planner;
+            expect(await read()).toMatchObject({ role: 'host', canTakeOn: false });
+        });
+
+        it('names who runs it to someone stepping in with manage server', async () => {
+            plannerAnswer = { ...orphaned, isPlanner: false, canManage: true, guild: serverOf('planner', 'stranger') };
+            expect(await read()).toMatchObject({ role: null, canTakeOn: true, hosts: ['PLANNER'] });
         });
     });
 });

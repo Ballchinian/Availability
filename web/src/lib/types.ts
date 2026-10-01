@@ -145,7 +145,9 @@ export type PlanEvent =
     | (EventBase & { type: 'repeat'; repeatWeeks: number | null })
     //Written by the repeat sweep rather than by a person, so its by and byName are the plan's creator and blank
     | (EventBase & { type: 'repeated'; planId: string })
-    | (EventBase & { type: 'cancelled' });
+    | (EventBase & { type: 'cancelled' })
+    //Someone who did not run the plan made themselves one of the people who do
+    | (EventBase & { type: 'tookon' });
 
 //GET /plans/:planId/compare
 export interface CompareScreen {

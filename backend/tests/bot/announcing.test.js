@@ -83,7 +83,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
     getLastUpdated: vi.fn(async () => ({}))
 }));
 
-const { announcePlan, announceSetPlan, announceOutcome, announceCancel, mentionPosts } = await import('../../src/bot/plans.js');
+const { announcePlan, announceSetPlan, announceOutcome, announceCancel, mentionPosts, addHostToThread } = await import('../../src/bot/plans.js');
 const { getPlanningPrefs } = await import('../../src/db/users.js');
 const { todayIn } = await import('../../src/lib/zones.js');
 const { shiftDate } = await import('../../src/lib/dates.js');
@@ -269,6 +269,18 @@ describe('opening a plan thread', () => {
         store.plan = { ...setDay(), createdBy: 'cy' };
         await announceSetPlan(store.plan, cfg, 'Cy');
         expect(timeline.filter((t) => t.startsWith('add')).sort()).toEqual(['add ali', 'add bo', 'add cy']);
+    });
+
+    //Where /overview and /cancel are run, so someone who took the plan on has to be in it
+    it('adds someone who takes the plan on later, and nothing else happens', async () => {
+        await addHostToThread({ ...setDay(), threadId: 't1' }, 'sam');
+        expect(timeline).toEqual(['add sam']);
+        expect(dms).toEqual([]);
+    });
+
+    it('leaves a plan with no thread alone', async () => {
+        await addHostToThread(setDay(), 'sam');
+        expect(timeline).toEqual([]);
     });
 
     it('asks for a week before archiving, and for nobody else to invite people in', async () => {
