@@ -217,6 +217,13 @@ export interface Joined {
     missed: string[];
 }
 
+//POST /plans/:planId/vote, their answer for a set day and who a no was passed on to
+export interface Voted {
+    vote: Answer;
+    told: string[];
+    missed: string[];
+}
+
 //POST /plans/:planId/leave, the names the drop out DM reached and the ones it could not
 export interface LeftPlan {
     told: string[];

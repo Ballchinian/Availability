@@ -4,7 +4,7 @@
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { listNames } from '../lib/format.js';
     import { refocus } from '../lib/focus.js';
-    import type { CompareScreen, TakeOnOffer } from '../lib/types.js';
+    import type { CompareScreen, LeftPlan, TakeOnOffer } from '../lib/types.js';
     import PlanOverview from '../lib/compare/PlanOverview.svelte';
     import TakeOn from '../lib/compare/TakeOn.svelte';
 
@@ -70,6 +70,26 @@
         refocus(() => heading);
     }
 
+    /*
+        Someone who leaves a plan they do not run has no overview to come back to, so the
+        page becomes the line saying they have left. Someone who runs it still has one.
+    */
+    let left = $state<LeftPlan | null>(null);
+    let leftLine = $state<HTMLElement>();
+
+    async function gone(heard: LeftPlan) {
+        let still = false;
+        try {
+            await fetchPlan();
+            still = data !== null;
+        } catch {
+            //No longer on it, which is what the refusal says
+        }
+        if (still) return;
+        left = heard;
+        refocus(() => leftLine);
+    }
+
     onMount(async () => {
         await loadMe();
         if (!auth.user) {
@@ -94,6 +114,12 @@
         <p class="muted">Log in above to see this plan.</p>
     {:else if loadError}
         <p class="status error">{loadError}</p>
+    {:else if left}
+        <p class="prompt good" bind:this={leftLine}>
+            You have left this plan.
+            {#if left.told.length}I DMed {left.told.join(', ')} to say so.{/if}
+            {#if left.missed.length}I could not DM {left.missed.join(', ')}, so let them know yourself.{/if}
+        </p>
     {:else if offer}
         <p class="muted">{offer.plan.guildName}</p>
         <p class="muted small">
@@ -102,7 +128,7 @@
         </p>
         <TakeOn planId={params.planId} ontaken={taken} />
     {:else if data}
-        <PlanOverview planId={params.planId} {data} onrefresh={refresh} />
+        <PlanOverview planId={params.planId} {data} onrefresh={refresh} onleft={gone} />
     {:else}
         <p class="status error">Could not load this plan.</p>
     {/if}

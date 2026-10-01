@@ -779,15 +779,45 @@ Participants only.
 
 ---
 
+## POST `/api/plans/:planId/vote` (session)
+
+I'm coming or Can't make it, for a plan with its day set. The overview's side of the same buttons on the DM and the pinned post.
+
+Participants only, and only someone on that day's list.
+
+### Input
+
+* `vote`: `yes` or `no`
+* `reason` (optional): why not, with a `no`, capped at 200 characters. Only whoever runs the plan sees it.
+
+### Effects
+
+* Records the answer, which replaces any call a host made for them on the board. A yes counts as in.
+* Brings the pinned tally and their own DM card in line.
+* DMs everyone who runs the plan about a no that is new, with the reason, and when a yes means everyone is now coming.
+
+### Returns
+
+* `vote`: the answer as it now stands
+* `told`: the names a no's DM reached
+* `missed`: the names it could not reach
+
+### Notes
+
+* `409` while the plan has no day, for someone left off the day's list, and once the plan was called off or its day has been.
+* Limited to 30 answers a day per person per server, since a no sends a DM.
+
+---
+
 ## POST `/api/plans/:planId/leave` (session)
 
-Drop yourself out of a plan you were invited to. The website side of dropping out once a day is set; a plan still finding its day asks Not for me through `/join` instead.
+Take yourself off a plan with its day set, from its overview. Can't make it answers for the one day; this is the way off the plan altogether, and so off any that come round after it. A plan still finding its day asks Not for me through `/join` instead, which keeps them on it.
 
 Participants only.
 
 ### Effects
 
-* Takes them off the guest list, and leaves them in the thread.
+* Takes them off the guest list, and leaves them in the thread. Someone who runs the plan still runs it.
 * DMs everyone who runs the plan, the same message the DM's drop out sends, just without a reason. Someone who runs it dropping out tells the others, and tells nobody when they run it alone.
 
 ### Returns
@@ -798,6 +828,7 @@ Participants only.
 ### Notes
 
 * Someone who runs it and has since left the server comes back as "whoever runs it", since there is no server nickname left to read.
+* `409` if the plan was called off, or its day has been.
 
 ---
 

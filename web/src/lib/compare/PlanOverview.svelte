@@ -14,7 +14,7 @@
 <script lang="ts">
     import { untrack } from 'svelte';
     import { listNames } from '../format.js';
-    import type { CompareScreen } from '../types.js';
+    import type { CompareScreen, LeftPlan } from '../types.js';
     import { todayIn } from '../zone.js';
     import { refocus } from '../focus.js';
     import ClockNote from '../ClockNote.svelte';
@@ -29,6 +29,7 @@
     import Standing from './Standing.svelte';
     import TakeOn from './TakeOn.svelte';
     import WhenPanel from './WhenPanel.svelte';
+    import YourAnswer from './YourAnswer.svelte';
 
     /*
         A plan's overview, for everyone on it. Whoever runs the plan gets the panels that
@@ -40,11 +41,13 @@
         Everything arrives as props so a test can draw it, which the route around it,
         loading in onMount, never can be.
     */
-    let { planId, data, onrefresh }: {
+    let { planId, data, onrefresh, onleft = () => {} }: {
         planId: string;
         data: CompareScreen;
         //A quiet refetch, with no loading flash to rebuild every panel and lose what one had just said
         onrefresh: () => Promise<void>;
+        //They took themselves off the plan, so a refetch may have nothing left to show them
+        onleft?: (heard: LeftPlan) => void;
     } = $props();
 
     const host = $derived((data.role ?? 'host') === 'host');
@@ -156,6 +159,18 @@
             {/if}
         </p>
     </div>
+{/if}
+
+<!--For anyone on the guest list, whoever runs the plan included: the board moves people, and this is their own word-->
+{#if data.you && chosen && !over}
+    <YourAnswer
+        {planId}
+        vote={data.you.vote}
+        invited={data.you.invited}
+        repeats={Boolean(data.plan.repeatWeeks)}
+        onanswered={onrefresh}
+        {onleft}
+    />
 {/if}
 
 <Standing {planId} {data} {host} {over} onmoved={onrefresh} />

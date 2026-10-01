@@ -1421,6 +1421,23 @@ export async function announceJoin(plan, userId, was, reason = null, { card = tr
 }
 
 /*
+    I'm coming or Can't make it having landed from the site. The pin's tally and their own
+    card are brought in line, and whoever runs the plan hears about a fresh no, or that
+    everyone is now coming. was is their answer before. Hands back who the no reached.
+*/
+export async function announceVote(plan, userId, was, reason = null) {
+    const p = plan.participants.find((q) => q.userId === userId);
+    if (!p) return { told: [], missed: [] };
+    await updateOpener(plan).catch(() => {});
+    await syncPlanCards(plan, null, { only: [userId] }).catch(() => {});
+
+    const nobody = { told: [], missed: [] };
+    if (p.vote === 'no' && was !== 'no') return notifyHostsVoteNo(plan, userId, reason).catch(() => nobody);
+    if (p.vote === 'yes') await notifyHostsAllYes(plan).catch(() => {});
+    return nobody;
+}
+
+/*
     The /overview slash command. Run inside a plan's thread, it hands back that plan's
     overview, to whoever asks. The thread is private and the page turns away anyone who
     is not on the plan, so there is nothing here to check.

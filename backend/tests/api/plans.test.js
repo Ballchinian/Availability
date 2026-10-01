@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
@@ -63,7 +63,8 @@ vi.mock('../../src/db/plans.js', () => ({
         'setIn',
         'setPlanRepeat',
         'addPlanEvent',
-        'addHost'
+        'addHost',
+        'recordVote'
     )
 }));
 
@@ -110,6 +111,7 @@ vi.mock('../../src/bot/plans.js', () =>
         'applyAttendanceMove',
         'askAgain',
         'announceJoin',
+        'announceVote',
         'addHostToThread'
     )
 );
@@ -1097,6 +1099,76 @@ describe('count me in or not for me on the site', () => {
     });
 });
 
+/*
+    I'm coming or Can't make it from the overview, the same answer the DM's buttons give.
+    Bo is on the day's list and has not said.
+*/
+describe('answering for a set day on the site', () => {
+    const set = (bo = {}, over = {}) =>
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: true, participants: [{ userId: 'guest', ...bo }], ...over }));
+    const queue = () => announceAfter.mockImplementationOnce(async (planId, label, run) => run(plans.get(planId)));
+
+    beforeEach(() => {
+        sessionUser = guest;
+        set();
+    });
+
+    it('records a yes, and brings Discord in line with it', async () => {
+        queue();
+        const res = await post('/ab12cd34ef/vote', { vote: 'yes', reason: 'ignored' });
+
+        expect(res.status).toBe(200);
+        expect(db.recordVote).toHaveBeenCalledWith('ab12cd34ef', 'guest', 'yes', null);
+        expect(announceVote).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'guest', null, null);
+        expect(await res.json()).toEqual({ ok: true, vote: 'yes', told: [], missed: [] });
+    });
+
+    it('records a no with its reason, and says who was told', async () => {
+        queue();
+        announceVote.mockResolvedValueOnce({ told: ['Ali'], missed: ['Sam'] });
+        const res = await post('/ab12cd34ef/vote', { vote: 'no', reason: `  ${'x'.repeat(250)} ` });
+
+        expect(db.recordVote).toHaveBeenCalledWith('ab12cd34ef', 'guest', 'no', 'x'.repeat(200));
+        expect(await res.json()).toEqual({ ok: true, vote: 'no', told: ['Ali'], missed: ['Sam'] });
+    });
+
+    //Whoever runs the plan is only told about a no that is new
+    it('passes on what they had said before', async () => {
+        set({ vote: 'no' });
+        queue();
+        await post('/ab12cd34ef/vote', { vote: 'no' });
+        expect(announceVote).toHaveBeenCalledWith(expect.anything(), 'guest', 'no', null);
+    });
+
+    it('refuses an answer that is neither', async () => {
+        expect((await post('/ab12cd34ef/vote', { vote: 'maybe' })).status).toBe(400);
+        expect(db.recordVote).not.toHaveBeenCalled();
+    });
+
+    it('refuses a plan with no day yet, one called off and one whose day has been', async () => {
+        plans.set('ab12cd34ef', plan());
+        expect((await post('/ab12cd34ef/vote', { vote: 'yes' })).status).toBe(409);
+        set({}, { status: 'cancelled' });
+        expect((await post('/ab12cd34ef/vote', { vote: 'yes' })).status).toBe(409);
+        set({}, { chosenDate: ahead(-2) });
+        expect((await post('/ab12cd34ef/vote', { vote: 'yes' })).status).toBe(409);
+        expect(db.recordVote).not.toHaveBeenCalled();
+    });
+
+    it('refuses someone left off the day', async () => {
+        set({ invited: false });
+        const res = await post('/ab12cd34ef/vote', { vote: 'yes' });
+        expect(res.status).toBe(409);
+        expect((await res.json()).error).toMatch(/not on the list for this date/);
+    });
+
+    it('refuses someone not on the plan, whoever runs it included', async () => {
+        sessionUser = planner;
+        expect((await post('/ab12cd34ef/vote', { vote: 'yes' })).status).toBe(403);
+        expect(db.recordVote).not.toHaveBeenCalled();
+    });
+});
+
 describe('dropping out on the site', () => {
     beforeEach(() => (sessionUser = guest));
 
@@ -1130,6 +1202,14 @@ describe('dropping out on the site', () => {
 
         expect(res.status).toBe(403);
         expect(notifyHostsDropped).not.toHaveBeenCalled();
+    });
+
+    it('leaves a plan that is over as it was', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: ahead(-2) }));
+        expect((await post('/ab12cd34ef/leave')).status).toBe(409);
+        plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
+        expect((await post('/ab12cd34ef/leave')).status).toBe(409);
+        expect(leavePlan).not.toHaveBeenCalled();
     });
 });
 

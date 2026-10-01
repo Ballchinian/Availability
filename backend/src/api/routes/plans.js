@@ -4,11 +4,11 @@ import { guildContext } from '../context.js';
 import { planRole, canTakeOn } from '../roles.js';
 import { forGuest, historyForGuest, nameless, unansweredCounts } from '../guestview.js';
 import { announceAfter } from '../announce.js';
-import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent, addHost } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, recordVote, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent, addHost } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary, getLastUpdated } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyHostsDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, answersMoved, addHostToThread } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyHostsDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../bot/plans.js';
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
@@ -1074,12 +1074,48 @@ router.post('/:planId/add', requireHost, refuseFinished, async (req, res) => {
     res.json({ ok: true, added: toAdd.length, quiet });
 });
 
-//Drop yourself out of a plan you were invited to, the website side of the DM button
+/*
+    I'm coming or Can't make it, the overview's side of the buttons on the DM and the
+    pinned post. Only once the plan has its day, and only for someone on that day's list.
+    A reason only rides along with a no, and only whoever runs the plan reads it. Answers
+    with who the note about a no reached.
+*/
+router.post('/:planId/vote', async (req, res) => {
+    const { plan } = req;
+
+    const me = plan.participants.find((p) => p.userId === req.user.id);
+    if (!me) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
+    const over = finished(plan);
+    if (over) return res.status(409).json({ error: over });
+    if (!plan.chosenDate) return res.status(409).json({ error: 'This plan has no day to answer for yet.' });
+    if (me.invited === false) return res.status(409).json({ error: 'You are not on the list for this date.' });
+
+    const { vote, reason } = req.body || {};
+    if (vote !== 'yes' && vote !== 'no') return res.status(400).json({ error: 'Something was off with that answer.' });
+
+    //Each fresh no DMs whoever runs the plan
+    const rl = await takeAction(req.user.id, plan.guildId, 'vote', DAILY_LIMIT);
+    if (!rl.allowed) {
+        return res.status(429).json({ error: `You have answered ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
+    }
+
+    const was = me.vote || null;
+    const why = vote === 'no' ? String(reason || '').trim().slice(0, 200) || null : null;
+    await recordVote(plan.planId, req.user.id, vote, why);
+
+    //Waited on, since the answer has to say who heard about a no
+    const heard = await announceAfter(plan.planId, 'vote', (current) => announceVote(current, req.user.id, was, why));
+    res.json({ ok: true, vote, told: heard?.told ?? [], missed: heard?.missed ?? [] });
+});
+
+//Take yourself off a plan with its day set, which also keeps you off the ones that come round after it
 router.post('/:planId/leave', async (req, res) => {
     const { plan } = req;
 
     const me = plan.participants.find((p) => p.userId === req.user.id);
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
+    const over = finished(plan);
+    if (over) return res.status(409).json({ error: over });
 
     try {
         await leavePlan(plan, req.user.id, req.user.displayName);

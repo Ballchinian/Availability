@@ -14,6 +14,7 @@ import HostGroups, { owing, askedLine, updatedLine } from '../../src/lib/compare
 import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
 import PlanOverview, { planState } from '../../src/lib/compare/PlanOverview.svelte';
 import TakeOn from '../../src/lib/compare/TakeOn.svelte';
+import YourAnswer from '../../src/lib/compare/YourAnswer.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
@@ -1398,6 +1399,27 @@ describe('a plan overview', () => {
         });
     });
 
+    //The board is for moving other people. Their own word is given here, by guests and by whoever runs it alike.
+    describe('their own answer', () => {
+        it('is asked of anyone on the list of a day still to come', () => {
+            expect(draw(screen({ ...guest, participants: voters }, set))).toContain('Can you make it?');
+            expect(draw(screen({ participants: voters, you: { vote: 'yes', invited: true } }, set))).toContain("You're down as coming.");
+        });
+
+        it('is not asked while the plan is finding its day, once it is over, or of someone who is not a guest', () => {
+            for (const quiet of [
+                screen(guest),
+                screen({ ...guest, participants: voters }, { ...set, chosenDate: ahead(-2) }),
+                screen({ ...guest, participants: voters }, { ...set, status: 'cancelled' }),
+                screen({ participants: voters, youAreIn: false, you: null }, set)
+            ]) {
+                const body = draw(quiet);
+                expect(body).not.toContain('Can you make it?');
+                expect(body).not.toContain('Leave this plan');
+            }
+        });
+    });
+
     describe('once it is over', () => {
         const been: Partial<ComparePlan> = { ...set, chosenDate: ahead(-2) };
 
@@ -1442,6 +1464,48 @@ describe('a plan overview', () => {
         expect(body).toContain('Plan another like this');
         expect(body).not.toContain('Run by');
         expect(body).not.toContain('Nobody who runs this');
+    });
+});
+
+//The overview's side of the buttons on a DM, for anyone on a set day's list
+describe('your own answer for a set day', () => {
+    const draw = (props: Record<string, unknown> = {}) =>
+        bare(render(YourAnswer, { props: { planId: 'ab12cd34ef', onanswered: async () => {}, onleft: () => {}, ...props } }).body);
+
+    it('asks, with both answers to give', () => {
+        const body = draw();
+        expect(body).toContain('Can you make it?');
+        expect(body).toMatch(/<button class="primary">I'm coming<\/button>/);
+        expect(body).toMatch(/<button class="ghost danger-btn">Can't make it<\/button>/);
+    });
+
+    it('says where they stand once they have answered, and offers the other answer', () => {
+        const yes = draw({ vote: 'yes' });
+        expect(yes).toContain("You're down as coming.");
+        expect(yes).not.toContain("I'm coming</button>");
+        expect(yes).toContain("Can't make it</button>");
+
+        const no = draw({ vote: 'no' });
+        expect(no).toContain("You're down as not coming.");
+        expect(no).toContain("I'm coming</button>");
+        expect(no).not.toContain("Can't make it</button>");
+    });
+
+    it('asks nothing of someone left off the day', () => {
+        const body = draw({ invited: false });
+        expect(body).toContain('You are not on the list for this day.');
+        expect(body).not.toContain('Can you make it?');
+        expect(body).not.toContain("I'm coming");
+    });
+
+    //Smaller than the answers, since it takes them off the plan rather than answering for one day
+    it('offers a way off the plan altogether, whether or not they are on the day', () => {
+        expect(draw()).toContain('<button class="link-btn">Leave this plan</button>');
+        expect(draw({ invited: false })).toContain('<button class="link-btn">Leave this plan</button>');
+    });
+
+    it('has a line waiting for each thing that can go wrong', () => {
+        expect(draw().match(/role="alert"/g)).toHaveLength(2);
     });
 });
 
