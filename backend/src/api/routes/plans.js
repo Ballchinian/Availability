@@ -17,7 +17,7 @@ import { gatherFreeDays } from '../../lib/freedays.js';
 import { newlyCovered, answersOn, askFor, daysToFill, toFillRuns, coverageOf, standing, inOf } from '../../lib/coverage.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD } from '../../lib/limits.js';
-import { realMembers } from '../../lib/members.js';
+import { realMembers, listMembers } from '../../lib/members.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { ipLimit } from '../../lib/iplimit.js';
 
@@ -466,6 +466,20 @@ router.get('/:planId/template', requirePlanner, (req, res) => {
         allowedWeekdays: plan.allowedWeekdays || null,
         participantIds: plan.participants.map((p) => p.userId)
     });
+});
+
+/*
+    The server's members, for the people picker on a plan already running. The server's
+    own route to the same list takes the planner role, which whoever runs a plan may not
+    hold.
+*/
+router.get('/:planId/members', requireHost, async (req, res) => {
+    try {
+        res.json({ members: await listMembers(req.ctx.guild) });
+    } catch (err) {
+        console.error('[members] failed:', err);
+        res.status(500).json({ error: 'Could not load the member list.' });
+    }
 });
 
 /*

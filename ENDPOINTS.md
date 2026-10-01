@@ -395,6 +395,22 @@ Planner role only, and only for someone on the plan.
 
 ---
 
+## GET `/api/plans/:planId/members` (session)
+
+The server's member list, for the people picker on a plan that is already running.
+
+Hosts only.
+
+### Returns
+
+The same list `GET /api/guilds/:guildId/members` gives a planner, cached the same way.
+
+### Notes
+
+* Here because whoever runs a plan may not hold the planner role, which the server's own route asks for.
+
+---
+
 ## POST `/api/plans/:planId/takeon` (session)
 
 Make the requester one of the people who run the plan.

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { api, errorText } from '../api.js';
+    import { api, errorText, planMembers } from '../api.js';
     import MemberPicker from '../MemberPicker.svelte';
     import type { Member, Participant } from '../types.js';
     import Status from '../Status.svelte';
@@ -29,9 +29,9 @@
         if (members.length || listing) return;
         listing = true;
         try {
-            const res = await api<{ members: Member[] }>(`/guilds/${guildId}/members`);
+            const everyone = await planMembers(planId, guildId);
             const here = new Set(participants.map((p) => p.userId));
-            members = res.members.filter((m) => !here.has(m.id));
+            members = everyone.filter((m) => !here.has(m.id));
         } catch (err) {
             panel.reject(errorText(err));
         }

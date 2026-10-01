@@ -81,8 +81,8 @@
         No selling or sharing of your data with third parties, no advertising, no analytics trackers. The
         bot doesn't read your everyday chat: it posts in the plan threads and the info channel it sets up,
         DMs the people invited to a plan about it, and sees only the commands, buttons and reason boxes
-        you use. It sees each server's member list so planners can pick who to invite, and doesn't save
-        it. Data is kept apart per server, so one server's plans and guest lists aren't visible to
+        you use. It sees each server's member list so planners, and whoever runs a plan, can pick who to
+        invite, and doesn't save it. Data is kept apart per server, so one server's plans and guest lists aren't visible to
         another.
     </p>
 

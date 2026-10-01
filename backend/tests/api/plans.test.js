@@ -9,6 +9,7 @@ import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/use
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
 import { formatDay } from '../../src/lib/dates.js';
 import { todayIn } from '../../src/lib/zones.js';
+import { listMembers } from '../../src/lib/members.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -64,6 +65,12 @@ vi.mock('../../src/db/plans.js', () => ({
         'addPlanEvent',
         'addHost'
     )
+}));
+
+//The whole server list is a gateway fetch, so only that half is stood in for
+vi.mock('../../src/lib/members.js', async (real) => ({
+    ...(await real()),
+    listMembers: vi.fn(async () => [{ id: 'guest', username: 'bo', displayName: 'Bo', avatarUrl: '' }])
 }));
 
 vi.mock('../../src/api/announce.js', () => stubs('announceAfter'));
@@ -1298,6 +1305,32 @@ describe('what a guest is shown on the overview', () => {
             expect(body.seesDays).toBe(true);
             expect(body.freeByDate[ahead(4)]).toEqual([{ userId: 'ann', hours: [] }]);
         });
+    });
+});
+
+//Adding people to a running plan needs the list, and whoever runs it may hold no planner role
+describe('the member list for a plan', () => {
+    it('goes to whoever runs it, planner role or not', async () => {
+        plannerAnswer = asMember;
+        const res = await get('/ab12cd34ef/members');
+        expect(res.status).toBe(200);
+        expect((await res.json()).members).toEqual([{ id: 'guest', username: 'bo', displayName: 'Bo', avatarUrl: '' }]);
+        expect(listMembers).toHaveBeenCalledWith(asMember.guild);
+    });
+
+    it('is kept from a guest, and from a planner who does not run it', async () => {
+        sessionUser = guest;
+        expect((await get('/ab12cd34ef/members')).status).toBe(403);
+        sessionUser = stranger;
+        expect((await get('/ab12cd34ef/members')).status).toBe(403);
+        expect(listMembers).not.toHaveBeenCalled();
+    });
+
+    it('says so when Discord will not hand the list over', async () => {
+        listMembers.mockRejectedValueOnce(new Error('rate limited'));
+        const res = await get('/ab12cd34ef/members');
+        expect(res.status).toBe(500);
+        expect((await res.json()).error).toMatch(/member list/);
     });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { api, ApiError, errorText, isAuthError } from '../../src/lib/api.js';
+import { api, ApiError, errorText, isAuthError, planMembers } from '../../src/lib/api.js';
 
 /*
     What a caller can tell from a failure, which is the whole point of the status
@@ -60,5 +60,42 @@ describe('api', () => {
     it('hands the body back when it worked', async () => {
         reply(200, { ok: true });
         expect(await api('/me')).toEqual({ ok: true });
+    });
+});
+
+//Whoever runs a plan may hold no planner role, which the server's own member list asks for
+describe('the member list for a plan', () => {
+    const ann = { id: 'a', username: 'ann', displayName: 'Ann', avatarUrl: '' };
+    //Answers each path in turn, and keeps what was asked for
+    const server = (answers: Record<string, [number, unknown]>) => {
+        const asked: string[] = [];
+        vi.stubGlobal('fetch', async (url: string) => {
+            asked.push(url);
+            const [status, body] = answers[url] ?? [500, { error: 'not stubbed' }];
+            return { ok: status === 200, status, statusText: 'Whatever', headers: { get: () => 'application/json' }, json: async () => body };
+        });
+        return asked;
+    };
+
+    it('is asked for through the plan', async () => {
+        const asked = server({ '/api/plans/p1/members': [200, { members: [ann] }] });
+        expect(await planMembers('p1', 'g1')).toEqual([ann]);
+        expect(asked).toEqual(['/api/plans/p1/members']);
+    });
+
+    it('falls back to the server list on a backend from before that route', async () => {
+        const asked = server({
+            '/api/plans/p1/members': [404, { error: 'No such endpoint.' }],
+            '/api/guilds/g1/members': [200, { members: [ann] }]
+        });
+        expect(await planMembers('p1', 'g1')).toEqual([ann]);
+        expect(asked).toEqual(['/api/plans/p1/members', '/api/guilds/g1/members']);
+    });
+
+    it('passes a refusal on rather than trying the other way round it', async () => {
+        const asked = server({ '/api/plans/p1/members': [403, { error: 'Only whoever runs this plan can do that.' }] });
+        const err = await planMembers('p1', 'g1').catch((e) => e);
+        expect(errorText(err)).toBe('Only whoever runs this plan can do that.');
+        expect(asked).toHaveLength(1);
     });
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, tick } from 'svelte';
     import { push } from 'svelte-spa-router';
-    import { api, errorText } from '../lib/api.js';
+    import { api, errorText, planMembers } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow, isWeekdayAllowed } from '../lib/calendar.js';
     import { formatDate } from '../lib/format.js';
@@ -115,8 +115,7 @@
         }
         try {
             data = await api<CompareScreen>(`/plans/${params.planId}/compare`);
-            const res = await api<{ members: Member[] }>(`/guilds/${data.plan.guildId}/members`);
-            members = res.members;
+            members = await planMembers(params.planId, data.plan.guildId);
         } catch (err) {
             loadError = errorText(err);
         }

@@ -1,3 +1,5 @@
+import type { Member } from './types.js';
+
 /*
     One fetch wrapper for the whole app. Always sends the session cookie so the
     backend knows who is logged in, and unwraps json when that is what came back.
@@ -48,4 +50,19 @@ export function isAuthError(err: unknown): boolean {
 //Pull a readable message out of whatever was thrown, since catch values are unknown
 export function errorText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
+}
+
+/*
+    The server's members for the people picker on a plan already running. Asked through
+    the plan, which whoever runs it can do with no planner role. A backend from before
+    that route answers 404, and the server's own list is tried then, for the few minutes
+    a deploy takes.
+*/
+export async function planMembers(planId: string, guildId: string): Promise<Member[]> {
+    try {
+        return (await api<{ members: Member[] }>(`/plans/${planId}/members`)).members;
+    } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+        return (await api<{ members: Member[] }>(`/guilds/${guildId}/members`)).members;
+    }
 }
