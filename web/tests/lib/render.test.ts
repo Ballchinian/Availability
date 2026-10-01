@@ -10,7 +10,7 @@ import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
 import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
 import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
 import Standing from '../../src/lib/compare/Standing.svelte';
-import HostGroups, { owing, askedLine, updatedLine } from '../../src/lib/compare/HostGroups.svelte';
+import AnswerBoard, { owing, askAside, askedLine, updatedLine } from '../../src/lib/compare/AnswerBoard.svelte';
 import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
 import PlanOverview, { planState } from '../../src/lib/compare/PlanOverview.svelte';
 import TakeOn from '../../src/lib/compare/TakeOn.svelte';
@@ -952,7 +952,7 @@ describe('the nudge', () => {
         invited: true
     }));
 
-    //The groups above name them, so the button only says how many it reaches
+    //The column above names them, so the button only says how many it reaches
     it('says how many it reaches and names nobody', () => {
         const body = render(RemindPanel, { props: { planId: 'ab12cd34ef', waiting } }).body;
         expect(body).toContain('Nudge the 2 still to answer');
@@ -960,7 +960,7 @@ describe('the nudge', () => {
     });
 });
 
-describe('where everyone stands before there is a day', () => {
+describe('who has answered before there is a day', () => {
     const person = (userId: string, over: Partial<Participant> = {}): Participant => ({
         userId,
         displayName: userId.toUpperCase(),
@@ -980,22 +980,41 @@ describe('where everyone stands before there is a day', () => {
         person('ed', { in: false, standing: 'out', inReason: 'Away' })
     ];
     const draw = (props: Record<string, unknown> = {}) =>
-        bare(render(HostGroups, { props: { planId: 'ab12cd34ef', participants: crowd, onmoved: async () => {}, ...props } }).body);
+        bare(render(AnswerBoard, { props: { planId: 'ab12cd34ef', participants: crowd, onmoved: async () => {}, ...props } }).body);
+    //Each column as far as the next one, and the names in it in the order they are drawn
+    const columns = (body: string) => body.split('<div class="bcol">').slice(1);
+    const namesIn = (column: string) => [...column.matchAll(/<(?:button|span) class="b(?:chip|static)"[^>]*>([A-Z]+)/g)].map((m) => m[1]);
 
-    it('heads each group with how many are in it, leaving out any with nobody', () => {
+    it('heads each of the three columns with how many are in it, and says so when one has nobody', () => {
         const body = draw({ participants: crowd.slice(0, 2) });
-        expect(body).toContain('<h3>In, done (1)</h3>');
-        expect(body).toContain('<h3>In, days left (1)</h3>');
-        expect(body).not.toContain('Not said yet');
-        expect(body).not.toContain('Nobody here');
+        expect(body).toContain('<h3>Answered every day (1)</h3>');
+        expect(body).toContain('<h3>Still to answer (1)</h3>');
+        expect(body).toMatch(/<h3>Can't make it \(0\)<\/h3>\s*<ul>\s*<li class="bempty">Nobody here\.<\/li><\/ul>/);
     });
 
-    it('says what the group cannot beside each name', () => {
+    it('puts each standing in the right column, whoever has not said leading the ones still to answer', () => {
+        const [answered, owed, out] = columns(draw());
+        expect(answered).toContain('<h3>Answered every day (1)</h3>');
+        expect(namesIn(answered)).toEqual(['ANN']);
+        expect(owed).toContain('<h3>Still to answer (3)</h3>');
+        expect(namesIn(owed)).toEqual(['DI', 'BO', 'CY']);
+        expect(out).toContain("<h3>Can't make it (1)</h3>");
+        expect(namesIn(out)).toEqual(['ED']);
+    });
+
+    it('says what each one still owes beside their name, then what the column cannot', () => {
         const body = draw();
         expect(body).toMatch(/>ANN\s+<span class="muted small">calendar updated 2 days ago<\/span>/);
         expect(body).toMatch(/>BO\s+<span class="muted small">3 days left<\/span>/);
-        expect(body).toMatch(/>CY\s+<span class="muted small">moved back by Ali<\/span>/);
-        expect(body).toMatch(/>DI\s+<span class="muted small">DMs closed, only reachable in the thread<\/span>/);
+        expect(body).toMatch(/>CY\s+<span class="muted small">no dates yet, moved back by Ali<\/span>/);
+        expect(body).toMatch(/>DI\s+<span class="muted small">hasn't said if they're in, DMs closed, only reachable in the thread<\/span>/);
+        expect(draw({ participants: [person('bo', { in: true, standing: 'days-left', daysLeft: 1 })] })).toContain('1 day left');
+    });
+
+    //One column holds both kinds now, so the line goes by the person and not by where they are listed
+    it('says what asking again does to that person', () => {
+        expect(askAside(crowd[3])).toBe("I'll DM them now. They can answer whenever they like.");
+        for (const joined of crowd.slice(0, 3)) expect(askAside(joined)).toBe("I'll DM them now. Their calendar stops counting here until they save again.");
     });
 
     //They get no DMs at all, so there is nothing to ask, and only whoever runs the plan sees why
@@ -1382,7 +1401,8 @@ describe('a plan overview', () => {
         it('still has who runs it, where everyone stands, the days, the thread and their own dates', () => {
             const body = draw(screen(guest));
             expect(body).toContain('Run by Ali and Sam.');
-            expect(body).toContain('<h3>In, days left (1)</h3>');
+            expect(body).toContain('<h2>Who has answered</h2>');
+            expect(body).toContain('<h3>Still to answer (1)</h3>');
             expect(body).toMatch(/BO\s+<span class="muted small">3 days left<\/span>/);
             expect(body).toContain("<h2>Everyone's days</h2>");
             expect(body).toContain('Open the thread in Discord');
@@ -1397,6 +1417,7 @@ describe('a plan overview', () => {
         //Once there is a day there are no dates left to fill in
         it('reads the board on a set day, with nobody to move and nobody listed as left off', () => {
             const body = draw(screen({ ...guest, participants: voters, you: { vote: null, invited: true } }, set));
+            expect(body).toContain('<h2>Where it stands</h2>');
             expect(body).toContain('<h3>Coming (2)</h3>');
             expect(body).toContain("<h3>Can't make it (1)</h3>");
             for (const gone of ['bchip', 'Working late', '(said', 'Not invited to this date', 'Invite them', 'Fill in your own dates', "Everyone's days"]) {
@@ -1612,23 +1633,25 @@ describe('the board, read rather than worked', () => {
     });
 });
 
-describe('where everyone stands, for a guest', () => {
+describe('who has answered, for a guest', () => {
     const body = bare(
-        render(HostGroups, {
+        render(AnswerBoard, {
             props: {
                 planId: 'ab12cd34ef',
                 host: false,
                 onmoved: async () => {},
                 participants: [
                     { userId: 'bo', displayName: 'BO', avatarUrl: '', confirmed: false, vote: null, voteReason: null, override: null, invited: true, in: true, standing: 'days-left', daysLeft: 3, dmsClosed: true, sentBack: { byName: 'Ali' }, updatedAt: new Date().toISOString() },
+                    { userId: 'di', displayName: 'DI', avatarUrl: '', confirmed: false, vote: null, voteReason: null, override: null, invited: true, in: null, standing: 'not-said', dmsClosed: true },
                     { userId: 'ed', displayName: 'ED', avatarUrl: '', confirmed: false, vote: null, voteReason: null, override: null, invited: true, in: false, standing: 'out', inReason: 'Away' }
                 ]
             }
         }).body
     );
 
-    it('has the days someone has left and nothing else beside a name', () => {
+    it('has what someone still owes and nothing else beside a name', () => {
         expect(body).toMatch(/<span class="bstatic">BO\s+<span class="muted small">3 days left<\/span><\/span>/);
+        expect(body).toMatch(/<span class="bstatic">DI\s+<span class="muted small">hasn't said if they're in<\/span><\/span>/);
         for (const gone of ['Away', 'moved back', 'DMs closed', 'calendar updated', 'bchip']) expect(body).not.toContain(gone);
     });
 });

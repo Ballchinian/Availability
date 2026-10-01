@@ -158,7 +158,7 @@ export async function askOnSetDays(database) {
     in shared/coverage.js), but sending a plan back for dates clears confirmed and moving
     its day clears votes, so that only lasts until the plan next changes. So each one is
     written down here once, after anyone who filled in a plan still collecting gets its
-    window as answered, or they would all read as "In, no dates yet".
+    window as answered, or they would all read as in with no dates yet.
 
     Only participants with no in, never everyone confirmed: a window widened later must
     not count as answered for people who were confirmed before it widened. The windows go

@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { CompareScreen } from '../types.js';
     import { inOf } from '../../../../shared/coverage.js';
+    import AnswerBoard, { owing } from './AnswerBoard.svelte';
     import AttendanceBoard from './AttendanceBoard.svelte';
-    import HostGroups, { owing } from './HostGroups.svelte';
     import RemindPanel from './RemindPanel.svelte';
 
     /*
@@ -34,7 +34,7 @@
 </script>
 
 <section class="group">
-    <h2>{data.plan.chosenDate ? 'Where it stands' : 'Which day?'}</h2>
+    <h2>{data.plan.chosenDate ? 'Where it stands' : 'Who has answered'}</h2>
 
     {#if data.plan.chosenDate}
         <AttendanceBoard {planId} participants={data.participants} chosenDate={data.plan.chosenDate} {host} readOnly={over} {onmoved} />
@@ -43,7 +43,7 @@
             <RemindPanel {planId} waiting={pendingVoters} mode="vote" />
         {/if}
     {:else}
-        <HostGroups {planId} participants={data.participants} {host} readOnly={over} {onmoved} />
+        <AnswerBoard {planId} participants={data.participants} {host} readOnly={over} {onmoved} />
 
         <!--A plan with a day is waiting on answers, not dates-->
         {#if acting && collecting && waiting.length}

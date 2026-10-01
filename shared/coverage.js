@@ -4,9 +4,8 @@
     dates.js, which is the only thing it reads, and coverage.d.ts is what the
     typescript side reads.
 
-    Nothing here is stored. Which group someone is in comes out of their calendar
-    every time it is asked, so a window that moves takes people between groups on
-    its own.
+    Nothing here is stored. Where someone stands comes out of their calendar every
+    time it is asked, so a window that moves takes people with it on its own.
 */
 
 import { shiftDate, weekdayAllowed, formatDay } from './dates.js';
@@ -91,7 +90,7 @@ export function inOf(p) {
     return p.confirmed || p.vote === 'yes' ? true : null;
 }
 
-//Which of the five groups a host sees someone in
+//Where someone is with their answer, which the overview reads into its three columns
 export function standing(p, coverage) {
     const joined = inOf(p);
     if (joined === false) return 'out';

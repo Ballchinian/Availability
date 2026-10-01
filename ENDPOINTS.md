@@ -534,7 +534,7 @@ Hosts only.
 
 ## POST `/api/plans/:planId/askagain` (session)
 
-Ask one person again, from the groups on a plan still finding its day.
+Ask one person again, from Who has answered on a plan still finding its day.
 
 Hosts only.
 

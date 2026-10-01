@@ -7,8 +7,7 @@
     /*
         The nudge for whoever the plan is waiting on. Before a date is set that is
         whoever still has to say they're in or fill in days, and once there is one it is
-        whoever hasn't said if they're coming. Either way the groups or the board above
-        name them.
+        whoever hasn't said if they're coming. Either way the column above names them.
 
         The route picks which set to chase from the plan itself, so mode only decides
         the wording here.
