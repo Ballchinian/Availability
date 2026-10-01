@@ -36,12 +36,8 @@
     {:else if loadError}
         <p class="status error">{loadError}</p>
     {:else if past.length === 0}
-        <p class="muted">Nothing here yet. A plan moves here once its day has been, or when it is called off.</p>
+        <p class="muted">Nothing here yet. A plan moves here once it is over.</p>
     {:else}
-        <p class="muted">
-            Nothing here can be changed. If you ran one of these, its overview still has who said what and everything that
-            happened along the way, until you delete the thread in Discord.
-        </p>
         <PlanCards plans={past} over />
     {/if}
 </section>

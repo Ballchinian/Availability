@@ -1609,6 +1609,7 @@ describe('a plan overview', () => {
             expect(body).toContain('(Working late)');
             expect(body).toContain('<h3>Not invited to this date (1)</h3>');
             expect(body).toContain('Plan another like this');
+            expect(body).toContain('Deleting its thread in Discord clears it for good.');
         });
 
         it('says how a plan that was called off gets cleared, to whoever ran it', () => {

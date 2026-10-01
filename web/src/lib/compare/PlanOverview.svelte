@@ -143,7 +143,7 @@
     {/if}
 </p>
 
-{#if host && cancelled}
+{#if host && over}
     <p class="muted small">Deleting its thread in Discord clears it for good.</p>
 {/if}
 
