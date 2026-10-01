@@ -4,7 +4,8 @@ import { getPlanByThread, deletePlan, deletePlansForGuild, deletePlansUnderChann
 import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel } from './util.js';
-import { syncPlanCards } from './plans.js';
+import { syncPlanCards, afterLeaving } from './plans.js';
+import { dayHasPassed } from '../lib/zones.js';
 
 /*
     Keeping things tidy when bits get deleted, so the user never hits a silent
@@ -86,7 +87,16 @@ export async function onGuildDelete(guild) {
 }
 
 export async function onGuildMemberRemove(member) {
-    await removeUserFromGuildPlans(member.guild.id, member.id);
+    const plans = await removeUserFromGuildPlans(member.guild.id, member.id);
+    /*
+        Whoever is left on a plan may now all have answered, which nothing else would
+        notice, and a set day's pin was counting them. A plan that is over has nobody
+        left to tell.
+    */
+    for (const plan of plans) {
+        if (plan.status === 'cancelled' || dayHasPassed(plan)) continue;
+        await afterLeaving(plan).catch((err) => console.error(`[cleanup] ${plan.planId} after a member left:`, err));
+    }
 
     //Only people who have logged in to the site have a list of servers to keep
     const user = await getUserById(member.id);

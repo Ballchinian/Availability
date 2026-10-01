@@ -542,9 +542,20 @@ export async function addHost(planId, userId, gone = []) {
     return getPlan(planId);
 }
 
-//Drop someone from the guest list of every plan in a server when they leave it
+/*
+    Someone leaving a server comes off the guest list of every plan in it, and stops
+    running any they ran. A plan from before hosts that they made has its list written
+    down as empty first, or it would go on reading as run by them. Hands back the plans
+    they were on, as they now stand, since whoever is left may now all have answered.
+*/
 export async function removeUserFromGuildPlans(guildId, userId) {
-    await col(collections.plans).updateMany({ guildId }, { $pull: { participants: { userId } } });
+    const plans = col(collections.plans);
+    const ids = (await plans.find({ $and: [{ guildId }, onPlan(userId)] }).toArray()).map((plan) => plan.planId);
+    if (!ids.length) return [];
+
+    await plans.updateMany({ guildId, hostIds: { $exists: false }, createdBy: userId }, { $set: { hostIds: [] } });
+    await plans.updateMany({ guildId }, { $pull: { participants: { userId }, hostIds: userId } });
+    return plans.find({ planId: { $in: ids } }).toArray();
 }
 
 //Drop one person from a single plan's guest list, for when they opt out themselves

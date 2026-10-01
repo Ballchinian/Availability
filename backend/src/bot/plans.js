@@ -932,7 +932,8 @@ async function dropOut(plan, userId, actorName) {
     return updated;
 }
 
-async function afterLeaving(updated) {
+//Also what a member leaving the server sets off, for each plan they were on
+export async function afterLeaving(updated) {
     //A set day's pin was counting them
     await updateOpener(updated).catch(() => {});
 

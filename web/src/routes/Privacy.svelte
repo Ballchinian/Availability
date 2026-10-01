@@ -97,7 +97,8 @@
     <p>
         A plan is deleted when its thread is deleted, or the channel holding its thread is, and every DM
         the bot sent about it is rewritten to say so. Removing the bot from a server deletes all of that
-        server's plans. You're taken off a server's plans when you leave that server. Once you no longer
+        server's plans. You're taken off a server's plans when you leave that server, and stop running
+        any you ran there. Once you no longer
         share any server with the bot, your calendar is deleted and your account record is cut down to
         your Discord ID and the logout number above. If you want your data gone sooner, email us (see
         below) from a way we can tie to your Discord account and we'll remove it within a reasonable time.

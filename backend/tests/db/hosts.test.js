@@ -18,6 +18,7 @@ vi.mock('../../src/db/mongo.js', () => {
             const have = at(doc, key);
             if (want && typeof want === 'object') {
                 if ('$exists' in want) return (have !== undefined) === want.$exists;
+                if ('$in' in want) return want.$in.includes(have);
                 if ('$gte' in want) return have != null && have >= want.$gte;
                 if ('$lt' in want) return have != null && have < want.$lt;
             }
@@ -62,7 +63,9 @@ vi.mock('../../src/db/mongo.js', () => {
     };
 });
 
-const { addHost, getActivePlansForUser, getFinishedPlansForUser, getLivePlansForUser } = await import('../../src/db/plans.js');
+const { addHost, getActivePlansForUser, getFinishedPlansForUser, getLivePlansForUser, removeUserFromGuildPlans } = await import('../../src/db/plans.js');
+const { hostIdsOf } = await import('../../src/lib/hosts.js');
+const { canTakeOn } = await import('../../src/api/roles.js');
 
 const plan = (planId, over = {}) => ({ planId, guildId: 'g1', createdBy: 'ali', status: 'collecting', participants: [{ userId: 'bo' }], ...over });
 const hostsOf = (planId) => rows.find((p) => p.planId === planId).hostIds;
@@ -108,6 +111,61 @@ describe('the plans someone is on', () => {
         expect(ids(await getFinishedPlansForUser('sam', '2026-10-01'))).toEqual(['been']);
         expect(ids(await getFinishedPlansForUser('ali', '2026-10-01'))).toEqual(['off']);
         expect(ids(await getFinishedPlansForUser('bo', '2026-10-01'))).toEqual(['been', 'off']);
+    });
+});
+
+describe('someone leaving the server', () => {
+    const stored = (planId) => rows.find((p) => p.planId === planId);
+
+    it('comes off the guest list of every plan there, and no other server', async () => {
+        rows.push(plan('p1', { participants: [{ userId: 'bo' }, { userId: 'cy' }] }), plan('p2', { guildId: 'g2' }));
+        await removeUserFromGuildPlans('g1', 'bo');
+
+        expect(stored('p1').participants).toEqual([{ userId: 'cy' }]);
+        expect(stored('p2').participants).toEqual([{ userId: 'bo' }]);
+    });
+
+    it('stops running the plans they ran, and the others who run them carry on', async () => {
+        rows.push(plan('p1', { hostIds: ['ali', 'sam'] }));
+        await removeUserFromGuildPlans('g1', 'sam');
+        expect(hostIdsOf(stored('p1'))).toEqual(['ali']);
+    });
+
+    //Left as it was, a plan with no list would go on reading as run by whoever made it
+    it('leaves a plan from before hosts run by nobody when whoever made it goes', async () => {
+        rows.push(plan('p1'));
+        await removeUserFromGuildPlans('g1', 'ali');
+
+        expect(stored('p1').hostIds).toEqual([]);
+        expect(hostIdsOf(stored('p1'))).toEqual([]);
+    });
+
+    it('lets a planner take on a plan the last person running it has left', async () => {
+        rows.push(plan('p1', { hostIds: ['ali'] }));
+        const [left] = await removeUserFromGuildPlans('g1', 'ali');
+
+        const planner = { isMember: true, isPlanner: true, canManage: false };
+        expect(canTakeOn(left, 'cass', planner, hostIdsOf(left))).toBe(true);
+    });
+
+    it('does not touch who runs a plan from before hosts when a guest goes', async () => {
+        rows.push(plan('p1'));
+        await removeUserFromGuildPlans('g1', 'bo');
+        expect(stored('p1')).not.toHaveProperty('hostIds');
+    });
+
+    it('hands back the plans they were on as they now stand, and only those', async () => {
+        rows.push(plan('p1'), plan('p2', { hostIds: ['bo'], participants: [] }), plan('p3', { participants: [{ userId: 'cy' }] }));
+        const left = await removeUserFromGuildPlans('g1', 'bo');
+
+        expect(ids(left)).toEqual(['p1', 'p2']);
+        expect(left.find((p) => p.planId === 'p1').participants).toEqual([]);
+        expect(left.find((p) => p.planId === 'p2').hostIds).toEqual([]);
+    });
+
+    it('has nothing to do for someone on no plans', async () => {
+        rows.push(plan('p1'));
+        expect(await removeUserFromGuildPlans('g1', 'cass')).toEqual([]);
     });
 });
 
