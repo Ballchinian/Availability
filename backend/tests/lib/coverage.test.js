@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
+import { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine, nextStep } from '../../../shared/coverage.js';
 import { shiftDate } from '../../../shared/dates.js';
 
 //Mon 7 to Fri 11 Sep 2026
@@ -282,5 +282,61 @@ describe('owes', () => {
     it('owes nothing once done or out', () => {
         expect(owes({ in: true }, covered)).toBe(null);
         expect(owes({ in: false }, none)).toBe(null);
+    });
+});
+
+/*
+    The button on a plan's card, and the same line in /mylink. One thing each, the one
+    the plan is most waiting on from that person.
+*/
+describe('nextStep', () => {
+    const finding = (over = {}) => ({ status: 'collecting', onList: true, standing: 'not-said', daysLeft: 0, movedBack: false, answer: null, invited: true, readyToPick: false, ...over });
+    const set = (over = {}) => finding({ status: 'closed', standing: null, ...over });
+    const overview = { label: 'Overview', page: 'overview' };
+
+    it('asks someone who has not said whether they are in', () => {
+        expect(nextStep(finding())).toEqual({ label: "Say if you're in", page: 'plan' });
+    });
+
+    it('says how many days someone in has left, one or many', () => {
+        expect(nextStep(finding({ standing: 'days-left', daysLeft: 3 }))).toEqual({ label: 'Fill in 3 days', page: 'plan' });
+        expect(nextStep(finding({ standing: 'days-left', daysLeft: 1 })).label).toBe('Fill in 1 day');
+    });
+
+    it('sends someone in with nothing answered to their dates', () => {
+        expect(nextStep(finding({ standing: 'no-dates', daysLeft: 14 }))).toEqual({ label: 'Fill in your dates', page: 'plan' });
+    });
+
+    //Sent back reads as no dates yet, and the button says why they are being asked
+    it('tells someone moved back to go over their dates again', () => {
+        expect(nextStep(finding({ standing: 'no-dates', movedBack: true })).label).toBe('Go over your dates again');
+    });
+
+    it('asks someone on a set day who has not answered whether they are coming', () => {
+        expect(nextStep(set())).toEqual({ label: "Say if you're coming", page: 'overview' });
+    });
+
+    it('tells whoever runs a plan to pick the day once everyone has answered', () => {
+        expect(nextStep(finding({ standing: 'done', readyToPick: true }))).toEqual({ label: 'Pick the day', page: 'overview' });
+        expect(nextStep(finding({ onList: false, standing: null, readyToPick: true })).label).toBe('Pick the day');
+    });
+
+    it('is the overview for everything else', () => {
+        const rest = [
+            finding({ standing: 'done' }),
+            finding({ standing: 'out' }),
+            finding({ onList: false, standing: null }),
+            set({ answer: 'yes' }),
+            set({ answer: 'no' }),
+            set({ invited: false }),
+            set({ onList: false, invited: false }),
+            { status: 'cancelled', onList: true, answer: null, invited: true }
+        ];
+        for (const row of rest) expect(nextStep(row)).toEqual(overview);
+    });
+
+    it('asks nothing on a plan that is over', () => {
+        expect(nextStep(set({ over: true }))).toEqual(overview);
+        expect(nextStep(finding({ over: true }))).toEqual(overview);
     });
 });

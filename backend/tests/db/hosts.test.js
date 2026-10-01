@@ -14,10 +14,24 @@ vi.mock('../../src/db/mongo.js', () => {
     const matches = (doc, filter) =>
         Object.entries(filter).every(([key, want]) => {
             if (key === '$or') return want.some((f) => matches(doc, f));
+            if (key === '$and') return want.every((f) => matches(doc, f));
             const have = at(doc, key);
-            if (want && typeof want === 'object' && '$exists' in want) return (have !== undefined) === want.$exists;
+            if (want && typeof want === 'object') {
+                if ('$exists' in want) return (have !== undefined) === want.$exists;
+                if ('$gte' in want) return have != null && have >= want.$gte;
+                if ('$lt' in want) return have != null && have < want.$lt;
+            }
             return Array.isArray(have) ? have.includes(want) : have === want;
         });
+    //Sorting and capping are Mongo's own, so the chain is only walked
+    const found = (filter) => {
+        const cursor = {
+            sort: () => cursor,
+            limit: () => cursor,
+            toArray: async () => structuredClone(rows.filter((doc) => matches(doc, filter)))
+        };
+        return cursor;
+    };
     const pulled = (item, want) => {
         if (!want || typeof want !== 'object') return item === want;
         if ('$in' in want) return want.$in.includes(item);
@@ -36,7 +50,7 @@ vi.mock('../../src/db/mongo.js', () => {
         collections: { plans: 'plans' },
         col: () => ({
             findOne: async (filter) => structuredClone(rows.find((doc) => matches(doc, filter)) || null),
-            find: (filter) => ({ toArray: async () => structuredClone(rows.filter((doc) => matches(doc, filter))) }),
+            find: found,
             updateOne: async (filter, update) => {
                 const doc = rows.find((d) => matches(d, filter));
                 if (doc) apply(doc, update);
@@ -48,12 +62,46 @@ vi.mock('../../src/db/mongo.js', () => {
     };
 });
 
-const { addHost } = await import('../../src/db/plans.js');
+const { addHost, getActivePlansForUser, getFinishedPlansForUser } = await import('../../src/db/plans.js');
 
-const plan = (planId, over = {}) => ({ planId, guildId: 'g1', createdBy: 'ali', participants: [{ userId: 'bo' }], ...over });
+const plan = (planId, over = {}) => ({ planId, guildId: 'g1', createdBy: 'ali', status: 'collecting', participants: [{ userId: 'bo' }], ...over });
 const hostsOf = (planId) => rows.find((p) => p.planId === planId).hostIds;
+const ids = (plans) => plans.map((p) => p.planId).sort();
 
 beforeEach(() => rows.splice(0, rows.length));
+
+//My plans and Past plans, which have to find a plan for the people who run it as well as its guests
+describe('the plans someone is on', () => {
+    beforeEach(() => {
+        rows.push(
+            plan('old'),
+            plan('listed', { hostIds: ['ali', 'sam'] }),
+            //Ali made it and has since come off the list of who runs it
+            plan('handed-on', { hostIds: ['sam'] }),
+            plan('set', { hostIds: ['sam'], status: 'closed', chosenDate: '2026-10-10' }),
+            plan('been', { hostIds: ['sam'], status: 'closed', chosenDate: '2026-09-01' }),
+            plan('off', { status: 'cancelled' })
+        );
+    });
+
+    it('finds a plan for a guest', async () => {
+        expect(ids(await getActivePlansForUser('bo', '2026-10-01'))).toEqual(['handed-on', 'listed', 'old', 'set']);
+    });
+
+    it('finds the plans someone runs without being a guest of them', async () => {
+        expect(ids(await getActivePlansForUser('sam', '2026-10-01'))).toEqual(['handed-on', 'listed', 'set']);
+    });
+
+    it('reads a plan from before hosts as run by whoever made it, and only those', async () => {
+        expect(ids(await getActivePlansForUser('ali', '2026-10-01'))).toEqual(['listed', 'old']);
+    });
+
+    it('splits the finished ones off the same way', async () => {
+        expect(ids(await getFinishedPlansForUser('sam', '2026-10-01'))).toEqual(['been']);
+        expect(ids(await getFinishedPlansForUser('ali', '2026-10-01'))).toEqual(['off']);
+        expect(ids(await getFinishedPlansForUser('bo', '2026-10-01'))).toEqual(['been', 'off']);
+    });
+});
 
 describe('taking a plan on', () => {
     it('adds them to whoever already runs it', async () => {

@@ -116,6 +116,8 @@ async function ensureIndexes(database) {
     //Backs getOpenPlansForUser and getCollectingPlansForUser, which guildId alone does not cover
     await database.collection(collections.plans).createIndex({ 'participants.userId': 1, status: 1 });
     //The other half of the landing page list: the plans someone runs, whether or not they are in them
+    await database.collection(collections.plans).createIndex({ hostIds: 1, status: 1 });
+    //The same for plans from before hosts were stored, which whoever made them runs
     await database.collection(collections.plans).createIndex({ createdBy: 1, status: 1 });
     /*
         What the repeat sweep asks for, on a timer forever. Partial rather than sparse:

@@ -248,6 +248,24 @@ export interface UserPlan {
     inIt: boolean;
     filledIn: boolean;
     mine: boolean;
+    /*
+        Where they stand on it, which nextStep in shared/coverage.js turns into the one
+        thing the plan wants from them. All missing from a backend older than the site,
+        for the few minutes a deploy takes.
+    */
+    role?: 'host' | 'guest';
+    //Whoever runs it, other than them
+    hosts?: string[];
+    repeatWeeks?: number | null;
+    onList?: boolean;
+    standing?: Standing | null;
+    daysLeft?: number;
+    movedBack?: boolean;
+    //For a set day: their own answer, or a call made on the board
+    answer?: Answer | null;
+    invited?: boolean;
+    //They run it, and everyone has answered
+    readyToPick?: boolean;
 }
 
 /*

@@ -108,6 +108,37 @@ export function owes(p, coverage) {
 }
 
 /*
+    The one thing a plan most wants from someone, as the words on a button and the page
+    it opens: 'plan' is where they fill in dates, 'overview' the plan's overview. Shared
+    so My plans and /mylink say the same thing about the same plan.
+
+    row is where they stand on it: the plan's status, whether they are on its guest list
+    (onList), their standing and daysLeft while it finds a day, movedBack once a host has
+    asked them to go over their dates again, their answer for a set day and whether they
+    are invited to it, readyToPick for a host once everyone has answered, and over for a
+    plan that has finished.
+*/
+export function nextStep(row) {
+    const here = { label: 'Overview', page: 'overview' };
+    if (row.over) return here;
+
+    if (row.status === 'collecting') {
+        if (row.onList && row.movedBack) return { label: 'Go over your dates again', page: 'plan' };
+        if (row.onList && row.standing === 'not-said') return { label: "Say if you're in", page: 'plan' };
+        if (row.onList && row.standing === 'days-left') {
+            return { label: `Fill in ${row.daysLeft} ${row.daysLeft === 1 ? 'day' : 'days'}`, page: 'plan' };
+        }
+        if (row.onList && row.standing === 'no-dates') return { label: 'Fill in your dates', page: 'plan' };
+        return row.readyToPick ? { label: 'Pick the day', page: 'overview' } : here;
+    }
+
+    if (row.status === 'closed' && row.onList && row.invited && !row.answer) {
+        return { label: "Say if you're coming", page: 'overview' };
+    }
+    return here;
+}
+
+/*
     The line under Count me in / Not for me. It stops where a link used to go: the
     DM's Add my dates button does that job, and on the plan page there is nowhere
     else to send them. Blank when every day it asked about has gone.

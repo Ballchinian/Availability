@@ -171,17 +171,24 @@ Everything the requester still has on, across every server they share with the b
 Two lists, the live plans and the ones behind them, each plan with:
 
 * Plan id, name, and the server it belongs to
-* Its status and date range, plus the day and time if one has been set, and the server clock that time is written on
-* Whether the requester is on the guest list, and whether they have filled their dates in
-* Whether they started it, which is what earns the plan a compare link
+* Its status and date range, plus the day and time if one has been set, the server clock that time is written on, and `repeatWeeks` if it comes round again
+* `role`: `host` if they run it, `guest` if they are only on its list
+* `hosts`: the names of whoever runs it, other than the requester. All of them for a guest, the others for a host.
+* Where they stand on it, which is what the site's next-step button and `/mylink` are worked out from:
+  * `onList`: whether they are on the guest list
+  * `standing` and `daysLeft` while the plan is finding its day, as the overview has them, and `movedBack` once a host has asked them to go over their dates again
+  * `answer` for a set day, which is their own yes or no, a host's call on the board, or `no` for someone who said the plan wasn't for them, and `invited`, whether they are on that day's list
+  * `readyToPick`: they run it, and everyone left on it has answered
+* `inIt`, `filledIn` and `mine`, the older names for being on the list, having saved dates, and running it
 
 ### Notes
 
 * The live list covers plans still collecting dates and set plans whose day has not passed.
-* The second list is what has finished: cancelled plans, and set ones whose day has been and gone. Newest first and capped at a dozen. The site shows it under Past plans, so the compare page behind a finished plan, and everything it remembers, still has a way in.
+* The second list is what has finished: cancelled plans, and set ones whose day has been and gone. Newest first and capped at a dozen. The site shows it under Past plans, so the overview behind a finished plan, and everything it remembers, still has a way in.
 * A plan set for today counts as live, so the two lists never overlap and nothing falls between them.
-* Plans the requester started count as well as plans they are in, since nothing makes a planner invite themselves to their own plan.
-* A set plan the requester was left off the invite list for is left out too.
+* Plans the requester runs count as well as plans they are in, since nothing makes a planner invite themselves to their own plan. A plan made before hosts were stored is run by whoever made it.
+* A set plan the requester was left off the invite list for is left out, unless they run it.
+* Reads everyone's answers on the plans they run that are still finding a day, in one query, since `readyToPick` is everybody's answers.
 
 ---
 

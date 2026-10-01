@@ -1,6 +1,7 @@
-import { coverageOf, inOf, askedDays, askLine } from '../../../shared/coverage.js';
+import { coverageOf, inOf, standing, askedDays, askLine } from '../../../shared/coverage.js';
 import { safeZone, todayIn, retimeDay, instantToWall } from './zones.js';
 import { gatherFreeDays } from './freedays.js';
+import { hostIdsOf } from './hosts.js';
 
 /*
     shared/coverage.js passed straight back out, the same arrangement dates.js and
@@ -8,7 +9,7 @@ import { gatherFreeDays } from './freedays.js';
     person on one plan, out of the plan and their row from getPlanningPrefs.
 */
 
-export { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine } from '../../../shared/coverage.js';
+export { askedDays, answeredOn, coverageOf, daysToFill, toFillRuns, inOf, standing, owes, askLine, nextStep } from '../../../shared/coverage.js';
 
 //coverageOf's input. Only coveredUntil is a date on their own clock, so only it goes through retimeDay.
 export function answersOn(plan, prefs, p = null) {
@@ -46,6 +47,41 @@ export function askFor(plan, p, prefs, rows, lastUpdatedAt = null) {
         updated,
         joined: inOf(p) === true
     });
+}
+
+/*
+    Whether a plan still finding its day has heard from everyone: all of them in, with a
+    calendar that answers every day of it. Anyone who said it's not for them is not
+    waited on, and a plan with nobody else left on it has heard from no one.
+*/
+export function everyoneAnswered(plan, prefs) {
+    const on = plan.participants.filter((p) => inOf(p) !== false);
+    return on.length > 0 && on.every((p) => standing(p, coverageOf(answersOn(plan, prefs[p.userId], p))) === 'done');
+}
+
+/*
+    Where one person stands on one plan, which is what nextStep reads. prefs is
+    getPlanningPrefs for them, and for everyone on a plan they run that is still finding
+    its day, since whether the day can be picked is everybody's answers.
+
+    A host's call on the board stands as their answer for a set day, and so does having
+    said it's not for them: nothing is waiting on either.
+*/
+export function rowFor(plan, userId, prefs = {}) {
+    const me = plan.participants.find((p) => p.userId === userId) || null;
+    const collecting = plan.status === 'collecting';
+    const hosting = hostIdsOf(plan).includes(userId);
+    const coverage = me && collecting ? coverageOf(answersOn(plan, prefs[userId], me)) : null;
+    return {
+        role: hosting ? 'host' : 'guest',
+        onList: Boolean(me),
+        standing: coverage ? standing(me, coverage) : null,
+        daysLeft: coverage ? coverage.daysLeft : 0,
+        movedBack: Boolean(collecting && me?.sentBack),
+        answer: me ? me.override || me.vote || (inOf(me) === false ? 'no' : null) : null,
+        invited: Boolean(me) && me.invited !== false,
+        readyToPick: hosting && collecting && everyoneAnswered(plan, prefs)
+    };
 }
 
 //The plans a save took from not answered to answered, leaving out any the person has said no to

@@ -198,20 +198,28 @@ export async function getCollectingPlansForUser(userId) {
 }
 
 /*
+    The plans someone is on: a guest of, or running. The last clause is hostIdsOf as a
+    query, for plans from before hosts were stored, which whoever made them runs.
+*/
+function onPlan(userId) {
+    return { $or: [{ 'participants.userId': userId }, { hostIds: userId }, { hostIds: { $exists: false }, createdBy: userId }] };
+}
+
+/*
     Everything this person still has on, across every server: plans still collecting
     dates, plus set ones whose day has not come round yet. Backs the landing page
     list, which is the only way back into a plan for someone who lost the DM.
     Cancelled plans and days gone by fall out on their own.
 
     Plans they are running count as well as plans they are in, since nothing makes a
-    planner invite themselves and the guest list alone would hide a plan from the one
-    person organising it.
+    planner invite themselves and the guest list alone would hide a plan from the
+    people organising it.
 */
 export async function getActivePlansForUser(userId, fromDate) {
     return col(collections.plans)
         .find({
             $and: [
-                { $or: [{ 'participants.userId': userId }, { createdBy: userId }] },
+                onPlan(userId),
                 { $or: [{ status: 'collecting' }, { status: 'closed', chosenDate: { $gte: fromDate } }] }
             ]
         })
@@ -233,7 +241,7 @@ export async function getFinishedPlansForUser(userId, fromDate, limit = 12) {
     return col(collections.plans)
         .find({
             $and: [
-                { $or: [{ 'participants.userId': userId }, { createdBy: userId }] },
+                onPlan(userId),
                 { $or: [{ status: 'cancelled' }, { status: 'closed', chosenDate: { $lt: fromDate } }] }
             ]
         })

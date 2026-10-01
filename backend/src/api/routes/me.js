@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
-import { getUserById, setUserGuilds, setUserTimeZone } from '../../db/users.js';
+import { getUserById, setUserGuilds, setUserTimeZone, getPlanningPrefs } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
 import { getActivePlansForUser, getFinishedPlansForUser } from '../../db/plans.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
+import { planRole } from '../roles.js';
 import { today } from '../../lib/dates.js';
 import { isValidZone, safeZone } from '../../lib/zones.js';
+import { hostIdsOf } from '../../lib/hosts.js';
+import { rowFor } from '../../lib/coverage.js';
 
 /*
     What the landing page runs on. Every other screen arrives from a link the bot
@@ -75,12 +78,26 @@ router.put('/timezone', requireUser, async (req, res) => {
     res.json({ ok: true, timeZone });
 });
 
+/*
+    The display names of a few people in one server, in the order asked for, leaving out
+    anyone who has left. A cache hit for nearly all of them, since the member cache is
+    warmed at boot.
+*/
+async function namesIn(guildId, ids) {
+    if (!ids.length) return [];
+    const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) return [];
+    const members = await Promise.all(ids.map((id) => guild.members.cache.get(id) || guild.members.fetch(id).catch(() => null)));
+    return members.filter(Boolean).map((m) => m.displayName);
+}
+
 //One plan as the landing page reads it, or null for one this person has nothing to do with
-function planRow(plan, userId, names) {
+async function planRow(plan, userId, names, prefs) {
+    const role = planRole(plan, userId);
+    if (!role) return null;
     const me = plan.participants.find((p) => p.userId === userId);
-    const running = plan.createdBy === userId;
     //Left off the invite list when the date was locked, so there is nothing to come to, unless they run it
-    if (plan.status === 'closed' && me?.invited === false && !running) return null;
+    if (plan.status === 'closed' && me?.invited === false && role !== 'host') return null;
 
     return {
         planId: plan.planId,
@@ -93,16 +110,16 @@ function planRow(plan, userId, names) {
         chosenTime: plan.chosenTime || null,
         //The clock that time is written in, which the list only mentions when it is not theirs
         timeZone: safeZone(plan.timeZone),
-        //A planner who did not invite themselves is running this one without being in it
+        repeatWeeks: plan.repeatWeeks || null,
+        //Whoever runs it, other than them: all of them for a guest, the rest for one of them
+        hosts: await namesIn(plan.guildId, hostIdsOf(plan).filter((id) => id !== userId)),
+        //Where they stand on it, which is what nextStep in shared/coverage.js turns into the card's button
+        ...rowFor(plan, userId, prefs),
+        //Someone who runs a plan without inviting themselves is not in it
         inIt: Boolean(me),
-        //Whether they still owe this plan their dates, which is the whole reason for the list
         filledIn: Boolean(me?.confirmed),
-        /*
-            Marks the plans they started, which is what decides whether a row offers the
-            compare link. Not a permission: any planner in the server can open compare on
-            a plan they have the link to, invited to it or not.
-        */
-        mine: running
+        //What role is called by a site from before it
+        mine: role === 'host'
     };
 }
 
@@ -114,13 +131,24 @@ router.get('/plans', requireUser, async (req, res) => {
         getActivePlansForUser(req.user.id, from),
         getFinishedPlansForUser(req.user.id, from)
     ]);
-    const configs = await getGuildConfigs([...new Set([...live, ...over].map((plan) => plan.guildId))]);
+
+    /*
+        Their own answers, and everyone's on the plans they run that are still finding a
+        day, since "pick the day" waits on all of them. One read for the lot.
+    */
+    const waitingOn = live.filter((plan) => plan.status === 'collecting' && hostIdsOf(plan).includes(req.user.id));
+    const [configs, prefs] = await Promise.all([
+        getGuildConfigs([...new Set([...live, ...over].map((plan) => plan.guildId))]),
+        getPlanningPrefs([...new Set([req.user.id, ...waitingOn.flatMap((plan) => plan.participants.map((p) => p.userId))])])
+    ]);
     const names = new Map(configs.map((cfg) => [cfg.guildId, cfg.guildName]));
+    const rows = (plans) => Promise.all(plans.map((plan) => planRow(plan, req.user.id, names, prefs)));
+    const [plans, past] = await Promise.all([rows(live), rows(over)]);
 
     res.json({
-        plans: live.map((plan) => planRow(plan, req.user.id, names)).filter(Boolean),
+        plans: plans.filter(Boolean),
         //The ones that are done with, kept apart so the live list stays what the page opens on
-        past: over.map((plan) => planRow(plan, req.user.id, names)).filter(Boolean)
+        past: past.filter(Boolean)
     });
 });
 

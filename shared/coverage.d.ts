@@ -45,4 +45,24 @@ export function toFillRuns(answers: PlanAnswers): [string, string][];
 export function inOf(p: Answerer): boolean | null;
 export function standing(p: Answerer, coverage: Coverage): Standing;
 export function owes(p: Answerer, coverage: Coverage): 'answer' | 'days' | null;
+
+//Where someone stands on one plan, as GET /me/plans sends it
+export interface PlanRow {
+    status: string;
+    onList?: boolean;
+    standing?: Standing | null;
+    daysLeft?: number;
+    movedBack?: boolean;
+    answer?: string | null;
+    invited?: boolean;
+    readyToPick?: boolean;
+    over?: boolean;
+}
+
+export interface NextStep {
+    label: string;
+    page: 'plan' | 'overview';
+}
+
+export function nextStep(row: PlanRow): NextStep;
 export function askLine(coverage: Coverage, extra?: { free?: number; updated?: string | null; joined?: boolean }): string;
