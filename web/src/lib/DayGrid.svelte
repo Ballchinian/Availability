@@ -24,8 +24,12 @@
         or holds still. Dragging is pointer only, so shift-click paints the same
         stretch from the last day pressed, which is all a keyboard gets. Escape
         before letting go puts the days back.
+
+        readOnly is the same calendar to look at, someone else's days in their quick
+        view. Nothing on it can be pressed or reached by Tab, and it is hidden from
+        screen readers, so whatever draws it has to say the days in words as well.
     */
-    let { start, end, selection = $bindable({}), highlightFrom = null, toFill = null, allowedWeekdays = null, coveredUntil = null }: {
+    let { start, end, selection = $bindable({}), highlightFrom = null, toFill = null, allowedWeekdays = null, coveredUntil = null, readOnly = false }: {
         start: string;
         end: string;
         selection?: Record<string, number[]>;
@@ -34,6 +38,7 @@
         toFill?: string[] | null;
         allowedWeekdays?: number[] | null;
         coveredUntil?: string | null;
+        readOnly?: boolean;
     } = $props();
 
     const unanswered = $derived(new Set(toFill ?? []));
@@ -215,21 +220,25 @@
 
 <svelte:window onpointermove={press.move} onpointerup={press.up} onpointercancel={press.cancel} onkeydown={press.keydown} />
 
-<!--Only the keys: the brightness and the clocks read for themselves, and each day's name carries its hours-->
-<p class="offscreen" id="{uid}-keys">Arrow keys move between days. Shift+Enter marks the stretch back to the last day you pressed.</p>
+{#if !readOnly}
+    <!--Only the keys: the brightness and the clocks read for themselves, and each day's name carries its hours-->
+    <p class="offscreen" id="{uid}-keys">Arrow keys move between days. Shift+Enter marks the stretch back to the last day you pressed.</p>
 
-{#if !brush.allDay}
-    <p class="brush">New days get {formatHours(brush.hours)} <button class="ghost" aria-label="All day for new days" onclick={allDay}>All day</button></p>
+    {#if !brush.allDay}
+        <p class="brush">New days get {formatHours(brush.hours)} <button class="ghost" aria-label="All day for new days" onclick={allDay}>All day</button></p>
+    {/if}
+    <!--The chip says it on screen, so this only reads it out-->
+    <Status class="offscreen" msg={brushSaid} />
 {/if}
-<!--The chip says it on screen, so this only reads it out-->
-<Status class="offscreen" msg={brushSaid} />
 
 <!--A group so the keys are read out on the way in, whichever day Tab lands on-->
 <div
     class="grid-wrap"
     class:painting={press.phase === 'painting'}
-    role="group"
-    aria-describedby="{uid}-keys"
+    class:reading={readOnly}
+    role={readOnly ? undefined : 'group'}
+    aria-describedby={readOnly ? undefined : `${uid}-keys`}
+    aria-hidden={readOnly ? 'true' : undefined}
     bind:this={wrap}
     {@attach press.stopScroll}
 >
@@ -248,6 +257,21 @@
                         <span class="pad"></span>
                     {:else if !cell.inRange || !view.days[cell.date].selectable}
                         <span class="day out">{cell.day}</span>
+                    {:else if readOnly}
+                        {@const day = view.days[cell.date]}
+                        {@const badge = day.free ? hourBadge(selection[cell.date]) : ''}
+                        <span class="cell">
+                            <span class="day" class:free={day.free} class:is-new={unanswered.has(cell.date)} style={day.style}>{cell.day}</span>
+                            <!--Only a day narrowed to some hours: with nothing to open, a clock by itself says nothing-->
+                            {#if badge}
+                                <span class="clock">
+                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                        <circle cx="8" cy="8" r="6.25" />
+                                        <path d="M8 4.5V8l2.5 1.5" />
+                                    </svg>{badge}
+                                </span>
+                            {/if}
+                        </span>
                     {:else}
                         {@const day = view.days[cell.date]}
                         <span class="cell">

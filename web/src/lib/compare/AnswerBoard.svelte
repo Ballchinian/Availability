@@ -63,13 +63,20 @@
         own. Whoever runs the plan can ask again anyone who hasn't said it's not for
         them. A guest reads the same columns, with what someone still owes and nothing
         else beside a name.
+
+        Anyone whose days the reader may see has a way to their quick view: the name
+        itself where nothing else can be done to them, and a button in the row under it
+        for whoever runs the plan, whose press on a name already opens that row.
     */
-    let { planId, participants = [], host = true, readOnly = false, onmoved }: {
+    let { planId, participants = [], host = true, readOnly = false, viewable = new Set(), onview = () => {}, onmoved }: {
         planId: string;
         participants?: Participant[];
         host?: boolean;
         //A plan that is over, only there to look back at
         readOnly?: boolean;
+        //The people whose days can be looked at, by id
+        viewable?: Set<string>;
+        onview?: (p: Participant) => void;
         onmoved: () => Promise<void>;
     } = $props();
 
@@ -113,6 +120,11 @@
     }
 </script>
 
+{#snippet who(p: Participant)}
+    {p.displayName}
+    {#if notes(p)}<span class="muted small">{notes(p)}</span>{/if}
+{/snippet}
+
 <div class="votes" bind:this={root}>
     <div class="board">
         {#each columns as c (c.key)}
@@ -121,12 +133,7 @@
                 <ul>
                     {#each c.people as p (p.userId)}
                         <li>
-                            {#if !canAsk || c.key === 'out'}
-                                <span class="bstatic">
-                                    {p.displayName}
-                                    {#if notes(p)}<span class="muted small">{notes(p)}</span>{/if}
-                                </span>
-                            {:else}
+                            {#if canAsk && c.key !== 'out'}
                                 <button
                                     class="bchip"
                                     data-user={p.userId}
@@ -135,15 +142,21 @@
                                     aria-controls={picked === p.userId ? `${uid}-moves` : undefined}
                                     onclick={() => (picked = picked === p.userId ? null : p.userId)}
                                 >
-                                    {p.displayName}
-                                    {#if notes(p)}<span class="muted small">{notes(p)}</span>{/if}
+                                    {@render who(p)}
                                 </button>
                                 {#if picked === p.userId}
                                     <div class="move-row" id="{uid}-moves">
+                                        {#if viewable.has(p.userId)}
+                                            <button class="ghost" aria-haspopup="dialog" onclick={() => onview(p)}>See their days</button>
+                                        {/if}
                                         <button class="ghost" disabled={panel.busy} onclick={() => ask(p)}>Ask again</button>
                                         <span class="muted small aside">{askAside(p)}</span>
                                     </div>
                                 {/if}
+                            {:else if viewable.has(p.userId)}
+                                <button class="bchip" data-user={p.userId} aria-haspopup="dialog" onclick={() => onview(p)}>{@render who(p)}</button>
+                            {:else}
+                                <span class="bstatic">{@render who(p)}</span>
                             {/if}
                         </li>
                     {/each}

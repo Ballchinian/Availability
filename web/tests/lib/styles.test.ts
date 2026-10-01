@@ -14,7 +14,7 @@ describe('the hours clock', () => {
 
 //The small buttons, whose padding alone came to 15 to 22px
 describe('small targets', () => {
-    it.each(['.link-btn', '.quick', '.move-row .ghost', '.uninvited .ghost', '.brush .ghost'])('%s is at least 24px tall', (selector) => {
+    it.each(['.link-btn', '.quick', '.move-row .ghost', '.uninvited .ghost', '.brush .ghost', '.person-card .close'])('%s is at least 24px tall', (selector) => {
         expect(px(rule(selector), 'min-height')).toBeGreaterThanOrEqual(24);
     });
 });

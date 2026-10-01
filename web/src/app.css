@@ -966,6 +966,83 @@ a.primary {
     stroke-linejoin: round;
 }
 
+/* A calendar to look at, in someone's quick view. A day's hours are words beside a clock, with nothing to open */
+.grid-wrap.reading .day {
+    cursor: default;
+}
+
+.grid-wrap.reading .clock {
+    background: none;
+    color: var(--muted);
+    cursor: default;
+}
+
+/* The quick view. One 258px month with the card's padding and border, or two side by side with the 22px between them */
+.person-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    padding: 0;
+    width: 296px;
+    max-width: 92vw;
+}
+
+.person-card.wide {
+    width: 576px;
+}
+
+.person-card::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+}
+
+/* The padding lives in here, the same as the time picker's */
+.person-body {
+    padding: 18px;
+}
+
+.person-card header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.person-card h2 {
+    margin: 0;
+    font-size: 18px;
+    overflow-wrap: anywhere;
+}
+
+.person-card p {
+    margin: 0;
+}
+
+.person-card .close {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.person-card .close svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+}
+
 /* Time picker. A native dialog, so the centring and the backdrop come from the browser */
 .time-card {
     background: var(--panel);

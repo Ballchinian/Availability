@@ -1,6 +1,8 @@
 <script lang="ts">
     import type { CompareScreen } from '../types.js';
     import { inOf } from '../../../../shared/coverage.js';
+    import { todayIn } from '../zone.js';
+    import PersonDialog from '../PersonDialog.svelte';
     import AnswerBoard, { owing } from './AnswerBoard.svelte';
     import AttendanceBoard from './AttendanceBoard.svelte';
     import RemindPanel from './RemindPanel.svelte';
@@ -10,6 +12,10 @@
         where each person is with their answer. Whoever runs the plan can move people and
         nudge them from here. A guest reads the same columns, and so does everyone once
         the plan is over. Everything arrives as props so a test can draw it.
+
+        While the plan is finding its day, a name also leads to that person's days. Not
+        once it has one: someone coming has often marked that day busy since, and their
+        calendar would say not free beside a name that says coming.
     */
     let { planId, data, host = true, over = false, onmoved }: {
         planId: string;
@@ -31,6 +37,17 @@
             ? data.participants.filter((p) => p.invited && !p.override && !p.vote && inOf(p) !== false)
             : []
     );
+
+    /*
+        Whose days the reader may look at: anyone who is in, when the days on this page
+        came with names on them. A guest on a plan from before guests could see days is
+        sent none, and nobody's days count until they are in.
+    */
+    const viewable = $derived(
+        new Set((data.seesDays ?? true) ? data.participants.filter((p) => inOf(p) === true).map((p) => p.userId) : [])
+    );
+    let viewing = $state<string | null>(null);
+    const viewed = $derived(data.participants.find((p) => p.userId === viewing));
 </script>
 
 <section class="group">
@@ -43,7 +60,7 @@
             <RemindPanel {planId} waiting={pendingVoters} mode="vote" />
         {/if}
     {:else}
-        <AnswerBoard {planId} participants={data.participants} {host} readOnly={over} {onmoved} />
+        <AnswerBoard {planId} participants={data.participants} {host} readOnly={over} {viewable} onview={(p) => (viewing = p.userId)} {onmoved} />
 
         <!--A plan with a day is waiting on answers, not dates-->
         {#if acting && collecting && waiting.length}
@@ -51,3 +68,13 @@
         {/if}
     {/if}
 </section>
+
+{#if viewed}
+    <PersonDialog
+        person={viewed}
+        freeByDate={data.freeByDate}
+        asked={{ start: data.plan.start, end: data.plan.end, allowedWeekdays: data.plan.allowedWeekdays }}
+        today={todayIn(data.plan.timeZone)}
+        onclose={() => (viewing = null)}
+    />
+{/if}

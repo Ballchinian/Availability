@@ -26,6 +26,7 @@ import TimePicker from '../../src/lib/TimePicker.svelte';
 import RepeatDates from '../../src/lib/RepeatDates.svelte';
 import RepeatField from '../../src/lib/RepeatField.svelte';
 import WeekdayPicker from '../../src/lib/WeekdayPicker.svelte';
+import PersonDialog, { daysOf, daysLine, daysSpoken } from '../../src/lib/PersonDialog.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import PlanList from '../../src/lib/PlanList.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
@@ -1146,6 +1147,21 @@ describe('who has answered before there is a day', () => {
         expect(draw({ readOnly: true })).not.toContain('bchip');
     });
 
+    //With nothing else to do to them, the name itself is the way to their days
+    it('leaves a name as the way to their days once nothing can be asked, for anyone whose days can be seen', () => {
+        const body = draw({ readOnly: true, viewable: new Set(['ann']) });
+        expect(body).toMatch(/<button class="bchip" data-user="ann" aria-haspopup="dialog">ANN/);
+        expect(body.match(/class="bchip"/g)).toHaveLength(1);
+        expect(body).not.toContain('aria-expanded');
+    });
+
+    //The press on a name already opens the row for whoever runs the plan, so their days are a button in it
+    it('keeps a name opening its row for whoever runs the plan', () => {
+        const body = draw({ viewable: new Set(['ann', 'bo', 'cy']) });
+        expect(body.match(/aria-expanded="false"/g)).toHaveLength(4);
+        expect(body).not.toContain('aria-haspopup');
+    });
+
     it('nudges whoever still has to say or fill in days', () => {
         expect(owing(crowd).map((p) => p.userId)).toEqual(['bo', 'cy', 'di']);
     });
@@ -1525,11 +1541,23 @@ describe('a plan overview', () => {
             expect(body).not.toContain('Call it off');
         });
 
-        it('has nothing else a host works from, and nothing to press on anyone', () => {
+        it('has nothing else a host works from, and nothing that changes anyone', () => {
             const body = draw(screen(guest));
-            for (const gone of ['Quiet', 'Nudge', 'bchip', 'moved back by', 'DMs closed', 'Plan another like this', 'Discord has gone wrong']) {
+            for (const gone of ['Quiet', 'Nudge', 'aria-expanded', 'Ask again', 'moved back by', 'DMs closed', 'Plan another like this', 'Discord has gone wrong']) {
                 expect(body).not.toContain(gone);
             }
+        });
+
+        //The only thing a guest can press on anyone, and only on someone whose days they are sent
+        it('can look at the days of anyone who is in, by their name', () => {
+            const body = draw(screen(guest));
+            expect(body).toMatch(/<button class="bchip" data-user="ann" aria-haspopup="dialog">ANN\s*<\/button>/);
+            expect(body).toMatch(/<button class="bchip" data-user="bo" aria-haspopup="dialog">BO\s+<span class="muted small">3 days left<\/span><\/button>/);
+            expect(body).toMatch(/<span class="bstatic">FLO\s*<\/span>/);
+        });
+
+        it('is given nobody to look at on a plan from before guests could see days', () => {
+            expect(draw(screen({ ...guest, seesDays: false }))).not.toContain('bchip');
         });
 
         it('still has who runs it, where everyone stands, the days, the thread and their own dates', () => {
@@ -1788,6 +1816,139 @@ describe('who has answered, for a guest', () => {
         expect(body).toMatch(/<span class="bstatic">BO\s+<span class="muted small">3 days left<\/span><\/span>/);
         expect(body).toMatch(/<span class="bstatic">DI\s+<span class="muted small">hasn't said if they're in<\/span><\/span>/);
         for (const gone of ['Away', 'moved back', 'DMs closed', 'calendar updated', 'bchip']) expect(body).not.toContain(gone);
+    });
+});
+
+/*
+    The quick view: one person's days on a plan still finding its day, read off what the
+    overview was already sent. Bo has answered the first four days and is free on two.
+*/
+describe("someone's days", () => {
+    const today = '2026-08-10';
+    //Mon 10 to Sun 16 Aug 2026
+    const asked = { start: '2026-08-10', end: '2026-08-16', allowedWeekdays: null };
+    const bo: Participant = {
+        userId: 'bo',
+        displayName: 'BO',
+        avatarUrl: '',
+        confirmed: true,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        in: true,
+        standing: 'days-left',
+        daysLeft: 3,
+        unanswered: [['2026-08-14', '2026-08-16']]
+    };
+    const freeByDate: Record<string, FreePerson[]> = {
+        '2026-08-11': [{ userId: 'ann', hours: [] }, { userId: 'bo', hours: [17, 18, 19, 20, 21] }],
+        '2026-08-12': [{ userId: 'bo', hours: [] }],
+        '2026-08-13': [{ userId: 'ann', hours: [] }]
+    };
+    const week = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16'];
+
+    it('are the days they are free on with their hours, and the days their answer has not reached', () => {
+        expect(daysOf(bo, freeByDate, asked, today)).toEqual({
+            free: { '2026-08-11': [17, 18, 19, 20, 21], '2026-08-12': [] },
+            left: ['2026-08-14', '2026-08-15', '2026-08-16'],
+            days: week
+        });
+    });
+
+    it('count from today, and keep to the weekdays a pinned plan asks about', () => {
+        const weekends = { ...asked, start: '2026-08-01', end: '2026-08-31', allowedWeekdays: [0, 6] };
+        const view = daysOf({ ...bo, unanswered: [['2026-08-22', '2026-08-30']] }, {}, weekends, today);
+        expect(view.days).toEqual(['2026-08-15', '2026-08-16', '2026-08-22', '2026-08-23', '2026-08-29', '2026-08-30']);
+        expect(view.left).toEqual(['2026-08-22', '2026-08-23', '2026-08-29', '2026-08-30']);
+    });
+
+    describe('in a line', () => {
+        const free = { '2026-08-11': [], '2026-08-12': [] };
+
+        it('say how many days they are free on once every day is answered', () => {
+            expect(daysLine(week, [], free)).toBe('Free on 2 of the 7 days.');
+            expect(daysLine(week, [], {})).toBe('Not free on any of the 7 days.');
+            expect(daysLine(['2026-08-12'], [], free)).toBe('Free that day.');
+            expect(daysLine(['2026-08-10'], [], free)).toBe('Not free that day.');
+        });
+
+        it('say where their answer stops when it stops part way', () => {
+            expect(daysLine(week, week.slice(4), free)).toBe('Answered up to Thu 13 Aug, with 3 days after that still to answer.');
+            expect(daysLine(week, week.slice(6), free)).toBe('Answered up to Sat 15 Aug, with 1 day after that still to answer.');
+            //Nothing answered at the front, so there is no day it runs up to
+            expect(daysLine(week, week.slice(0, 2), free)).toBe('2 days of the 7 still to answer.');
+        });
+
+        it('say when no day is answered yet', () => {
+            expect(daysLine(week, week, free)).toBe('Still to answer all 7 days.');
+            expect(daysLine(['2026-08-12'], ['2026-08-12'], {})).toBe('Still to answer that day.');
+        });
+
+        it('say nothing once every day it asked about has gone', () => {
+            expect(daysLine([], [], free)).toBe('');
+        });
+    });
+
+    //The calendar is hidden from a screen reader, so this is the only way one gets the days
+    it('are said in words too, in runs, with the hours of a day narrowed down', () => {
+        const view = daysOf(bo, freeByDate, asked, today);
+        expect(daysSpoken(view.days, view.left, view.free)).toBe('Free: Tue 11 Aug, 5pm to 10pm; Wed 12 Aug. Still to answer: Fri 14 Aug to Sun 16 Aug.');
+        expect(daysSpoken(week, [], { '2026-08-11': [], '2026-08-12': [], '2026-08-13': [] })).toBe('Free: Tue 11 Aug to Thu 13 Aug.');
+        expect(daysSpoken(week, [], {})).toBe('');
+    });
+
+    describe('drawn', () => {
+        const body = bare(render(PersonDialog, { props: { person: bo, freeByDate, asked, today, onclose: () => {} } }).body);
+
+        it('are a dialog named for the person, with a way to close it', () => {
+            const [, id] = body.match(/<dialog class="person-card" aria-labelledby="([^"]+)">/)!;
+            expect(body).toContain(`<h2 id="${id}">BO's days</h2>`);
+            expect(body).toMatch(/<button class="close" aria-label="Close">/);
+        });
+
+        it('say where their answer has got to, on screen and in words for anyone who cannot see the calendar', () => {
+            expect(body).toContain('<p class="muted small">Answered up to Thu 13 Aug, with 3 days after that still to answer.</p>');
+            expect(body).toContain('<p class="offscreen">Free: Tue 11 Aug, 5pm to 10pm; Wed 12 Aug. Still to answer: Fri 14 Aug to Sun 16 Aug.</p>');
+        });
+
+        //Only one month to draw, so the card stays at one month's width
+        it('keep the card to one month when the plan asks about one', () => {
+            expect(body).not.toContain('person-card wide');
+            const long = render(PersonDialog, { props: { person: bo, freeByDate, asked: { ...asked, end: '2026-09-02' }, today, onclose: () => {} } }).body;
+            expect(long).toContain('class="person-card wide"');
+        });
+    });
+});
+
+//The same calendar people fill in, in someone's quick view, where nothing on it is theirs to change
+describe('the fill-in grid, to look at', () => {
+    const day = (n: number) => isoFromNow(n, 'day');
+    const body = bare(
+        render(DayGrid, {
+            props: { start: day(0), end: day(4), readOnly: true, selection: { [day(1)]: [], [day(2)]: [17, 18, 19, 20, 21] }, toFill: [day(3), day(4)] }
+        }).body
+    );
+
+    it('has nothing to press, and nothing about pressing', () => {
+        expect(body).not.toContain('<button');
+        expect(body).not.toContain('Arrow keys');
+        expect(body).not.toContain('role="group"');
+    });
+
+    //Whatever draws it says the days in words, since a row of bare day numbers says nothing
+    it('is kept from a screen reader', () => {
+        expect(body).toMatch(/<div class="grid-wrap reading" aria-hidden="true">/);
+    });
+
+    it('fills the days they are free on and dashes the ones still to answer', () => {
+        expect(body.match(/<span class="day free"/g)).toHaveLength(2);
+        expect(body.match(/<span class="day is-new"/g)).toHaveLength(2);
+    });
+
+    it('says the hours of a day narrowed down, and puts no clock on a day free all of it', () => {
+        const clocks = [...body.matchAll(/<span class="clock">([\s\S]*?)<\/span>/g)].map((m) => m[1].replace(/<svg[\s\S]*?<\/svg>/, '').trim());
+        expect(clocks).toEqual(['5h']);
     });
 });
 
