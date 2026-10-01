@@ -16,9 +16,9 @@ export function planUrl(planId) {
     return `${config.baseUrl}/#/plan/${planId}`;
 }
 
-//The plan's overview, whose route still carries the old /compare name
-export function compareUrl(planId) {
-    return `${config.baseUrl}/#/plan/${planId}/compare`;
+//The plan's overview. Links sent before it had that name end in /compare, which the site still answers.
+export function overviewUrl(planId) {
+    return `${config.baseUrl}/#/plan/${planId}/overview`;
 }
 
 //Everyone's own calendar, not tied to any one plan

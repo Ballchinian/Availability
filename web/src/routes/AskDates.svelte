@@ -191,11 +191,11 @@
                 body: JSON.stringify(body)
             });
             /*
-                Straight back, since the compare page is where the answers to this land.
+                Straight back, since the overview is where the answers to this land.
                 saving deliberately stays on: the button must not flash back to life while
                 the route is changing under it.
             */
-            push(`/plan/${params.planId}/compare`);
+            push(`/plan/${params.planId}/overview`);
             return;
         } catch (err) {
             fail('', errorText(err));
@@ -217,7 +217,7 @@
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
     {:else if data.plan.status === 'cancelled'}
         <p class="muted">This plan has been called off, so there is nothing left to ask about.</p>
-        <p class="ways"><a href="#/plan/{params.planId}/compare">Back to the plan</a></p>
+        <p class="ways"><a href="#/plan/{params.planId}/overview">Back to the plan</a></p>
     {:else}
         <p class="muted">
             <strong>{data.plan.name}</strong>{data.plan.guildName ? ` in ${data.plan.guildName}` : ''} ·
@@ -340,7 +340,7 @@
                     Update the time
                 {/if}
             </button>
-            <a class="link-btn" href="#/plan/{params.planId}/compare">Cancel</a>
+            <a class="link-btn" href="#/plan/{params.planId}/overview">Cancel</a>
         </div>
     {/if}
 </section>

@@ -1,6 +1,6 @@
 import { ChannelType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from './client.js';
-import { createThread, planUrl, compareUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
+import { createThread, planUrl, overviewUrl, calendarUrl, threadUrl, reviveThread, pinMessage } from './util.js';
 import { setPlanThread, setPlanOpener, getPlan, getPlanByThread, getLivePlansForUser, markPlanCancelled, removeParticipant, markAllInNotified, recordVote, forgetProbeMessage, markProbeAllYes, addParticipants, addPlanEvent, setPlanCards, clearPlanCard, setDmsClosed, setIn } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, getLastUpdated, blockDay, setDayFree } from '../db/availability.js';
@@ -223,7 +223,7 @@ function linkButton(label, url) {
 }
 
 const datesButton = (plan) => linkButton('Add my dates', planUrl(plan.planId));
-const overviewRow = (plan) => new ActionRowBuilder().addComponents(linkButton('Open the overview', compareUrl(plan.planId)));
+const overviewRow = (plan) => new ActionRowBuilder().addComponents(linkButton('Open the overview', overviewUrl(plan.planId)));
 
 //A bold banner topping a thread post or DM so you can tell at a glance what it is about
 function banner(title) {
@@ -1479,7 +1479,7 @@ export async function handleMyLink(interaction) {
 
     const links = plans.slice(0, MAX_LINKS).map((plan) => {
         const step = nextStep({ status: plan.status, ...rowFor(plan, userId, prefs) });
-        return linkButton(stepLabel(plan.name, step.label), step.page === 'plan' ? planUrl(plan.planId) : compareUrl(plan.planId));
+        return linkButton(stepLabel(plan.name, step.label), step.page === 'plan' ? planUrl(plan.planId) : overviewUrl(plan.planId));
     });
     const rows = [];
     for (let at = 0; at < links.length; at += PER_ROW) rows.push(new ActionRowBuilder().addComponents(links.slice(at, at + PER_ROW)));

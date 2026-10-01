@@ -1,11 +1,9 @@
-<script lang="ts">
-    import Router from 'svelte-spa-router';
-    import SiteHeader from './lib/SiteHeader.svelte';
+<script module lang="ts">
     import Home from './routes/Home.svelte';
     import Create from './routes/Create.svelte';
     import Availability from './routes/Availability.svelte';
     import GenericAvailability from './routes/GenericAvailability.svelte';
-    import Compare from './routes/Compare.svelte';
+    import Overview from './routes/Overview.svelte';
     import AskDates from './routes/AskDates.svelte';
     import Past from './routes/Past.svelte';
     import Terms from './routes/Terms.svelte';
@@ -17,18 +15,25 @@
         rewrites. The bot hands out links like /#/plan/<id>. The router maps each
         path to the screen that handles it.
     */
-    const routes = {
+    export const routes = {
         '/': Home,
         '/g/:guildId': Create,
         '/availability': GenericAvailability,
         '/past': Past,
         '/plan/:planId': Availability,
-        '/plan/:planId/compare': Compare,
+        '/plan/:planId/overview': Overview,
+        //What the overview was called, and what every DM sent before the rename links to
+        '/plan/:planId/compare': Overview,
         '/plan/:planId/dates': AskDates,
         '/terms': Terms,
         '/privacy': Privacy,
         '*': NotFound
     };
+</script>
+
+<script lang="ts">
+    import Router from 'svelte-spa-router';
+    import SiteHeader from './lib/SiteHeader.svelte';
 
     /*
         A hash route changes the page without the browser noticing, so a screen reader

@@ -305,6 +305,6 @@ describe('count me in and not for me', () => {
 
         const allIn = dms.find((d) => d.payload.content?.includes('EVERYONE IS IN')).payload;
         expect(allIn.content).not.toMatch(/https?:\/\//);
-        expect(allIn.components[0].components[0].data).toMatchObject({ label: 'Open the overview', url: expect.stringMatching(/#\/plan\/ab12cd34ef\/compare$/) });
+        expect(allIn.components[0].components[0].data).toMatchObject({ label: 'Open the overview', url: expect.stringMatching(/#\/plan\/ab12cd34ef\/overview$/) });
     });
 });

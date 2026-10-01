@@ -23,7 +23,7 @@ vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanni
 
 const { commands } = await import('../../src/bot/commands.js');
 const { attachEvents } = await import('../../src/bot/events.js');
-const { introText, whoCanPlan, createUrl, calendarUrl, compareUrl, planUrl } = await import('../../src/bot/util.js');
+const { introText, whoCanPlan, createUrl, calendarUrl, overviewUrl, planUrl } = await import('../../src/bot/util.js');
 const { config } = await import('../../src/config.js');
 const { getLivePlansForUser } = await import('../../src/db/plans.js');
 const { todayIn } = await import('../../src/lib/zones.js');
@@ -79,7 +79,7 @@ describe('running the renamed commands', () => {
         const { content, components } = interaction.reply.mock.calls[0][0];
         expect(content).toBe('**Board games**');
         const [button] = components[0].components;
-        expect(button.data).toMatchObject({ label: 'Open the overview', url: compareUrl('ab12cd34ef') });
+        expect(button.data).toMatchObject({ label: 'Open the overview', url: overviewUrl('ab12cd34ef') });
     });
 
     it('says where /overview goes when it is run outside a plan thread', async () => {
@@ -137,8 +137,8 @@ describe('/mylink', () => {
         expect(reply.content).toBe('Your plans here:');
         expect(buttons(reply)).toEqual([
             ["Cinema: Say if you're in", planUrl('p1')],
-            ["Bowling: Say if you're coming", compareUrl('p2')],
-            ['Picnic: Pick the day', compareUrl('p3')]
+            ["Bowling: Say if you're coming", overviewUrl('p2')],
+            ['Picnic: Pick the day', overviewUrl('p3')]
         ]);
         //A day back, since a day has passed on the server's clock, not on this machine's
         expect(getLivePlansForUser).toHaveBeenCalledWith('g1', 'bo', expect.stringMatching(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/));

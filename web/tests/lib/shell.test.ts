@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'svelte/server';
-import App from '../../src/App.svelte';
+import App, { routes } from '../../src/App.svelte';
 
 /*
     The frame every screen sits in. The router reads window.location as it loads, so it is
@@ -63,5 +63,13 @@ describe('the tabs', () => {
 
     it('marks none on a page that is not one of them', () => {
         expect(current(page('/plan/ab12cd34ef'))).toEqual([]);
+    });
+});
+
+describe('the routes', () => {
+    //Every DM sent before the overview had that name links to /compare, and they are still out there
+    it('answer the overview by the name it used to have too', () => {
+        expect(routes['/plan/:planId/overview']).toBeDefined();
+        expect(routes['/plan/:planId/compare']).toBe(routes['/plan/:planId/overview']);
     });
 });

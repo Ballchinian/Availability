@@ -66,7 +66,7 @@
     {#if repeatedInto}
         <!--Its turn is done, so the controls here would change nothing: the live plan is the next one-->
         <p class="muted small">
-            This one has already come round again. <a href="#/plan/{repeatedInto}/compare">Open the plan that followed it</a>
+            This one has already come round again. <a href="#/plan/{repeatedInto}/overview">Open the plan that followed it</a>
             to change or stop the repeat.
         </p>
     {:else if !panel.open}
@@ -115,7 +115,7 @@
 
     {#if repeatedFrom}
         <p class="muted small">
-            This came round from <a href="#/plan/{repeatedFrom}/compare">the one before it</a>, which is where
+            This came round from <a href="#/plan/{repeatedFrom}/overview">the one before it</a>, which is where
             everything that happened last time still is.
         </p>
     {/if}

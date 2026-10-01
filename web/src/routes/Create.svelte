@@ -255,7 +255,7 @@
             </div>
 
             <p class="ways">
-                <a href="#/plan/{result.planId}/compare">{result.set ? 'See who is coming' : 'Open the overview'}</a>
+                <a href="#/plan/{result.planId}/overview">{result.set ? 'See who is coming' : 'Open the overview'}</a>
                 <button class="link-btn" onclick={startAnother}>Start another plan</button>
             </p>
         </div>
