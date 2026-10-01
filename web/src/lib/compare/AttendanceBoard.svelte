@@ -15,16 +15,25 @@
 
     /*
         The attendance board for a set date. Everyone still invited lands in a
-        column by where they stand, a planner's manual call winning over their own
+        column by where they stand, a host's manual call winning over their own
         answer, and someone who said Not for me with no answer for the day under Can't
         make it. The uninvited sit apart, and inviting one sends them the yes/no.
+
+        Whoever runs the plan moves people between columns. A guest gets the three
+        columns to read and nothing else: who was left off the day, and what anyone
+        said before a host's call, are the host's own working.
     */
-    let { planId, participants = [], chosenDate = null, onmoved }: {
+    let { planId, participants = [], chosenDate = null, host = true, readOnly = false, onmoved }: {
         planId: string;
         participants?: Participant[];
         chosenDate?: string | null;
+        host?: boolean;
+        //A plan that is over, where whoever ran it still reads all of it
+        readOnly?: boolean;
         onmoved: () => Promise<void>;
     } = $props();
+
+    const canMove = $derived(host && !readOnly);
 
     const panel = new Panel();
     let picked = $state<string | null>(null);
@@ -90,6 +99,18 @@
     }
 </script>
 
+<!--A name with what a host knows about it beside it. A guest is sent none of that, and is not shown what it would add up to either.-->
+{#snippet who(p: Participant)}
+    {p.displayName}
+    {#if host}
+        {#if p.dmsClosed}<span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}
+        {#if p.sentBack}<span class="muted small">(moved back by {p.sentBack.byName})</span>{/if}
+        {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
+        {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
+        {#if !p.vote && p.inReason}<span class="muted small">({p.inReason})</span>{/if}
+    {/if}
+{/snippet}
+
 {#if board && chosenDate}
     <div class="votes" bind:this={root}>
         <div class="board">
@@ -103,22 +124,21 @@
                     <ul>
                         {#each colDef.people as p (p.userId)}
                             <li>
-                                <button
-                                    class="bchip"
-                                    data-user={p.userId}
-                                    class:picked={picked === p.userId}
-                                    aria-expanded={picked === p.userId}
-                                    aria-controls={picked === p.userId ? `${uid}-moves` : undefined}
-                                    onclick={() => (picked = picked === p.userId ? null : p.userId)}
-                                >
-                                    {p.displayName}
-                                    {#if p.dmsClosed}<span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}
-                                    {#if p.sentBack}<span class="muted small">(moved back by {p.sentBack.byName})</span>{/if}
-                                    {#if bracket(p)}<span class="muted small">({bracket(p)})</span>{/if}
-                                    {#if p.vote === 'no' && !p.override && p.voteReason}<span class="muted small">({p.voteReason})</span>{/if}
-                                    {#if !p.vote && p.inReason}<span class="muted small">({p.inReason})</span>{/if}
-                                </button>
-                                {#if picked === p.userId}
+                                {#if canMove}
+                                    <button
+                                        class="bchip"
+                                        data-user={p.userId}
+                                        class:picked={picked === p.userId}
+                                        aria-expanded={picked === p.userId}
+                                        aria-controls={picked === p.userId ? `${uid}-moves` : undefined}
+                                        onclick={() => (picked = picked === p.userId ? null : p.userId)}
+                                    >
+                                        {@render who(p)}
+                                    </button>
+                                {:else}
+                                    <span class="bstatic">{@render who(p)}</span>
+                                {/if}
+                                {#if canMove && picked === p.userId}
                                     <div class="move-row" id="{uid}-moves">
                                         {#each moveTargets(p, colDef.key) as t (t.key)}
                                             <button class="ghost" disabled={panel.busy} onclick={() => move(p, t.key, colDef.people, () => `Marked ${p.displayName} as ${t.label}.`)}>Mark as {t.label}</button>
@@ -136,17 +156,19 @@
                 </div>
             {/each}
         </div>
-        {#if board.uninvited.length}
+        {#if host && board.uninvited.length}
             <div class="uninvited">
                 <h3>Not invited to this date ({board.uninvited.length})</h3>
                 <ul>
                     {#each board.uninvited as p (p.userId)}
-                        <li>
+                        <li class:plain={!canMove}>
                             <span>
                                 {p.displayName}
                                 {#if p.dmsClosed}<span class="muted small">(DMs closed, only reachable in the thread)</span>{/if}
                             </span>
-                            <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, 'invite', board.uninvited, (dm) => invitedLine(p.displayName, dm))}>Invite them</button>
+                            {#if canMove}
+                                <button class="ghost" data-user={p.userId} disabled={panel.busy} onclick={() => move(p, 'invite', board.uninvited, (dm) => invitedLine(p.displayName, dm))}>Invite them</button>
+                            {/if}
                         </li>
                     {/each}
                 </ul>

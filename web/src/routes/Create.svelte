@@ -81,7 +81,7 @@
     let copied = $state(false);
 
     /*
-        "Plan another like this" on the compare page arrives as ?like=<planId>, so a form
+        "Plan another like this" on the overview arrives as ?like=<planId>, so a form
         can be opened off a plan made weeks ago. startAnother only carries one made in
         this sitting, which is why both exist.
     */

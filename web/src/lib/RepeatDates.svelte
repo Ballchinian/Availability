@@ -7,7 +7,7 @@
         with arrows either side, since a plan late in a month has its next turn in the
         one after and a single fixed month would show none of them.
 
-        Shared by the create form, the screen it lands on and the compare page's repeat
+        Shared by the create form, the screen it lands on and the overview's repeat
         panel, so the dates a planner is shown before saving are the dates they are shown
         after it.
     */

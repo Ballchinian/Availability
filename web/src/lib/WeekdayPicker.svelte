@@ -14,7 +14,7 @@
     import { describeWeekdays, WEEKDAY_NAMES } from './format.js';
 
     /*
-        The pick-your-days control, shared by the create form and the compare page.
+        The pick-your-days control, shared by the create form and the overview.
         It hands back a seven long boolean array, indexed Sunday (0) to Saturday (6)
         to line up with getDay(), but shows the buttons Monday first the way a week
         is usually read. All on means the whole range, no restriction.

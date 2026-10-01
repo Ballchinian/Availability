@@ -14,8 +14,10 @@
         standing instruction on the plan in front of you rather than a calendar sitting
         somewhere else that you would have to go and find to stop.
     */
-    let { planId, repeatWeeks = null, repeatedFrom = null, repeatedInto = null, start = '', end = '', chosenDate = null, chosenTime = null, onchanged }: {
+    let { planId, repeatWeeks = null, repeatedFrom = null, repeatedInto = null, start = '', end = '', chosenDate = null, chosenTime = null, canStart = true, onchanged }: {
         planId: string;
+        //Turning a repeat on, or changing how often, makes plans, which takes the planner role. Anyone running this one can stop it.
+        canStart?: boolean;
         repeatWeeks?: number | null;
         repeatedFrom?: string | null;
         repeatedInto?: string | null;
@@ -70,9 +72,11 @@
             to change or stop the repeat.
         </p>
     {:else if !panel.open}
-        <button class="ghost" onclick={open} {@attach panel.opener}>
-            {repeatWeeks ? `Comes round ${describeRepeat(repeatWeeks)}, change it` : 'It should come round again'}
-        </button>
+        {#if canStart || repeatWeeks}
+            <button class="ghost" onclick={open} {@attach panel.opener}>
+                {#if !repeatWeeks}It should come round again{:else if canStart}Comes round {describeRepeat(repeatWeeks)}, change it{:else}Comes round {describeRepeat(repeatWeeks)}, stop it{/if}
+            </button>
+        {/if}
     {:else}
         <p class="muted small">
             The next one is only made once this day has been and gone, with the same people, the same
@@ -82,7 +86,9 @@
             <legend class="lbl">How often?</legend>
             <div class="repeat-row">
                 {#each REPEAT_WEEKS as weeks (weeks)}
-                    <label class="ghost"><input class="offscreen" type="radio" name={group} value={weeks} bind:group={choice} />{describeRepeat(weeks)}</label>
+                    {#if canStart || weeks === repeatWeeks}
+                        <label class="ghost"><input class="offscreen" type="radio" name={group} value={weeks} bind:group={choice} />{describeRepeat(weeks)}</label>
+                    {/if}
                 {/each}
                 <label class="ghost"><input class="offscreen" type="radio" name={group} value={null} bind:group={choice} />one off</label>
             </div>

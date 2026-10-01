@@ -41,16 +41,20 @@
 
     /*
         Where everyone stands on a plan still finding its day, worked out from their
-        calendars every load, so a moved window moves people on its own. Anyone who hasn't
-        said it's not for them can be asked again.
+        calendars every load, so a moved window moves people on its own. Whoever runs
+        the plan can ask again anyone who hasn't said it's not for them. A guest reads
+        the groups, with how many days someone has left and nothing else beside a name.
     */
-    let { planId, participants = [], readOnly = false, onmoved }: {
+    let { planId, participants = [], host = true, readOnly = false, onmoved }: {
         planId: string;
         participants?: Participant[];
-        //A cancelled plan, only there to look back at
+        host?: boolean;
+        //A plan that is over, only there to look back at
         readOnly?: boolean;
         onmoved: () => Promise<void>;
     } = $props();
+
+    const canAsk = $derived(host && !readOnly);
 
     const panel = new Panel();
     let picked = $state<string | null>(null);
@@ -64,6 +68,8 @@
     function notes(p: Participant): string {
         const bits: string[] = [];
         if (standingOf(p) === 'days-left' && p.daysLeft) bits.push(`${p.daysLeft} ${p.daysLeft === 1 ? 'day' : 'days'} left`);
+        //The rest is what whoever runs the plan works from. A guest is sent none of it, and is shown none either way.
+        if (!host) return bits.join(', ');
         if (p.sentBack) bits.push(`moved back by ${p.sentBack.byName}`);
         if (p.inReason) bits.push(p.inReason);
         if (p.dmsClosed) bits.push('DMs closed, only reachable in the thread');
@@ -95,7 +101,7 @@
                 <ul>
                     {#each g.people as p (p.userId)}
                         <li>
-                            {#if readOnly || g.key === 'out'}
+                            {#if !canAsk || g.key === 'out'}
                                 <span class="bstatic">
                                     {p.displayName}
                                     {#if notes(p)}<span class="muted small">{notes(p)}</span>{/if}

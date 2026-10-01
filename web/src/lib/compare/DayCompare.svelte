@@ -28,6 +28,9 @@
         chosen = null,
         quiet = false,
         readOnly = false,
+        guest = false,
+        names = true,
+        unansweredCounts = null,
         level = 3,
         selectedDate = $bindable(null),
         onsaved
@@ -44,6 +47,12 @@
         quiet?: boolean;
         //A cancelled plan, where the grid is only there to look back at
         readOnly?: boolean;
+        //Someone who does not run the plan, who reads a day and cannot set it
+        guest?: boolean;
+        //Whether the days came with who is free on them. Without, the grid has its counts and there is nothing to list under a day.
+        names?: boolean;
+        //How many haven't answered each day, sent ready counted when there are no names to count from
+        unansweredCounts?: Record<string, number> | null;
         //The month headings' level, 2 on a page with nothing between them and its h1
         level?: 2 | 3;
         selectedDate?: string | null;
@@ -72,7 +81,12 @@
     });
 
     const inCount = $derived(participants.filter((p) => inOf(p) === true).length);
-    const unanswered = $derived(unansweredByDate(participants, freeByDate));
+    //Only the lengths are read off the counted ones, which is all the grid asks of either
+    const unanswered = $derived(
+        unansweredCounts
+            ? Object.fromEntries(Object.entries(unansweredCounts).map(([date, n]) => [date, Array<string>(n).fill('')]))
+            : unansweredByDate(participants, freeByDate)
+    );
 
     const maxMiss = $derived(Math.max(0, inCount - 1));
     const missSaid = $derived(missInput === 0 ? 'nobody' : missInput === 1 ? '1 person' : `${missInput} people`);
@@ -116,7 +130,7 @@
 
 <!--Straight under the grid, because it is the answer to clicking a day: anywhere
     further down and the response to the click is off the bottom of a phone-->
-{#if !readOnly}
+{#if !readOnly && names}
     <PickPanel
         {planId}
         {selectedDate}
@@ -128,6 +142,7 @@
         {inCount}
         {totalParticipants}
         {quiet}
+        {guest}
         {onsaved}
     />
 {/if}

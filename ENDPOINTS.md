@@ -25,7 +25,7 @@ A plan that is over can't be changed: one called off, or one whose day has been 
 Dates are `YYYY-MM-DD` and times are `HH:MM`, both plain readings with no zone written into them. Which clock to read one on depends on whose it is:
 
 * A person's own availability is read on **their** clock, `PUT /api/me/timezone`, taken from the browser.
-* A plan's day, its set time and the compare grid are read on **the server's**, set by `/setup` or `/timezone` in Discord. So is "today" when a route turns away a day in the past: on a server in Auckland, the 27th arrives while it is still the 26th here.
+* A plan's day, its set time and the overview's grid are read on **the server's**, set by `/setup` or `/timezone` in Discord. So is "today" when a route turns away a day in the past: on a server in Auckland, the 27th arrives while it is still the 26th here.
 
 A time has to be a real one, `00:00` to `23:59`. Anything else, `25:99` say, comes back as a 400 rather than being quietly dropped.
 
@@ -384,7 +384,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 
 ## GET `/api/plans/:planId/template` (session)
 
-What it takes to set another plan up like this one, for "plan another like this" on the compare page to open the create form with.
+What it takes to set another plan up like this one, for "plan another like this" on the overview to open the create form with.
 
 Planner role only, and only for someone on the plan.
 
@@ -451,7 +451,7 @@ Hosts only.
 * Date (must sit inside the plan range)
 * Time (optional)
 * `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list. Anyone who said Not for me stays on a narrowed list too, but nothing is sent to them: their card just changes to the day, so they can still say I'm coming.
-* `attendingIds`: who stays invited, worked out by the compare page: the people who can make the day, plus anyone who hasn't answered for it (not said if they're in, or in but their answer doesn't reach that day) unless the planner unticked that
+* `attendingIds`: who stays invited, worked out by the overview: the people who can make the day, plus anyone who hasn't answered for it (not said if they're in, or in but their answer doesn't reach that day) unless the planner unticked that
 * `quiet` (optional): rewrite everything in place and tell nobody
 
 ### Two things, decided by the date
@@ -501,7 +501,7 @@ Hosts only.
 
 ## POST `/api/plans/:planId/attendance` (session)
 
-A planner's manual call on someone's attendance for the set date, the moves on the compare page's board.
+A host's manual call on someone's attendance for the set date, the moves on the overview's board.
 
 Hosts only.
 
@@ -667,7 +667,7 @@ Asking about a window:
 * The request has to change something: the same day, time, window, days, people and repeat is refused.
 * A `repeatWeeks` that turns a repeat on, or changes how often, is a `403` from a host without the planner role. Leaving it as it was, or stopping it, is fine.
 * Shares one daily backstop with the other ways a window moves, since it is the same ask.
-* `/add` and `/repeat` are still reached on their own from the compare page, since adding a person and turning a repeat on are their own reasons to be there. The window and the days had a route each before this one, and each put its own message in the thread.
+* `/add` and `/repeat` are still reached on their own from the overview, since adding a person and turning a repeat on are their own reasons to be there. The window and the days had a route each before this one, and each put its own message in the thread.
 
 ---
 

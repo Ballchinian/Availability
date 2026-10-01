@@ -172,7 +172,7 @@ export function nextInSeries(date, weeks, notBefore) {
     Null when the series has run out of road: too stale to catch up, or the next window
     would land past the two years everything else here is bounded by.
 
-    Shared because the compare page shows a planner the dates before they turn a repeat
+    Shared because the overview shows a planner the dates before they turn a repeat
     on, and a preview worked out any other way would be a promise the sweep might not keep.
 */
 export function nextPlanShape(plan, from = tomorrow()) {

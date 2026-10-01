@@ -640,7 +640,7 @@ router.post('/:planId/repair', requireHost, async (req, res) => {
 
 /*
     A planner's manual call on someone's attendance for the set date, the moves on
-    the compare page's board. "coming" and "cant" lay an override over whatever the
+    the overview's board. "coming" and "cant" lay an override over whatever the
     person answered. "waiting" sends them back: what they had goes in sentBack and
     the column is cleared, so the next nudge asks them again. Moved out of Waiting
     before they answer, they get back exactly what they had if it is the column they

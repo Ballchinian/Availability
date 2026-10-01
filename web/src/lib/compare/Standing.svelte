@@ -1,35 +1,31 @@
 <script lang="ts">
-    import { formatDate, formatTime } from '../format.js';
     import type { CompareScreen } from '../types.js';
     import { inOf } from '../../../../shared/coverage.js';
-    import ClockNote from '../ClockNote.svelte';
     import AttendanceBoard from './AttendanceBoard.svelte';
     import HostGroups, { owing } from './HostGroups.svelte';
     import RemindPanel from './RemindPanel.svelte';
 
     /*
-        Where the plan stands: once it has a day, the day and who is coming, and before
-        that, where each person is with their answer. Everything arrives as props so a test
-        can draw it, which the page around it, loading in onMount, never can be.
+        Where everyone stands: once the plan has a day, who is coming, and before that,
+        where each person is with their answer. Whoever runs the plan can move people and
+        nudge them from here. A guest reads the same columns, and so does everyone once
+        the plan is over. Everything arrives as props so a test can draw it.
     */
-    let { planId, data, chosen, cancelled = false, onmoved, box = $bindable() }: {
+    let { planId, data, host = true, over = false, onmoved }: {
         planId: string;
         data: CompareScreen;
-        chosen: { date: string; time: string; note: string } | null;
-        cancelled?: boolean;
+        host?: boolean;
+        //Called off, or its day has been, so nothing here can be changed
+        over?: boolean;
         onmoved: () => Promise<void>;
-        //The line saying what the plan is set for, where focus goes once a day is set
-        box?: HTMLElement;
     } = $props();
 
     const collecting = $derived(data.plan.status === 'collecting');
+    const acting = $derived(host && !over);
 
     const waiting = $derived(owing(data.participants));
 
-    //A plan with a day is waiting on answers, not dates
-    const nudging = $derived(collecting && waiting.length > 0 && !cancelled);
-
-    //On the list, with no answer of their own and no call from a planner standing in for one. Nobody out is nudged.
+    //On the list, with no answer of their own and no call from a host standing in for one. Nobody out is nudged.
     const pendingVoters = $derived(
         data.plan.probeActive && data.plan.chosenDate
             ? data.participants.filter((p) => p.invited && !p.override && !p.vote && inOf(p) !== false)
@@ -38,36 +34,20 @@
 </script>
 
 <section class="group">
-    <h2>{chosen ? 'Where it stands' : 'Which day?'}</h2>
+    <h2>{data.plan.chosenDate ? 'Where it stands' : 'Which day?'}</h2>
 
-    {#if chosen}
-        <!--A box rather than one paragraph: the clock note is a paragraph of its own that
-            says nothing at all when everyone shares a clock, and hanging it off a <br />
-            left an empty line in the box for everybody who does-->
-        <div class="prompt good" bind:this={box}>
-            <p>
-                <strong>{data.plan.name}</strong> {cancelled ? 'was set for' : 'is set for'}
-                {formatDate(chosen.date)}{chosen.time ? ` at ${formatTime(chosen.time)}` : ''}.
-            </p>
-            {#if chosen.time}<ClockNote zone={data.plan.timeZone} date={chosen.date} time={chosen.time} />{/if}
-            {#if chosen.note}<p>{chosen.note}</p>{/if}
-        </div>
+    {#if data.plan.chosenDate}
+        <AttendanceBoard {planId} participants={data.participants} chosenDate={data.plan.chosenDate} {host} readOnly={over} {onmoved} />
 
-        {#if !cancelled}
-            <AttendanceBoard {planId} participants={data.participants} chosenDate={data.plan.chosenDate} {onmoved} />
-
-            {#if pendingVoters.length}
-                <RemindPanel {planId} waiting={pendingVoters} mode="vote" />
-            {/if}
+        {#if acting && pendingVoters.length}
+            <RemindPanel {planId} waiting={pendingVoters} mode="vote" />
         {/if}
-    {/if}
+    {:else}
+        <HostGroups {planId} participants={data.participants} {host} readOnly={over} {onmoved} />
 
-    <!--Never once there is a day, when the board says it-->
-    {#if !chosen}
-        <HostGroups {planId} participants={data.participants} readOnly={cancelled} {onmoved} />
-    {/if}
-
-    {#if nudging}
-        <RemindPanel {planId} {waiting} />
+        <!--A plan with a day is waiting on answers, not dates-->
+        {#if acting && collecting && waiting.length}
+            <RemindPanel {planId} {waiting} />
+        {/if}
     {/if}
 </section>

@@ -25,7 +25,7 @@ export type PlanStatus = 'collecting' | 'closed' | 'cancelled';
 //Yes or no, either the person's own answer or a planner's call over the top of it
 export type Answer = 'yes' | 'no';
 
-//Someone on a plan, as the compare page sees them
+//Someone on a plan, as the overview sees them
 export interface Participant {
     userId: string;
     displayName: string;
@@ -149,17 +149,42 @@ export type PlanEvent =
     //Someone who did not run the plan made themselves one of the people who do
     | (EventBase & { type: 'tookon' });
 
-//GET /plans/:planId/compare
+//GET /plans/:planId/compare, a plan's overview as someone on it is sent it
 export interface CompareScreen {
     plan: ComparePlan;
+    /*
+        Where the reader stands on the plan, and what that lets them see. All of it is
+        missing from a backend older than the site, which only ever answered planners,
+        so a missing role reads as host.
+    */
+    role?: 'host' | 'guest';
+    //Whoever runs it, by name
+    hosts?: string[];
+    canTakeOn?: boolean;
+    //Whether they hold the planner role, so could start another plan like it
+    isPlanner?: boolean;
+    //Whether the days come with names. False for a guest on a plan from before guests could see them.
+    seesDays?: boolean;
+    //How many of the people in haven't answered each day, sent in place of names when seesDays is false
+    unansweredCounts?: Record<string, number>;
+    //Their own answer for a set day, null when they are not on the guest list
+    you?: { vote: Answer | null; invited: boolean } | null;
     participants: Participant[];
-    //Whether the planner is on the guest list too, so they get their own way to fill dates in
+    //Whether they are on the guest list themselves, so they get their own way to fill dates in
     youAreIn: boolean;
     confirmedCount: number;
     totalParticipants: number;
     freeByDate: Record<string, FreePerson[]>;
     //Oldest first, as it happened. The page turns it round to read latest first.
     history: PlanEvent[];
+}
+
+//What the same route sends someone who is not on the plan but could take it on: its name and nothing more of it
+export interface TakeOnOffer {
+    plan: { planId: string; name: string; guildName: string };
+    role: null;
+    canTakeOn: true;
+    hosts: string[];
 }
 
 //A plan a save now answers, named with the way to its page

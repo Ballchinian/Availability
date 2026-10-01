@@ -25,7 +25,7 @@
         comes along for the ride, since on a plan people have answered it is the only place
         that says which day actually suits them.
 
-        A screen of its own rather than another panel on the compare page. It is the one
+        A screen of its own rather than another panel on the overview. It is the one
         action here whose shape genuinely matches the create form, and the form does not
         have to know it is a modal: the back button works and the url can be passed on.
     */
@@ -287,8 +287,12 @@
             <MemberPicker {members} bind:selectedIds />
         </fieldset>
 
-        <!--Counted off whichever day survives this, which in set mode is the one being named-->
-        <RepeatField bind:weeks={repeatWeeks} from={seriesFrom} time={mode === 'set' ? setTime : data.plan.chosenTime} />
+        <!--Counted off whichever day survives this, which in set mode is the one being named.
+            Starting a repeat takes the planner role, so without it the one the plan has is sent
+            back as it is, and stopping it is on the overview.-->
+        {#if data.isPlanner ?? true}
+            <RepeatField bind:weeks={repeatWeeks} from={seriesFrom} time={mode === 'set' ? setTime : data.plan.chosenTime} />
+        {/if}
 
         {#if mode === 'ask'}
             <div class="field">

@@ -2,7 +2,7 @@ import { errorText } from '../api.js';
 import { refocus } from '../focus.js';
 
 /*
-    The armed/busy/message triple every panel on the compare page carries:
+    The armed/busy/message triple every panel on the overview carries:
     whether its form or its "are you sure" step is showing, whether a request is
     out, and the one line of feedback left behind. run() owns the busy flag and
     turns a thrown error into that line, so a panel only says what to call and

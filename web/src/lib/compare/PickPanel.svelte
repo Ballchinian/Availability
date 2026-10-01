@@ -19,7 +19,8 @@
     /*
         The picked day: who it works for, and the controls that set the plan to it.
         Stays mounted while nothing is picked so the time survives clicking around the
-        grid, which is how a planner compares two days.
+        grid, which is how a planner compares two days. A guest gets who it works for
+        and stops there, since setting the day is for whoever runs the plan.
     */
     let {
         planId,
@@ -32,6 +33,7 @@
         totalParticipants = 0,
         chosen = null,
         quiet = false,
+        guest = false,
         onsaved
     }: {
         planId: string;
@@ -43,6 +45,7 @@
         inCount?: number;
         totalParticipants?: number;
         quiet?: boolean;
+        guest?: boolean;
         chosen?: { date: string; time: string; note: string } | null;
         onsaved: () => Promise<void>;
     } = $props();
@@ -208,33 +211,35 @@
             <p class="muted small">Haven't answered this day: {sel.unanswered.map((p) => p.displayName).join(', ')}.</p>
         {/if}
 
-        <label class="lbl" for="when">Time (optional)</label>
-        <input id="when" type="time" bind:value={time} />
+        {#if !guest}
+            <label class="lbl" for="when">Time (optional)</label>
+            <input id="when" type="time" bind:value={time} />
 
-        <!--Only for a day that is moving. On the day the plan is already on there is no
-            invite list to redraw.-->
-        {#if !isUpdate && canNarrow}
-            <fieldset>
-                <legend class="lbl">Who is still invited?</legend>
-                <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
-                {#if inviteMode === 'attending' && sel.unanswered.length}
-                    <label class="check sub"><input type="checkbox" bind:checked={askUnanswered} /> Ask the {sel.unanswered.length} who {sel.unanswered.length === 1 ? "hasn't" : "haven't"} answered this day too</label>
-                {/if}
-                <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
-            </fieldset>
+            <!--Only for a day that is moving. On the day the plan is already on there is no
+                invite list to redraw.-->
+            {#if !isUpdate && canNarrow}
+                <fieldset>
+                    <legend class="lbl">Who is still invited?</legend>
+                    <label class="check"><input type="radio" name="invitemode" value="attending" bind:group={inviteMode} /> Just the people who can make it ({attendIds.length})</label>
+                    {#if inviteMode === 'attending' && sel.unanswered.length}
+                        <label class="check sub"><input type="checkbox" bind:checked={askUnanswered} /> Ask the {sel.unanswered.length} who {sel.unanswered.length === 1 ? "hasn't" : "haven't"} answered this day too</label>
+                    {/if}
+                    <label class="check"><input type="radio" name="invitemode" value="all" bind:group={inviteMode} /> Everyone on the plan, even those who cannot ({totalParticipants})</label>
+                </fieldset>
+            {/if}
+
+            <!--Said before it happens rather than found afterwards on the board, since the switches
+                above show what they are set to and never what they come to together-->
+            <p class="muted small">{outcome}</p>
+
+            {#if risky}
+                <p class="status error small">Anyone who has already read their DM keeps the old day, since nothing tells them to look again.</p>
+                <label class="check"><input type="checkbox" bind:checked={owned} /> I know, set it quietly anyway</label>
+            {/if}
+            <Status class="status" msg={panel.msg} error={panel.failed} />
+            <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
+                {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Set it to {formatDate(selectedDate)}{/if}
+            </button>
         {/if}
-
-        <!--Said before it happens rather than found afterwards on the board, since the switches
-            above show what they are set to and never what they come to together-->
-        <p class="muted small">{outcome}</p>
-
-        {#if risky}
-            <p class="status error small">Anyone who has already read their DM keeps the old day, since nothing tells them to look again.</p>
-            <label class="check"><input type="checkbox" bind:checked={owned} /> I know, set it quietly anyway</label>
-        {/if}
-        <Status class="status" msg={panel.msg} error={panel.failed} />
-        <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
-            {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Set it to {formatDate(selectedDate)}{/if}
-        </button>
     {/if}
 </div>

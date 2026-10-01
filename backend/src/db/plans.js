@@ -244,7 +244,7 @@ export async function getLivePlansForUser(guildId, userId, fromDate) {
 /*
     The other end of that list: plans that are over. A cancelled one, or one whose day
     has been and gone. Both drop out of the active query as they finish, which leaves
-    the compare page behind them, and everything it remembers about who said what,
+    the overview behind them, and everything it remembers about who said what,
     reachable only by whoever still has the link.
 
     Capped, since this half only ever grows. A dozen is enough to find the one you

@@ -20,7 +20,7 @@ import { safeZone, dayHasPassed } from '../lib/zones.js';
     pinned to weekends afterwards and nothing has to be re-derived.
 
     Working out where the next one lands is nextPlanShape in shared/dates.js, since the
-    compare page shows a planner those dates before they turn a repeat on.
+    overview shows a planner those dates before they turn a repeat on.
 */
 
 //How often to look. A plan falls due at midnight somewhere, so this is about how late it can be.

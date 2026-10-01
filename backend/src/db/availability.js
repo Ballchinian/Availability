@@ -15,7 +15,7 @@ export async function getAvailabilityInRange(userId, start, end) {
 }
 
 /*
-    The same read for a group of people at once, which is what the compare page
+    The same read for a group of people at once, which is what the overview
     needs: one query instead of one per confirmed participant. Rows carry userId
     so the caller can group them.
 */

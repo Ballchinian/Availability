@@ -1029,7 +1029,7 @@ a.primary {
     cursor: crosshair;
 }
 
-/* A row of ways on from here: off the compare page, or off a plan you just made */
+/* A row of ways on from here: off the overview, or off a plan you just made */
 .ways {
     display: flex;
     flex-wrap: wrap;
@@ -1039,7 +1039,7 @@ a.primary {
 }
 
 /*
-    A section of a page, foldable when it is a <details>. The compare page comes in five,
+    A section of a page, foldable when it is a <details>. The overview comes in five,
     where the plan stands, everyone's days, the history, what changes it and what ends it.
     What folds is always the part you did not come for.
 */
@@ -1203,8 +1203,9 @@ a.primary {
     outline-offset: 2px;
 }
 
-/* Waiting / remind block */
-.waiting {
+/* A button with a line beside it: the nudge, and taking a plan on */
+.waiting,
+.takeon {
     margin-top: 10px;
     display: flex;
     align-items: center;
@@ -1280,7 +1281,7 @@ a.ghost:hover {
 }
 
 /*
-    The attendance board on the compare page. Three columns on a desktop, two on
+    The attendance board on the overview. Three columns on a desktop, two on
     a narrow screen, one on a phone, so the headings stay readable everywhere.
 */
 .board {
@@ -1408,6 +1409,11 @@ a.ghost:hover {
     padding: 4px 6px 4px 12px;
     font-size: 13px;
     color: var(--muted);
+}
+
+/* With no button to make room for, on a plan that is over */
+.uninvited li.plain {
+    padding-right: 12px;
 }
 
 .uninvited .ghost {

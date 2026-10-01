@@ -7,6 +7,12 @@ import { MONTHS, weekdayOf } from './calendar.js';
 */
 export { formatDate, formatTime, describeWeekdays, REPEAT_WEEKS, describeRepeat } from '../../../shared/dates.js';
 
+//A few names as they are said: "Ali", "Ali and Sam", "Ali, Sam and Jo"
+export function listNames(names: string[]): string {
+    if (names.length < 2) return names[0] ?? '';
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 //Weekday names indexed by getDay(), the singular form the long date and the weekday buttons read out
 export const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

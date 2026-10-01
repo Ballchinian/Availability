@@ -12,6 +12,8 @@ import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
 import Standing from '../../src/lib/compare/Standing.svelte';
 import HostGroups, { owing, askedLine, updatedLine } from '../../src/lib/compare/HostGroups.svelte';
 import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
+import PlanOverview, { planState } from '../../src/lib/compare/PlanOverview.svelte';
+import TakeOn from '../../src/lib/compare/TakeOn.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
@@ -31,14 +33,14 @@ import Terms from '../../src/routes/Terms.svelte';
 import Privacy from '../../src/routes/Privacy.svelte';
 import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
-import { formatDate, formatLong } from '../../src/lib/format.js';
-import type { CompareScreen, Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
+import { formatDate, formatLong, listNames } from '../../src/lib/format.js';
+import type { ComparePlan, CompareScreen, Member, Participant, UserGuild, UserPlan } from '../../src/lib/types.js';
 import type { FreePerson } from '../../src/lib/overlap.js';
 
 /*
     The only tests here that draw anything. `render` from svelte/server takes a component to
     a string with no DOM and no new dependency, which is as close as this suite gets to
-    looking at a screen. Not the compare page itself, which wants auth and the api behind it.
+    looking at a screen. Not the routes themselves, which want auth and the api behind them.
 */
 
 //The clock the device is on, which is all ClockNote asks the browser
@@ -583,6 +585,12 @@ describe('the call it off panel', () => {
         expect(body).toContain('Call it off</button>');
         expect(body).not.toContain('It is off');
     });
+
+    //Calling a plan off always tells everyone, so there is nothing to choose
+    it('asks nothing about who to tell', () => {
+        const body = render(CancelPanel, { props: { planId: 'ab12cd34ef', oncancelled: () => {} } }).body;
+        expect(body).not.toContain('type="checkbox"');
+    });
 });
 
 describe('the clock note', () => {
@@ -818,7 +826,7 @@ describe('where a set plan stands', () => {
         history: []
     });
     const draw = (data: CompareScreen) =>
-        bare(render(Standing, { props: { planId: 'ab12cd34ef', data, chosen: { date: '2026-08-12', time: '19:00', note: '' }, onmoved: async () => {} } }).body);
+        bare(render(Standing, { props: { planId: 'ab12cd34ef', data, onmoved: async () => {} } }).body);
 
     const collected = screen('2026-08-01', '2026-08-30', [
         person('ann', { confirmed: true, vote: 'yes' }),
@@ -1074,6 +1082,7 @@ describe('the status line on each panel', () => {
         ['the nudge', () => render(RemindPanel, { props: { planId } }).body],
         ['the repair', () => render(RepairPanel, { props: { planId } }).body],
         ['the repeat', () => render(RepeatPanel, { props: { planId, onchanged: done } }).body],
+        ['taking it on', () => render(TakeOn, { props: { planId, ontaken: done } }).body],
         ['the time', () => render(WhenPanel, { props: { planId, chosenDate: '2026-08-12', onsaved: done } }).body]
     ];
 
@@ -1208,5 +1217,353 @@ describe('a list of plans', () => {
         expect(draw(['a'])).toBe('<a href="#/plan/a">A</a>');
         expect(draw(['a', 'b'])).toBe('<a href="#/plan/a">A</a> and <a href="#/plan/b">B</a>');
         expect(draw(['a', 'b', 'c'])).toBe('<a href="#/plan/a">A</a>, <a href="#/plan/b">B</a> and <a href="#/plan/c">C</a>');
+    });
+});
+
+//The line under a plan's name: what kind of plan it is, and where it has got to
+describe('the state of a plan', () => {
+    const plan = (over: Partial<ComparePlan> = {}) =>
+        ({ status: 'collecting', start: '2026-08-05', end: '2026-08-19', chosenDate: null, chosenTime: null, ...over }) as ComparePlan;
+    const set = { status: 'closed' as const, chosenDate: '2026-08-12', chosenTime: '19:00' };
+
+    it('says a plan is still finding its day, and between when', () => {
+        expect(planState(plan(), '2026-08-01')).toBe('Finding a day, Wed 5 Aug 2026 to Wed 19 Aug 2026');
+    });
+
+    it('says the day a plan is set for, with its time when it has one', () => {
+        expect(planState(plan(set), '2026-08-01')).toBe('Set for Wed 12 Aug 2026 at 7pm');
+        expect(planState(plan({ ...set, chosenTime: null }), '2026-08-12')).toBe('Set for Wed 12 Aug 2026');
+    });
+
+    it('says a day that has been in the past tense', () => {
+        expect(planState(plan(set), '2026-08-13')).toBe('Was on Wed 12 Aug 2026 at 7pm');
+    });
+
+    it('says a plan was called off, and what day it had if it had one', () => {
+        expect(planState(plan({ status: 'cancelled' }), '2026-08-01')).toBe('Called off');
+        expect(planState(plan({ ...set, status: 'cancelled' }), '2026-08-01')).toBe('Called off. It was set for Wed 12 Aug 2026 at 7pm');
+    });
+});
+
+/*
+    The overview as each kind of person gets it. Whoever runs the plan gets the panels that
+    change it. A guest gets the same picture to read and nothing to press, and is shown no
+    reason even if one were sent.
+*/
+describe('a plan overview', () => {
+    const ahead = (days: number) => isoFromNow(days, 'day');
+    const person = (userId: string, over: Partial<Participant> = {}): Participant => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: false,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        ...over
+    });
+    const crowd = [
+        person('ann', { in: true, standing: 'done' }),
+        person('bo', { in: true, standing: 'days-left', daysLeft: 3, sentBack: { byName: 'Ali' }, dmsClosed: true }),
+        person('flo', { in: false, standing: 'out', inReason: 'Away that week' })
+    ];
+    const screen = (over: Partial<CompareScreen> = {}, plan: Partial<ComparePlan> = {}): CompareScreen => ({
+        plan: {
+            planId: 'ab12cd34ef',
+            name: 'Bowling',
+            description: 'Bring socks',
+            start: ahead(3),
+            end: ahead(10),
+            status: 'collecting',
+            allowedWeekdays: null,
+            guildName: 'The server',
+            chosenDate: null,
+            chosenTime: null,
+            chosenNote: null,
+            timeZone: 'America/New_York',
+            guildId: 'g1',
+            probeActive: false,
+            repeatWeeks: null,
+            repeatedFrom: null,
+            repeatedInto: null,
+            threadUrl: 'https://discord.com/channels/g1/t1',
+            ...plan
+        },
+        role: 'host',
+        hosts: ['Ali', 'Sam'],
+        canTakeOn: false,
+        isPlanner: true,
+        seesDays: true,
+        participants: crowd,
+        youAreIn: true,
+        you: { vote: null, invited: true },
+        confirmedCount: 1,
+        totalParticipants: 3,
+        freeByDate: {},
+        history: [{ type: 'created', at: new Date().toISOString(), by: 'ali', byName: 'Ali' }],
+        ...over
+    });
+    const set: Partial<ComparePlan> = { status: 'closed', chosenDate: ahead(4), chosenTime: '19:00', probeActive: true };
+    const voters = [
+        person('ann', { vote: 'yes' }),
+        person('bo', { vote: 'no', voteReason: 'Working late' }),
+        person('cy', { vote: 'no', override: 'yes' }),
+        person('di', { invited: false })
+    ];
+    const draw = (data: CompareScreen) => {
+        //The plan's own clock, so no line about the reader's gets in the way
+        device.zone = 'America/New_York';
+        return bare(render(PlanOverview, { props: { planId: 'ab12cd34ef', data, onrefresh: async () => {} } }).body);
+    };
+    const guest = { role: 'guest' as const, isPlanner: false };
+
+    it('says what kind of plan it is and where it has got to, then who runs it', () => {
+        const body = draw(screen());
+        expect(body).toContain(`<p class="muted">Finding a day, ${formatDate(ahead(3))} to ${formatDate(ahead(10))} · The server</p>`);
+        expect(body).toContain('Run by Ali and Sam.');
+    });
+
+    //The one thing everyone came for, so it keeps the box it had
+    it('puts a day still to come in the box', () => {
+        expect(draw(screen({}, set))).toMatch(new RegExp(`<div class="prompt good"><p>Set for ${formatDate(ahead(4))} at 7pm · The server</p>`));
+    });
+
+    it('gives whoever runs it the ways to change it', () => {
+        const body = draw(screen());
+        expect(body).toContain('<summary>Edit plan</summary>');
+        expect(body).toContain('Call it off</button>');
+        expect(body).toContain('Quiet: fix things without telling anyone');
+        expect(body).toContain('Nudge the 1 still to answer');
+        expect(body).toContain('Plan another like this');
+        expect(body).toContain('Away that week');
+    });
+
+    describe('for a guest', () => {
+        it('has no reasons, no Edit plan and no Call it off', () => {
+            const body = draw(screen(guest));
+            expect(body).not.toContain('Away that week');
+            expect(body).not.toContain('Edit plan');
+            expect(body).not.toContain('Call it off');
+        });
+
+        it('has nothing else a host works from, and nothing to press on anyone', () => {
+            const body = draw(screen(guest));
+            for (const gone of ['Quiet', 'Nudge', 'bchip', 'moved back by', 'DMs closed', 'Plan another like this', 'Discord has gone wrong']) {
+                expect(body).not.toContain(gone);
+            }
+        });
+
+        it('still has who runs it, where everyone stands, the days, the thread and their own dates', () => {
+            const body = draw(screen(guest));
+            expect(body).toContain('Run by Ali and Sam.');
+            expect(body).toContain('<h3>In, days left (1)</h3>');
+            expect(body).toMatch(/BO\s+<span class="muted small">3 days left<\/span>/);
+            expect(body).toContain("<h2>Everyone's days</h2>");
+            expect(body).toContain('Open the thread in Discord');
+            expect(body).toContain('Fill in your own dates');
+            expect(body).toContain('What has happened');
+        });
+
+        it('offers another plan like it only to one who could start it', () => {
+            expect(draw(screen({ ...guest, isPlanner: true }))).toContain('Plan another like this');
+        });
+
+        //Once there is a day there are no dates left to fill in
+        it('reads the board on a set day, with nobody to move and nobody listed as left off', () => {
+            const body = draw(screen({ ...guest, participants: voters, you: { vote: null, invited: true } }, set));
+            expect(body).toContain('<h3>Coming (2)</h3>');
+            expect(body).toContain("<h3>Can't make it (1)</h3>");
+            for (const gone of ['bchip', 'Working late', '(said', 'Not invited to this date', 'Invite them', 'Fill in your own dates', "Everyone's days"]) {
+                expect(body).not.toContain(gone);
+            }
+        });
+
+        //People on those answered expecting only the planner to see, so a day has its counts and no list under it
+        it('gets the grid with nothing under a day on a plan from before guests could see days', () => {
+            const day = ahead(5);
+            const old = screen({
+                ...guest,
+                seesDays: false,
+                participants: [person('ann', { in: true }), person('bo', { in: true }), person('cy', { in: true })],
+                freeByDate: { [day]: [{ userId: 'free0', hours: [] }, { userId: 'free1', hours: [] }] },
+                unansweredCounts: { [day]: 1 }
+            });
+            const body = draw(old);
+            expect(body).toContain(`${formatLong(day)}: 2 of 2 free, 24h in common, 1 hasn't answered it`);
+
+            //The panel under the grid is there before a day is picked, waiting to read it out, so it is counted by its line
+            const lines = (html: string) => (html.match(/role="status"/g) || []).length;
+            expect(lines(body)).toBe(lines(draw({ ...old, seesDays: true })) - 1);
+        });
+    });
+
+    describe('once it is over', () => {
+        const been: Partial<ComparePlan> = { ...set, chosenDate: ahead(-2) };
+
+        it('leaves whoever ran it everything to read and nothing to change', () => {
+            const body = draw(screen({ participants: voters }, been));
+            expect(body).toContain(`<p class="muted">Was on ${formatDate(ahead(-2))} at 7pm · The server</p>`);
+            for (const gone of ['Edit plan', 'Call it off', 'Quiet', 'Nudge', 'bchip', 'Invite them']) expect(body).not.toContain(gone);
+            expect(body).toContain('(Working late)');
+            expect(body).toContain('<h3>Not invited to this date (1)</h3>');
+            expect(body).toContain('Plan another like this');
+        });
+
+        it('says how a plan that was called off gets cleared, to whoever ran it', () => {
+            const off = screen({}, { status: 'cancelled' });
+            expect(draw(off)).toContain('<p class="muted">Called off · The server</p>');
+            expect(draw(off)).toContain('Deleting its thread in Discord clears it for good.');
+            expect(draw(off)).not.toContain('Call it off');
+            expect(draw(screen(guest, { status: 'cancelled' }))).not.toContain('Deleting its thread');
+        });
+    });
+
+    describe('taking it on', () => {
+        const orphaned = { ...guest, isPlanner: true, hosts: [], canTakeOn: true };
+
+        it('is offered where it says nobody is left running the plan', () => {
+            const body = draw(screen(orphaned));
+            expect(body).toMatch(/Nobody who runs this is still in the server\.\s*<\/p>\s*<div class="takeon"><button class="ghost">Take it on<\/button>/);
+        });
+
+        it('is not offered to someone who cannot, or on a plan that is over', () => {
+            expect(draw(screen({ ...orphaned, canTakeOn: false }))).not.toContain('Take it on');
+            expect(draw(screen(orphaned, { status: 'cancelled' }))).not.toContain('Take it on');
+        });
+    });
+
+    //For the few minutes a deploy takes, when the answer comes from a backend that only ever answered planners
+    it('reads an answer with no role in it as one for whoever runs the plan', () => {
+        const { role, hosts, canTakeOn, isPlanner, seesDays, you, ...old } = screen();
+        void [role, hosts, canTakeOn, isPlanner, seesDays, you];
+        const body = draw(old);
+        expect(body).toContain('<summary>Edit plan</summary>');
+        expect(body).toContain('Plan another like this');
+        expect(body).not.toContain('Run by');
+        expect(body).not.toContain('Nobody who runs this');
+    });
+});
+
+describe('the day picked, for a guest', () => {
+    const body = bare(
+        render(PickPanel, {
+            props: {
+                planId: 'ab12cd34ef',
+                selectedDate: '2026-08-12',
+                inCount: 2,
+                totalParticipants: 2,
+                guest: true,
+                participants: ['ann', 'bo'].map((userId) => ({
+                    userId,
+                    displayName: userId.toUpperCase(),
+                    avatarUrl: '',
+                    confirmed: true,
+                    in: true,
+                    vote: null,
+                    voteReason: null,
+                    override: null,
+                    invited: true
+                })),
+                freeByDate: { '2026-08-12': [{ userId: 'ann', hours: [17, 18, 19] }] },
+                onsaved: async () => {}
+            }
+        }).body
+    );
+
+    it('says who is free and who is not', () => {
+        expect(body).toContain('<strong>Wed 12 Aug 2026</strong>');
+        expect(body).toContain('ANN: 5pm to 8pm');
+        expect(body).toContain('Not free on this day: BO.');
+    });
+
+    it('stops before the time, since setting the day is for whoever runs the plan', () => {
+        for (const gone of ['Time (optional)', 'Who is still invited?', 'Set it to', 'pings', '<button']) expect(body).not.toContain(gone);
+    });
+});
+
+describe('the board, read rather than worked', () => {
+    const person = (userId: string, over: Partial<Participant> = {}): Participant => ({
+        userId,
+        displayName: userId.toUpperCase(),
+        avatarUrl: '',
+        confirmed: true,
+        vote: null,
+        voteReason: null,
+        override: null,
+        invited: true,
+        ...over
+    });
+    const people = [
+        person('a', { vote: 'no', voteReason: 'Working late' }),
+        person('b', { vote: 'yes', override: 'no', dmsClosed: true }),
+        person('c', { sentBack: { byName: 'Ali' } }),
+        person('d', { in: false, inReason: 'Away' }),
+        person('e', { invited: false })
+    ];
+    const draw = (props: Record<string, unknown>) =>
+        bare(render(AttendanceBoard, { props: { planId: 'ab12cd34ef', chosenDate: '2026-08-12', participants: people, onmoved: async () => {}, ...props } }).body);
+
+    //Even with everything a host is sent in hand, which a guest never is
+    it('shows a guest each person in their column and nothing beside the name', () => {
+        const body = draw({ host: false });
+        expect(body).toContain("<h3>Can't make it (3)</h3>");
+        expect(body.match(/<span class="bstatic">/g)).toHaveLength(4);
+        for (const gone of ['<button', 'Working late', 'Away', '(said', 'moved back', 'DMs closed', 'Not invited to this date']) {
+            expect(body).not.toContain(gone);
+        }
+    });
+
+    it('shows whoever ran a plan that is over all of it, with nothing to press', () => {
+        const body = draw({ readOnly: true });
+        expect(body).not.toContain('<button');
+        expect(body).toContain('(Working late)');
+        expect(body).toContain('(said coming)');
+        expect(body).toContain('(moved back by Ali)');
+        expect(body).toMatch(/<li class="plain"><span>E\s*<\/span>\s*<\/li>/);
+    });
+});
+
+describe('where everyone stands, for a guest', () => {
+    const body = bare(
+        render(HostGroups, {
+            props: {
+                planId: 'ab12cd34ef',
+                host: false,
+                onmoved: async () => {},
+                participants: [
+                    { userId: 'bo', displayName: 'BO', avatarUrl: '', confirmed: false, vote: null, voteReason: null, override: null, invited: true, in: true, standing: 'days-left', daysLeft: 3, dmsClosed: true, sentBack: { byName: 'Ali' }, updatedAt: new Date().toISOString() },
+                    { userId: 'ed', displayName: 'ED', avatarUrl: '', confirmed: false, vote: null, voteReason: null, override: null, invited: true, in: false, standing: 'out', inReason: 'Away' }
+                ]
+            }
+        }).body
+    );
+
+    it('has the days someone has left and nothing else beside a name', () => {
+        expect(body).toMatch(/<span class="bstatic">BO\s+<span class="muted small">3 days left<\/span><\/span>/);
+        for (const gone of ['Away', 'moved back', 'DMs closed', 'calendar updated', 'bchip']) expect(body).not.toContain(gone);
+    });
+});
+
+//Turning a repeat on makes plans, which takes the planner role. Stopping one does not.
+describe('the repeat, for someone who runs a plan with no planner role', () => {
+    const draw = (repeatWeeks: number | null) =>
+        bare(render(RepeatPanel, { props: { planId: 'ab12cd34ef', repeatWeeks, canStart: false, onchanged: async () => {} } }).body);
+
+    it('is not offered on a plan that does not repeat', () => {
+        expect(draw(null)).not.toContain('<button');
+    });
+
+    it('can be stopped on one that does', () => {
+        expect(draw(2)).toContain('Comes round every other week, stop it');
+    });
+});
+
+describe('a few names', () => {
+    it('read the way they are said', () => {
+        expect(listNames(['Ali'])).toBe('Ali');
+        expect(listNames(['Ali', 'Sam'])).toBe('Ali and Sam');
+        expect(listNames(['Ali', 'Sam', 'Jo'])).toBe('Ali, Sam and Jo');
+        expect(listNames([])).toBe('');
     });
 });
