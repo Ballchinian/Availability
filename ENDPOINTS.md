@@ -10,12 +10,15 @@ Endpoints marked (session) require a logged-in session.
 
 A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in through Discord. The cookie carries who they are and is signed so it cannot be faked. The only thing held this end is a version counter on the user record: the token carries the version it was signed under, every guarded request compares the two, and logout bumps it so an old cookie stops working.
 
-Most actions also need a role inside the server they touch:
+Most actions also depend on where the requester stands:
 
-* Anyone in the server can fill in their own availability for a plan they were invited to.
-* Only people with the planner role can pull the member list, start a plan, or run the compare and outcome actions.
+* **Planner**: has the server's planner role. Only planners can pull the server's member list, start a plan, turn a repeat on, or copy a plan into a new one.
+* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it; one made before hosts were stored reads the same way.
+* **Guest**: on a plan's guest list. They can fill in their own dates and answer for themselves.
 
-A missing or expired session comes back as `401`. A valid session without the right role comes back as `403`.
+A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.
+
+A plan that is over can't be changed: one called off, or one whose day has been on the server's clock. Every route that would change one answers `409`. Without that, a host with no planner role could send last month's plan back out for dates and have started a new one.
 
 ## Clocks
 
@@ -327,7 +330,7 @@ Participants only.
 
 * No thread post, a confirmation is kept quiet.
 * On a weekday-pinned plan, days off those weekdays are ignored, and only the pinned days are rewritten so the person's saved availability on other days is left alone.
-* `409` if the plan was cancelled.
+* `409` if the plan was called off.
 
 ---
 
@@ -335,7 +338,7 @@ Participants only.
 
 Everything the compare page needs.
 
-Planner role only.
+Hosts only.
 
 ### Returns
 
@@ -364,7 +367,7 @@ Planner role only.
 
 What it takes to set another plan up like this one, for "plan another like this" on the compare page to open the create form with.
 
-Planner role only.
+Planner role only, and only for someone on the plan.
 
 ### Returns
 
@@ -384,7 +387,7 @@ Planner role only.
 
 Lock in the winning date and announce it, or edit the time on the day it is already on.
 
-Planner role only.
+Hosts only.
 
 ### Input
 
@@ -411,7 +414,7 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 
 ### Notes
 
-* `409` if the plan was cancelled.
+* `409` if the plan was called off, or its day has been.
 * `400` on an edit that does not move the time.
 * No `note` is read. What a plan is about is one field, edited on `/details`; a note an older plan still carries is passed through untouched here rather than wiped by an edit that was never about it.
 * Capped at a high daily backstop per person, since it pings and DMs everyone. An edit spends the same allowance: it is quieter, but it still rewrites a DM per person.
@@ -422,7 +425,7 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 
 Puts Discord back in step with the plan by hand.
 
-Planner role only.
+Hosts only.
 
 ### Effects
 
@@ -435,7 +438,7 @@ Planner role only.
 * Every change already does this on its way past. This exists for when that failed and nothing said so: announcements run after the response and only log a failure, so a Discord outage leaves the plan set, the database right and not a word sent anywhere. There was no second attempt before this.
 * Answers `cards` (how many DMs were corrected) against `holders` (how many people are holding one). A gap between them is people who deleted theirs or have DMs closed.
 * `502` if Discord would not answer at all, rather than reporting a success it did not have.
-* No `refuseCancelled`, deliberately, and it is the fourth planner route to go without one. A cancelled plan is the one whose DMs most want correcting, since a stale card there has somebody turning up to nothing.
+* Works on a plan that is over, deliberately. A cancelled plan is the one whose DMs most want correcting, since a stale card there has somebody turning up to nothing.
 
 ---
 
@@ -443,7 +446,7 @@ Planner role only.
 
 A planner's manual call on someone's attendance for the set date, the moves on the compare page's board.
 
-Planner role only.
+Hosts only.
 
 ### Input
 
@@ -467,7 +470,7 @@ Planner role only.
 * `400` if no date is set yet, the person is not on the plan, `invite` names someone already invited, any other move names someone who isn't, or `waiting` names someone already waiting.
 * What someone sent back had only comes back while the day stays put. Setting or moving the day starts everyone afresh.
 * Nobody is DMed about any other move. A planner reaches for the board because they have decided that person is not going to answer, so telling them second guesses a call already made. An override only stops them being nudged: they keep the thread and the buttons on their own DM, and casting a vote clears the override, so their own answer still wins whenever they give it.
-* `409` if the plan was cancelled.
+* `409` if the plan was called off, or its day has been.
 
 ---
 
@@ -475,7 +478,7 @@ Planner role only.
 
 Ask one person again, from the groups on a plan still finding its day.
 
-Planner role only.
+Hosts only.
 
 ### Input
 
@@ -502,7 +505,7 @@ Planner role only.
 
 Whether this plan comes round again once its day has been and gone.
 
-Planner role only.
+Hosts only. Turning a repeat on, or changing how often, takes the planner role as well, since it makes plans. Any host can stop one.
 
 ### Input
 
@@ -518,7 +521,8 @@ Planner role only.
 * Allowed on a plan with no date yet, on purpose: somebody who knows this is their fortnightly thing should not have to come back and say so once the day is picked.
 * Nothing happens to plans the series has already made. Repeating is a standing instruction on whichever plan is currently live.
 * Cancelling a plan ends the series too, since only a plan with a day that has passed is ever picked up.
-* `409` if the plan was cancelled.
+* `403` for a host without the planner role asking for anything but a one off.
+* `409` if the plan was called off, or its day has been.
 
 ---
 
@@ -526,7 +530,7 @@ Planner role only.
 
 Nudge whoever the plan is waiting on.
 
-Planner role only.
+Hosts only.
 
 ### Effects
 
@@ -553,7 +557,7 @@ When is it: the day, or a fresh round of dates, plus the guest list and the repe
 
 Two modes, the same two the create form has, picked by whether a `date` is sent. Naming a day sets the plan to it; leaving it out asks everyone about a window instead.
 
-Planner role only.
+Hosts only.
 
 ### Input
 
@@ -604,6 +608,7 @@ Asking about a window:
 * Stretching is the only way to a day the plan never asked about. `/choose`, which the grid uses, still holds a date to the window, since a day picked off the grid can only be one that is drawn on it.
 * At least one of the picked weekdays has to fall inside the new window.
 * The request has to change something: the same day, time, window, days, people and repeat is refused.
+* A `repeatWeeks` that turns a repeat on, or changes how often, is a `403` from a host without the planner role. Leaving it as it was, or stopping it, is fine.
 * Shares one daily backstop with the other ways a window moves, since it is the same ask.
 * `/add` and `/repeat` are still reached on their own from the compare page, since adding a person and turning a repeat on are their own reasons to be there. The window and the days had a route each before this one, and each put its own message in the thread.
 
@@ -613,7 +618,7 @@ Asking about a window:
 
 Change a plan's title and what it says it is about.
 
-Planner role only.
+Hosts only.
 
 ### Input
 
@@ -634,7 +639,7 @@ Planner role only.
 * The description is the one field for what a plan is about. A day used to carry a `chosenNote` beside it, drawn on the next line down in every message and never tellable apart from it on screen, so the two are one field now: the site hands both back joined up and saving stores them as one. Plans made before that keep rendering their note until the next save here.
 * A plan still collecting says nothing at all, since there is no arrangement yet for a correction to be about.
 * Same rules as creating a plan: the name is required and caps at 90 characters, the description at 280.
-* `409` if the plan was cancelled.
+* `409` if the plan was called off, or its day has been.
 * A no-op edit, where nothing changed and there is no note to fold in, is rejected.
 * The thread rename is best effort and goes last, with nothing waiting on it, since Discord allows two renames a thread every ten minutes.
 
@@ -644,7 +649,7 @@ Planner role only.
 
 Cancel a plan.
 
-Planner role only.
+Hosts only.
 
 ### Input
 
@@ -660,6 +665,7 @@ Planner role only.
 
 * The thread is left to be deleted by hand.
 * Cancelling an already cancelled plan is a no-op, so nobody is told twice.
+* `409` once the plan's day has been.
 
 ---
 
@@ -667,7 +673,7 @@ Planner role only.
 
 Pull extra people into a running plan.
 
-Planner role only.
+Hosts only.
 
 ### Input
 

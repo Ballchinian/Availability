@@ -8,6 +8,7 @@ import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
 import { formatDay } from '../../src/lib/dates.js';
+import { todayIn } from '../../src/lib/zones.js';
 
 /*
     The gate in front of every plan route: who is turned away, with what, and in
@@ -104,6 +105,7 @@ vi.mock('../../src/bot/plans.js', () =>
     )
 );
 
+//Ali made the plan, so runs it. Bo is on its guest list, and Cass is nothing to it.
 const planner = { id: 'planner', displayName: 'Ali' };
 const guest = { id: 'guest', displayName: 'Bo' };
 const stranger = { id: 'stranger', displayName: 'Cass' };
@@ -115,6 +117,9 @@ const asPlanner = {
     isMember: true,
     isPlanner: true
 };
+//In the server with no planner role, which is all running a plan takes
+const asMember = { ...asPlanner, isPlanner: false };
+//What guildContext hands back when it is asked to insist on the role
 const notPlanner = { error: 403, message: 'You need the planner role to do that.' };
 
 const plan = (over = {}) => ({
@@ -220,14 +225,48 @@ describe('the plan gate', () => {
         expect(lookups).toEqual(['ab12cd34ef']);
     });
 
-    it('refuses someone without the planner role, and the route never runs', async () => {
-        plannerAnswer = notPlanner;
+    it('lets whoever runs the plan change it with no planner role', async () => {
+        plannerAnswer = asMember;
+        const res = await post('/ab12cd34ef/choose', { date: inWindow });
+        expect(res.status).toBe(200);
+        expect(db.setPlanChosen).toHaveBeenCalled();
+    });
+
+    it('refuses a guest, and the route never runs', async () => {
+        sessionUser = guest;
+        const res = await post('/ab12cd34ef/choose', { date: inWindow });
+        expect(res.status).toBe(403);
+        expect((await res.json()).error).toMatch(/whoever runs this plan/);
+        expect(db.setPlanChosen).not.toHaveBeenCalled();
+    });
+
+    //The planner role starts plans. It is no way into somebody else's.
+    it('refuses a planner who does not run the plan', async () => {
+        sessionUser = stranger;
+        for (const path of [...changing, '/repair', '/cancel']) {
+            const res = await post(`/ab12cd34ef${path}`, { date: inWindow });
+            expect([path, res.status]).toEqual([path, 403]);
+        }
+        expect(db.setPlanChosen).not.toHaveBeenCalled();
+        expect(db.markPlanCancelled).not.toHaveBeenCalled();
+    });
+
+    it('goes by the list of who runs it once a plan has one, not by who made it', async () => {
+        plans.set('ab12cd34ef', plan({ hostIds: ['guest'] }));
+        expect((await post('/ab12cd34ef/choose', { date: inWindow })).status).toBe(403);
+
+        sessionUser = guest;
+        expect((await post('/ab12cd34ef/choose', { date: inWindow })).status).toBe(200);
+    });
+
+    it('refuses someone who runs it and has left the server', async () => {
+        plannerAnswer = { ...asPlanner, member: null, isMember: false, isPlanner: false };
         const res = await post('/ab12cd34ef/choose', { date: inWindow });
         expect(res.status).toBe(403);
         expect(db.setPlanChosen).not.toHaveBeenCalled();
     });
 
-    it('refuses a cancelled plan on every route that would change one', async () => {
+    it('refuses a plan that was called off on every route that would change one', async () => {
         plans.set('ab12cd34ef', plan({ status: 'cancelled', chosenDate: inWindow }));
         for (const path of changing) {
             const res = await post(`/ab12cd34ef${path}`, {});
@@ -235,7 +274,23 @@ describe('the plan gate', () => {
         }
     });
 
-    //The two planner routes that deliberately go without it
+    //Or a host with no planner role could send last month's plan back out for dates as a new one
+    it('refuses a plan whose day has been on every route that would change one', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: ahead(-2), dateRange: { start: ahead(-10), end: ahead(10) } }));
+        for (const path of [...changing, '/cancel']) {
+            const res = await post(`/ab12cd34ef${path}`, { date: inWindow });
+            expect([path, res.status]).toEqual([path, 409]);
+        }
+        expect(db.setPlanDates).not.toHaveBeenCalled();
+        expect(db.markPlanCancelled).not.toHaveBeenCalled();
+    });
+
+    it('still changes a plan whose day is today where the server is', async () => {
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: todayIn('Pacific/Auckland'), timeZone: 'Pacific/Auckland' }));
+        expect((await post('/ab12cd34ef/details', { name: 'Quiz night' })).status).toBe(200);
+    });
+
+    //The routes that deliberately go without it
     it('still reads a cancelled plan back on compare', async () => {
         plans.set('ab12cd34ef', plan({ status: 'cancelled' }));
         const res = await get('/ab12cd34ef/compare');
@@ -278,7 +333,7 @@ describe('the plan gate', () => {
 
     it('lets someone on the guest list read the plan without the planner role', async () => {
         sessionUser = guest;
-        plannerAnswer = notPlanner;
+        plannerAnswer = asMember;
         const res = await get('/ab12cd34ef');
         expect(res.status).toBe(200);
         expect((await res.json()).plan.name).toBe('Board games');
@@ -328,10 +383,55 @@ describe('a plan as a template', () => {
         expect(body.description).toBe('');
     });
 
-    it('is planner only', async () => {
+    //Starting another like it is starting a plan
+    it('takes the planner role', async () => {
         plannerAnswer = notPlanner;
         const res = await get('/ab12cd34ef/template');
         expect(res.status).toBe(403);
+    });
+
+    it('is kept from a planner who is not on the plan', async () => {
+        sessionUser = stranger;
+        const res = await get('/ab12cd34ef/template');
+        expect(res.status).toBe(403);
+    });
+
+    it('goes to a planner on the guest list', async () => {
+        sessionUser = guest;
+        expect((await get('/ab12cd34ef/template')).status).toBe(200);
+    });
+});
+
+//Turning a repeat on makes plans, which is what the planner role is for
+describe('a repeat and the planner role', () => {
+    beforeEach(() => (plannerAnswer = asMember));
+
+    it('is not turned on by someone who runs the plan without the role', async () => {
+        const res = await post('/ab12cd34ef/repeat', { repeatWeeks: 2 });
+        expect(res.status).toBe(403);
+        expect((await res.json()).error).toMatch(/planner role/);
+        expect(db.setPlanRepeat).not.toHaveBeenCalled();
+    });
+
+    it('is not changed by them either', async () => {
+        plans.set('ab12cd34ef', plan({ repeatWeeks: 1 }));
+        expect((await post('/ab12cd34ef/repeat', { repeatWeeks: 4 })).status).toBe(403);
+        expect(db.setPlanRepeat).not.toHaveBeenCalled();
+    });
+
+    it('can be stopped by them', async () => {
+        plans.set('ab12cd34ef', plan({ repeatWeeks: 2 }));
+        expect((await post('/ab12cd34ef/repeat', { repeatWeeks: null })).status).toBe(200);
+        expect(db.setPlanRepeat).toHaveBeenCalledWith('ab12cd34ef', null);
+    });
+
+    it('is not turned on through the dates screen either, which still saves one left as it was', async () => {
+        plans.set('ab12cd34ef', plan({ repeatWeeks: 2 }));
+        expect((await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), repeatWeeks: 4 })).status).toBe(403);
+        expect(db.setPlanDates).not.toHaveBeenCalled();
+
+        expect((await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), repeatWeeks: 2 })).status).toBe(200);
+        expect((await post('/ab12cd34ef/dates', { start: ahead(40), end: ahead(60), repeatWeeks: null })).status).toBe(200);
     });
 });
 
@@ -553,8 +653,8 @@ describe('fixing up Discord by hand', () => {
         expect((await post('/ab12cd34ef/repair')).status).toBe(200);
     });
 
-    it('is planner only', async () => {
-        plannerAnswer = notPlanner;
+    it('is for whoever runs the plan', async () => {
+        sessionUser = guest;
         expect((await post('/ab12cd34ef/repair')).status).toBe(403);
     });
 });

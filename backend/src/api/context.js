@@ -4,10 +4,9 @@ import { getGuildConfig } from '../db/guilds.js';
 /*
     Where the requester stands inside a server: the guild, its config, and whether
     they are a member and a planner there. Every route that touches a server opens
-    with this, and the two kinds want different things from it. The server routes
-    hand the answer to the frontend, so they take it as it comes. The plan routes
-    are planner only, so requirePlanner turns the two ways of failing into the
-    errors each of them would otherwise write itself.
+    with this, and takes the answer as it comes. The one plan route that is planner
+    only passes requirePlanner, which turns the two ways of failing into the errors
+    it would otherwise write itself.
 
     An error result carries the status and the line to show, and nothing else, so
     a caller can only either pass it on or use a context that came back whole.

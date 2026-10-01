@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
+import { planRole } from '../roles.js';
 import { announceAfter } from '../announce.js';
 import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
@@ -10,7 +11,7 @@ import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStraggler
 import { threadUrl } from '../../bot/util.js';
 import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
-import { safeZone, todayIn } from '../../lib/zones.js';
+import { safeZone, todayIn, dayHasPassed } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
 import { newlyCovered, answersOn, askFor, daysToFill, toFillRuns, coverageOf, standing, inOf } from '../../lib/coverage.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
@@ -62,26 +63,50 @@ router.param('planId', async (req, res, next, planId) => {
 });
 
 /*
-    Planner only, and always about the plan's own server. What it leaves on req is the
-    guild, its config and the member, which is where the routes past it get the actor's
-    name and the clock the plan runs on.
+    For whoever runs the plan, planner role or not, and always about the plan's own
+    server. What it leaves on req is the guild, its config and the member, which is
+    where the routes past it get the actor's name and the clock the plan runs on.
 */
+async function requireHost(req, res, next) {
+    const ctx = await guildContext(req.plan.guildId, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (!ctx.isMember) return res.status(403).json({ error: 'You are not in that server.' });
+    if (planRole(req.plan, req.user.id) !== 'host') {
+        return res.status(403).json({ error: 'Only whoever runs this plan can do that.' });
+    }
+    req.ctx = ctx;
+    next();
+}
+
+//Starting another plan like this one is starting a plan, so it takes the planner role as well as being on this one
 async function requirePlanner(req, res, next) {
     const ctx = await guildContext(req.plan.guildId, req.user.id, { requirePlanner: true });
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    if (!planRole(req.plan, req.user.id)) return res.status(403).json({ error: 'You are not on this plan.' });
     req.ctx = ctx;
     next();
 }
 
 /*
-    Nothing about a cancelled plan can be changed. The routes that go without it are the
-    ones worth noticing: compare still reads one back, cancel quietly says yes again, and
-    saving availability checks the guest list first and keeps the refusal in the handler,
-    so a stranger is turned away before being told anything about the plan.
+    Nothing about a plan that is over can be changed: one called off, or one whose day
+    has been on its server's clock. Without the second, a host with no planner role
+    could send an old plan back out for dates and have started a new one. The routes
+    that go without it are the ones worth noticing: the overview still reads one back,
+    repair still corrects its DMs, and saving availability checks the guest list first
+    and keeps the refusal in the handler, so a stranger is turned away before being told
+    anything about the plan.
 */
-function refuseCancelled(req, res, next) {
-    if (req.plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+function refuseFinished(req, res, next) {
+    const over = finished(req.plan);
+    if (over) return res.status(409).json({ error: over });
     next();
+}
+
+//Why a plan is over, or null while it is still live
+function finished(plan) {
+    if (plan.status === 'cancelled') return 'This plan was called off.';
+    if (dayHasPassed(plan)) return `This plan was on ${formatDate(plan.chosenDate)}, so nothing about it can change now.`;
+    return null;
 }
 
 /*
@@ -179,7 +204,7 @@ router.post('/:planId/availability', async (req, res) => {
 
     const me = plan.participants.find((p) => p.userId === req.user.id);
     if (!me) return res.status(403).json({ error: 'You are not part of this plan.' });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was called off.' });
 
     const { days, coveredUntil } = req.body || {};
     if (!Array.isArray(days)) return res.status(400).json({ error: 'Something was off with the dates you sent.' });
@@ -242,7 +267,7 @@ router.post('/:planId/join', async (req, res) => {
 
     const me = plan.participants.find((p) => p.userId === req.user.id);
     if (!me) return res.status(403).json({ error: 'You are not on the guest list for this plan.' });
-    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was cancelled.' });
+    if (plan.status === 'cancelled') return res.status(409).json({ error: 'This plan was called off.' });
     if (plan.chosenDate) return res.status(409).json({ error: `This plan is set for ${formatDate(plan.chosenDate)} now.` });
 
     const { in: value, reason } = req.body || {};
@@ -269,7 +294,7 @@ router.post('/:planId/join', async (req, res) => {
 });
 
 //Everything the compare page needs: who is in, and how many are free each day
-router.get('/:planId/compare', requirePlanner, async (req, res) => {
+router.get('/:planId/compare', requireHost, async (req, res) => {
     const { plan, ctx } = req;
 
     /*
@@ -387,7 +412,7 @@ router.get('/:planId/compare', requirePlanner, async (req, res) => {
     The crowd, the name and the days carry, the dates never do: a plan run again is the
     same shape in a different month, and the window is the part that moves.
 
-    No refuseCancelled on purpose. A plan that fell through and one that has already been
+    No refuseFinished on purpose. A plan that fell through and one that has already been
     are the two you most want to run again, and both are read only everywhere else.
 */
 router.get('/:planId/template', requirePlanner, (req, res) => {
@@ -401,7 +426,7 @@ router.get('/:planId/template', requirePlanner, (req, res) => {
 });
 
 //Lock in the winning date, close the plan, and announce it
-router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
     const { date, time, inviteMode, attendingIds, quiet } = req.body || {};
@@ -509,10 +534,10 @@ router.post('/:planId/choose', requirePlanner, refuseCancelled, async (req, res)
 
     Sends nothing and pings nobody, so it is safe to lean on. Answers with what it managed.
 
-    No refuseCancelled, which makes four planner routes without one. A cancelled plan is the
-    one whose DMs most want correcting, a stale card there having somebody turn up to nothing.
+    No refuseFinished on purpose. A cancelled plan is the one whose DMs most want
+    correcting, a stale card there having somebody turn up to nothing.
 */
-router.post('/:planId/repair', requirePlanner, async (req, res) => {
+router.post('/:planId/repair', requireHost, async (req, res) => {
     const { plan, ctx } = req;
 
     const cards = await syncPlan(plan, { cfg: ctx.cfg }).catch((err) => {
@@ -538,7 +563,7 @@ router.post('/:planId/repair', requirePlanner, async (req, res) => {
     is a planner's own working state, and the reason to reach for it is having decided
     that person will not answer. dm says whether an invite's DM landed.
 */
-router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/attendance', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
     if (!plan.chosenDate) return res.status(400).json({ error: 'Set a date first, then sort out who is coming.' });
 
@@ -585,7 +610,7 @@ router.post('/:planId/attendance', requirePlanner, refuseCancelled, async (req, 
     DMed now. Someone in is sent back as well, so their calendar stops answering this plan
     until they save their dates again. Once a day for each person. dm says whether it landed.
 */
-router.post('/:planId/askagain', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/askagain', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
     if (plan.status !== 'collecting') {
         return res.status(409).json({ error: 'This plan has its day. Move them to Waiting to answer on the board instead.' });
@@ -606,6 +631,8 @@ router.post('/:planId/askagain', requirePlanner, refuseCancelled, async (req, re
     res.json({ ok: true, dm: reached === true });
 });
 
+const NEEDS_PLANNER = 'You need the planner role to make a plan come round again.';
+
 /*
     Turn repeating on or off. Nothing is scheduled by saying yes: the next plan is only
     made once this one's day has been and gone, so this is a standing instruction on the
@@ -614,14 +641,18 @@ router.post('/:planId/askagain', requirePlanner, refuseCancelled, async (req, re
     Deliberately allowed on a plan with no date yet. Setting it up front is the point,
     since somebody who knows this is their fortnightly thing should not have to come back
     and say so after the day is picked.
+
+    Turning one on, or changing how often, makes plans, so it takes the planner role as
+    well. Anyone who runs the plan can stop it.
 */
-router.post('/:planId/repeat', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/repeat', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
     const { repeatWeeks } = req.body || {};
     const wanted = repeatWeeks === null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
     if (wanted === false) return res.status(400).json({ error: 'That is not a repeat I can do.' });
     if (wanted === (plan.repeatWeeks || null)) return res.json({ ok: true, repeatWeeks: wanted });
+    if (wanted && !ctx.isPlanner) return res.status(403).json({ error: NEEDS_PLANNER });
 
     await setPlanRepeat(plan.planId, wanted);
     await addPlanEvent(plan.planId, { type: 'repeat', by: req.user.id, byName: ctx.member.displayName, repeatWeeks: wanted });
@@ -640,7 +671,7 @@ router.post('/:planId/repeat', requirePlanner, refuseCancelled, async (req, res)
     dates this morning, then set a date and started a probe, could not chase a single
     answer until tomorrow.
 */
-router.post('/:planId/remind', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/remind', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
     const chasingVotes = Boolean(plan.probeActive && plan.chosenDate);
@@ -678,7 +709,7 @@ router.post('/:planId/remind', requirePlanner, refuseCancelled, async (req, res)
     means the picker did not know about them, not that they are meant to go, and dropping
     people is what the guest list panel is for.
 */
-router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/dates', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
     const { start, end, allowedWeekdays, participantIds, repeatWeeks, note, date, time } = req.body || {};
@@ -732,6 +763,7 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
 
     const wanted = repeatWeeks == null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
     if (wanted === false) return res.status(400).json({ error: 'That is not a repeat I can do.' });
+    if (wanted && wanted !== (plan.repeatWeeks || null) && !ctx.isPlanner) return res.status(403).json({ error: NEEDS_PLANNER });
 
     //Only the people the plan has never had. Anyone already on it is left exactly as they are.
     const already = new Set(plan.participants.map((p) => p.userId));
@@ -869,7 +901,7 @@ router.post('/:planId/dates', requirePlanner, refuseCancelled, async (req, res) 
     which is why a plan with a day set DMs everyone about a change here. Saving also lets
     go of any note still stored, the form having handed both back joined up.
 */
-router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res) => {
+router.post('/:planId/details', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
     const { name, description } = req.body || {};
@@ -901,10 +933,11 @@ router.post('/:planId/details', requirePlanner, refuseCancelled, async (req, res
 });
 
 //Cancel a plan: mark it cancelled, ping and DM everyone, leave the thread to be deleted by hand
-router.post('/:planId/cancel', requirePlanner, async (req, res) => {
+router.post('/:planId/cancel', requireHost, async (req, res) => {
     const { plan, ctx } = req;
     //Already cancelled, do not tell everyone twice
     if (plan.status === 'cancelled') return res.json({ ok: true });
+    if (dayHasPassed(plan)) return res.status(409).json({ error: finished(plan) });
 
     const { quiet, post, dm } = loudness(req.body);
 
@@ -926,8 +959,8 @@ router.post('/:planId/cancel', requirePlanner, async (req, res) => {
     res.json({ ok: true, quiet });
 });
 
-//Pull extra people into a running plan. Planner only, same gate as the rest.
-router.post('/:planId/add', requirePlanner, refuseCancelled, async (req, res) => {
+//Pull extra people into a running plan
+router.post('/:planId/add', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
     const { userIds } = req.body || {};

@@ -129,6 +129,8 @@ export async function createPlan({
         name,
         description,
         createdBy,
+        //Who can change it. Plans from before this have none, see hostIdsOf in lib/hosts.js.
+        hostIds: [createdBy],
         dateRange,
         /*
             The server's clock, copied on rather than looked up, because every line the
