@@ -4,7 +4,7 @@ import { config } from '../config.js';
 /*
     Every slash command the bot knows lives here. Setup is the one locked to
     people who can manage the server, since it wires the bot up. The rest are
-    open to anyone and check the planner role themselves where it matters.
+    open to anyone and check who is asking themselves where it matters.
 */
 /*
     The server clock option, on setup so it is asked once and on /timezone so it can be

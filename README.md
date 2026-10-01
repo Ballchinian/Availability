@@ -77,7 +77,7 @@ Nothing is stored converted. Your availability is kept exactly as you wrote it, 
 
 ## Commands
 
-Seven of them, and they sort into three lots: two for setting the server up, three anyone can run, two for whoever is running the plan. Everything the bot says back to you here is only visible to you.
+Seven of them, and they sort into three lots: two for setting the server up, four anyone can run, and one for whoever runs the plan. Everything the bot says back to you here is only visible to you.
 
 | Command | What it does |
 | --- | --- |
@@ -86,8 +86,8 @@ Seven of them, and they sort into three lots: two for setting the server up, thr
 | `/free` | Tick the days you're free without leaving Discord. Run it in a plan's thread and it knows which plan you mean. Once the plan has its day, it asks if you're coming instead. |
 | `/mylink` | Lists the plans you're in on this server and hands you your link for each one. Handy when the DM has scrolled away. |
 | `/mycalendar` | Hands you the link to your calendar, the one that isn't tied to any one plan. |
-| `/overview` | Run inside a plan's thread, hands you that plan's overview link. Planner role only. |
-| `/cancel` | Run inside a plan's thread to call the whole thing off. Asks you to confirm first, then tells everyone. Planner role only. |
+| `/overview` | Run inside a plan's thread, hands you that plan's overview. For anyone on the plan. |
+| `/cancel` | Run inside a plan's thread to call the whole thing off. Asks you to confirm first, then tells everyone. For whoever runs the plan, planner role or not. |
 
 ## Tech stack
 

@@ -29,20 +29,22 @@ function fakeClient() {
     return listeners;
 }
 
-function slash(commandName) {
+//Run by someone with no role at all, in the thread of the one plan there is
+function slash(commandName, over = {}) {
     return {
         commandName,
         channelId: 't1',
         guildId: 'g1',
-        user: { id: 'ali' },
-        guild: { members: { fetch: async () => ({ roles: { cache: { has: (id) => id === 'r1' } } }) } },
+        user: { id: 'bo' },
+        guild: { members: { fetch: async () => ({ roles: { cache: { has: () => false } } }) } },
         inGuild: () => true,
         isAutocomplete: () => false,
         isChatInputCommand: () => true,
         isModalSubmit: () => false,
         isMessageComponent: () => false,
         isRepliable: () => true,
-        reply: vi.fn(async () => {})
+        reply: vi.fn(async () => {}),
+        ...over
     };
 }
 
@@ -61,7 +63,8 @@ describe('the command list', () => {
 });
 
 describe('running the renamed commands', () => {
-    it('answers /overview with a button to the plan overview', async () => {
+    //The pinned intro offers it to anyone on the plan, and the page turns away anyone who is not
+    it('answers /overview with a button to the plan overview, planner role or not', async () => {
         const { interactionCreate } = fakeClient();
         const interaction = slash('overview');
         await interactionCreate(interaction);
@@ -70,6 +73,15 @@ describe('running the renamed commands', () => {
         expect(content).toBe('**Board games**');
         const [button] = components[0].components;
         expect(button.data).toMatchObject({ label: 'Open the overview', url: compareUrl('ab12cd34ef') });
+    });
+
+    it('says where /overview goes when it is run outside a plan thread', async () => {
+        const { interactionCreate } = fakeClient();
+        const interaction = slash('overview', { channelId: 'general' });
+        await interactionCreate(interaction);
+        const { content, components } = interaction.reply.mock.calls[0][0];
+        expect(content).toMatch(/inside a plan's thread/);
+        expect(components).toBeUndefined();
     });
 
     it('answers /mycalendar with the calendar link', async () => {

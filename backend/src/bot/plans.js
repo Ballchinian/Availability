@@ -12,6 +12,7 @@ import { realMembers } from '../lib/members.js';
 import { formatDay, formatDate, formatTime, shiftDate } from '../lib/dates.js';
 import { answersOn, coverageOf, standing, owes, askFor, inOf } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed } from '../lib/zones.js';
+import { hostIdsOf } from '../lib/hosts.js';
 
 /*
     Every DM about a plan goes out through here, and never throws. Discord answers 50007
@@ -1419,28 +1420,18 @@ export async function announceJoin(plan, userId, was, reason = null, { card = tr
 }
 
 /*
-    The /overview slash command. Run inside a plan's thread, it hands back the link
-    to that plan's overview. Planner role only, although the pinned intro already
-    offers it to anyone on the plan.
+    The /overview slash command. Run inside a plan's thread, it hands back that plan's
+    overview, to whoever asks. The thread is private and the page turns away anyone who
+    is not on the plan, so there is nothing here to check.
 */
 export async function handleOverview(interaction) {
     if (!interaction.inGuild()) {
         return interaction.reply({ content: 'Run this inside a server.', flags: MessageFlags.Ephemeral });
     }
 
-    const cfg = await getGuildConfig(interaction.guildId);
-    if (!cfg || !cfg.setupComplete) {
-        return interaction.reply({ content: 'Run /setup first.', flags: MessageFlags.Ephemeral });
-    }
-
-    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-    if (!member || !member.roles.cache.has(cfg.plannerRoleId)) {
-        return interaction.reply({ content: 'You need the planner role to do that.', flags: MessageFlags.Ephemeral });
-    }
-
     const plan = await getPlanByThread(interaction.channelId);
     if (!plan) {
-        return interaction.reply({ content: "Run this inside a plan's thread to get its overview link.", flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "Run this inside a plan's thread to get its overview.", flags: MessageFlags.Ephemeral });
     }
 
     return interaction.reply({
@@ -1477,21 +1468,30 @@ export async function handleMyCalendar(interaction) {
     });
 }
 
+/*
+    Why this person cannot call the plan off, or null when they can. Asked when /cancel
+    is run and again when its button is pressed, since who runs the plan and whether it
+    is still on can both change while the question sits there.
+*/
+function cancelRefusal(plan, userId) {
+    if (!plan) return 'That plan is no longer around.';
+    if (!hostIdsOf(plan).includes(userId)) return 'Only whoever runs this plan can call it off.';
+    if (plan.status === 'cancelled') return 'It was already called off, so I left everyone be.';
+    if (dayHasPassed(plan)) return `"${plan.name}" was on ${formatDate(plan.chosenDate)}, so there is nothing left to call off.`;
+    return null;
+}
+
 //The /cancel command, asks to confirm before scrapping the plan in this thread
 export async function handleCancel(interaction) {
     if (!interaction.inGuild()) {
         return interaction.reply({ content: 'Run this inside a plan thread.', flags: MessageFlags.Ephemeral });
     }
-    const cfg = await getGuildConfig(interaction.guildId);
-    if (!cfg) return interaction.reply({ content: 'Run /setup first.', flags: MessageFlags.Ephemeral });
-
-    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-    if (!member || !member.roles.cache.has(cfg.plannerRoleId)) {
-        return interaction.reply({ content: 'You need the planner role to do that.', flags: MessageFlags.Ephemeral });
-    }
 
     const plan = await getPlanByThread(interaction.channelId);
     if (!plan) return interaction.reply({ content: 'Run this inside a plan thread to call it off.', flags: MessageFlags.Ephemeral });
+
+    const refusal = cancelRefusal(plan, interaction.user.id);
+    if (refusal) return interaction.reply({ content: refusal, flags: MessageFlags.Ephemeral });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`cancel|yes|${plan.planId}`).setLabel('Yes, call it off').setStyle(ButtonStyle.Danger),
@@ -1513,8 +1513,11 @@ export async function handlePlanComponent(interaction) {
 
     await interaction.update({ content: 'Calling it off...', components: [] });
     const plan = await getPlan(planId);
+    const refusal = cancelRefusal(plan, interaction.user.id);
+    if (refusal) return interaction.editReply({ content: refusal });
+
     const actorName = interaction.member?.displayName || interaction.user.username;
-    if (!plan || !(await cancelPlan(plan, interaction.user.id, actorName))) {
+    if (!(await cancelPlan(plan, interaction.user.id, actorName))) {
         return interaction.editReply({ content: 'It was already called off, so I left everyone be.' });
     }
     return interaction.editReply({ content: 'Done, everyone has been told. Delete this thread when you are ready to clear the plan for good.' });
