@@ -1,10 +1,22 @@
+<script module lang="ts">
+    import PlanCards, { stepFor } from '../lib/PlanCards.svelte';
+    import type { UserGuild, UserPlan } from '../lib/types.js';
+
+    /*
+        Anything still waiting on them first, then the rest of the open ones, then
+        the days already set, soonest first. Whatever needs doing is at the top.
+    */
+    export function sortPlans(plans: UserPlan[]): UserPlan[] {
+        const rank = (p: UserPlan) => (stepFor(p).asks ? 0 : p.status === 'collecting' ? 1 : 2);
+        return [...plans].sort((a, b) => rank(a) - rank(b) || (a.chosenDate || a.start).localeCompare(b.chosenDate || b.start));
+    }
+</script>
+
 <script lang="ts">
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
-    import PlanCards from '../lib/PlanCards.svelte';
     import StartPlan from '../lib/StartPlan.svelte';
-    import type { UserGuild, UserPlan } from '../lib/types.js';
 
     /*
         The front door. Every other screen knows which server or plan it is about
@@ -17,13 +29,7 @@
     let guilds = $state<UserGuild[]>([]);
     let plans = $state<UserPlan[]>([]);
 
-    /*
-        Anything still waiting on them first, then the rest of the open ones, then
-        the days already set, soonest first. Whatever needs doing is at the top.
-    */
-    const sortedPlans = $derived(
-        [...plans].sort((a, b) => rank(a) - rank(b) || (a.chosenDate || a.start).localeCompare(b.chosenDate || b.start))
-    );
+    const sortedPlans = $derived(sortPlans(plans));
 
     onMount(async () => {
         await loadMe();
@@ -43,11 +49,6 @@
         }
         loading = false;
     });
-
-    function rank(p: UserPlan) {
-        if (p.status !== 'collecting') return 2;
-        return p.inIt && !p.filledIn ? 0 : 1;
-    }
 </script>
 
 <!--The front door keeps the name the bot's links carry until there is somebody to name it for-->

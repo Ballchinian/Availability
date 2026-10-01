@@ -70,8 +70,8 @@ describe('the hours in common', () => {
 });
 
 describe('plan cards', () => {
-    it('gives the links under a card a 24px floor', () => {
-        expect(px(rule('.card .action'), 'min-height')).toBeGreaterThanOrEqual(24);
+    it.each(['.card .name', '.card .action'])('gives %s a 24px floor', (selector) => {
+        expect(px(rule(selector), 'min-height')).toBeGreaterThanOrEqual(24);
     });
 });
 

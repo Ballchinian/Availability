@@ -278,7 +278,7 @@ export interface UserPlan {
     chosenTime: string | null;
     //The clock that time is written on, since this list spans servers that need not share one
     timeZone: string;
-    //A planner who did not invite themselves is running this one without being in it
+    //The older names for onList, having saved dates, and role being host, which are all a backend older than the site sends
     inIt: boolean;
     filledIn: boolean;
     mine: boolean;
@@ -295,6 +295,8 @@ export interface UserPlan {
     standing?: Standing | null;
     daysLeft?: number;
     movedBack?: boolean;
+    //Every day it asked about has gone, and it has no day
+    datesPassed?: boolean;
     //For a set day: their own answer, or a call made on the board
     answer?: Answer | null;
     invited?: boolean;

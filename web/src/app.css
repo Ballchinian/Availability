@@ -318,32 +318,15 @@ legend {
     gap: 12px;
 }
 
+/* A column whose body takes the slack, so the buttons along a row of cards line up however much each says above its own */
 .card {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    gap: 10px;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px;
-}
-
-.card .icon {
-    flex: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-}
-
-/* Servers with no icon of their own, so the row still lines up with the ones that have one */
-.card .icon.blank {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-size: 18px;
-    text-transform: uppercase;
 }
 
 .card .body {
@@ -351,8 +334,10 @@ legend {
     min-width: 0;
 }
 
+/* 15px text on its own line is 23px tall, a pixel under the least a target can be */
 .card .name {
     display: block;
+    min-height: 24px;
     font-size: 15px;
     overflow-wrap: anywhere;
 }
@@ -364,13 +349,29 @@ legend {
     font-size: 13px;
 }
 
-/* Any link under that. Flex for a 24px floor with the text centred on it: two stacked 13px links were 20px each */
-.card .action {
+/* What the note and the button leave out: who else runs it, when it comes round next */
+.card .tags {
     display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    margin-top: 6px;
+}
+
+/* --border and not --control-border, so it does not read as something to press */
+.card .tag {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* The one thing the plan wants next. Flex for a 24px floor, which an inline <a> ignores, and held to its own width */
+.card .action {
+    display: inline-flex;
     align-items: center;
+    align-self: flex-start;
     min-height: 24px;
-    margin-top: 2px;
-    font-size: 13px;
 }
 
 /* Create-plan form */

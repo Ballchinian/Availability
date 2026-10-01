@@ -29,7 +29,7 @@ import WeekdayPicker from '../../src/lib/WeekdayPicker.svelte';
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import PlanList from '../../src/lib/PlanList.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
-import Home from '../../src/routes/Home.svelte';
+import Home, { sortPlans } from '../../src/routes/Home.svelte';
 import { belongsOnOverview } from '../../src/routes/Availability.svelte';
 import Terms from '../../src/routes/Terms.svelte';
 import Privacy from '../../src/routes/Privacy.svelte';
@@ -643,34 +643,152 @@ describe('the clock note', () => {
 //My plans and Past plans draw the same card, and only Past plans says it in the past tense
 describe('a plan card', () => {
     const day = isoFromNow(3, 'day');
-    const plan: UserPlan = {
+    //A guest who has not said, on a plan still finding its day
+    const card = (over: Partial<UserPlan> = {}): UserPlan => ({
         planId: 'ab12cd34ef',
         name: 'Pub quiz',
         guildName: 'Friends',
-        status: 'closed',
+        status: 'collecting',
         start: day,
-        end: day,
-        chosenDate: day,
+        end: isoFromNow(9, 'day'),
+        chosenDate: null,
         chosenTime: null,
         timeZone: 'Europe/London',
         inIt: true,
-        filledIn: true,
-        mine: true
+        filledIn: false,
+        mine: false,
+        role: 'guest',
+        hosts: ['Ali'],
+        repeatWeeks: null,
+        onList: true,
+        standing: 'not-said',
+        daysLeft: 0,
+        movedBack: false,
+        datesPassed: false,
+        answer: null,
+        invited: true,
+        readyToPick: false,
+        ...over
+    });
+    const set: Partial<UserPlan> = { status: 'closed', start: day, end: day, chosenDate: day, standing: null };
+    const draw = (plan: UserPlan, over = false) => bare(render(PlanCards, { props: { plans: [plan], over } }).body);
+    //The card's one button, as what it says and where it goes
+    const button = (body: string) => {
+        const found = [...body.matchAll(/<a class="ghost action" href="([^"]+)">([^<]+)<\/a>/g)];
+        expect(found).toHaveLength(1);
+        return [found[0][2], found[0][1]];
     };
-    const draw = (over: boolean) => render(PlanCards, { props: { plans: [plan], over } }).body;
+    const here = '#/plan/ab12cd34ef';
 
-    it('says a day still to come is set and offers who is coming', () => {
-        const body = draw(false);
-        expect(body).toContain(`set for ${formatDate(day)}`);
-        expect(body).not.toContain('was set for');
-        expect(body).toContain('See who is coming');
+    it.each<[string, Partial<UserPlan>, string, string]>([
+        ['someone who has not said', {}, "Say if you're in", here],
+        ['someone in with days left', { standing: 'days-left', daysLeft: 3 }, 'Fill in 3 days', here],
+        ['someone in with no dates yet', { standing: 'no-dates', daysLeft: 7 }, 'Fill in your dates', here],
+        ['someone moved back', { standing: 'no-dates', movedBack: true }, 'Go over your dates again', here],
+        ['someone who has not answered a set day', set, "Say if you're coming", `${here}/overview`],
+        ['whoever runs a plan everyone has answered', { role: 'host', standing: 'done', readyToPick: true }, 'Pick the day', `${here}/overview`],
+        ['whoever runs a plan whose dates have passed', { role: 'host', standing: 'done', datesPassed: true }, 'Ask about new dates', `${here}/dates`],
+        ['a guest of a plan whose dates have passed', { datesPassed: true }, 'Waiting for new dates', `${here}/overview`],
+        ['someone who has answered every day', { standing: 'done' }, 'Overview', `${here}/overview`],
+        ['someone who is coming on a set day', { ...set, answer: 'yes' }, 'Overview', `${here}/overview`]
+    ])('gives %s the one button for what is next', (_, where, label, href) => {
+        expect(button(draw(card(where)))).toEqual([label, href]);
     });
 
-    it('says a day that is over was set and offers a look back', () => {
-        const body = draw(true);
-        expect(body).toContain(`was set for ${formatDate(day)}`);
-        expect(body).toContain('Look back at it');
-        expect(body).not.toContain('See who is coming');
+    it('links its title to the overview, whatever the button says', () => {
+        expect(draw(card())).toContain(`<a class="name" href="${here}/overview">Pub quiz</a>`);
+    });
+
+    it('says where the plan has got to under its name', () => {
+        expect(draw(card())).toContain(`Friends · finding a day, ${formatDate(day)} to ${formatDate(isoFromNow(9, 'day'))}`);
+        expect(draw(card({ datesPassed: true }))).toContain('Friends · the dates it asked about have passed');
+        expect(draw(card(set))).toContain(`Friends · set for ${formatDate(day)}`);
+    });
+
+    it('says it in the past tense on Past plans, and asks nothing of anyone there', () => {
+        const been = draw(card(set), true);
+        expect(been).toContain(`Friends · was on ${formatDate(day)}`);
+        expect(button(been)).toEqual(['Overview', `${here}/overview`]);
+        expect(draw(card({ status: 'cancelled' }), true)).toContain('Friends · called off');
+    });
+
+    //Thirty days after its dates went by with no day picked, which is when it moves to Past plans
+    it('says a plan that never got a day never got one', () => {
+        const body = draw(card({ role: 'host', datesPassed: true }), true);
+        expect(body).toContain('Friends · never got a day');
+        expect(button(body)).toEqual(['Overview', `${here}/overview`]);
+    });
+
+    describe('tags', () => {
+        const tag = (text: string) => `<span class="tag">${text}</span>`;
+
+        it('name who else runs a plan, to someone who runs it', () => {
+            expect(draw(card({ role: 'host', hosts: ['Sam', 'Jo'] }))).toContain(tag('You run this with Sam and Jo'));
+            expect(draw(card({ ...set, role: 'host', hosts: ['Sam'] }), true)).toContain(tag('You ran this with Sam'));
+        });
+
+        it('are not there for a guest, or for someone who runs it alone', () => {
+            expect(draw(card())).not.toContain('class="tag');
+            expect(draw(card({ role: 'host', hosts: [] }))).not.toContain('class="tag');
+        });
+
+        //Nothing is made until a plan has had its day, so before then there is no date to give
+        it('say how often a plan comes round, and when next once it has its day', () => {
+            expect(draw(card({ ...set, repeatWeeks: 2 }))).toContain(tag(`Repeats every other week · next ${formatDate(isoFromNow(17, 'day'))}`));
+            expect(draw(card({ repeatWeeks: 1 }))).toContain(tag('Repeats every week'));
+        });
+
+        it('give no next date for a plan that found its day in a window, which asks about a window next', () => {
+            expect(draw(card({ ...set, end: isoFromNow(9, 'day'), repeatWeeks: 2 }))).toContain(tag('Repeats every other week'));
+        });
+
+        it('say nothing of a repeat on Past plans, where the next one is a card of its own', () => {
+            expect(draw(card({ ...set, repeatWeeks: 2 }), true)).not.toContain('Repeats');
+        });
+    });
+
+    //For the few minutes a deploy takes, when a plan comes with none of where they stand and only whoever made it gets its overview
+    describe('from a backend older than the site', () => {
+        const old = (over: Partial<UserPlan> = {}): UserPlan => ({
+            planId: 'ab12cd34ef',
+            name: 'Pub quiz',
+            guildName: 'Friends',
+            status: 'collecting',
+            start: day,
+            end: isoFromNow(9, 'day'),
+            chosenDate: null,
+            chosenTime: null,
+            timeZone: 'Europe/London',
+            inIt: true,
+            filledIn: false,
+            mine: false,
+            ...over
+        });
+
+        it('sends a guest to their dates, by the title and the button alike', () => {
+            const body = draw(old());
+            expect(button(body)).toEqual(['Fill in your dates', here]);
+            expect(body).toContain(`<a class="name" href="${here}">Pub quiz</a>`);
+            expect(button(draw(old({ filledIn: true })))).toEqual(['Overview', here]);
+        });
+
+        it('sends whoever made it to the overview', () => {
+            const body = draw(old({ mine: true, inIt: false }));
+            expect(button(body)).toEqual(['Overview', `${here}/overview`]);
+            expect(body).toContain(`<a class="name" href="${here}/overview">Pub quiz</a>`);
+        });
+    });
+
+    it('sorts whatever is waiting on them first, then the rest still finding a day, then the days set, soonest first', () => {
+        const plans = [
+            card({ planId: 'set-later', ...set, chosenDate: isoFromNow(9, 'day'), answer: 'yes' }),
+            card({ planId: 'answered', standing: 'done' }),
+            card({ planId: 'set-sooner', ...set, answer: 'yes' }),
+            card({ planId: 'coming', ...set, chosenDate: isoFromNow(5, 'day') }),
+            card({ planId: 'waiting', datesPassed: true }),
+            card({ planId: 'in' })
+        ];
+        expect(sortPlans(plans).map((p) => p.planId)).toEqual(['in', 'coming', 'answered', 'waiting', 'set-sooner', 'set-later']);
     });
 });
 
