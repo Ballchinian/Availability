@@ -13,7 +13,7 @@ A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in 
 Most actions also depend on where the requester stands:
 
 * **Planner**: has the server's planner role. Only planners can pull the server's member list, start a plan, turn a repeat on, or copy a plan into a new one.
-* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it, anyone they picked to run it with them when they made it, and anyone who has taken it on since. One made before hosts were stored reads as run by whoever made it.
+* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it, anyone they picked to run it with them when they made it, and anyone who has taken it on since. A repeat's next plan is run by whoever ran the last one and is still in the server. One made before hosts were stored reads as run by whoever made it.
 * **Guest**: on a plan's guest list. They can fill in their own dates, answer for themselves, and read the plan's overview.
 
 A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.

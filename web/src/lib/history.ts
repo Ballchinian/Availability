@@ -22,11 +22,11 @@ function plural(count: number, one: string, many: string): string {
 
 /*
     Whether a name belongs in front of this line. Everything on a plan is done by
-    somebody except coming round again, which the repeat sweep does on a timer with no
-    one asking, so that line is written as a sentence of its own instead.
+    somebody except coming round again, and no longer doing so, which the repeat sweep
+    does on a timer with no one asking, so those lines are sentences of their own instead.
 */
 export function hasActor(event: PlanEvent): boolean {
-    return event.type !== 'repeated';
+    return event.type !== 'repeated' && event.type !== 'repeatended';
 }
 
 /*
@@ -77,9 +77,11 @@ export function describeEvent(event: PlanEvent): string {
                 : `nudged ${plural(event.count, 'person', 'people')} for their dates`;
         case 'repeat':
             return event.repeatWeeks ? `set this to come round ${describeRepeat(event.repeatWeeks)}` : 'stopped this coming round again';
-        //Reads as a whole sentence because hasActor keeps a name from being put in front of it
+        //These two read as whole sentences because hasActor keeps a name from being put in front of them
         case 'repeated':
             return 'This one came round again as a new plan';
+        case 'repeatended':
+            return 'This one stopped coming round again, since nobody who runs it has the planner role any more';
         case 'cancelled':
             return 'called the plan off';
         case 'tookon':

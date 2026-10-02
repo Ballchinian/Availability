@@ -108,7 +108,7 @@ describe('describeEvent', () => {
     it('says something for every type there is', () => {
         const types: PlanEvent['type'][] = [
             'created', 'chosen', 'moved', 'voided', 'range', 'dates', 'weekdays',
-            'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'cancelled', 'tookon'
+            'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'repeatended', 'cancelled', 'tookon'
         ];
         for (const type of types) {
             const event = {
@@ -130,6 +130,14 @@ describe('hasActor', () => {
     it('leaves the name off the line the sweep wrote', () => {
         expect(hasActor({ ...base, type: 'repeated', planId: 'ab12cd34ef' })).toBe(false);
         expect(describeEvent({ ...base, type: 'repeated', planId: 'ab12cd34ef' })).toBe('This one came round again as a new plan');
+    });
+
+    //The sweep stopping a repeat. A person stopping one keeps their name, as the 'repeat' line.
+    it('leaves it off the repeat the sweep stopped, and says why it did', () => {
+        expect(hasActor({ ...base, type: 'repeatended' })).toBe(false);
+        expect(describeEvent({ ...base, type: 'repeatended' })).toBe(
+            'This one stopped coming round again, since nobody who runs it has the planner role any more'
+        );
     });
 
     it('keeps it on everything a person did', () => {

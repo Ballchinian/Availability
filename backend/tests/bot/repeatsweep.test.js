@@ -32,11 +32,15 @@ const fake = vi.hoisted(() => {
                 return doc;
             },
             setPlanChosen: async (id, date) => Object.assign(plans.get(id), { chosenDate: date, status: 'closed' }),
-            setPlanRepeat: async () => {},
+            setPlanRepeat: async (id, weeks) => {
+                plans.get(id).repeatWeeks = weeks;
+            },
             setNeedsRepair: async (id, on) => {
                 plans.get(id).needsRepair = on;
             },
-            addPlanEvent: async () => {}
+            addPlanEvent: async (id, event) => {
+                (plans.get(id).history ||= []).push(event);
+            }
         }
     };
 });
@@ -44,7 +48,29 @@ const fake = vi.hoisted(() => {
 vi.mock('../../src/db/plans.js', () => fake.db);
 vi.mock('../../src/db/mongo.js', () => ({ isMongoReady: () => true }));
 vi.mock('../../src/db/guilds.js', () => ({
-    getGuildConfig: async () => ({ setupComplete: true, plansChannelId: 'c1', timeZone: 'Europe/London' })
+    getGuildConfig: async () => ({ setupComplete: true, plansChannelId: 'c1', plannerRoleId: 'planners', timeZone: 'Europe/London' })
+}));
+
+//Who is in the server, and whether each holds the planner role. Nobody is cached, so every look is a fetch.
+const server = vi.hoisted(() => ({ members: new Map(), down: false, left: false }));
+vi.mock('../../src/bot/client.js', () => ({
+    client: {
+        guilds: {
+            fetch: async () => {
+                if (server.left) throw Object.assign(new Error('Unknown Guild'), { code: 10004 });
+                return {
+                    members: {
+                        cache: new Map(),
+                        fetch: async (id) => {
+                            if (server.down) throw new Error('Service Unavailable');
+                            if (!server.members.has(id)) throw Object.assign(new Error('Unknown Member'), { code: 10007 });
+                            return { id, roles: { cache: new Set(server.members.get(id) ? ['planners'] : []) } };
+                        }
+                    }
+                };
+            }
+        }
+    }
 }));
 
 const discord = vi.hoisted(() => ({ announceSetPlan: vi.fn(), announcePlan: vi.fn(), syncPlan: vi.fn() }));
@@ -57,6 +83,10 @@ const lastWeek = shiftDate(today(), -7);
 beforeEach(() => {
     fake.plans.clear();
     fake.createFails = false;
+    server.members.clear();
+    server.members.set('ali', true).set('sam', false);
+    server.down = false;
+    server.left = false;
     fake.plans.set('first', {
         planId: 'first',
         guildId: 'g1',
@@ -127,5 +157,78 @@ describe('a repeat that was never made', () => {
         fake.createFails = false;
         await sweepRepeats();
         expect(repeats()).toHaveLength(1);
+    });
+});
+
+//Ali made the first one and holds the planner role. Sam runs it with him and does not.
+describe('who runs the next one', () => {
+    const first = () => fake.plans.get('first');
+
+    it('is everyone who ran this one', async () => {
+        first().hostIds = ['ali', 'sam'];
+        await sweepRepeats();
+        expect(repeats()[0].hostIds).toEqual(['ali', 'sam']);
+    });
+
+    it('is whoever made it, on a plan from before anyone else could', async () => {
+        await sweepRepeats();
+        expect(repeats()[0].hostIds).toEqual(['ali']);
+    });
+
+    //Left to createPlan's default, whoever made the first one would run every plan after it for good
+    it('leaves out anyone who has left the server, whoever made the first one included', async () => {
+        first().hostIds = ['ali', 'sam'];
+        server.members.delete('ali');
+        server.members.set('sam', true);
+
+        await sweepRepeats();
+        expect(repeats()[0]).toMatchObject({ createdBy: 'ali', hostIds: ['sam'] });
+    });
+
+    it('takes only one of them to still hold the planner role', async () => {
+        first().hostIds = ['sam', 'ali'];
+        await sweepRepeats();
+        expect(repeats()).toHaveLength(1);
+    });
+});
+
+describe('a repeat nobody who runs it could start', () => {
+    const first = () => fake.plans.get('first');
+
+    it('stops, with a line in the history, and makes nothing', async () => {
+        first().hostIds = ['ali', 'sam'];
+        server.members.set('ali', false);
+
+        expect(await sweepRepeats()).toBe(0);
+        expect(repeats()).toHaveLength(0);
+        expect(first()).toMatchObject({ repeatWeeks: null, repeatedInto: null });
+        expect(first().history.map((e) => e.type)).toEqual(['repeatended']);
+    });
+
+    it('stops the same way once everyone who ran it has left', async () => {
+        server.members.clear();
+        await sweepRepeats();
+        expect(first().repeatWeeks).toBe(null);
+        expect(first().history.map((e) => e.type)).toEqual(['repeatended']);
+    });
+
+    //Read as everyone having left, an outage would end every repeat that fell due during it
+    it('is left for the next sweep while Discord cannot say who is there', async () => {
+        server.down = true;
+        await sweepRepeats();
+        expect(repeats()).toHaveLength(0);
+        expect(first().repeatWeeks).toBe(2);
+        expect(first().history).toBeUndefined();
+
+        server.down = false;
+        await sweepRepeats();
+        expect(repeats()).toHaveLength(1);
+    });
+
+    it('stops without a word once the bot is out of the server', async () => {
+        server.left = true;
+        await sweepRepeats();
+        expect(first().repeatWeeks).toBe(null);
+        expect(first().history).toBeUndefined();
     });
 });

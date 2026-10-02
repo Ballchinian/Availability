@@ -1,10 +1,12 @@
 import { getPlan, getPlansDueToRepeat, getPlansNeedingRepair, claimForRepeat, releaseRepeatClaim, createPlan, setPlanChosen, setPlanRepeat, setNeedsRepair, addPlanEvent } from '../db/plans.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { isMongoReady } from '../db/mongo.js';
+import { client } from './client.js';
 import { announcePlan, announceSetPlan, syncPlan } from './plans.js';
 import { shortId } from '../lib/ids.js';
 import { today, shiftDate, nextPlanShape } from '../lib/dates.js';
 import { safeZone, dayHasPassed } from '../lib/zones.js';
+import { hostIdsOf } from '../lib/hosts.js';
 
 /*
     Plans that come round again. "Every other Thursday" used to mean making a new plan
@@ -31,9 +33,31 @@ const FIRST_SWEEP_MS = 60 * 1000;
 let timer = null;
 
 /*
+    Whoever runs the plan and is still in the server, as members. Unknown Member (10007)
+    and Unknown User (10013) are the only answers read as gone. Anything else throws,
+    since Discord having a bad minute would otherwise read as everyone having left, and
+    that stops the repeat for good.
+*/
+async function hostsHere(plan) {
+    const guild = await client.guilds.fetch(plan.guildId);
+    const found = await Promise.all(
+        hostIdsOf(plan).map(async (id) => {
+            try {
+                return guild.members.cache.get(id) || (await guild.members.fetch(id));
+            } catch (err) {
+                if (err?.code === 10007 || err?.code === 10013) return null;
+                throw err;
+            }
+        })
+    );
+    return found.filter(Boolean);
+}
+
+/*
     One plan's turn. Everything that can go wrong here is a reason to stop rather than to
     retry: a server that removed the bot, a setup that was undone, a guest list nobody is
-    left on. Those clear the repeat instead of failing every half hour forever.
+    left on. Those clear the repeat instead of failing every half hour forever. The one
+    thing left for the next sweep is Discord not answering when asked who runs it.
 */
 async function repeatOne(plan) {
     const cfg = await getGuildConfig(plan.guildId);
@@ -57,6 +81,31 @@ async function repeatOne(plan) {
         return false;
     }
 
+    let hosts;
+    try {
+        hosts = await hostsHere(plan);
+    } catch (err) {
+        //Unknown Guild: the bot was taken out while it was down, so no guildDelete came to clear the setup
+        if (err?.code === 10004) {
+            console.warn(`[repeat] ${plan.planId}: no longer in server ${plan.guildId}, stopping the repeat`);
+            await setPlanRepeat(plan.planId, null);
+        } else {
+            console.warn(`[repeat] ${plan.planId}: could not check who runs it, leaving it for the next sweep:`, err.message);
+        }
+        return false;
+    }
+    /*
+        Making the next one is starting a plan, which takes the planner role. Whoever
+        runs this one is who it is made for, so one of them has to hold it still. This
+        stop goes in the history, since it is the one a person could not have seen coming.
+    */
+    if (!hosts.some((m) => m.roles.cache.has(cfg.plannerRoleId))) {
+        console.warn(`[repeat] ${plan.planId}: nobody who runs it has the planner role, stopping the repeat`);
+        await setPlanRepeat(plan.planId, null);
+        await addPlanEvent(plan.planId, { type: 'repeatended', by: plan.createdBy, byName: '' }).catch(() => {});
+        return false;
+    }
+
     /*
         The id is claimed on the old plan before the new one exists, so two sweeps running
         at once cannot both get through here, and a crash in between leaves a claim rather
@@ -73,6 +122,8 @@ async function repeatOne(plan) {
             name: plan.name,
             description: plan.description,
             createdBy: plan.createdBy,
+            //Said outright, or createPlan would put whoever made the first one back after they had left
+            hostIds: hosts.map((m) => m.id),
             //Carried off the old plan's own history, so the new one does not open with "Someone started the plan"
             actorName: (plan.history || []).find((e) => e.type === 'created')?.byName || '',
             dateRange: shape.dateRange,

@@ -147,6 +147,8 @@ export type PlanEvent =
     | (EventBase & { type: 'repeat'; repeatWeeks: number | null })
     //Written by the repeat sweep rather than by a person, so its by and byName are the plan's creator and blank
     | (EventBase & { type: 'repeated'; planId: string })
+    //The sweep again: the repeat stopped, since nobody who runs the plan still holds the planner role
+    | (EventBase & { type: 'repeatended' })
     | (EventBase & { type: 'cancelled' })
     //Someone who did not run the plan made themselves one of the people who do
     | (EventBase & { type: 'tookon' });
