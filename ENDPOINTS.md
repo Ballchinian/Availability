@@ -13,7 +13,7 @@ A session is a signed JWT in an httpOnly `sid` cookie, set when someone logs in 
 Most actions also depend on where the requester stands:
 
 * **Planner**: has the server's planner role. Only planners can pull the server's member list, start a plan, turn a repeat on, or copy a plan into a new one.
-* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it, plus anyone who has taken it on since. One made before hosts were stored reads as run by whoever made it.
+* **Host**: runs one plan, and can change anything on it. That takes no planner role, only being in the server. A plan is run by whoever made it, anyone they picked to run it with them when they made it, and anyone who has taken it on since. One made before hosts were stored reads as run by whoever made it.
 * **Guest**: on a plan's guest list. They can fill in their own dates, answer for themselves, and read the plan's overview.
 
 A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.
@@ -239,28 +239,28 @@ Planner role only.
 * Name
 * Description
 * The people to invite
+* `hostIds` (optional): who else runs the plan, alongside whoever is making it. They need no planner role, and don't have to be on the guest list.
 * For a collect-availability plan: a start and end date
 * `allowedWeekdays` (optional, collect plans only): the weekdays people can mark, as numbers 0 (Sunday) to 6, e.g. `[0, 6]` for weekends. Left out, or all seven, means the whole range.
 * For a set plan: `announce` set to true, a single `date`, and an optional `time`
-* `dm` (optional, default true): whether to DM the invited people
-* `post` (optional, default true, set plans only): whether the thread's opening post pings everyone
 * `repeatWeeks` (optional): `1`, `2` or `4` to have this come round again that many weeks after its day has been. Anything else, including left out, is a one off.
 
 ### Effects
 
-* Creates the plan.
-* Collect mode: opens a private thread, pulls the invited people in, pings them, and DMs them unless `dm` is off.
-* Set mode: records the date as already decided, always opens a thread so the plan can be managed, pings everyone in it unless `post` is off, and DMs everyone unless `dm` is off.
+* Creates the plan, run by the requester and everyone in `hostIds`.
+* Collect mode: opens a private thread, pulls in the invited people and whoever runs it, and DMs the invited people.
+* Set mode: records the date as already decided, opens the same thread so the plan can be managed, and DMs the invited people a yes/no.
 
 ### Returns
 
 * Plan id and link
-* How many were invited, and how many were dropped for not being in the server
+* How many were invited, and how many people were dropped for not being in the server, counted once each across both lists
 * `set` is true for a set plan
 
 ### Notes
 
-* Invited ids are filtered down to real, non-bot members.
+* Invited ids and `hostIds` are both filtered down to real, non-bot members, and both are capped at 200.
+* The requester always runs the plan, whether or not `hostIds` names them. Who made it is never read from the request.
 * A set plan's date must be today or later and within two years.
 * A weekday restriction has to leave at least one day inside the picked range, otherwise it is rejected.
 * Capped at a high daily backstop per person, since the planner role is the real gate.

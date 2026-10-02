@@ -120,6 +120,8 @@ export async function createPlan({
     timeZone = null,
     repeatWeeks = null,
     repeatedFrom = null,
+    //Everyone who runs it, when that is more than whoever made it. The sweep's list can leave createdBy out.
+    hostIds = null,
     //Only the repeat sweep passes one: it claims the id before making the plan, so it has to say which
     planId = null
 }) {
@@ -131,7 +133,7 @@ export async function createPlan({
         description,
         createdBy,
         //Who can change it. Plans from before this have none, see hostIdsOf in lib/hosts.js.
-        hostIds: [createdBy],
+        hostIds: hostIds || [createdBy],
         /*
             Guests see each other's days by name on the overview. Never written onto a plan
             from before it: people on those answered expecting only the planner to see.

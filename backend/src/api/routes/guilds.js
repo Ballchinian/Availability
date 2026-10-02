@@ -51,7 +51,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, announce, date, time, allowedWeekdays, repeatWeeks } = req.body || {};
+    const { name, description, start, end, participantIds, hostIds, announce, date, time, allowedWeekdays, repeatWeeks } = req.body || {};
 
     const cleanName = String(name || '').trim();
     if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
@@ -66,6 +66,11 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     }
     if (participantIds.length > MAX_PARTICIPANTS) {
         return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people, which is more than a plan can hold.` });
+    }
+    //Whoever else runs it. Nobody is the usual answer, and the cap is the guest list's, for the same lookups.
+    const picked = Array.isArray(hostIds) ? hostIds : [];
+    if (picked.length > MAX_PARTICIPANTS) {
+        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people to run one plan.` });
     }
 
     /*
@@ -104,6 +109,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     //Only keep ids that are real, non bot members of this server
     const validIds = await realMembers(ctx.guild, participantIds);
     if (validIds.length === 0) return res.status(400).json({ error: 'None of those people are in the server.' });
+    //Whoever made it leads the list, whether or not the form named them
+    const hosts = [req.user.id, ...(await realMembers(ctx.guild, picked)).filter((id) => id !== req.user.id)];
 
     //A high daily backstop, since the planner role is the real gate on who can do this
     const rl = await takeAction(req.user.id, req.params.guildId, 'create', DAILY_LIMIT);
@@ -117,6 +124,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             name: cleanName,
             description: cleanDescription,
             createdBy: req.user.id,
+            hostIds: hosts,
             actorName: ctx.member.displayName,
             dateRange,
             participantIds: validIds,
@@ -126,7 +134,9 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             repeatWeeks: repeat
         });
 
-        const dropped = participantIds.length - validIds.length;
+        //Counted once each, since someone can be named to come and to run it
+        const kept = new Set([...validIds, ...hosts]);
+        const dropped = new Set([...participantIds, ...picked].filter((id) => !kept.has(id))).size;
 
         /*
             The thread, the pings and the DMs all run after the response. Everything the
