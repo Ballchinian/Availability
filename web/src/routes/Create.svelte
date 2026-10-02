@@ -5,6 +5,7 @@
     import { refocus } from '../lib/focus.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow, repeatSeries } from '../lib/calendar.js';
+    import { listNames } from '../lib/format.js';
     import type { CreatedPlan, GuildInfo, Member, PlanTemplate } from '../lib/types.js';
     import MemberPicker from '../lib/MemberPicker.svelte';
     import RangeField from '../lib/RangeField.svelte';
@@ -29,6 +30,12 @@
     let startDate = $state('');
     let endDate = $state('');
     let selectedIds = $state<string[]>([]);
+    //Who runs it besides whoever is filling this in, who always does and so is never offered
+    let hostIds = $state<string[]>([]);
+    const others = $derived(members.filter((m) => m.id !== auth.user?.id));
+    //Folded to start with, since most plans are run by whoever made them and nobody else
+    let hostsOpen = $state(false);
+    const hostNames = $derived(listNames(others.filter((m) => hostIds.includes(m.id)).map((m) => m.displayName)));
 
     //Which weekdays a collect plan asks about, indexed Sunday (0) to Saturday (6). All on
     //means the whole range, the default and how plans always were.
@@ -108,6 +115,8 @@
         //Only people still in the server, so the picker's count is what actually gets invited
         const here = new Set(members.map((m) => m.id));
         selectedIds = from.participantIds.filter((id) => here.has(id));
+        hostIds = (from.hostIds ?? []).filter((id) => here.has(id) && id !== auth.user?.id);
+        hostsOpen = hostIds.length > 0;
         likeName = from.name;
     }
 
@@ -165,6 +174,7 @@
                           date: setDate,
                           time: setTime || null,
                           participantIds: selectedIds,
+                          hostIds,
                           repeatWeeks
                       }
                     : {
@@ -173,6 +183,7 @@
                           start: startDate,
                           end: endDate,
                           participantIds: selectedIds,
+                          hostIds,
                           //All seven days is no restriction, so send nothing then
                           allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays,
                           repeatWeeks
@@ -199,7 +210,7 @@
         }
     }
 
-    //Back to an empty form. The crowd, the range and the notify toggles stay, since a second
+    //Back to an empty form. The crowd, whoever runs it and the range stay, since a second
     //plan is usually the same people again, and only what makes this plan itself is cleared.
     function startAnother() {
         result = null;
@@ -310,6 +321,23 @@
             <legend class="group-label">Who is coming?</legend>
             <MemberPicker {members} bind:selectedIds />
         </fieldset>
+
+        <!--Shut with someone picked, the label says who, since the form sends them either way-->
+        <details class="field fold" bind:open={hostsOpen}>
+            <summary class="group-label">
+                Who else runs it?
+                {#if !hostsOpen && hostNames}<span class="picked">{hostNames}</span>{/if}
+            </summary>
+            <p class="muted small">They can change the plan and call it off, whether or not they are coming.</p>
+            <MemberPicker
+                members={others}
+                bind:selectedIds={hostIds}
+                chosenHead="Running it with you"
+                addName={(name) => `Have ${name} run it too`}
+                removeName={(name) => `Stop ${name} running it`}
+                bulk={false}
+            />
+        </details>
 
         <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
         <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />

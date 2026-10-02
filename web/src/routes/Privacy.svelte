@@ -56,7 +56,8 @@
 
     <h2>Who can see your days</h2>
     <p>
-        Whoever runs a plan sees the most, and that's the planner who made it. Once you're in on a plan,
+        Whoever runs a plan sees the most. That's the planner who made it, and anyone in the server they
+        picked to run it with them. Once you're in on a plan,
         its overview shows them the days and hours you marked free within that plan's dates, on the days
         your answer covers. It also shows whether you're in, how many days you have left to answer, when
         you last updated your calendar, your yes or no on a set day, any reason you gave, and whether

@@ -1004,6 +1004,37 @@ describe('the member picker', () => {
         expect(body).toMatch(/<span id="([^"]+)-pool">Members \(2\)<\/span>[\s\S]*<ul class="list" aria-labelledby="\1-pool"/);
         expect(body).toMatch(/<span id="([^"]+)-chosen">Invited \(1\)<\/span>[\s\S]*<ul class="list drop" aria-labelledby="\1-chosen"/);
     });
+
+    //The create form's second one, for who else runs the plan, where "Add" and "Invited" would say the wrong thing
+    describe('given words of its own', () => {
+        const body = render(MemberPicker, {
+            props: {
+                members,
+                selectedIds: ['bob'],
+                chosenHead: 'Running it with you',
+                addName: (name: string) => `Have ${name} run it too`,
+                removeName: (name: string) => `Stop ${name} running it`,
+                bulk: false
+            }
+        }).body;
+
+        it('heads the picked column with them, and still counts it', () => {
+            expect(body).toMatch(/<span id="([^"]+)-chosen">Running it with you \(1\)<\/span>[\s\S]*<ul class="list drop" aria-labelledby="\1-chosen"/);
+            expect(body).not.toContain('Invited');
+        });
+
+        it('names each chip with them', () => {
+            expect(body).toContain('aria-label="Have ANN run it too"');
+            expect(body).toContain('aria-label="Stop BOB running it"');
+        });
+
+        //Nobody hands a whole server the running of a plan
+        it('has no Add all or Clear', () => {
+            expect(body).not.toContain('Add all');
+            expect(body).not.toContain('Clear');
+            expect(draw(['bob'])).toContain('Add all');
+        });
+    });
 });
 
 describe('the date range', () => {
@@ -1330,6 +1361,7 @@ describe('the privacy policy', () => {
 
     it('says who can see your days: whoever runs the plan, and its guests with no reasons', () => {
         expect(body).toMatch(/<h2>Who can see your days<\/h2>\s*<p>\s*Whoever runs a plan sees the most/);
+        expect(body).toMatch(/the planner who made it, and anyone in the server they\s+picked to run it with them/);
         expect(body).toMatch(/Having the planner role doesn't let anyone into a plan they aren't on/);
         expect(body).toMatch(/Everyone else on the plan can open its overview too/);
         expect(body).toMatch(/They never see a reason/);

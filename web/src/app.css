@@ -388,6 +388,23 @@ legend {
     color: var(--muted);
 }
 
+/* A field folded under its own label. 14px text alone is 21px tall, under the least a target can be. */
+.fold > summary.group-label {
+    display: list-item;
+    cursor: pointer;
+    min-height: 24px;
+    line-height: 24px;
+    margin-bottom: 0;
+}
+
+.fold > summary .picked {
+    color: var(--text);
+}
+
+.fold > p {
+    margin: 2px 0 10px;
+}
+
 .field input[type='text'],
 .field input[type='date'],
 .field input[type='time'],

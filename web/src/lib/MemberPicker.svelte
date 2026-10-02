@@ -7,10 +7,24 @@
         right. Click a person to send them across, or drag them. The left side
         has a search box so a big server stays manageable, and both columns
         scroll rather than stretch the page.
+
+        The words are the guest list's unless a form says its own. bulk is Add all and
+        Clear, which only suit a list most of a server ends up on.
     */
-    let { members = [], selectedIds = $bindable([]) }: {
+    let {
+        members = [],
+        selectedIds = $bindable([]),
+        chosenHead = 'Invited',
+        addName = (name: string) => `Add ${name}`,
+        removeName = (name: string) => `Remove ${name}`,
+        bulk = true
+    }: {
         members?: Member[];
         selectedIds?: string[];
+        chosenHead?: string;
+        addName?: (name: string) => string;
+        removeName?: (name: string) => string;
+        bulk?: boolean;
     } = $props();
 
     let search = $state('');
@@ -43,7 +57,8 @@
     }
 
     function add(id: string) {
-        if (selectedSet.has(id)) return;
+        //A drop can carry anything: a chip off another picker on the page, or text from elsewhere
+        if (selectedSet.has(id) || !members.some((m) => m.id === id)) return;
         stayIn(pool, id);
         selectedIds = [...selectedIds, id];
     }
@@ -98,7 +113,7 @@
                         draggable="true"
                         ondragstart={(e) => onDragStart(e, m.id)}
                         onclick={() => add(m.id)}
-                        aria-label="Add {m.displayName}"
+                        aria-label={addName(m.displayName)}
                     >
                         <img src={m.avatarUrl} alt="" width="24" height="24" />
                         <span>{m.displayName}</span>
@@ -113,13 +128,15 @@
 
     <div class="col">
         <div class="col-head">
-            <span id="{uid}-chosen">Invited ({chosen.length})</span>
-            <span class="head-actions">
-                <button type="button" class="quick" onclick={addAll} disabled={pool.length === 0}>
-                    {search.trim() ? 'Add all shown' : 'Add all'}
-                </button>
-                <button type="button" class="quick" onclick={clearAll} disabled={chosen.length === 0}>Clear</button>
-            </span>
+            <span id="{uid}-chosen">{chosenHead} ({chosen.length})</span>
+            {#if bulk}
+                <span class="head-actions">
+                    <button type="button" class="quick" onclick={addAll} disabled={pool.length === 0}>
+                        {search.trim() ? 'Add all shown' : 'Add all'}
+                    </button>
+                    <button type="button" class="quick" onclick={clearAll} disabled={chosen.length === 0}>Clear</button>
+                </span>
+            {/if}
         </div>
         <ul
             class="list drop"
@@ -135,7 +152,7 @@
                         draggable="true"
                         ondragstart={(e) => onDragStart(e, m.id)}
                         onclick={() => remove(m.id)}
-                        aria-label="Remove {m.displayName}"
+                        aria-label={removeName(m.displayName)}
                     >
                         <img src={m.avatarUrl} alt="" width="24" height="24" />
                         <span>{m.displayName}</span>
