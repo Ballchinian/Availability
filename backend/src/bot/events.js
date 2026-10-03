@@ -4,7 +4,7 @@ import { startSetup, handleSetupComponent } from './setup.js';
 import { handleTimeZone, handleZoneAutocomplete } from './timezone.js';
 import { handleFree, handleFreeComponent } from './availability.js';
 import { handleOverview, handleMyLink, handleMyCalendar, handleCancel, handlePlanComponent, handleDrop, handleUndrop, handleJoin, handleJoinModal, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
-import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd } from './cleanup.js';
+import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd, onGuildMemberUpdate } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';
 
@@ -49,6 +49,7 @@ export function attachEvents(client) {
     client.on('guildDelete', (guild) => onGuildDelete(guild).catch((err) => console.error('[cleanup] guildDelete:', err.message)));
     client.on('guildMemberRemove', (member) => onGuildMemberRemove(member).catch((err) => console.error('[cleanup] memberRemove:', err.message)));
     client.on('guildMemberAdd', (member) => onGuildMemberAdd(member).catch((err) => console.error('[cleanup] memberAdd:', err.message)));
+    client.on('guildMemberUpdate', (before, after) => onGuildMemberUpdate(before, after).catch((err) => console.error('[cleanup] memberUpdate:', err.message)));
 
     client.on('interactionCreate', async (interaction) => {
         try {

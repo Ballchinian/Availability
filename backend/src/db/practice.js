@@ -52,3 +52,13 @@ export async function removePracticePerson(id, ownerId) {
     await col(collections.users).deleteOne({ userId: id });
     return true;
 }
+
+//Every made-up person a planner has in a server, or everyone's when ownerId is null. Hands back their ids.
+export async function removePracticePeople(ownerId, guildId) {
+    const filter = ownerId ? { ownerId, guildId } : { guildId };
+    const ids = (await people().find(filter, { projection: { _id: 0, id: 1 } }).toArray()).map((p) => p.id);
+    if (!ids.length) return [];
+    await people().deleteMany({ id: { $in: ids } });
+    await col(collections.users).deleteMany({ userId: { $in: ids } });
+    return ids;
+}

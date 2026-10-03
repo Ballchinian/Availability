@@ -90,6 +90,8 @@ Planners get a **Practice** section at the bottom of My plans, for making up peo
 
 Nothing about a practice plan reaches Discord except what it sends you, which still comes to your DMs. Everything else the bot would send is kept on the site: its thread, pinned post and all, is drawn on the plan's overview as **The thread**, and viewing as a made-up person shows **Their messages** under their plans, each drawn the way Discord would draw it, with buttons that work. A no asks for its reason first, the way Discord's box does.
 
+Practice doesn't hang around. Leave the server, or lose the planner role there, and your made-up people in it go, along with the practice plans they were on. Anything kept for practice is dropped after 30 days either way.
+
 ## Commands
 
 Seven of them, and they sort into three lots: two for setting the server up, four anyone can run, and one for whoever runs the plan. Everything the bot says back to you here is only visible to you.

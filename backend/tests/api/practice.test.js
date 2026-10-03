@@ -59,7 +59,8 @@ const outbox = vi.hoisted(() => [
 ]);
 vi.mock('../../src/db/outbox.js', async (real) => ({
     ...(await real()),
-    getOutbox: vi.fn(async (to) => outbox.filter((m) => m.to === to))
+    getOutbox: vi.fn(async (to) => outbox.filter((m) => m.to === to)),
+    deleteOutboxFor: vi.fn(async () => {})
 }));
 vi.mock('../../src/bot/plans.js', () => bot);
 

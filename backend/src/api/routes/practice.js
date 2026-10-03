@@ -5,7 +5,7 @@ import { getPracticePeople, getPracticePerson, addPracticePerson, removePractice
 import { removeUserFromGuildPlans } from '../../db/plans.js';
 import { deleteAllForUser } from '../../db/availability.js';
 import { getTokenVersion } from '../../db/users.js';
-import { getOutbox, outboxShape } from '../../db/outbox.js';
+import { getOutbox, outboxShape, deleteOutboxFor } from '../../db/outbox.js';
 import { afterLeaving } from '../../bot/plans.js';
 import { newPracticeId, isPracticeId, PRACTICE_LIMIT, PRACTICE_NAME_MAX } from '../../lib/practice.js';
 import { dayHasPassed } from '../../lib/zones.js';
@@ -64,7 +64,7 @@ router.post('/', requireUser, async (req, res) => {
 
 /*
     No planner role needed, since it only ever takes away. They come off every plan they
-    were on, and their calendar goes with them.
+    were on, and their calendar and messages go with them.
 */
 router.delete('/:id', requireUser, async (req, res) => {
     const person = await getPracticePerson(req.params.id);
@@ -77,6 +77,7 @@ router.delete('/:id', requireUser, async (req, res) => {
         await afterLeaving(plan).catch((err) => console.error(`[practice] ${plan.planId} after removing ${person.id}:`, err));
     }
     await deleteAllForUser(person.id);
+    await deleteOutboxFor([], [person.id]);
     res.json({ ok: true });
 });
 

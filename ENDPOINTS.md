@@ -815,6 +815,8 @@ Save the requester's general timetable for a window.
 
 A planner's made-up people, for trying a plan out without anyone real hearing about it. Each one is made for one server and belongs to whoever made them.
 
+When the planner leaves that server or loses the planner role there, their made-up people in it go, with the practice plans holding them and everything kept for either, and the planner's own cards on those plans say the plan was deleted. All of a server's go if the bot leaves it. Anything the outbox keeps is dropped 30 days after it was sent.
+
 ## GET `/api/practice` (session)
 
 The requester's made-up people.

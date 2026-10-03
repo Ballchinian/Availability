@@ -43,6 +43,12 @@ export async function getOutbox(to, planId = null, limit = 200) {
         .toArray();
 }
 
+//Everything kept for these plans' threads, and for these people
+export async function deleteOutboxFor(planIds, userIds) {
+    if (!planIds.length && !userIds.length) return;
+    await box().deleteMany({ $or: [{ planId: { $in: planIds } }, { to: { $in: userIds } }] });
+}
+
 //One message as the site is sent it
 export function outboxShape(row) {
     return {

@@ -618,6 +618,13 @@ export async function deletePlansForGuild(guildId) {
     return plans;
 }
 
+//A planner's practice plans in one server, deleted and handed back
+export async function deletePracticePlans(ownerId, guildId) {
+    const plans = await col(collections.plans).find({ practice: ownerId, guildId }).toArray();
+    if (plans.length) await col(collections.plans).deleteMany({ planId: { $in: plans.map((p) => p.planId) } });
+    return plans;
+}
+
 /*
     Remove the plans whose threads went with a deleted channel, returning them first.
     Plans threaded before threadParentId was stored have none, and unknownParent takes

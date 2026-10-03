@@ -139,6 +139,8 @@ async function ensureIndexes(database) {
     await database.collection(collections.practiceOutbox).createIndex({ id: 1 }, { unique: true });
     await database.collection(collections.practiceOutbox).createIndex({ to: 1, at: -1 });
     await database.collection(collections.practiceOutbox).createIndex({ planId: 1 });
+    //Mongo drops anything kept for practice 30 days after it was sent, edits or not
+    await database.collection(collections.practiceOutbox).createIndex({ at: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 }
 
 /*
