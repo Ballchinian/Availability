@@ -102,31 +102,18 @@ const SERIES_LIMIT = 6;
 
     Each turn is read from two days past the one before it, which is the earliest the
     sweep can fire: it only looks once a day has been and gone, and asks for dates from
-    its own tomorrow.
-
-    A plan that collected dates comes back as a window rather than a day, and only the
-    next one of those is worth drawing: the sweep makes one at a time either way, and
-    six shifted windows tile the months solid.
+    its own tomorrow. A plan with no day yet has nothing to count from, and draws nothing.
 */
 export function repeatSeries(plan: RepeatSource): PlanShape[] {
     const out: PlanShape[] = [];
     if (!plan.repeatWeeks) return out;
 
-    const limit = plan.dateRange.start === plan.dateRange.end ? SERIES_LIMIT : 1;
     let source = plan;
-    let from = shiftDate(plan.chosenDate || plan.dateRange.start, 2);
-
-    for (let i = 0; i < limit; i++) {
-        const shape = nextPlanShape(source, from);
+    for (let i = 0; i < SERIES_LIMIT && source.chosenDate; i++) {
+        const shape = nextPlanShape(source, shiftDate(source.chosenDate, 2));
         if (!shape) break;
         out.push(shape);
-        source = {
-            repeatWeeks: plan.repeatWeeks,
-            dateRange: shape.dateRange,
-            chosenDate: shape.chosen ? shape.chosen.date : null,
-            chosenTime: shape.chosen ? shape.chosen.time : null
-        };
-        from = shiftDate(shape.chosen ? shape.chosen.date : shape.dateRange.start, 2);
+        source = { repeatWeeks: plan.repeatWeeks, dateRange: shape.dateRange, chosenDate: shape.chosen.date, chosenTime: shape.chosen.time };
     }
     return out;
 }

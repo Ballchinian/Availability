@@ -28,10 +28,11 @@ export interface RepeatSource {
     chosenNote?: string | null;
 }
 
+//The next plan in a series, which is always one with its day set
 export interface PlanShape {
-    set: boolean;
+    set: true;
     dateRange: { start: string; end: string };
-    chosen: { date: string; time: string | null; note: string | null } | null;
+    chosen: { date: string; time: string | null; note: string | null };
 }
 
 export function nextPlanShape(plan: RepeatSource, from?: string): PlanShape | null;

@@ -47,16 +47,11 @@
         return `${where}${over ? 'was on' : 'set for'} ${formatDate(p.chosenDate)}${p.chosenTime ? ` at ${formatTime(p.chosenTime)}${elsewhere}` : ''}`;
     }
 
-    /*
-        When a plan that repeats comes round next. Nothing is made until it has had its
-        day, so there is no date before then, and one that collected dates asks about a
-        window next, which is no one day to name.
-    */
+    //When a plan that repeats comes round next. Nothing is made until it has its day, so there is no date before then.
     function repeats(p: UserPlan) {
         const every = `Repeats ${describeRepeat(p.repeatWeeks)}`;
-        if (!p.repeatWeeks || !p.chosenDate) return every;
-        const [next] = repeatSeries({ repeatWeeks: p.repeatWeeks, dateRange: { start: p.start, end: p.end }, chosenDate: p.chosenDate, chosenTime: p.chosenTime });
-        return next?.chosen ? `${every} · next ${formatDate(next.chosen.date)}` : every;
+        const [next] = repeatSeries({ repeatWeeks: p.repeatWeeks || 0, dateRange: { start: p.start, end: p.end }, chosenDate: p.chosenDate, chosenTime: p.chosenTime });
+        return next ? `${every} · next ${formatDate(next.chosen.date)}` : every;
     }
 
     //hosts is whoever runs it other than the reader, so on a plan they run it is who they run it with

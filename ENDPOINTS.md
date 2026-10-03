@@ -241,7 +241,7 @@ Planner role only.
 * For a collect-availability plan: a start and end date
 * `allowedWeekdays` (optional, collect plans only): the weekdays people can mark, as numbers 0 (Sunday) to 6, e.g. `[0, 6]` for weekends. Left out, or all seven, means the whole range.
 * For a set plan: `announce` set to true, a single `date`, and an optional `time`
-* `repeatWeeks` (optional): `1`, `2` or `4` to have this come round again that many weeks after its day has been. Left out or null is a one off, and anything else is refused.
+* `repeatWeeks` (optional, set plans only): `1`, `2` or `4` to have this come round again on the same day that many weeks on. Left out or null is a one off, and anything else is refused. A collect plan is always made as a one off.
 
 ### Effects
 

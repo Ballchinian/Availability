@@ -65,17 +65,22 @@ describe('nextPlanShape', () => {
         });
     });
 
-    it('carries a collecting plan forward as a window of the same length', () => {
-        const next = nextPlanShape(collectPlan, '2026-08-07');
-        expect(next).toEqual({ set: false, dateRange: { start: '2026-08-29', end: '2026-09-11' }, chosen: null });
-        expect(next.chosen).toBe(null);
+    //Coming round is the day it found, again, rather than another round of asking
+    it('brings a plan that found its day by asking back on that day, set', () => {
+        expect(nextPlanShape(collectPlan, '2026-08-07')).toEqual({
+            set: true,
+            dateRange: { start: '2026-09-03', end: '2026-09-03' },
+            chosen: { date: '2026-09-03', time: null, note: null }
+        });
     });
 
-    //The whole reason intervals are whole weeks: a plan pinned to weekends stays on weekends
-    it('lands on the same weekdays it started on', () => {
-        const next = nextPlanShape(collectPlan, '2026-08-07');
-        expect(weekdayOf(next.dateRange.start)).toBe(weekdayOf(collectPlan.dateRange.start));
-        expect(weekdayOf(next.dateRange.end)).toBe(weekdayOf(collectPlan.dateRange.end));
+    //The whole reason intervals are whole weeks: a plan on a Thursday stays on Thursdays
+    it('lands on the weekday it started on', () => {
+        expect(weekdayOf(nextPlanShape(collectPlan, '2026-08-07').chosen.date)).toBe(weekdayOf(collectPlan.chosenDate));
+    });
+
+    it('has nothing to count from on a plan with no day yet', () => {
+        expect(nextPlanShape({ ...collectPlan, chosenDate: null }, '2026-08-07')).toBe(null);
     });
 
     it('keeps every other Thursday on Thursdays', () => {

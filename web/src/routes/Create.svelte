@@ -61,9 +61,9 @@
     let setTime = $state('');
 
     /*
-        Whether this comes round again once its day has been. Shared by both modes, since
-        a standing arrangement is a standing arrangement whether or not the day is already
-        known. Null is a one off, which is nearly every plan.
+        Whether this comes round again once its day has been, which is always on that day a
+        whole number of weeks later, so it is only asked of a plan with its day. Null is a
+        one off, which is nearly every plan.
     */
     let repeatWeeks = $state<number | null>(null);
 
@@ -256,7 +256,8 @@
 
     //The plan as the form has it, which the create and edit routes both read the same way
     function planBody() {
-        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks };
+        //A plan already repeating keeps it while it goes back to finding a day, and comes round again once it has one
+        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks: mode === 'announce' || editing ? repeatWeeks : null };
         return mode === 'announce'
             ? { ...common, announce: true, date: setDate, time: setTime || null }
             : {
@@ -437,9 +438,7 @@
             </div>
         {/if}
 
-        {#if editing && editData && editPlan}
-            <RepeatField bind:weeks={repeatWeeks} from={setDate} time={setTime} canStart={editData.isPlanner ?? true} was={editPlan.repeatWeeks} />
-        {/if}
+        <RepeatField bind:weeks={repeatWeeks} from={setDate} time={setTime} canStart={editData?.isPlanner ?? true} was={editPlan?.repeatWeeks ?? null} />
     {/if}
 
     <fieldset class="field" {...invalidIf(fault === 'people', 'form-error')}>
@@ -465,11 +464,6 @@
             lockedName="made the plan"
         />
     </details>
-
-    <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
-    {#if !editing}
-        <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />
-    {/if}
 
     <Status class="status" id="form-error" msg={formError} error bind:this={errorLine} />
 

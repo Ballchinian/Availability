@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { buildMonths, shiftDate, WEEKDAYS, type PlanShape } from './calendar.js';
+    import { buildMonths, WEEKDAYS, type PlanShape } from './calendar.js';
     import { formatLong } from './format.js';
 
     /*
@@ -15,16 +15,7 @@
 
     const marks = $derived.by(() => {
         const map: Record<string, string> = { [first]: 'first' };
-        for (const shape of shapes) {
-            if (shape.chosen) {
-                map[shape.chosen.date] = 'next';
-                continue;
-            }
-            //A window rather than a day, so every day of it, never over one already spoken for
-            for (let d = shape.dateRange.start; d <= shape.dateRange.end; d = shiftDate(d, 1)) {
-                if (!map[d]) map[d] = 'asks';
-            }
-        }
+        for (const shape of shapes) map[shape.chosen.date] = 'next';
         return map;
     });
 
@@ -36,26 +27,14 @@
     const index = $derived(Math.min(at, months.length - 1));
     const shown = $derived(months[index]);
 
-    //A window carries a key of its own, and only a plan that collected dates ever comes back as one
-    const asksWindow = $derived(shapes.some((s) => !s.chosen));
-    const hasNext = $derived(shapes.some((s) => Boolean(s.chosen)));
-
-    /*
-        The same series in words, for anyone who cannot see the grid. Read off the shapes
-        rather than the marked days so a window comes out as its two ends instead of every
-        date inside it.
-    */
+    //The same series in words, for anyone who cannot see the grid
     const spoken = $derived.by(() => {
-        const rest = shapes.map((s) =>
-            s.chosen ? formatLong(s.chosen.date) : `${formatLong(s.dateRange.start)} to ${formatLong(s.dateRange.end)}`
-        );
+        const rest = shapes.map((s) => formatLong(s.chosen.date));
         return rest.length ? `${formatLong(first)}, then ${rest.join(', ')}.` : `${formatLong(first)}.`;
     });
 
     function label(date: string) {
-        if (marks[date] === 'first') return `${formatLong(date)}, this one`;
-        if (marks[date] === 'next') return `${formatLong(date)}, it comes round again`;
-        return `${formatLong(date)}, one of the days the next one asks about`;
+        return marks[date] === 'first' ? `${formatLong(date)}, this one` : `${formatLong(date)}, it comes round again`;
     }
 </script>
 
@@ -86,7 +65,6 @@
                             class="rday"
                             class:first={marks[cell.date] === 'first'}
                             class:next={marks[cell.date] === 'next'}
-                            class:asks={marks[cell.date] === 'asks'}
                             title={marks[cell.date] ? label(cell.date) : undefined}
                         >{cell.day}</span>
                     {/if}
@@ -96,8 +74,7 @@
             {#if shapes.length}
                 <p class="rkey small">
                     <span class="rswatch first"></span> this one
-                    {#if hasNext}<span class="rswatch next"></span> after it{/if}
-                    {#if asksWindow}<span class="rswatch asks"></span> the days it asks about{/if}
+                    <span class="rswatch next"></span> after it
                 </p>
             {/if}
         </div>

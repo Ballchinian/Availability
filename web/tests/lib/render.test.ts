@@ -523,16 +523,6 @@ describe('the repeat dates calendar', () => {
         expect(body).not.toContain('Later month');
         expect(body).not.toContain('rkey');
     });
-
-    //A plan that collected dates comes back as a window, which reads as a stretch rather than a day
-    it('names the days a following window asks about', () => {
-        const body = draw({
-            first: '2026-08-10',
-            shapes: repeatSeries({ repeatWeeks: 1, dateRange: { start: '2026-08-01', end: '2026-08-14' }, chosenDate: '2026-08-10' })
-        });
-        expect(body).toContain('one of the days the next one asks about');
-        expect(body).toContain('the days it asks about');
-    });
 });
 
 /*
@@ -736,8 +726,9 @@ describe('a plan card', () => {
             expect(draw(card({ repeatWeeks: 1 }))).toContain(tag('Repeats every week'));
         });
 
-        it('give no next date for a plan that found its day in a window, which asks about a window next', () => {
-            expect(draw(card({ ...set, end: isoFromNow(9, 'day'), repeatWeeks: 2 }))).toContain(tag('Repeats every other week'));
+        //It comes round on the day it found, not as another window
+        it('give the next date for a plan that found its day by asking, too', () => {
+            expect(draw(card({ ...set, end: isoFromNow(9, 'day'), repeatWeeks: 2 }))).toContain(tag(`Repeats every other week · next ${formatDate(isoFromNow(17, 'day'))}`));
         });
 
         it('say nothing of a repeat on Past plans, where the next one is a card of its own', () => {

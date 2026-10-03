@@ -164,31 +164,21 @@ export function nextInSeries(date, weeks, notBefore) {
 }
 
 /*
-    What the next plan in the series looks like. A plan announced with its day already
-    decided (a range of one day) comes back as another of those on the next date. A plan
-    that collected availability comes back as another window of the same length, shifted
-    the same way, so it asks about the same stretch of the same weekdays.
+    What the next plan in the series looks like: another plan with its day already set,
+    on the next date in the series. A plan that found its day by asking comes round on
+    that day too, not as another round of asking; a group that picks a new day each time
+    uses "Plan another like this" instead.
 
-    Null when the series has run out of road: too stale to catch up, or the next window
-    would land past the two years everything else here is bounded by.
+    Null when there is nothing to count from yet, or the series has run out of road: too
+    stale to catch up, or the next day lands past the two years everything else here is
+    bounded by.
 
-    Shared because the overview shows a planner the dates before they turn a repeat
-    on, and a preview worked out any other way would be a promise the sweep might not keep.
+    Shared because the overview shows a planner the dates before they turn a repeat on,
+    and a preview worked out any other way would be a promise the sweep might not keep.
 */
 export function nextPlanShape(plan, from = tomorrow()) {
-    const weeks = plan.repeatWeeks;
-    const wasSet = plan.dateRange.start === plan.dateRange.end;
-
-    if (wasSet) {
-        const date = nextInSeries(plan.chosenDate, weeks, from);
-        if (!date || date > maxEnd()) return null;
-        return { set: true, dateRange: { start: date, end: date }, chosen: { date, time: plan.chosenTime || null, note: plan.chosenNote || null } };
-    }
-
-    const span = daysBetween(plan.dateRange.start, plan.dateRange.end);
-    const start = nextInSeries(plan.dateRange.start, weeks, from);
-    if (!start) return null;
-    const end = shiftDate(start, span);
-    if (end > maxEnd()) return null;
-    return { set: false, dateRange: { start, end }, chosen: null };
+    if (!plan.chosenDate) return null;
+    const date = nextInSeries(plan.chosenDate, plan.repeatWeeks, from);
+    if (!date || date > maxEnd()) return null;
+    return { set: true, dateRange: { start: date, end: date }, chosen: { date, time: plan.chosenTime || null, note: plan.chosenNote || null } };
 }

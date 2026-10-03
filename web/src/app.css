@@ -1669,11 +1669,6 @@ a.ghost:hover {
     color: var(--text);
 }
 
-.rday.asks {
-    background: var(--accent-soft);
-    color: var(--text);
-}
-
 .rkey {
     display: flex;
     flex-wrap: wrap;
@@ -1692,10 +1687,6 @@ a.ghost:hover {
 
 .rswatch.first {
     background: var(--accent);
-}
-
-.rswatch.asks {
-    background: var(--accent-soft);
 }
 
 /* Read out but not drawn, for the parts of a page that only make sense as a picture */

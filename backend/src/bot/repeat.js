@@ -149,12 +149,8 @@ async function repeatOne(plan) {
     await addPlanEvent(plan.planId, { type: 'repeated', by: plan.createdBy, byName: '', planId: nextId }).catch(() => {});
 
     try {
-        if (shape.set) {
-            next = await setPlanChosen(next.planId, shape.chosen.date, shape.chosen.time, shape.chosen.note);
-            await announceSetPlan(next, cfg, '');
-        } else {
-            await announcePlan(next, cfg, '');
-        }
+        next = await setPlanChosen(next.planId, shape.chosen.date, shape.chosen.time, shape.chosen.note);
+        await announceSetPlan(next, cfg, '');
     } catch (err) {
         console.error(`[repeat] ${nextId} was made but not announced, repairing it next sweep:`, err);
         await setNeedsRepair(nextId, true).catch(() => {});

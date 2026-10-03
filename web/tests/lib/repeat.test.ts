@@ -54,12 +54,12 @@ describe('the repeat preview', () => {
         });
     });
 
-    it('previews a window of the same length for a plan that collected dates', () => {
+    it('previews the day a plan that collected dates landed on, a week on', () => {
         const shape = nextPlanShape(
             { repeatWeeks: 1, dateRange: { start: '2026-08-01', end: '2026-08-14' }, chosenDate: '2026-08-10' },
             '2026-08-12'
         );
-        expect(shape).toEqual({ set: false, dateRange: { start: '2026-08-15', end: '2026-08-28' }, chosen: null });
+        expect(shape).toEqual({ set: true, dateRange: { start: '2026-08-17', end: '2026-08-17' }, chosen: { date: '2026-08-17', time: null, note: null } });
     });
 
     //What the panel says out loud instead of a date, rather than showing one it cannot promise
@@ -91,14 +91,13 @@ describe('repeatSeries', () => {
         expect(repeatSeries(setPlan(1)).every((s) => s.chosen?.time === '19:00')).toBe(true);
     });
 
-    //Six shifted windows would tile the months solid, and the sweep only makes one at a time
-    it('draws only the next window for a plan that collected dates', () => {
-        const series = repeatSeries({
-            repeatWeeks: 1,
-            dateRange: { start: '2026-08-01', end: '2026-08-14' },
-            chosenDate: '2026-08-10'
-        });
-        expect(series).toEqual([{ set: false, dateRange: { start: '2026-08-15', end: '2026-08-28' }, chosen: null }]);
+    it('walks a plan that collected dates out from the day it found, the same as one made with its day', () => {
+        const series = repeatSeries({ repeatWeeks: 1, dateRange: { start: '2026-08-01', end: '2026-08-14' }, chosenDate: '2026-08-10' });
+        expect(series.map((s) => s.chosen.date)).toEqual(['2026-08-17', '2026-08-24', '2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21']);
+    });
+
+    it('has nothing to draw for a plan with no day yet', () => {
+        expect(repeatSeries({ repeatWeeks: 1, dateRange: { start: '2026-08-01', end: '2026-08-14' }, chosenDate: null })).toEqual([]);
     });
 
     it('has nothing to draw for a one off', () => {
