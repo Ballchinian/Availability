@@ -218,8 +218,8 @@ describe('a practice plan', () => {
         expect(lookups).toEqual(['ali']);
     });
 
-    it('is not one for a real plan', async () => {
-        await start(form());
+    it('is not one for a real plan, whatever the form says', async () => {
+        await start(form({ practice: 'ali' }));
         expect(made().practice).toBe(null);
     });
 

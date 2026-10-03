@@ -5,21 +5,31 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
     kept on the site instead of sent. Ali is real and made the practice plan. Pat is made up.
 */
 
-//Real DMs, and every thread Discord was asked for
+//Real DMs, every thread Discord was asked for, and every user and channel it was asked about
 const dms = [];
 const created = [];
+const asked = [];
 
 vi.mock('../../src/bot/client.js', () => ({
     client: {
         users: {
-            fetch: async (userId) => ({
-                send: async (payload) => {
-                    dms.push({ userId, ...payload });
-                    return { id: `dm-${userId}` };
-                }
-            })
+            fetch: async (userId) => {
+                asked.push(`user ${userId}`);
+                return {
+                    send: async (payload) => {
+                        dms.push({ userId, ...payload });
+                        return { id: `dm-${userId}` };
+                    },
+                    createDM: async () => ({ messages: { fetch: async (id) => ({ id, edit: async () => {}, delete: async () => {} }) } })
+                };
+            }
         },
-        channels: { fetch: async () => Promise.reject(new Error('no such channel')) },
+        channels: {
+            fetch: async (id) => {
+                asked.push(`channel ${id}`);
+                throw new Error('no such channel');
+            }
+        },
         guilds: {
             fetch: async () => ({
                 name: 'The server',
@@ -70,7 +80,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
 
 const { userFor, channelFor } = await import('../../src/bot/outbox.js');
 const { pinMessage } = await import('../../src/bot/util.js');
-const { announcePlan, announceSetPlan } = await import('../../src/bot/plans.js');
+const { announcePlan, announceSetPlan, syncPlan, announceCancel, remindStragglers } = await import('../../src/bot/plans.js');
 const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = await import('discord.js');
 
 beforeEach(() => {
@@ -78,6 +88,7 @@ beforeEach(() => {
     rows.length = 0;
     dms.length = 0;
     created.length = 0;
+    asked.length = 0;
 });
 
 describe('a DM to someone made up', () => {
@@ -178,5 +189,38 @@ describe('announcing a practice plan', () => {
         expect(created).toEqual([]);
         expect(rows.find((r) => r.to === 'thread').content).toContain('**Fire drill** is set for');
         expect(rows.find((r) => r.to === 'practice_pat').components[0].components.map((b) => b.custom_id)).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
+    });
+});
+
+//Pathway test 33: the client is never asked about anyone made up or a practice thread, through a plan's whole life
+describe('discord, through a practice plan from start to called off', () => {
+    it('is asked about the planner and nobody else', async () => {
+        const plan = {
+            planId: 'p1',
+            guildId: 'g1',
+            practice: 'ali',
+            hostIds: ['ali', 'practice_lou'],
+            threadId: null,
+            openerMessageId: null,
+            name: 'Fire drill',
+            description: '',
+            status: 'collecting',
+            timeZone: 'Europe/London',
+            dateRange: { start: '2026-08-01', end: '2026-08-14' },
+            chosenDate: null,
+            probeActive: false,
+            participants: ['ali', 'practice_pat'].map((userId) => ({ userId, invited: true }))
+        };
+        await announcePlan(plan, { guildName: 'The server', plansChannelId: 'c2' }, 'Ali');
+        const opened = { ...plan, threadId: 'outbox_p1', openerMessageId: rows.find((r) => r.to === 'thread').id };
+        const withCards = { ...opened, participants: opened.participants.map((p) => ({ ...p, cardMessageId: p.userId === 'ali' ? 'dm-ali' : rows.find((r) => r.to === p.userId).id })) };
+        await remindStragglers(withCards, 'Ali');
+        await syncPlan(withCards);
+        await announceCancel({ ...withCards, status: 'cancelled' }, 'Ali');
+
+        expect(created).toEqual([]);
+        expect(asked.every((a) => a === 'user ali')).toBe(true);
+        expect(rows.some((r) => r.to === 'thread' && r.content.includes('CALLED OFF'))).toBe(true);
+        expect(rows.some((r) => r.to === 'practice_pat' && r.content.includes('CALLED OFF'))).toBe(true);
     });
 });
