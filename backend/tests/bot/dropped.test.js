@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 /*
     The DMs everyone who runs a plan gets when someone drops out, says it is not for them
     or comes back in, and the names handed back, which is all the site has to go on when
-    it tells the person who heard.
+    it tells the person who heard. Also the one they get on being picked to run it.
 */
 
 const dms = [];
@@ -35,7 +35,7 @@ vi.mock('../../src/bot/client.js', () => ({
 }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 
-const { notifyHostsDropped, announceJoin } = await import('../../src/bot/plans.js');
+const { notifyHostsDropped, notifyHostsPicked, announceJoin } = await import('../../src/bot/plans.js');
 
 const plan = { planId: 'p1', guildId: 'g1', name: 'Board games', createdBy: 'planner' };
 
@@ -121,6 +121,21 @@ describe('telling whoever runs it about a count me in or not for me', () => {
 
     it('says nothing when someone just says they are in', async () => {
         await announceJoin(answered(true), 'guest', null);
+        expect(dms).toEqual([]);
+    });
+});
+
+describe('telling someone they were picked to run a plan', () => {
+    it('DMs everyone picked, from whoever made it, with the overview', async () => {
+        await notifyHostsPicked({ ...plan, hostIds: ['planner', 'sam', 'guest'] }, 'planner');
+
+        expect(dms.map((d) => d.userId).sort()).toEqual(['guest', 'sam']);
+        expect(dms[0].text.content).toBe('**YOU RUN THIS**\n\nAli picked you to run "Board games" in The server with them.');
+        expect(dms[0].text.components[0].components[0].data).toMatchObject({ label: 'Open the overview', url: expect.stringContaining('/plan/p1/overview') });
+    });
+
+    it('DMs nobody on a plan its maker runs alone', async () => {
+        await notifyHostsPicked({ ...plan, hostIds: ['planner'] }, 'planner');
         expect(dms).toEqual([]);
     });
 });

@@ -25,8 +25,10 @@ const db = vi.hoisted(() => ({
     setPlanChosen: vi.fn(async (planId) => ({ planId }))
 }));
 vi.mock('../../src/db/plans.js', () => db);
-vi.mock('../../src/bot/plans.js', () => ({ announcePlan: vi.fn(), announceSetPlan: vi.fn() }));
-vi.mock('../../src/api/announce.js', () => ({ announceAfter: vi.fn() }));
+const bot = vi.hoisted(() => ({ announcePlan: vi.fn(), announceSetPlan: vi.fn(), notifyHostsPicked: vi.fn() }));
+vi.mock('../../src/bot/plans.js', () => bot);
+const queued = vi.hoisted(() => ({ announceAfter: vi.fn() }));
+vi.mock('../../src/api/announce.js', () => queued);
 vi.mock('../../src/bot/util.js', () => ({ planUrl: (planId) => `https://site/#/plan/${planId}` }));
 vi.mock('../../src/db/ratelimits.js', () => ({ takeAction: vi.fn(async () => ({ allowed: true })) }));
 
@@ -140,6 +142,26 @@ describe('who runs a new plan', () => {
     it('holds for a plan made with its day already set', async () => {
         await start(form({ announce: true, date: ahead(5), hostIds: ['sam'] }));
         expect(made().hostIds).toEqual(['ali', 'sam']);
+    });
+});
+
+//The thread never says why they are in it, so each of them is DMed once, after the plan is announced
+describe('telling the people picked to run it', () => {
+    //What the queue runs, by label, each with the plan as it stands by then
+    const jobs = () => queued.announceAfter.mock.calls.map(([, label, run]) => ({ label, run }));
+
+    it('comes after the announcement, from whoever made the plan', async () => {
+        await start(form({ hostIds: ['sam'] }));
+        expect(jobs().map((j) => j.label)).toEqual(['announce', 'hosts picked']);
+
+        const current = { planId: 'ab12cd34ef', hostIds: ['ali', 'sam'] };
+        await jobs()[1].run(current);
+        expect(bot.notifyHostsPicked).toHaveBeenCalledWith(current, 'ali');
+    });
+
+    it('comes for a plan made with its day set too', async () => {
+        await start(form({ announce: true, date: ahead(5), hostIds: ['sam'] }));
+        expect(jobs().map((j) => j.label)).toEqual(['set-plan announce', 'hosts picked']);
     });
 });
 

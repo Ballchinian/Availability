@@ -1397,6 +1397,18 @@ function notifyHostsBackIn(plan, userId) {
 }
 
 /*
+    Everyone picked to run a plan as it is made, from whoever made it, since the thread
+    they are pulled into never says why. Not sent on a repeat's next plan: they ran the
+    last one.
+*/
+export function notifyHostsPicked(plan, userId) {
+    return tellHosts(plan, userId, (name, where) => ({
+        content: banner('YOU RUN THIS') + `${name} picked you to run "${plan.name}"${where} with them.`,
+        components: [overviewRow(plan)]
+    }));
+}
+
+/*
     Count me in or Not for me having landed, from the site or a DM. Their card is brought in
     line unless the press that did it has already rewritten it, and whoever runs the plan
     hears about someone going out or coming back in. was is where they stood before. Hands

@@ -250,6 +250,7 @@ Planner role only.
 * Creates the plan, run by the requester and everyone in `hostIds`.
 * Collect mode: opens a private thread, pulls in the invited people and whoever runs it, and DMs the invited people.
 * Set mode: records the date as already decided, opens the same thread so the plan can be managed, and DMs the invited people a yes/no.
+* Either way, everyone in `hostIds` gets one DM saying who picked them to run it, with a link to its overview. A repeat's next plan sends none, since they ran the last one.
 
 ### Returns
 

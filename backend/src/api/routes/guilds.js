@@ -3,7 +3,7 @@ import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
-import { announcePlan, announceSetPlan } from '../../bot/plans.js';
+import { announcePlan, announceSetPlan, notifyHostsPicked } from '../../bot/plans.js';
 import { checkRange, maxEnd, cleanWeekdays, allowedDaysInRange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
@@ -148,10 +148,12 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             //Record the date straight away, then announce it as decided
             plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, null);
             announceAfter(plan.planId, 'set-plan announce', (current) => announceSetPlan(current, ctx.cfg, ctx.member.displayName));
+            announceAfter(plan.planId, 'hosts picked', (current) => notifyHostsPicked(current, req.user.id));
             return res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped, set: true });
         }
 
         announceAfter(plan.planId, 'announce', (current) => announcePlan(current, ctx.cfg, ctx.member.displayName));
+        announceAfter(plan.planId, 'hosts picked', (current) => notifyHostsPicked(current, req.user.id));
 
         res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped });
     } catch (err) {
