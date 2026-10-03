@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { router } from 'svelte-spa-router';
-    import { loadMe } from './auth.svelte.js';
+    import { auth, backToMe, loadMe } from './auth.svelte.js';
     import UserBadge from './UserBadge.svelte';
 
     /*
@@ -17,7 +17,13 @@
         { path: '/past', label: 'Past plans' }
     ];
 
-    onMount(loadMe);
+    onMount(() => {
+        loadMe();
+        //A request turned away because practice had to end has already signed the planner back in
+        const ended = () => loadMe(true);
+        window.addEventListener('practiceended', ended);
+        return () => window.removeEventListener('practiceended', ended);
+    });
 
     //The router reads any hash without a slash as home, so a plain #content would navigate there
     function skip(event: MouseEvent) {
@@ -36,4 +42,10 @@
         {/each}
     </nav>
     <UserBadge />
+    {#if auth.real && auth.user}
+        <p class="practising">
+            Viewing as <strong>{auth.user.displayName}</strong> (practice) ·
+            <button class="link-btn" onclick={() => backToMe().catch(() => {})}>Back to you</button>
+        </p>
+    {/if}
 </header>

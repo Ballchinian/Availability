@@ -84,6 +84,8 @@ Nothing is stored converted. Your availability is kept exactly as you wrote it, 
 
 Planners get a **Practice** section at the bottom of My plans, for making up people to try a plan out on. Each one is made for one server, up to ten a server, and can be given the planner role. Removing one takes them off any plan they were on and deletes their calendar.
 
+**View as** opens the site as that person, from their own My plans, with a line under the header saying who you're viewing as and a way back to you. Logging out logs you out, not them. If they're removed, or you lose the planner role in their server, you're put back as yourself.
+
 ## Commands
 
 Seven of them, and they sort into three lots: two for setting the server up, four anyone can run, and one for whoever runs the plan. Everything the bot says back to you here is only visible to you.

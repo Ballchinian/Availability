@@ -1833,3 +1833,14 @@ a.ghost:hover {
     font-size: 15px;
     font-family: inherit;
 }
+
+/* Who the site is being viewed as, on a line of its own under the rest of the header */
+.practising {
+    flex-basis: 100%;
+    order: 2;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px dashed var(--control-border);
+    border-radius: 8px;
+    font-size: 14px;
+}

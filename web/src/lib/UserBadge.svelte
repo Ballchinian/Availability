@@ -6,7 +6,8 @@
     <span class="muted">Checking...</span>
 {:else if auth.user}
     <span class="user-badge">
-        <img src={auth.user.avatar} alt="" width="28" height="28" />
+        <!--A made-up person has no avatar to show-->
+        {#if auth.user.avatar}<img src={auth.user.avatar} alt="" width="28" height="28" />{/if}
         <span>{auth.user.displayName}</span>
         <button class="link-btn" onclick={logout}>Log out</button>
     </span>

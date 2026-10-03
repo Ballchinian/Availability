@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, tick } from 'svelte';
     import { api, errorText } from './api.js';
+    import { auth, viewAs } from './auth.svelte.js';
     import { refocus } from './focus.js';
     import Status, { invalidIf } from './Status.svelte';
     import type { PracticePerson, UserGuild } from './types.js';
@@ -11,7 +12,8 @@
     */
     let { guilds }: { guilds: UserGuild[] } = $props();
 
-    const planning = $derived(guilds.filter((g) => g.setupComplete && g.isPlanner));
+    //Never while viewing as one of them, who has nobody made up of their own
+    const planning = $derived(auth.real ? [] : guilds.filter((g) => g.setupComplete && g.isPlanner));
 
     let people = $state<PracticePerson[]>([]);
     let loadError = $state('');
@@ -33,7 +35,8 @@
     );
 
     onMount(async () => {
-        guildId = planning[0]?.guildId ?? '';
+        if (!planning.length) return;
+        guildId = planning[0].guildId;
         try {
             people = (await api<{ people: PracticePerson[] }>('/practice')).people;
         } catch (err) {
@@ -68,6 +71,17 @@
         }
         adding = false;
         refocus(() => nameField);
+    }
+
+    async function view(person: PracticePerson) {
+        msg = '';
+        failed = false;
+        try {
+            await viewAs(person.id);
+        } catch (err) {
+            failed = true;
+            msg = errorText(err);
+        }
     }
 
     async function remove(person: PracticePerson) {
@@ -106,6 +120,7 @@
                         <li>
                             <span class="who">{person.displayName}</span>
                             {#if person.planner}<span class="tag">planner role</span>{/if}
+                            <button class="ghost" onclick={() => view(person)}>View as {person.displayName}</button>
                             <button class="link-btn" id="remove-{person.id}" aria-label="Remove {person.displayName}" onclick={() => remove(person)}>
                                 Remove
                             </button>
