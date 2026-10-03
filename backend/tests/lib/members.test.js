@@ -32,6 +32,12 @@ describe('realMembers', () => {
         expect(await realMembers(guild, ['a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
     });
 
+    it('never asks Discord about anything that is not an id', async () => {
+        const guild = fakeGuild({ remote: [member('a')] });
+        expect(await realMembers(guild, [{}, 7, null, 'a', ['a']])).toEqual(['a']);
+        expect(guild.fetched).toEqual(['a']);
+    });
+
     it('drops bots and anyone the server does not have', async () => {
         const guild = fakeGuild({ remote: [member('a'), member('bot', true), member('c')] });
         expect(await realMembers(guild, ['a', 'bot', 'gone', 'c'])).toEqual(['a', 'c']);

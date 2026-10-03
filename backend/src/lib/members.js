@@ -11,8 +11,12 @@ import { fanOut } from './fanout.js';
     order, which on the site is whatever the picker was dragged into.
 */
 export async function realMembers(guild, given) {
-    //A picker that sends someone twice would otherwise put them on the plan twice
-    const ids = [...new Set(given)];
+    /*
+        A picker that sends someone twice would otherwise put them on the plan twice. Only
+        strings reach Discord: members.fetch reads an object as options, and an empty one
+        asks the gateway for the whole server.
+    */
+    const ids = [...new Set(given)].filter((id) => typeof id === 'string');
     const kept = new Array(ids.length).fill(null);
 
     await fanOut(ids, async (id, i) => {
