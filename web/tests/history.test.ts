@@ -1,0 +1,193 @@
+import { describe, it, expect } from 'vitest';
+import { describeEvent, hasActor, timeAgo } from '../src/overview/history.js';
+import type { EditChange, PlanEvent } from '../src/site/types.js';
+
+const base = { at: '2026-08-05T18:00:00.000Z', by: '1', byName: 'Ethan' };
+
+describe('describeEvent', () => {
+    it('says a plan started', () => {
+        expect(describeEvent({ ...base, type: 'created' })).toBe('started the plan');
+    });
+
+    it('reads a set day, with and without a time', () => {
+        expect(describeEvent({ ...base, type: 'chosen', date: '2026-08-12', time: '19:30', probe: false })).toBe(
+            'set the day to Wed 12 Aug 2026 at 7:30pm'
+        );
+        expect(describeEvent({ ...base, type: 'chosen', date: '2026-08-12', time: null, probe: false })).toBe(
+            'set the day to Wed 12 Aug 2026'
+        );
+    });
+
+    it('mentions the confirmation round when one was started with it', () => {
+        expect(describeEvent({ ...base, type: 'chosen', date: '2026-08-12', time: null, probe: true })).toBe(
+            'set the day to Wed 12 Aug 2026, and asked everyone to confirm'
+        );
+    });
+
+    //The whole point of 8.6: a day that moved twice should say what it moved off
+    it('names the day a move came off', () => {
+        expect(
+            describeEvent({ ...base, type: 'moved', from: '2026-08-12', date: '2026-08-19', time: null, probe: false })
+        ).toBe('moved the day from Wed 12 Aug 2026 to Wed 19 Aug 2026');
+    });
+
+    it('carries a reason for calling a day off, and copes without one', () => {
+        expect(describeEvent({ ...base, type: 'voided', from: '2026-08-12', reason: 'the venue fell through' })).toBe(
+            'called off Wed 12 Aug 2026, because the venue fell through'
+        );
+        expect(describeEvent({ ...base, type: 'voided', from: '2026-08-12', reason: null })).toBe('called off Wed 12 Aug 2026');
+    });
+
+    it('reads a range change', () => {
+        expect(describeEvent({ ...base, type: 'range', start: '2026-08-01', end: '2026-08-31' })).toBe(
+            'changed the dates to Sat 1 Aug 2026 to Mon 31 Aug 2026'
+        );
+    });
+
+    //One press moved several things, so one line says all of them rather than three lines saying one each
+    it('reads a trip back out for dates as a single line', () => {
+        const went = { ...base, type: 'dates' as const, start: '2026-09-01', end: '2026-09-30', reopened: true };
+        expect(describeEvent({ ...went, allowedWeekdays: null, added: 0 })).toBe(
+            'went back out for dates, Tue 1 Sep 2026 to Wed 30 Sep 2026'
+        );
+        expect(describeEvent({ ...went, allowedWeekdays: [0, 6], added: 2 })).toBe(
+            'went back out for dates, Tue 1 Sep 2026 to Wed 30 Sep 2026, weekends only, and added 2 people'
+        );
+    });
+
+    /*
+        describeWeekdays says nothing at all when there is no restriction, which is right
+        in a line of its own and useless mid sentence, so this one supplies the words.
+    */
+    it('spells out a weekday change, including dropping the restriction', () => {
+        expect(describeEvent({ ...base, type: 'weekdays', allowedWeekdays: [0, 6] })).toBe(
+            'changed the days asked about to weekends'
+        );
+        expect(describeEvent({ ...base, type: 'weekdays', allowedWeekdays: null })).toBe(
+            'changed the days asked about to every day'
+        );
+    });
+
+    it('tells a rename apart from a description edit', () => {
+        expect(describeEvent({ ...base, type: 'details', renamed: true })).toBe('edited the title and description');
+        expect(describeEvent({ ...base, type: 'details', renamed: false })).toBe('edited the description');
+    });
+
+    it('counts people one at a time properly', () => {
+        expect(describeEvent({ ...base, type: 'added', count: 1 })).toBe('added 1 person');
+        expect(describeEvent({ ...base, type: 'added', count: 3 })).toBe('added 3 people');
+    });
+
+    it('tells the two nudges apart', () => {
+        expect(describeEvent({ ...base, type: 'reminded', kind: 'availability', count: 2 })).toBe(
+            'nudged 2 people for their dates'
+        );
+        expect(describeEvent({ ...base, type: 'reminded', kind: 'vote', count: 1 })).toBe(
+            'nudged 1 person who had not answered'
+        );
+    });
+
+    it('covers coming and going', () => {
+        expect(describeEvent({ ...base, type: 'left' })).toBe('dropped out');
+        expect(describeEvent({ ...base, type: 'rejoined' })).toBe('came back to the plan');
+        expect(describeEvent({ ...base, type: 'cancelled' })).toBe('called the plan off');
+    });
+
+    //Someone stepping in to run a plan they did not make, which the people on it should be able to see
+    it('says who took the plan on', () => {
+        expect(describeEvent({ ...base, type: 'tookon' })).toBe('took the plan on');
+    });
+
+    it('reads a repeat being set and being stopped', () => {
+        expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 2 })).toBe('set this to come round every other week');
+        expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 1 })).toBe('set this to come round every week');
+        expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: null })).toBe('stopped this coming round again');
+    });
+});
+
+describe('hasActor', () => {
+    /*
+        Coming round again is the one thing on a plan nobody did, so the panel leaves the
+        name off and the sentence carries its own subject instead.
+    */
+    it('leaves the name off the line the sweep wrote', () => {
+        expect(hasActor({ ...base, type: 'repeated', planId: 'ab12cd34ef' })).toBe(false);
+        expect(describeEvent({ ...base, type: 'repeated', planId: 'ab12cd34ef' })).toBe('This one came round again as a new plan');
+    });
+
+    //The sweep stopping a repeat. A person stopping one keeps their name, as the 'repeat' line.
+    it('leaves it off the repeat the sweep stopped, and says why it did', () => {
+        expect(hasActor({ ...base, type: 'repeatended' })).toBe(false);
+        expect(describeEvent({ ...base, type: 'repeatended' })).toBe(
+            'This one stopped coming round again, since nobody who runs it has the planner role any more'
+        );
+    });
+
+    it('keeps it on everything a person did', () => {
+        expect(hasActor({ ...base, type: 'created' })).toBe(true);
+        expect(hasActor({ ...base, type: 'repeat', repeatWeeks: 2 })).toBe(true);
+    });
+});
+
+describe('timeAgo', () => {
+    const now = new Date('2026-08-05T18:00:00.000Z');
+    const ago = (ms: number) => timeAgo(new Date(now.getTime() - ms).toISOString(), now);
+
+    it('rounds the last minute down to just now', () => {
+        expect(ago(0)).toBe('just now');
+        expect(ago(59_000)).toBe('just now');
+    });
+
+    it('counts minutes, hours and days', () => {
+        expect(ago(60_000)).toBe('1 minute ago');
+        expect(ago(90 * 60_000)).toBe('1 hour ago');
+        expect(ago(3 * 86_400_000)).toBe('3 days ago');
+    });
+
+    //Past a week a count of days stops being something anyone can place
+    it('gives the date itself once it is over a week old', () => {
+        expect(ago(8 * 86_400_000)).toMatch(/^on (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    });
+
+    it('does not go negative on a stamp a moment in the future', () => {
+        expect(timeAgo(new Date(now.getTime() + 5_000).toISOString(), now)).toBe('just now');
+    });
+
+    it('is blank for a stamp it cannot read', () => {
+        expect(timeAgo('not a date', now)).toBe('');
+    });
+});
+
+describe('an edit', () => {
+    const edited = (changes: EditChange[], quiet = false): PlanEvent => ({ ...base, type: 'edited', changes, quiet });
+
+    it('lists everything one save changed in one line', () => {
+        expect(
+            describeEvent(
+                edited([
+                    { type: 'name', from: 'Pub quiz', to: 'Quiz night' },
+                    { type: 'day', from: '2026-08-12', date: '2026-08-19', time: '19:00' },
+                    { type: 'added', names: ['Sam', 'Jo'] }
+                ])
+            )
+        ).toBe('renamed it Quiz night, moved the day from Wed 12 Aug 2026 to Wed 19 Aug 2026 at 7pm and added Sam and Jo');
+    });
+
+    it('says when it was quiet', () => {
+        expect(describeEvent(edited([{ type: 'time', from: '19:00', to: null }], true))).toBe('took the time off, quietly');
+    });
+
+    it('says what a plan sent back for dates asks about', () => {
+        expect(describeEvent(edited([{ type: 'collect', start: '2026-09-01', end: '2026-09-14', allowedWeekdays: [0, 6] }]))).toBe(
+            'went back out for dates, Tue 1 Sep 2026 to Mon 14 Sep 2026, weekends only'
+        );
+    });
+
+    it('names who started and stopped running it', () => {
+        expect(describeEvent(edited([{ type: 'hosts', added: ['Sam'], removed: ['Jo'] }]))).toBe('had Sam run it too and stopped Jo running it');
+    });
+
+    it('puts the name in front', () => {
+        expect(hasActor(edited([{ type: 'description', to: '' }]))).toBe(true);
+    });
+});

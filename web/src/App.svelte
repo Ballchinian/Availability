@@ -1,13 +1,13 @@
 <script module lang="ts">
-    import Home from './routes/Home.svelte';
-    import Create from './routes/Create.svelte';
-    import Availability from './routes/Availability.svelte';
-    import GenericAvailability from './routes/GenericAvailability.svelte';
-    import Overview from './routes/Overview.svelte';
-    import Past from './routes/Past.svelte';
-    import Terms from './routes/Terms.svelte';
-    import Privacy from './routes/Privacy.svelte';
-    import NotFound from './routes/NotFound.svelte';
+    import MyPlans from './pages/MyPlans.svelte';
+    import PlanForm from './pages/PlanForm.svelte';
+    import PlanDates from './pages/PlanDates.svelte';
+    import MyCalendar from './pages/MyCalendar.svelte';
+    import Overview from './pages/Overview.svelte';
+    import PastPlans from './pages/PastPlans.svelte';
+    import Terms from './pages/Terms.svelte';
+    import Privacy from './pages/Privacy.svelte';
+    import NotFound from './pages/NotFound.svelte';
 
     /*
         Hash based routes so the static build works anywhere with no server
@@ -15,17 +15,17 @@
         path to the screen that handles it.
     */
     export const routes = {
-        '/': Home,
-        '/g/:guildId': Create,
-        '/availability': GenericAvailability,
-        '/past': Past,
-        '/plan/:planId': Availability,
+        '/': MyPlans,
+        '/g/:guildId': PlanForm,
+        '/availability': MyCalendar,
+        '/past': PastPlans,
+        '/plan/:planId': PlanDates,
         '/plan/:planId/overview': Overview,
         //What the overview was called, and what every DM sent before the rename links to
         '/plan/:planId/compare': Overview,
         //The edit form is the create form opened on the plan. /dates is what it was before, and what /mylink and older pages link to.
-        '/plan/:planId/edit': Create,
-        '/plan/:planId/dates': Create,
+        '/plan/:planId/edit': PlanForm,
+        '/plan/:planId/dates': PlanForm,
         '/terms': Terms,
         '/privacy': Privacy,
         '*': NotFound
@@ -34,7 +34,7 @@
 
 <script lang="ts">
     import Router from 'svelte-spa-router';
-    import SiteHeader from './lib/SiteHeader.svelte';
+    import SiteHeader from './site/SiteHeader.svelte';
 
     /*
         A hash route changes the page without the browser noticing, so a screen reader
