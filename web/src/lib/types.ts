@@ -304,6 +304,15 @@ export interface UserGuild {
     isPlanner: boolean;
 }
 
+//GET /practice, one of a planner's made-up people
+export interface PracticePerson {
+    id: string;
+    guildId: string;
+    guildName: string;
+    displayName: string;
+    planner: boolean;
+}
+
 //GET /me/plans, a plan on My plans or Past plans, said from where this person stands in it
 export interface UserPlan {
     planId: string;

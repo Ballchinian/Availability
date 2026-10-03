@@ -80,6 +80,10 @@ Two clocks, and they do different jobs. **You** have one, taken from whatever de
 
 Nothing is stored converted. Your availability is kept exactly as you wrote it, and everyone's is read onto the server's clock at the moment the overview lines you all up, which is why moving abroad re-reads your calendar as local to where you are now rather than leaving it behind. On a server where everyone shares a clock none of this shows up anywhere: the pages only mention a zone when it is not the one you are on. Where a time goes out over Discord it goes with a timestamp beside it, which Discord redraws in each reader's own clock.
 
+### Practice
+
+Planners get a **Practice** section at the bottom of My plans, for making up people to try a plan out on. Each one is made for one server, up to ten a server, and can be given the planner role. Removing one takes them off any plan they were on and deletes their calendar.
+
 ## Commands
 
 Seven of them, and they sort into three lots: two for setting the server up, four anyone can run, and one for whoever runs the plan. Everything the bot says back to you here is only visible to you.

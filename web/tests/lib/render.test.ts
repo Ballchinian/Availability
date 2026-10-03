@@ -26,6 +26,7 @@ import PersonDialog, { daysOf, daysLine, daysSpoken } from '../../src/lib/Person
 import PlanCards from '../../src/lib/PlanCards.svelte';
 import PlanList from '../../src/lib/PlanList.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
+import Practice from '../../src/lib/Practice.svelte';
 import Home, { sortPlans } from '../../src/routes/Home.svelte';
 import { belongsOnOverview } from '../../src/routes/Availability.svelte';
 import Terms from '../../src/routes/Terms.svelte';
@@ -841,6 +842,38 @@ describe('the start a plan button', () => {
         expect(body).toMatch(/<div id="start-in"[^>]* hidden/);
         expect(body).toContain('href="#/g/1"');
         expect(body).toContain('href="#/g/2"');
+        expect(body).not.toContain('Server 3');
+    });
+});
+
+//Made-up people are a planner's, made for a server they plan in
+describe('the practice section', () => {
+    const guild = (guildId: string, over: Partial<UserGuild> = {}): UserGuild => ({
+        guildId,
+        guildName: `Server ${guildId}`,
+        iconUrl: null,
+        setupComplete: true,
+        isPlanner: true,
+        ...over
+    });
+    const draw = (guilds: UserGuild[]) => render(Practice, { props: { guilds } }).body;
+
+    it('is not there for someone who plans nowhere', () => {
+        expect(draw([guild('1', { isPlanner: false }), guild('2', { setupComplete: false })]).replace(/<!--[^>]*-->/g, '')).toBe('');
+    });
+
+    it('asks only for a name and the planner role with one server to make them for', () => {
+        const body = draw([guild('1'), guild('2', { isPlanner: false })]);
+        expect(body).toContain('<h2>Practice</h2>');
+        expect(body).toContain('<label for="practice-name">Name</label>');
+        expect(body).toContain('Has the planner role');
+        expect(body).not.toContain('<select');
+    });
+
+    it('asks which server when there are several', () => {
+        const body = draw([guild('1'), guild('2'), guild('3', { setupComplete: false })]);
+        expect(body).toContain('<label for="practice-guild">Server</label>');
+        expect(body).toContain('Server 2');
         expect(body).not.toContain('Server 3');
     });
 });

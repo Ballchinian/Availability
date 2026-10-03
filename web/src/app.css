@@ -1767,3 +1767,69 @@ a.ghost:hover {
 .check.sub {
     margin-left: 22px;
 }
+
+/* A planner's made-up people, under their plans on My plans */
+.practice h3 {
+    color: var(--heading);
+    font-size: 15px;
+    margin: 18px 0 0;
+}
+
+.practice-people {
+    list-style: none;
+    max-width: 520px;
+    margin: 8px 0 0;
+    padding: 0;
+}
+
+.practice-people li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    overflow-wrap: anywhere;
+}
+
+.practice-people .tag {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* The ways to act on someone go to the end of their row, whatever their name takes */
+.practice-people li > button:first-of-type {
+    margin-left: auto;
+}
+
+.practice-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0 16px;
+}
+
+.practice-add .field {
+    margin-top: 14px;
+}
+
+.practice-add .check {
+    margin: 14px 0 8px;
+}
+
+.practice-add .ghost {
+    margin: 14px 0 3px;
+}
+
+.field select {
+    background: var(--bg);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 15px;
+    font-family: inherit;
+}

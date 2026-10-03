@@ -16,6 +16,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
+    import Practice from '../lib/Practice.svelte';
     import StartPlan from '../lib/StartPlan.svelte';
 
     /*
@@ -83,6 +84,8 @@
             {:else}
                 <PlanCards plans={sortedPlans} />
             {/if}
+
+            <Practice {guilds} />
         {/if}
     {/if}
 </section>
