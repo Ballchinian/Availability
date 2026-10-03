@@ -23,6 +23,7 @@ import { DAILY_LIMIT, SAVE_LIMIT, NO_GUILD, EDIT_LIMIT, PLAN_ANNOUNCE_LIMIT } fr
 import { realMembers, listMembers, namesFor, memberOf, practiceCircle } from '../../lib/members.js';
 import { isPracticeId } from '../../lib/practice.js';
 import { mixRefusal } from '../practicePlans.js';
+import { getOutbox, outboxShape } from '../../db/outbox.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { ipLimit } from '../../lib/iplimit.js';
 
@@ -431,7 +432,8 @@ router.get('/:planId/compare', async (req, res) => {
             repeatedFrom: plan.repeatedFrom || null,
             repeatedInto: plan.repeatedInto || null,
             //The way back to where the plan is actually being talked about
-            threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null,
+            //A practice plan's thread is drawn on the overview itself
+            threadUrl: plan.threadId && !plan.practice ? threadUrl(plan.guildId, plan.threadId) : null,
             //What the edit form sends back, so a save made since it opened is caught
             rev: plan.rev || 0,
             createdBy: plan.createdBy,
@@ -458,6 +460,25 @@ router.get('/:planId/compare', async (req, res) => {
             : { unansweredCounts: unansweredCounts(Object.fromEntries(joined.map((p) => [p.userId, daysToFill(answers[p.userId])])), free) }),
         history: host ? history : historyForGuest(history)
     });
+});
+
+/*
+    A practice plan's thread, kept on the site in place of one in Discord: the pinned post
+    first, then the rest, newest first. For anyone on the plan, with the names of whoever
+    a post could mention.
+*/
+router.get('/:planId/thread', async (req, res) => {
+    const { plan } = req;
+    if (!plan.practice) return res.status(404).json({ error: 'This plan has its thread in Discord.' });
+    if (!planRole(plan, req.user.id)) return res.status(403).json({ error: 'You are not on this plan.' });
+
+    const ctx = await guildContext(plan.guildId, req.user.id);
+    if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
+    const [rows, names] = await Promise.all([
+        getOutbox('thread', plan.planId),
+        namesFor(ctx.guild, [...plan.participants.map((p) => p.userId), ...hostIdsOf(plan)])
+    ]);
+    res.json({ messages: [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)].map(outboxShape), names });
 });
 
 /*

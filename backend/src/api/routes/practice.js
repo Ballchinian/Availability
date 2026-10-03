@@ -5,8 +5,9 @@ import { getPracticePeople, getPracticePerson, addPracticePerson, removePractice
 import { removeUserFromGuildPlans } from '../../db/plans.js';
 import { deleteAllForUser } from '../../db/availability.js';
 import { getTokenVersion } from '../../db/users.js';
+import { getOutbox, outboxShape } from '../../db/outbox.js';
 import { afterLeaving } from '../../bot/plans.js';
-import { newPracticeId, PRACTICE_LIMIT, PRACTICE_NAME_MAX } from '../../lib/practice.js';
+import { newPracticeId, isPracticeId, PRACTICE_LIMIT, PRACTICE_NAME_MAX } from '../../lib/practice.js';
 import { dayHasPassed } from '../../lib/zones.js';
 
 /*
@@ -33,6 +34,17 @@ router.get('/', requireUser, async (req, res) => {
     const planning = new Map(guildIds.flatMap((guildId, i) => (contexts[i].isPlanner ? [[guildId, contexts[i].cfg.guildName]] : [])));
 
     res.json({ people: people.filter((p) => planning.has(p.guildId)).map((p) => shape(p, planning.get(p.guildId))) });
+});
+
+/*
+    What the bot has sent the made-up person being viewed as, newest first, and the names
+    of everyone it could mention by id, which is only ever the planner and their people.
+*/
+router.get('/messages', requireUser, async (req, res) => {
+    if (!isPracticeId(req.user.id)) return res.json({ messages: [], names: {} });
+    const [rows, people] = await Promise.all([getOutbox(req.user.id), getPracticePeople(req.realUser.id)]);
+    const names = Object.fromEntries([[req.realUser.id, req.realUser.displayName], ...people.map((p) => [p.id, p.displayName])]);
+    res.json({ messages: rows.map(outboxShape), names });
 });
 
 router.post('/', requireUser, async (req, res) => {

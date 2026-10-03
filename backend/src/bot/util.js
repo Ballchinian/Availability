@@ -1,5 +1,6 @@
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { config } from '../config.js';
+import { isOutboxThread, planOfOutboxThread } from '../lib/practice.js';
 
 /*
     Small shared helpers for the bot side, plus the human sounding copy the bot
@@ -31,8 +32,9 @@ export function calendarUrl() {
     return `${config.baseUrl}/#/availability`;
 }
 
-//The plan's thread back in Discord, the way out of the site and into the conversation
+//The plan's thread back in Discord, the way out of the site and into the conversation. A practice plan's is on its overview.
 export function threadUrl(guildId, threadId) {
+    if (isOutboxThread(threadId)) return overviewUrl(planOfOutboxThread(threadId));
     return `https://discord.com/channels/${guildId}/${threadId}`;
 }
 

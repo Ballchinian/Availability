@@ -625,8 +625,8 @@ export async function deletePlansForGuild(guildId) {
 */
 export async function deletePlansUnderChannel(guildId, channelId, { unknownParent = false } = {}) {
     const under = [{ threadParentId: channelId }];
-    //null matches a missing field as well as a stored null
-    if (unknownParent) under.push({ threadId: { $ne: null }, threadParentId: null });
+    //null matches a missing field as well as a stored null. A practice plan's thread was never under any channel.
+    if (unknownParent) under.push({ threadId: { $ne: null }, threadParentId: null, practice: null });
     const plans = await col(collections.plans).find({ guildId, $or: under }).toArray();
     if (plans.length) await col(collections.plans).deleteMany({ planId: { $in: plans.map((p) => p.planId) } });
     return plans;

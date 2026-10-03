@@ -31,6 +31,12 @@ const madeUp = vi.hoisted(() => [
     { id: 'practice_pat', ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: false },
     { id: 'practice_lou', ownerId: 'ali', guildId: 'g1', displayName: 'Lou', planner: true }
 ]);
+//A practice plan's thread: the pin, and a post after it
+const kept = vi.hoisted(() => [
+    { id: 'm2', planId: 'p1', to: 'thread', content: 'Later', components: [], pinned: false, at: new Date('2026-10-02'), editedAt: null },
+    { id: 'm1', planId: 'p1', to: 'thread', content: 'Pinned', components: [], pinned: true, at: new Date('2026-10-01'), editedAt: null }
+]);
+vi.mock('../../src/db/outbox.js', async (real) => ({ ...(await real()), getOutbox: vi.fn(async (to, planId) => kept.filter((m) => m.to === to && m.planId === planId)) }));
 vi.mock('../../src/db/practice.js', () => ({
     getPracticePerson: async (id) => madeUp.find((p) => p.id === id) || null,
     getPracticePeople: async (ownerId, guildId) => madeUp.filter((p) => p.ownerId === ownerId && p.guildId === guildId),
@@ -411,5 +417,25 @@ describe('a real plan', () => {
         sessionUser = { id: 'practice_lou' };
         realUser = { id: 'ali' };
         expect((await edit(form({ name: 'Quiz night' }))).status).toBe(404);
+    });
+});
+
+describe("a practice plan's thread", () => {
+    const thread = () => fetch(`${base}/p1/thread`);
+
+    it('leads with the pin, then the rest newest first, with names for anyone on it', async () => {
+        plans.set('p1', stored({ practice: 'ali', hostIds: ['ali'], participants: [{ userId: 'practice_pat', in: null, invited: true }] }));
+        const body = await (await thread()).json();
+        expect(body.messages.map((m) => m.content)).toEqual(['Pinned', 'Later']);
+        expect(body.names).toEqual({ ali: 'Ali', practice_pat: 'Pat' });
+    });
+
+    it('is in Discord for a real plan', async () => {
+        expect((await thread()).status).toBe(404);
+    });
+
+    it('is only for people on the plan', async () => {
+        plans.set('p1', stored({ practice: 'ali', hostIds: ['practice_lou'], participants: [{ userId: 'practice_pat', in: null, invited: true }] }));
+        expect((await thread()).status).toBe(403);
     });
 });

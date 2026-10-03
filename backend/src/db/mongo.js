@@ -22,7 +22,8 @@ export const collections = {
     availability: 'availability',
     plans: 'plans',
     ratelimits: 'ratelimits',
-    practice: 'practice'
+    practice: 'practice',
+    practiceOutbox: 'practiceOutbox'
 };
 
 export async function connectMongo() {
@@ -135,6 +136,9 @@ async function ensureIndexes(database) {
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
     await database.collection(collections.practice).createIndex({ id: 1 }, { unique: true });
     await database.collection(collections.practice).createIndex({ ownerId: 1, guildId: 1 });
+    await database.collection(collections.practiceOutbox).createIndex({ id: 1 }, { unique: true });
+    await database.collection(collections.practiceOutbox).createIndex({ to: 1, at: -1 });
+    await database.collection(collections.practiceOutbox).createIndex({ planId: 1 });
 }
 
 /*

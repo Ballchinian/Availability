@@ -48,6 +48,8 @@ Editing a message notifies nobody in Discord. That is what the whole arrangement
 
 A card that cannot be reached is skipped, never replaced, since sending a new one would ping them. A card whose message has really gone (Discord's `10008`) is forgotten so later passes stop paying for it; any other failure is left alone and tried again.
 
+None of this reaches Discord for a practice plan or anyone made up. Their cards, and everything posted in a practice plan's thread, opener and pin included, are kept in an outbox on the site instead, edited and deleted the same way, and read back through `GET /api/practice/messages` and `GET /api/plans/:planId/thread`. Anything to the planner behind them is a real DM.
+
 ## Who gets pinged
 
 The DMs always go out before the thread post, and the post mentions only the people the DM could not reach. Everyone else already has the news in their DMs. A plan of 150 whose DMs all fail still reaches everyone: the mentions are spread over as many posts as it takes to stay inside Discord's 2000 characters and 100 mentions a post. The thread post used to go first and name the whole guest list, so a plan of about 55 broke the limit and the DMs queued behind it never went out.
@@ -268,7 +270,7 @@ Planner role only.
 * A set plan's date must be today or later and within two years.
 * A weekday restriction has to leave at least one day inside the picked range, otherwise it is rejected.
 * Capped at a high daily backstop per person, since the planner role is the real gate.
-* Naming any made-up person makes it a practice plan, and so does anyone made up starting one. A practice plan is for the planner behind the made-up people, and can only hold their made-up people and them: anyone else is `400`. It never comes round again, and opens no thread.
+* Naming any made-up person makes it a practice plan, and so does anyone made up starting one. A practice plan is for the planner behind the made-up people, and can only hold their made-up people and them: anyone else is `400`. It never comes round again, and its thread is kept on the site rather than opened in Discord.
 
 ---
 
@@ -428,6 +430,23 @@ The same list `GET /api/guilds/:guildId/members` gives a planner, cached the sam
 
 * Here because whoever runs a plan may not hold the planner role, which the server's own route asks for.
 * On a practice plan it is who that plan can hold: the planner it is for, then their made-up people.
+
+---
+
+## GET `/api/plans/:planId/thread` (session)
+
+A practice plan's thread, which the site keeps in place of one in Discord.
+
+For anyone on the plan.
+
+### Returns
+
+* `messages`: the pinned opener first, then every other post, newest first. Each has its `id`, `content` as Discord would have drawn it, `components` as the JSON Discord would have been sent, `pinned`, `at`, and `editedAt` once it has been edited.
+* `names`: the names of everyone on the plan and running it, by id, for the mentions in `content`
+
+### Notes
+
+* `404` for a real plan, whose thread is in Discord.
 
 ---
 
@@ -812,6 +831,21 @@ Each one, oldest first, with:
 ### Notes
 
 * Only people from servers where the requester still has the planner role.
+
+---
+
+## GET `/api/practice/messages` (session)
+
+What the bot would have DMed the made-up person the requester is viewing the site as.
+
+### Returns
+
+* `messages`: newest first, shaped as in `GET /api/plans/:planId/thread`, each with the `planId` it is about
+* `names`: the planner's and their made-up people's names, by id, for the mentions in them
+
+### Notes
+
+* Empty for anyone real. The buttons on them are answered through the routes the site answers with (`join` and `vote`), as the made-up person.
 
 ---
 

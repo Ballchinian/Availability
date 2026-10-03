@@ -53,6 +53,14 @@ vi.mock('../../src/db/plans.js', () => plans);
 const availability = vi.hoisted(() => ({ deleteAllForUser: vi.fn(async () => {}) }));
 vi.mock('../../src/db/availability.js', () => availability);
 const bot = vi.hoisted(() => ({ afterLeaving: vi.fn(async () => {}) }));
+const outbox = vi.hoisted(() => [
+    { id: 'm2', planId: 'p1', to: 'practice_a', content: 'Hello <@ali>', components: [], pinned: false, at: new Date('2026-10-02'), editedAt: null },
+    { id: 'm1', planId: 'p1', to: 'practice_a', content: 'Earlier', components: [], pinned: false, at: new Date('2026-10-01'), editedAt: null }
+]);
+vi.mock('../../src/db/outbox.js', async (real) => ({
+    ...(await real()),
+    getOutbox: vi.fn(async (to) => outbox.filter((m) => m.to === to))
+}));
 vi.mock('../../src/bot/plans.js', () => bot);
 
 const { default: practiceRouter } = await import('../../src/api/routes/practice.js');
@@ -209,5 +217,21 @@ describe('viewing as someone made up', () => {
         sessionUser = { id: 'practice_a', displayName: 'Pat' };
         await add({ guildId: 'g1', displayName: 'Kim' });
         expect(stored.at(-1).ownerId).toBe('ali');
+    });
+});
+
+describe('the messages of someone made up', () => {
+    it('are what the bot kept for them, newest first, with the names they could mention', async () => {
+        stored.push({ id: 'practice_a', ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: false });
+        realUser = { id: 'ali', displayName: 'Ali' };
+        sessionUser = { id: 'practice_a', displayName: 'Pat' };
+        const body = await (await fetch(`${base}/messages`)).json();
+        expect(body.messages.map((m) => m.id)).toEqual(['m2', 'm1']);
+        expect(body.messages[0]).toEqual({ id: 'm2', planId: 'p1', content: 'Hello <@ali>', components: [], pinned: false, at: '2026-10-02T00:00:00.000Z', editedAt: null });
+        expect(body.names).toEqual({ ali: 'Ali', practice_a: 'Pat' });
+    });
+
+    it('are nothing for someone real', async () => {
+        expect(await (await fetch(`${base}/messages`)).json()).toEqual({ messages: [], names: {} });
     });
 });

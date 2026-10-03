@@ -16,3 +16,18 @@ export function isPracticeId(id) {
 export function newPracticeId() {
     return PRACTICE_PREFIX + shortId(10);
 }
+
+//A practice plan's thread, which the site keeps in place of one in Discord
+export const OUTBOX_THREAD = 'outbox_';
+
+export function outboxThreadId(planId) {
+    return OUTBOX_THREAD + planId;
+}
+
+export function isOutboxThread(id) {
+    return typeof id === 'string' && id.startsWith(OUTBOX_THREAD);
+}
+
+export function planOfOutboxThread(id) {
+    return id.slice(OUTBOX_THREAD.length);
+}

@@ -13,7 +13,8 @@ import { formatDay, formatDate, formatTime, shiftDate, today } from '../lib/date
 import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered, rowFor, nextStep } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed, hasLapsed } from '../lib/zones.js';
 import { hostIdsOf } from '../lib/hosts.js';
-import { isPracticeId } from '../lib/practice.js';
+import { outboxThreadId } from '../lib/practice.js';
+import { userFor, channelFor } from './outbox.js';
 import { buildEditMessages, tookOffText, pickedText } from './edits.js';
 
 /*
@@ -22,14 +23,13 @@ import { buildEditMessages, tookOffText, pickedText } from './edits.js';
     them so whoever runs the plan knows the thread is the only way to reach them. Any other
     failure is a blip or someone gone, which says nothing about their settings.
 
-    Hands back the message, or null when it did not land.
+    Hands back the message, or null when it did not land. Anyone made up gets theirs in
+    the outbox, see outbox.js.
 */
 async function deliver(plan, userId, payload) {
-    //Discord has nobody by that id, and asking costs a request against the rate limit
-    if (isPracticeId(userId)) return null;
     const p = plan.participants?.find((q) => q.userId === userId);
     try {
-        const user = await client.users.fetch(userId);
+        const user = await userFor(userId, plan.planId);
         const msg = await user.send(payload);
         if (p?.dmsClosed) await setDmsClosed(plan.planId, userId, false).catch(() => {});
         return msg;
@@ -109,7 +109,7 @@ async function cardFor(plan, p, opts = {}) {
 //Discord can refuse the delete, and then the card at least loses its buttons
 async function retireCard(userId, messageId) {
     try {
-        const user = await client.users.fetch(userId);
+        const user = await userFor(userId);
         const dm = await user.createDM();
         const msg = await dm.messages.fetch(messageId);
         await msg.delete().catch(() => msg.edit({ content: "There's a newer message about this plan.", components: [] }));
@@ -121,7 +121,7 @@ async function retireCard(userId, messageId) {
 //A card edited where it sits, which tells nobody
 async function rewriteCard(userId, messageId, payload) {
     try {
-        const user = await client.users.fetch(userId);
+        const user = await userFor(userId);
         const dm = await user.createDM();
         const msg = await dm.messages.fetch(messageId);
         await msg.edit(payload);
@@ -194,7 +194,7 @@ function threadPeople(plan) {
 
 //Someone who took the plan on goes in its thread, which is where /overview and /cancel are run
 export async function addHostToThread(plan, userId) {
-    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
     if (!thread) return;
     await reviveThread(thread);
     await addToThread(thread, [userId]);
@@ -479,7 +479,7 @@ async function placeThreadMessage(thread, messageId, payload) {
 */
 export async function updateOpener(plan, thread = null) {
     if (!plan.threadId || !plan.openerMessageId) return;
-    thread ??= await client.channels.fetch(plan.threadId).catch(() => null);
+    thread ??= await channelFor(plan.threadId).catch(() => null);
     if (!thread) return;
     await reviveThread(thread);
 
@@ -592,11 +592,11 @@ export function answersMoved(userId, planIds) {
 */
 async function openThread(plan, cfg) {
     const guild = await client.guilds.fetch(plan.guildId);
-    //Nobody in the server sees anything of a practice plan
-    if (plan.practice) return { guild, thread: null };
-    const channel = await guild.channels.fetch(cfg.plansChannelId);
-    const thread = await createThread(channel, threadName(plan), ChannelType.PrivateThread);
-    await setPlanThread(plan.planId, thread.id, channel.id);
+    //A practice plan's is kept on the site, and nobody in the server sees anything of it
+    const thread = plan.practice
+        ? await channelFor(outboxThreadId(plan.planId))
+        : await createThread(await guild.channels.fetch(cfg.plansChannelId), threadName(plan), ChannelType.PrivateThread);
+    await setPlanThread(plan.planId, thread.id, plan.practice ? null : cfg.plansChannelId);
 
     //No @ here, adding people to the thread already pings them
     const pinned = await thread.send(opener(plan));
@@ -619,7 +619,7 @@ export async function announcePlan(plan, cfg, actorName) {
     const ids = onIt(plan).map((p) => p.userId);
 
     //The thread id is only in the database yet, so it is patched on or the card has no thread button
-    const withThread = thread ? { ...plan, threadId: thread.id } : plan;
+    const withThread = { ...plan, threadId: thread.id };
     const asks = await askLines(plan, ids);
     //A repeat has no actor: nobody did this, it just came round, so the card says that instead
     await sendCards(plan, ids, (id) =>
@@ -663,7 +663,7 @@ export async function announceAddition(plan, newIds, actorName) {
 
     const guild = await client.guilds.fetch(plan.guildId);
 
-    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
         await addToThread(thread, newIds);
@@ -702,7 +702,7 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
     let done = 0;
     await fanOut(holders, async (p) => {
         try {
-            const user = await client.users.fetch(p.userId);
+            const user = await userFor(p.userId);
             const dm = await user.createDM();
             const msg = await dm.messages.fetch(p.cardMessageId);
             await msg.edit(planCard(plan, p, { guildName, ask: asks[p.userId] }));
@@ -721,7 +721,7 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
     pings nobody. cards: false is for an announcement about to send everyone a fresh one.
 */
 export async function syncPlan(plan, { cfg = null, cards = true } = {}) {
-    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
         await updateOpener(plan, thread);
@@ -757,7 +757,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName }) {
         }), { actorName, moved: changed });
 
     if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        const thread = await channelFor(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
@@ -835,7 +835,7 @@ export async function announceEdit(plan, cfg, { before, changes, actorName, quie
         current = { ...plan, participants: plan.participants.map((p) => ({ ...p, cardActor: actorName, cardMoved: lead.moved })) };
     }
 
-    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
         await updateOpener(current, thread).catch(() => {});
@@ -922,7 +922,7 @@ export async function announceCancel(plan, actorName) {
     const sent = await resendCards(plan, ids, cfg, { actorName });
 
     if (plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
+        const thread = await channelFor(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
