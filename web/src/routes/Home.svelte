@@ -16,6 +16,7 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../lib/api.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
+    import KeptMessages from '../lib/KeptMessages.svelte';
     import Practice from '../lib/Practice.svelte';
     import StartPlan from '../lib/StartPlan.svelte';
 
@@ -32,6 +33,15 @@
     let practicePlans = $state<UserPlan[]>([]);
 
     const sortedPlans = $derived(sortPlans(plans));
+
+    //An answer given from one of their messages moves what their plans want next
+    async function reloadPlans() {
+        try {
+            plans = (await api<{ plans: UserPlan[] }>('/me/plans')).plans;
+        } catch {
+            //The list stays as it was, and the message says what went wrong
+        }
+    }
 
     onMount(async () => {
         await loadMe();
@@ -79,7 +89,9 @@
         {:else}
             <StartPlan {guilds} />
 
-            {#if plans.length === 0}
+            {#if plans.length === 0 && auth.real}
+                <p class="muted">Nothing on the go.</p>
+            {:else if plans.length === 0}
                 <p class="muted">
                     Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
                 </p>
@@ -88,6 +100,11 @@
             {/if}
 
             <Practice {guilds} plans={sortPlans(practicePlans)} />
+
+            <!--What the bot would have DMed the made-up person being viewed as-->
+            {#if auth.real}
+                <KeptMessages path="/practice/messages" title="Their messages" empty="I haven't sent them anything yet." onanswered={reloadPlans} />
+            {/if}
         {/if}
     {/if}
 </section>

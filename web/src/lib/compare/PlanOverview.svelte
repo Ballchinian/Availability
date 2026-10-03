@@ -33,6 +33,7 @@
     import CancelPanel from './CancelPanel.svelte';
     import DayCompare from './DayCompare.svelte';
     import HistoryPanel from './HistoryPanel.svelte';
+    import KeptMessages from '../KeptMessages.svelte';
     import RepeatDates from '../RepeatDates.svelte';
     import RepairPanel from './RepairPanel.svelte';
     import Standing from './Standing.svelte';
@@ -152,7 +153,8 @@
     {/if}
 </p>
 
-{#if host && over}
+<!--Neither of these is so of a practice plan, whose thread and DMs only the bot writes to-->
+{#if host && over && !data.plan.practice}
     <p class="muted small">Deleting its thread in Discord clears it for good.</p>
 {/if}
 
@@ -218,6 +220,11 @@
     <p class="edit-plan"><a class="ghost" href="#/plan/{planId}/edit">Edit plan</a></p>
 {/if}
 
+<!--A practice plan's thread is kept here rather than in Discord-->
+{#if data.plan.practice}
+    <KeptMessages path="/plans/{planId}/thread" title="The thread" empty="Nothing has been posted in it yet." stamp={data} onanswered={onrefresh} />
+{/if}
+
 <HistoryPanel history={data.history} />
 
 {#if host && !over}
@@ -225,5 +232,5 @@
         <h2>End this plan</h2>
         <CancelPanel {planId} repeats={Boolean(data.plan.repeatWeeks)} oncancelled={changed} />
     </section>
-    <RepairPanel {planId} />
+    {#if !data.plan.practice}<RepairPanel {planId} />{/if}
 {/if}

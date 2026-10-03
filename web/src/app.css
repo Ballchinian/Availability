@@ -1848,3 +1848,121 @@ a.ghost:hover {
     border-radius: 8px;
     font-size: 14px;
 }
+
+/* What the bot kept on the site for practice, drawn the way Discord shows a message */
+.dms {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    max-width: 640px;
+}
+
+.dm {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.dm p {
+    margin: 0 0 6px;
+}
+
+.dm ul {
+    margin: 0 0 6px;
+    padding-left: 20px;
+}
+
+.dm-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.dm-head .from {
+    color: var(--heading);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.dm-head .tag {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0 8px;
+}
+
+.dm-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* Discord's own colours, every one at least 4.5:1 under white text, with a border for the 3:1 a control needs */
+.dbtn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 4px 14px;
+    border: 1px solid var(--control-border);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dbtn.s1 {
+    background: #5865f2;
+}
+
+.dbtn.s2,
+.dbtn.s5 {
+    background: #4e5058;
+}
+
+.dbtn.s3 {
+    background: #248046;
+}
+
+.dbtn.s4 {
+    background: #da373c;
+}
+
+.dbtn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.dm-reason {
+    margin-top: 10px;
+}
+
+.dm-reason label {
+    display: block;
+    font-size: 14px;
+}
+
+.dm-reason p {
+    margin: 2px 0 6px;
+}
+
+.dm-reason input {
+    background: var(--panel);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    max-width: 360px;
+}
