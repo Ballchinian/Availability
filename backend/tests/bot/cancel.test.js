@@ -77,6 +77,14 @@ describe('the /cancel command', () => {
         expect(said(run).components[0].components.map((b) => b.data.custom_id)).toEqual(['cancel|yes|ab12cd34ef', 'cancel|no']);
     });
 
+    //Nothing on the confirm shows it, and the next one never coming is the part to know
+    it('says calling off a plan that repeats stops it coming round', async () => {
+        store.set('ab12cd34ef', { ...store.get('ab12cd34ef'), repeatWeeks: 2 });
+        const run = command();
+        await handleCancel(run);
+        expect(said(run).content).toMatch(/^Call off \*\*Board games\*\*, and stop it coming round again\? /);
+    });
+
     it('is not for a guest', async () => {
         const run = command('bo');
         await handleCancel(run);

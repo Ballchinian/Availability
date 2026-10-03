@@ -223,7 +223,7 @@
 {#if host && !over}
     <section class="group">
         <h2>End this plan</h2>
-        <CancelPanel {planId} oncancelled={changed} />
+        <CancelPanel {planId} repeats={Boolean(data.plan.repeatWeeks)} oncancelled={changed} />
     </section>
     <RepairPanel {planId} />
 {/if}

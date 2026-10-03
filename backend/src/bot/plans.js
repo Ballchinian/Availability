@@ -267,6 +267,11 @@ function aboutLine(plan) {
     return plan.description ? `What it is about: ${plan.description}\n` : '';
 }
 
+//Calling off a plan that comes round again ends the chain too, see getPlansDueToRepeat
+function noMoreLine(plan) {
+    return plan.repeatWeeks ? " It won't come round again." : '';
+}
+
 //The round the buttons are about, see roundFor in db/plans.js. Buttons from before rounds carry none.
 function roundOf(customId) {
     const tag = customId.split('|').find((bit) => /^r\d+$/.test(bit));
@@ -372,7 +377,7 @@ export function planCard(plan, p, { guildName = '', actorName = null, moved = nu
         //Never the stored actor, which is whoever set the day or sent the invite
         const lead = actorName ? `${actorName} called off "${plan.name}"${where}.` : `"${plan.name}"${where} is off.`;
         return {
-            content: top('CALLED OFF') + `${lead} Nothing more to fill in.`,
+            content: top('CALLED OFF') + `${lead}${noMoreLine(plan)} Nothing more to fill in.`,
             components: []
         };
     }
@@ -512,7 +517,7 @@ function opener(plan) {
     const quietly = { allowedMentions: { parse: [] } };
 
     if (plan.status === 'cancelled') {
-        return { content: banner('CALLED OFF') + `**${plan.name}** was called off.`, components: [], ...quietly };
+        return { content: banner('CALLED OFF') + `**${plan.name}** was called off.${noMoreLine(plan)}`, components: [], ...quietly };
     }
 
     if (plan.status === 'closed' && plan.chosenDate) {
@@ -917,7 +922,7 @@ export async function announceCancel(plan, actorName) {
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
-                content: banner('CALLED OFF') + `${actorName} called off **${plan.name}**. Nothing more to fill in.`
+                content: banner('CALLED OFF') + `${actorName} called off **${plan.name}**.${noMoreLine(plan)} Nothing more to fill in.`
             });
         }
     }
@@ -1566,7 +1571,7 @@ export async function handleCancel(interaction) {
         new ButtonBuilder().setCustomId('cancel|no').setLabel('Keep it').setStyle(ButtonStyle.Secondary)
     );
     return interaction.reply({
-        content: `Call off **${plan.name}**? Everyone gets told, and the thread stays until you delete it by hand.`,
+        content: `Call off **${plan.name}**${plan.repeatWeeks ? ', and stop it coming round again' : ''}? Everyone gets told, and the thread stays until you delete it by hand.`,
         components: [row],
         flags: MessageFlags.Ephemeral
     });

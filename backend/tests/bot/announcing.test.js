@@ -83,7 +83,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
     getLastUpdated: vi.fn(async () => ({}))
 }));
 
-const { announcePlan, announceSetPlan, announceOutcome, announceCancel, mentionPosts, addHostToThread } = await import('../../src/bot/plans.js');
+const { announcePlan, announceSetPlan, announceOutcome, announceCancel, planCard, mentionPosts, addHostToThread } = await import('../../src/bot/plans.js');
 const { getPlanningPrefs } = await import('../../src/db/users.js');
 const { todayIn } = await import('../../src/lib/zones.js');
 const { shiftDate } = await import('../../src/lib/dates.js');
@@ -435,6 +435,16 @@ describe('thread posts guests read', () => {
         await announceCancel(store.plan, 'Ali');
 
         expect(posts.at(-1).content).toBe('**CALLED OFF**\n\nAli called off **Board games**. Nothing more to fill in.');
+    });
+
+    //Calling one off ends the chain, so the post, the pin and the cards all say there is no next one
+    it('says a plan that repeats will not come round again', async () => {
+        store.plan = setDay({ threadId: 'thread1', openerMessageId: 'op1', status: 'cancelled', repeatWeeks: 2 });
+        await announceCancel(store.plan, 'Ali');
+
+        expect(posts.at(-1).content).toBe("**CALLED OFF**\n\nAli called off **Board games**. It won't come round again. Nothing more to fill in.");
+        expect(edited.find((e) => e.id === 'op1').content).toContain("**Board games** was called off. It won't come round again.");
+        expect(planCard(store.plan, {}, { actorName: 'Ali' }).content).toContain("Ali called off \"Board games\". It won't come round again.");
     });
 
     it('opens a collecting plan with no line for planners', async () => {
