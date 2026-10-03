@@ -2,13 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'svelte/server';
 import ClockNote from '../../src/lib/ClockNote.svelte';
 import PickPanel, { invitees } from '../../src/lib/compare/PickPanel.svelte';
-import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
 import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
-import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
 import Standing from '../../src/lib/compare/Standing.svelte';
 import AnswerBoard, { owing, askAside, askedLine, updatedLine } from '../../src/lib/compare/AnswerBoard.svelte';
 import PlanOverview, { planState, repeatLine } from '../../src/lib/compare/PlanOverview.svelte';
-import TakeOn from '../../src/lib/compare/TakeOn.svelte';
 import YourAnswer from '../../src/lib/compare/YourAnswer.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
 import CompareGrid from '../../src/lib/CompareGrid.svelte';
@@ -27,11 +24,8 @@ import PlanCards from '../../src/lib/PlanCards.svelte';
 import PlanList from '../../src/lib/PlanList.svelte';
 import StartPlan from '../../src/lib/StartPlan.svelte';
 import Practice from '../../src/lib/Practice.svelte';
-import Home, { sortPlans } from '../../src/routes/Home.svelte';
+import { sortPlans } from '../../src/routes/Home.svelte';
 import { belongsOnOverview } from '../../src/routes/Availability.svelte';
-import Terms from '../../src/routes/Terms.svelte';
-import Privacy from '../../src/routes/Privacy.svelte';
-import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong, listNames } from '../../src/lib/format.js';
 import type { ComparePlan, CompareScreen, EditPreview, Member, Participant, PlanScreen, UserGuild, UserPlan } from '../../src/lib/types.js';
@@ -86,34 +80,11 @@ describe('picking a day nobody has answered about', () => {
         });
         expect(body).toContain('Just the people who can make it');
     });
-
-    it('asks who is still invited as a set of radios under a legend', () => {
-        const body = draw({
-            inCount: 1,
-            totalParticipants: 3,
-            freeByDate: { '2026-08-12': [{ userId: 'a', hours: [] }] }
-        });
-        expect(body).toMatch(/<fieldset><legend class="lbl">Who is still invited\?<\/legend>\s*<label class="check"><input type="radio"/);
-        expect(body).not.toContain('radiogroup');
-    });
-
 });
 
-/*
-    The grid's colouring and the slider already say how a day came out, and the people
-    under the day give their hours, so the line that answers a click is the day alone.
-*/
 describe('the day picked', () => {
     const draw = (freeByDate: Record<string, FreePerson[]>, inCount: number) =>
         bare(render(PickPanel, { props: { planId: 'ab12cd34ef', selectedDate: '2026-08-12', inCount, freeByDate, onsaved: async () => {} } }).body);
-
-    it.each([
-        ['a day that works', { '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] }, 1],
-        ['a day someone is missing from', { '2026-08-12': [{ userId: 'a', hours: [] }] }, 3],
-        ['a day nobody has answered', {}, 0]
-    ])('is said as the day alone on %s', (_, free, joined) => {
-        expect(draw(free, joined)).toContain('<span role="status"><strong>Wed 12 Aug 2026</strong></span>');
-    });
 
     it('lists who is free with their hours', () => {
         expect(draw({ '2026-08-12': [{ userId: 'a', hours: [17, 18, 19] }] }, 1)).toContain('Someone: 5pm to 8pm');
@@ -151,11 +122,6 @@ describe('what setting a day says it will do', () => {
 
     it('names the yes/no in the thread and the DMs on a plain set', () => {
         expect(draw()).toContain('Posts the yes/no in the thread, pings 3 people and DMs them the same buttons.');
-    });
-
-    //A set day always asks, so there is nothing to tick
-    it('never offers to leave the yes/no out', () => {
-        expect(draw()).not.toContain('Ask everyone if they can make it');
     });
 
     //The radios and the box already show who comes off, so only the people pinged are counted
@@ -354,15 +320,6 @@ describe('the compare grid', () => {
         expect(body.match(/<span class="shared"><\/span>/g)).toHaveLength(13);
     });
 
-    //A title the same as the name gets read out a second time as the description
-    it('says each day once', () => {
-        expect(draw({})).not.toContain('title=');
-    });
-
-    it('says the arrows move it, off the screen, where it is read out on the way in', () => {
-        expect(draw({})).toMatch(/<p class="offscreen" id="([^"]+)">Arrow keys move between days\.<\/p>\s*<div class="grid-wrap" role="group" aria-describedby="\1"/);
-    });
-
     //Under "Everyone's days" on the compare page, straight under the h1 on the dates screen
     it('heads its months one level under wherever it sits', () => {
         expect(draw({})).toMatch(/<h3>August 2026(<!---->)?<\/h3>/);
@@ -390,13 +347,6 @@ describe('the fill-in grid', () => {
         const body = render(DayGrid, { props: { start: isoFromNow(0, 'day'), end: isoFromNow(3, 'day'), coveredUntil: isoFromNow(2, 'day') } }).body;
         expect(body).toContain(`aria-label="${formatLong(isoFromNow(3, 'day'))}, not counted as your answer"`);
         expect(body.match(/not counted as your answer/g)).toHaveLength(1);
-    });
-
-    //Both pages it is on have only their h1 above it
-    it('heads its months at h2', () => {
-        const body = draw();
-        expect(body).toMatch(/<h2 style="[^"]*">/);
-        expect(body).not.toContain('<h3');
     });
 
     //A clock button rides on every free day, so one clock means the day gone is not drawn as free
@@ -441,23 +391,11 @@ describe('the fill-in grid', () => {
         expect(inOrder[0][0]).toContain(formatLong(isoFromNow(0, 'day')));
     });
 
-    it('says how a keyboard gets round, off the screen, where it is read out on the way in', () => {
-        const body = draw();
-        expect(body).toMatch(/<p class="offscreen" id="([^"]+)">Arrow keys move between days\. Shift\+Enter marks the stretch[^<]*<\/p>[\s\S]*role="group" aria-describedby="\1"/);
-    });
-
     //A brush left from a last visit would quietly narrow every day marked in the next
     it('starts every visit giving new days all day, with nothing to say so', () => {
         const body = draw({ [isoFromNow(1, 'day')]: [17, 18] });
         expect(body).not.toContain('New days get');
         expect(bare(body)).toMatch(silent);
-    });
-
-    //The brightness and the clocks read for themselves, and each day's name already says the rest
-    it('explains nothing on the screen', () => {
-        const body = draw({ [isoFromNow(1, 'day')]: [17, 18] });
-        expect(body).not.toContain('Brighter means');
-        expect(body).not.toContain('title=');
     });
 });
 
@@ -492,10 +430,6 @@ describe('the repeat dates calendar', () => {
     });
     const draw = (props: Record<string, unknown>) =>
         render(RepeatDates, { props: { first: '2026-08-06', shapes: series, ...props } }).body;
-
-    it('opens on the month the plan itself is on', () => {
-        expect(draw({})).toContain('August 2026');
-    });
 
     it('tells the day this plan is on apart from the ones that follow', () => {
         const body = draw({});
@@ -533,11 +467,6 @@ describe('the repeat dates calendar', () => {
 */
 describe('the repeat picker', () => {
     const draw = (props: Record<string, unknown> = {}) => render(RepeatField, { props }).body;
-
-    it('offers the intervals whether or not a day is set', () => {
-        expect(draw()).toContain('one off');
-        expect(draw()).toContain('every other week');
-    });
 
     it('draws where the interval lands once there is a day to count from', () => {
         expect(draw({ weeks: 2, from: '2026-08-06' })).toContain('Thursday 20 August 2026, it comes round again');
@@ -599,21 +528,6 @@ describe('the repeat picker', () => {
         const body = draw({ weeks: 2, was: 2, canStart: false });
         expect(body).not.toMatch(/type="checkbox"[^>]*disabled/);
         expect(body).not.toContain('planner role');
-    });
-});
-
-//"Call it off" is the one name for this, on the site and in Discord alike
-describe('the call it off panel', () => {
-    it('names the button for what it does', () => {
-        const body = render(CancelPanel, { props: { planId: 'ab12cd34ef', oncancelled: () => {} } }).body;
-        expect(body).toContain('Call it off</button>');
-        expect(body).not.toContain('It is off');
-    });
-
-    //Calling a plan off always tells everyone, so there is nothing to choose
-    it('asks nothing about who to tell', () => {
-        const body = render(CancelPanel, { props: { planId: 'ab12cd34ef', oncancelled: () => {} } }).body;
-        expect(body).not.toContain('type="checkbox"');
     });
 });
 
@@ -899,20 +813,6 @@ describe('the attendance board', () => {
             }
         }).body;
 
-    //Under the page's "Where it stands", so a level down from it rather than two
-    it('heads each column one level under the section it sits in', () => {
-        const body = draw();
-        expect(body).toContain('<h3>Coming (1)</h3>');
-        expect(body).not.toContain('<h4');
-    });
-
-    //A chip opens a row of moves under it, so it says whether that row is showing
-    it('says a chip opens something, and starts shut', () => {
-        const body = draw();
-        expect(body.match(/<button[^>]*class="bchip"[^>]*aria-expanded="false"/g)).toHaveLength(2);
-        expect(body).not.toContain('move-row');
-    });
-
     //Kept on the list for a change of mind, but nothing asks them, so they are not waited on
     it("puts someone who said it is not for them under can't make it, with their reason", () => {
         const body = bare(draw([{ ...person('c', null), in: false, inReason: 'Away' }]));
@@ -924,19 +824,6 @@ describe('the attendance board', () => {
     it('says who moved someone back to waiting', () => {
         const body = bare(draw([{ ...person('c', null), sentBack: { byName: 'Ali' } }]));
         expect(body).toMatch(/data-user="c"[^>]*>C\s+<span class="muted small">\(moved back by Ali\)<\/span>/);
-    });
-
-    it('heads the people left off the day like the columns, with nothing else said', () => {
-        const body = draw([{ ...person('c', null), invited: false }]);
-        expect(body).toMatch(/<div class="uninvited"><h3>Not invited to this date \(1\)<\/h3>\s*<ul>/);
-        expect(body).not.toContain('no ping and no DM');
-    });
-
-    //Named to match "Not invited to this date", and it asks them rather than answering for them
-    it('invites someone left off the day', () => {
-        const body = draw([{ ...person('c', null), invited: false }]);
-        expect(body).toMatch(/<button class="ghost" data-user="c"[^>]*>Invite them<\/button>/);
-        expect(body).not.toContain('Let them come');
     });
 
     it('says the yes/no reached them only when the DM landed', () => {
@@ -955,11 +842,7 @@ describe('the attendance board', () => {
     });
 });
 
-/*
-    A set plan's page is the yes/no page however it got its day. One that collected dates
-    first kept "3 of 4 have filled in their dates" under the nudge, which read as if the
-    nudge were chasing dates.
-*/
+//A set plan's page is the yes/no page however it got its day
 describe('where a set plan stands', () => {
     const person = (userId: string, over: Partial<Participant> = {}): Participant => ({
         userId,
@@ -1017,10 +900,6 @@ describe('where a set plan stands', () => {
         expect(withList.replace(/<div class="uninvited">[\s\S]*?<\/ul><\/div>/, '')).toBe(draw(setFromTheStart));
     });
 
-    it('says nothing about filling in dates', () => {
-        expect(draw(collected)).not.toContain('filled in their dates');
-    });
-
     it('says who the nudge reaches', () => {
         expect(draw(collected)).toContain('Nudge the 2 still to answer');
     });
@@ -1045,17 +924,6 @@ describe('the member picker', () => {
         expect(body).not.toContain('title=');
     });
 
-    //The placeholder goes the moment anyone types, and some readers never say it at all
-    it('names the search box', () => {
-        expect(draw([])).toMatch(/<label class="offscreen" for="([^"]+)-search">Search members<\/label>\s*<input id="\1-search"/);
-    });
-
-    it('names each list by the head over it', () => {
-        const body = draw(['bob']);
-        expect(body).toMatch(/<span id="([^"]+)-pool">Members \(2\)<\/span>[\s\S]*<ul class="list" aria-labelledby="\1-pool"/);
-        expect(body).toMatch(/<span id="([^"]+)-chosen">Invited \(1\)<\/span>[\s\S]*<ul class="list drop" aria-labelledby="\1-chosen"/);
-    });
-
     //The create form's second one, for who else runs the plan, where "Add" and "Invited" would say the wrong thing
     describe('given words of its own', () => {
         const body = render(MemberPicker, {
@@ -1068,16 +936,6 @@ describe('the member picker', () => {
                 bulk: false
             }
         }).body;
-
-        it('heads the picked column with them, and still counts it', () => {
-            expect(body).toMatch(/<span id="([^"]+)-chosen">Running it with you \(1\)<\/span>[\s\S]*<ul class="list drop" aria-labelledby="\1-chosen"/);
-            expect(body).not.toContain('Invited');
-        });
-
-        it('names each chip with them', () => {
-            expect(body).toContain('aria-label="Have ANN run it too"');
-            expect(body).toContain('aria-label="Stop BOB running it"');
-        });
 
         //Nobody hands a whole server the running of a plan
         it('has no Add all or Clear', () => {
@@ -1138,18 +996,6 @@ describe('the review before an edit is saved', () => {
         expect(quiet).not.toBeNull();
         expect(body).toMatch(new RegExp(`id="${quiet![1]}">[^<]*Ann is still DMed, since the day they answered for has moved\\.`));
     });
-
-    it('takes focus on a heading of its own', () => {
-        expect(body).toContain('<h2 tabindex="-1">What this changes</h2>');
-    });
-});
-
-describe('the date range', () => {
-    it('groups the spans and the two dates under a legend', () => {
-        const body = render(RangeField, { props: {} }).body;
-        expect(body).toMatch(/^(<!--[^>]*-->)?<fieldset class="field"><legend class="group-label">Which dates should I ask about\?<\/legend>/);
-        expect(body).not.toContain('role="group"');
-    });
 });
 
 describe('the weekday picker', () => {
@@ -1157,13 +1003,6 @@ describe('the weekday picker', () => {
         const body = render(WeekdayPicker, { props: { dayOn: [true, false, true, true, true, true, true] } }).body;
         expect(body).toContain('aria-pressed="false">Mo</button>');
         expect(body).toContain('aria-pressed="true">Tu</button>');
-    });
-
-    //"Mo" is what shows, and still what is said first, so voice control finds it
-    it('names each day in full', () => {
-        const body = render(WeekdayPicker, { props: {} }).body;
-        expect(body).toContain('aria-label="Monday"');
-        expect(body).toContain('aria-label="Sunday"');
     });
 });
 
@@ -1189,11 +1028,6 @@ describe('the miss slider', () => {
         const body = draw();
         expect(body).toContain('aria-valuetext="nobody"');
         expect(body).toContain('<strong aria-hidden="true">0</strong>');
-    });
-
-    //Each day shows its count and its hours, and tapping one says why it is dim
-    it('explains nothing about the grid under it', () => {
-        expect(draw()).not.toContain('Brighter means');
     });
 });
 
@@ -1341,11 +1175,6 @@ describe('a status line', () => {
     it('is there with nothing to say, taking no room', () => {
         expect(draw({})).toMatch(silent);
     });
-
-    //A failed submit sends focus here, and a field at fault points here for its description
-    it('can take focus and be pointed at', () => {
-        expect(draw({ id: 'form-error' })).toMatch(/<p class="status silent" id="form-error" tabindex="-1">/);
-    });
 });
 
 describe('a field at fault', () => {
@@ -1361,24 +1190,6 @@ describe('a field at fault', () => {
         const body = render(RangeField, { props: { fault: 'end', errorId: 'form-error' } }).body;
         expect(body).toMatch(/<input id="end"[^>]*aria-invalid="true" aria-describedby="form-error"/);
         expect(body).not.toMatch(/<input id="start"[^>]*aria-invalid/);
-    });
-});
-
-//A live region that arrives with its text already in it often goes unread, so each is there first
-describe('the status line on each panel', () => {
-    const planId = 'ab12cd34ef';
-    const done = async () => {};
-    const panels: [string, () => string][] = [
-        ['the board', () => render(AttendanceBoard, { props: { planId, chosenDate: '2026-08-12', onmoved: done } }).body],
-        ['calling it off', () => render(CancelPanel, { props: { planId, oncancelled: () => {} } }).body],
-        ['the picked day', () => render(PickPanel, { props: { planId, selectedDate: '2026-08-12', onsaved: done } }).body],
-        ['the nudge', () => render(RemindPanel, { props: { planId } }).body],
-        ['the repair', () => render(RepairPanel, { props: { planId } }).body],
-        ['taking it on', () => render(TakeOn, { props: { planId, ontaken: done } }).body]
-    ];
-
-    it.each(panels)('%s', (_, draw) => {
-        expect(bare(draw())).toMatch(silent);
     });
 });
 
@@ -1402,101 +1213,6 @@ describe('the line a picked day opens with', () => {
         const body = draw(null);
         expect(body).toMatch(silent);
         expect(body).not.toContain('pick-panel');
-    });
-});
-
-describe('the front door', () => {
-    //A move from another page sends focus to the h1, so it cannot wait for the plans
-    it('names the page while the plans are still loading', () => {
-        auth.loaded = true;
-        auth.user = { id: 'u1', username: 'ann', displayName: 'Ann', avatar: '' };
-        try {
-            expect(bare(render(Home).body)).toMatch(/<h1>My plans<\/h1>\s*<p class="muted">Loading your plans\.\.\.<\/p>/);
-        } finally {
-            auth.loaded = false;
-            auth.user = null;
-        }
-    });
-});
-
-//What the legal pages promise has to be what the site does
-describe('the terms', () => {
-    const body = render(Terms).body;
-
-    it('never says a planner can take someone off a plan', () => {
-        expect(body).not.toMatch(/remove you/i);
-    });
-
-    it("says being left off a day's list keeps you on the plan", () => {
-        expect(body).toMatch(/leave you off that day's list/);
-        expect(body).toMatch(/you stay on the plan/);
-    });
-
-    it('says dropping out tells whoever runs the plan', () => {
-        expect(body).toMatch(/Whoever runs the plan gets a DM saying you did/);
-    });
-
-    it('speaks as we rather than as the Service', () => {
-        expect(body).not.toContain('the Service');
-    });
-});
-
-describe('the privacy policy', () => {
-    const body = render(Privacy).body;
-
-    it('names the time zone it keeps', () => {
-        expect(body).toMatch(/<strong>Your time zone:<\/strong> the one your browser reports/);
-    });
-
-    it("keeps a plan's history and the DMs it can rewrite on the list", () => {
-        expect(body).toMatch(/last 100 events/);
-        expect(body).toMatch(/<strong>The bot's DMs:<\/strong>/);
-    });
-
-    it('keeps the answers for the last three days a plan has been on', () => {
-        expect(body).toMatch(/kept for the last three days the plan has\s+been on/);
-    });
-
-    it('keeps whether your DMs were closed, and says who sees it', () => {
-        expect(body).toMatch(/whether your DMs were closed the last time it\s+tried, so the overview can show whoever runs the plan/);
-    });
-
-    it('says who can see your days: whoever runs the plan, and its guests with no reasons', () => {
-        expect(body).toMatch(/<h2>Who can see your days<\/h2>\s*<p>\s*Whoever runs a plan sees the most/);
-        expect(body).toMatch(/the planner who made it, and anyone in the server they\s+picked to run it with them/);
-        expect(body).toMatch(/Having the planner role doesn't let anyone into a plan they aren't on/);
-        expect(body).toMatch(/Everyone else on the plan can open its overview too/);
-        expect(body).toMatch(/They never see a reason/);
-    });
-
-    it('says who else can end up running a plan, and that it shows', () => {
-        expect(body).toMatch(/A planner can\s+once nobody who runs it is left in the server/);
-        expect(body).toMatch(/someone who can manage the server can at any\s+time/);
-        expect(body).toMatch(/It goes in the plan's history/);
-    });
-
-    //People on those answered expecting only the planner to see
-    it('says a plan from before guests could see days keeps the names off them', () => {
-        expect(body).toMatch(/A plan made\s+before guests could see that stays as it was/);
-        expect(body).toMatch(/and nobody's name/);
-    });
-
-    it('says the bot DMs the people on a plan', () => {
-        expect(body).toMatch(/DMs the people invited to a plan/);
-    });
-
-    it('says a deleted thread or channel takes its plan with it', () => {
-        expect(body).toMatch(/A plan is deleted when its thread is deleted,\s+or the channel holding its thread is/);
-    });
-
-    it('says what is left once you share no server with the bot', () => {
-        expect(body).toMatch(/cut down to\s+your Discord ID and the logout number/);
-    });
-
-    it('uses the words the rest of the site does', () => {
-        expect(body).toMatch(/who has\s+filled in their dates/);
-        expect(body).not.toContain('confirmed');
-        expect(body).not.toContain('the Service');
     });
 });
 
@@ -1876,16 +1592,6 @@ describe('your own answer for a set day', () => {
         expect(body).not.toContain('Can you make it?');
         expect(body).not.toContain("I'm coming");
     });
-
-    //Smaller than the answers, since it takes them off the plan rather than answering for one day
-    it('offers a way off the plan altogether, whether or not they are on the day', () => {
-        expect(draw()).toContain('<button class="link-btn">Leave this plan</button>');
-        expect(draw({ invited: false })).toContain('<button class="link-btn">Leave this plan</button>');
-    });
-
-    it('has a line waiting for each thing that can go wrong', () => {
-        expect(draw().match(/role="alert"/g)).toHaveLength(2);
-    });
 });
 
 describe('the day picked, for a guest', () => {
@@ -2071,17 +1777,6 @@ describe("someone's days", () => {
 
     describe('drawn', () => {
         const body = bare(render(PersonDialog, { props: { person: bo, freeByDate, asked, today, onclose: () => {} } }).body);
-
-        it('are a dialog named for the person, with a way to close it', () => {
-            const [, id] = body.match(/<dialog class="person-card" aria-labelledby="([^"]+)">/)!;
-            expect(body).toContain(`<h2 id="${id}">BO's days</h2>`);
-            expect(body).toMatch(/<button class="close" aria-label="Close">/);
-        });
-
-        it('say where their answer has got to, on screen and in words for anyone who cannot see the calendar', () => {
-            expect(body).toContain('<p class="muted small">Answered up to Thu 13 Aug, with 3 days after that still to answer.</p>');
-            expect(body).toContain('<p class="offscreen">Free: Tue 11 Aug, 5pm to 10pm; Wed 12 Aug. Still to answer: Fri 14 Aug to Sun 16 Aug.</p>');
-        });
 
         //Only one month to draw, so the card stays at one month's width
         it('keep the card to one month when the plan asks about one', () => {

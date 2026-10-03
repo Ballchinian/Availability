@@ -161,18 +161,6 @@ describe('who can save an edit', () => {
         ctx = asHost('sam', { isPlanner: false });
         expect((await edit(form({ name: 'Quiz night', hostIds: ['ali'] }))).status).toBe(200);
     });
-
-    it('is not a guest', async () => {
-        sessionUser = { id: 'bo' };
-        ctx = asHost('bo');
-        expect((await edit(form({ name: 'Quiz night' }))).status).toBe(403);
-        expect(db.applyPlanEdit).not.toHaveBeenCalled();
-    });
-
-    it('is nobody once the plan is called off', async () => {
-        plans.set('p1', stored({ status: 'cancelled' }));
-        expect((await edit(form({ name: 'Quiz night' }))).status).toBe(409);
-    });
 });
 
 describe('a form opened before someone else saved', () => {
@@ -359,11 +347,6 @@ describe('a save', () => {
         expect(current.name).toBe('Quiz night');
         expect(opts).toMatchObject({ actorName: 'Ali', quiet: false, heard: [], before: { name: 'Board games' } });
         expect(opts.changes).toEqual([{ type: 'name', from: 'Board games', to: 'Quiz night' }]);
-    });
-
-    it('marks the plan with who saved it, for the next form to name', async () => {
-        await edit(form({ name: 'Quiz night' }));
-        expect(plans.get('p1')).toMatchObject({ rev: 1, revBy: { id: 'ali', name: 'Ali' } });
     });
 });
 

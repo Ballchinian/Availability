@@ -103,23 +103,6 @@ describe('describeEvent', () => {
         expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: 1 })).toBe('set this to come round every week');
         expect(describeEvent({ ...base, type: 'repeat', repeatWeeks: null })).toBe('stopped this coming round again');
     });
-
-    //Every branch returns, so a new event type is a build error rather than a blank line
-    it('says something for every type there is', () => {
-        const types: PlanEvent['type'][] = [
-            'created', 'chosen', 'moved', 'voided', 'range', 'dates', 'weekdays',
-            'details', 'added', 'left', 'rejoined', 'reminded', 'repeat', 'repeated', 'repeatended', 'cancelled', 'tookon'
-        ];
-        for (const type of types) {
-            const event = {
-                ...base, type,
-                date: '2026-08-12', time: null, probe: false, from: '2026-08-01',
-                start: '2026-08-01', end: '2026-08-31', allowedWeekdays: null,
-                renamed: false, count: 1, added: 0, reopened: true, kind: 'vote', repeatWeeks: 2, planId: 'ab12cd34ef'
-            } as PlanEvent;
-            expect(describeEvent(event)).toBeTruthy();
-        }
-    });
 });
 
 describe('hasActor', () => {

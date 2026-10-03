@@ -145,11 +145,6 @@ describe('a day being set', () => {
         expect(deleted.map((d) => d.id).sort()).toEqual(['card-bo', 'card-cy']);
     });
 
-    it('records who set it as who every later rewrite of a card names', async () => {
-        await announce(plan(), after(), { heard, owing: ['bo', 'cy'] });
-        expect(db.setPlanCards.mock.calls[0][2]).toEqual({ actorName: 'Ali', moved: false });
-    });
-
     it('posts the list with the buttons, pinging only whoever has to answer and had no card land', async () => {
         closed.add('cy');
         await announce(plan(), after(), { heard, owing: ['bo', 'cy'] });

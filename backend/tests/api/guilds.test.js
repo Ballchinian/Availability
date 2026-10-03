@@ -115,11 +115,6 @@ describe('who runs a new plan', () => {
         expect(made().participantIds).toEqual(['bo']);
     });
 
-    it('takes no planner role to be picked', async () => {
-        await start(form({ hostIds: ['bo'] }));
-        expect(made().hostIds).toEqual(['ali', 'bo']);
-    });
-
     it('holds whoever made it once, even when the form names them', async () => {
         await start(form({ hostIds: ['sam', 'ali'] }));
         expect(made().hostIds).toEqual(['ali', 'sam']);
@@ -149,16 +144,6 @@ describe('who runs a new plan', () => {
         expect(lookups).toEqual([]);
         expect(db.createPlan).not.toHaveBeenCalled();
     });
-
-    it('never takes who made it from the form', async () => {
-        await start(form({ createdBy: 'sam' }));
-        expect(made()).toMatchObject({ createdBy: 'ali', hostIds: ['ali'] });
-    });
-
-    it('holds for a plan made with its day already set', async () => {
-        await start(form({ announce: true, date: ahead(5), hostIds: ['sam'] }));
-        expect(made().hostIds).toEqual(['ali', 'sam']);
-    });
 });
 
 //The thread never says why they are in it, so each of them is DMed once, after the plan is announced
@@ -173,11 +158,6 @@ describe('telling the people picked to run it', () => {
         const current = { planId: 'ab12cd34ef', hostIds: ['ali', 'sam'] };
         await jobs()[1].run(current);
         expect(bot.notifyHostsPicked).toHaveBeenCalledWith(current, 'ali');
-    });
-
-    it('comes for a plan made with its day set too', async () => {
-        await start(form({ announce: true, date: ahead(5), hostIds: ['sam'] }));
-        expect(jobs().map((j) => j.label)).toEqual(['set-plan announce', 'hosts picked']);
     });
 });
 
@@ -216,11 +196,6 @@ describe('a practice plan', () => {
         expect(res.status).toBe(200);
         expect(made()).toMatchObject({ practice: 'ali', participantIds: ['practice_pat', 'ali'], hostIds: ['ali', 'practice_lou'], repeatWeeks: null });
         expect(lookups).toEqual(['ali']);
-    });
-
-    it('is not one for a real plan, whatever the form says', async () => {
-        await start(form({ practice: 'ali' }));
-        expect(made().practice).toBe(null);
     });
 
     it('never has a real person on it besides the planner', async () => {

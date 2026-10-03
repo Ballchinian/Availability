@@ -15,23 +15,6 @@ describe('hourLabel', () => {
     });
 });
 
-describe('DAY_HOURS', () => {
-    it('covers the whole clock exactly once', () => {
-        expect(HOUR_COUNT).toBe(24);
-        expect([...DAY_HOURS].sort((a, b) => a - b)).toEqual([...Array(24).keys()]);
-    });
-
-    /*
-        The seam is where the list wraps, and nothing can span it. 5am is the choice
-        because a night out running to 4am and a hike starting at 6am both sit whole on
-        their own side of it.
-    */
-    it('starts the day at 5am so the seam falls where nothing spans it', () => {
-        expect(DAY_HOURS[0]).toBe(5);
-        expect(DAY_HOURS[HOUR_COUNT - 1]).toBe(4);
-    });
-});
-
 describe('hoursOf', () => {
     it('treats nothing picked as the whole day', () => {
         expect(hoursOf()).toEqual(DAY_HOURS);

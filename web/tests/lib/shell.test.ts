@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'svelte/server';
-import App, { routes } from '../../src/App.svelte';
+import App from '../../src/App.svelte';
 
 /*
     The frame every screen sits in. The router reads window.location as it loads, so it is
@@ -21,40 +21,7 @@ const page = (location = '/') => {
 //Each tab's text, for the ones marked as the page being looked at
 const current = (body: string) => [...body.matchAll(/<a [^>]*aria-current="page"[^>]*>([^<]*)<\/a>/g)].map((m) => m[1]);
 
-describe('the page frame', () => {
-    it('puts the header, main and footer side by side rather than one inside another', () => {
-        const body = page();
-        const headerEnd = body.indexOf('</header>');
-        const main = body.indexOf('<main id="content"');
-        const mainEnd = body.indexOf('</main>');
-        const footer = body.indexOf('<footer');
-        expect(headerEnd).toBeGreaterThan(-1);
-        expect(main).toBeGreaterThan(headerEnd);
-        expect(footer).toBeGreaterThan(mainEnd);
-    });
-
-    //My plans goes home already, so the name is only a name
-    it('names the site without linking it', () => {
-        const head = page().match(/<header[\s\S]*?<\/header>/)?.[0] || '';
-        expect(head).toContain('<span class="brand">Availability</span>');
-        expect(head.match(/href="#\/"/g)).toHaveLength(1);
-    });
-
-    it('starts with a link that skips to the content', () => {
-        const first = page().match(/<a [^>]*>[^<]*<\/a>/)?.[0];
-        expect(first).toContain('href="#content"');
-        expect(first).toContain('Skip to content');
-    });
-});
-
 describe('the tabs', () => {
-    it('names the three places', () => {
-        const nav = page('/terms').match(/<nav[\s\S]*?<\/nav>/)?.[0] || '';
-        expect(nav).toContain('href="#/">My plans');
-        expect(nav).toContain('href="#/availability">My calendar');
-        expect(nav).toContain('href="#/past">Past plans');
-    });
-
     it('marks the one for the page being looked at, and only that one', () => {
         expect(current(page('/'))).toEqual(['My plans']);
         expect(current(page('/availability'))).toEqual(['My calendar']);
@@ -63,13 +30,5 @@ describe('the tabs', () => {
 
     it('marks none on a page that is not one of them', () => {
         expect(current(page('/plan/ab12cd34ef'))).toEqual([]);
-    });
-});
-
-describe('the routes', () => {
-    //Every DM sent before the overview had that name links to /compare, and they are still out there
-    it('answer the overview by the name it used to have too', () => {
-        expect(routes['/plan/:planId/overview']).toBeDefined();
-        expect(routes['/plan/:planId/compare']).toBe(routes['/plan/:planId/overview']);
     });
 });

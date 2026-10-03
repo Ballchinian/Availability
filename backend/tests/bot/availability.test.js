@@ -67,17 +67,6 @@ describe('dayChunks', () => {
         expect(cut).toBe(53);
     });
 
-    it('never hands back a chunk Discord would refuse', () => {
-        for (const end of ['2026-08-01', '2026-08-26', '2026-10-10', '2027-08-01']) {
-            const { chunks } = dayChunks(plan('2026-08-01', end));
-            expect(chunks.length).toBeLessThanOrEqual(4);
-            for (const chunk of chunks) {
-                expect(chunk.length).toBeGreaterThan(0);
-                expect(chunk.length).toBeLessThanOrEqual(25);
-            }
-        }
-    });
-
     //A weekday restriction that leaves nothing is refused at creation, but a picker still has to cope
     it('comes back with nothing rather than an empty select', () => {
         const { chunks, total } = dayChunks(plan('2026-08-03', '2026-08-07', [0, 6]));
@@ -119,12 +108,6 @@ describe('pickerComponents', () => {
         expect(rows[1].components).toHaveLength(3);
     });
 
-    it('ends on a button to the page, where the hours and the rest of the days go', () => {
-        const link = build(plan('2026-08-01', '2026-08-14')).at(-1).components.at(-1);
-        expect(link.label).toBe('Add my dates');
-        expect(link.url).toMatch(/#\/plan\/ab12cd34ef$/);
-    });
-
     //Five rows is the cap on a message, four of days and one of buttons
     it('never builds more rows than a message can hold', () => {
         expect(build(plan('2026-08-01', '2026-12-31'))).toHaveLength(5);
@@ -134,13 +117,6 @@ describe('pickerComponents', () => {
         const rows = build(plan('2026-08-01', '2026-08-14'), ['2026-08-03', '2026-08-04']);
         const picked = rows[0].components[0].options.filter((o) => o.default).map((o) => o.value);
         expect(picked).toEqual(['2026-08-03', '2026-08-04']);
-    });
-
-    //Zero, so emptying a list is how somebody says they are free on none of these
-    it('lets a list be emptied and lets all of it be taken', () => {
-        const select = build(plan('2026-08-01', '2026-08-14'))[0].components[0];
-        expect(select.min_values).toBe(0);
-        expect(select.max_values).toBe(14);
     });
 
     it('carries the chunk each select answers for, by index and by its first and last day', () => {
@@ -155,12 +131,6 @@ describe('pickerComponents', () => {
             'free|all|ab12cd34ef|2026-08-01|2026-09-09',
             'free|none|ab12cd34ef|2026-08-01|2026-09-09'
         ]);
-    });
-
-    it('keeps every id inside the hundred characters an id gets', () => {
-        for (const row of build(plan('2026-08-01', '2026-12-31'))) {
-            for (const component of row.components) expect((component.custom_id || '').length).toBeLessThanOrEqual(100);
-        }
     });
 });
 

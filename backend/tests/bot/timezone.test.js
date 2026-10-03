@@ -58,4 +58,13 @@ describe('suggestZones', () => {
         expect(suggestZones('new_y')).toContain('America/New_York');
         expect(suggestZones('europe/')[0].startsWith('Europe/')).toBe(true);
     });
+
+    //Discord hands over what was typed, spaces and all, where the names use underscores
+    it('reads a typed space as the underscore in the name', () => {
+        expect(suggestZones('new york')).toContain('America/New_York');
+    });
+
+    it('comes back empty rather than guessing', () => {
+        expect(suggestZones('zzzznotazone')).toEqual([]);
+    });
 });

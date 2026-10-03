@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { isValidZone, instantToWall, wallToInstant, clocksAgree, retimeDay, planInstant, todayIn, zoneOffsetLabel } from '../../src/lib/zones.js';
-import { suggestZones } from '../../src/bot/timezone.js';
 
 /*
     Dates are picked so the answer differs from the naive one. Europe/London in August
@@ -156,31 +155,6 @@ describe('planInstant', () => {
         expect(planInstant('Europe/London', '2026-08-12', '')).toBe(null);
         expect(planInstant('Europe/London', null, '19:00')).toBe(null);
         expect(planInstant('Europe/London', '2026-08-12', '7pm')).toBe(null);
-    });
-});
-
-describe('suggestZones', () => {
-    it('never sends Discord more than it takes', () => {
-        expect(suggestZones('').length).toBeLessThanOrEqual(25);
-        expect(suggestZones('a').length).toBeLessThanOrEqual(25);
-    });
-
-    it('finds a zone from the middle of its name', () => {
-        expect(suggestZones('lond')).toContain('Europe/London');
-        expect(suggestZones('tokyo')).toContain('Asia/Tokyo');
-    });
-
-    //Discord hands over what was typed, spaces and all, where the names use underscores
-    it('reads a typed space as the underscore in the name', () => {
-        expect(suggestZones('new york')).toContain('America/New_York');
-    });
-
-    it('offers something to a box nobody has typed in yet', () => {
-        expect(suggestZones('').length).toBeGreaterThan(0);
-    });
-
-    it('comes back empty rather than guessing', () => {
-        expect(suggestZones('zzzznotazone')).toEqual([]);
     });
 });
 

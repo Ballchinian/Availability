@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announceCancel, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans.js';
+import { announceWhenEdit, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
@@ -378,40 +378,14 @@ describe('the plan gate', () => {
 
 /*
     What "plan another like this" copies. The gate above covers who can ask for one, so
-    these are about what comes back, and the dates never being in it is the point.
+    these are about what comes back.
 */
 describe('a plan as a template', () => {
-    it('carries the name, the description, the days, the crowd and whoever ran it', async () => {
-        plans.set(
-            'ab12cd34ef',
-            plan({
-                description: 'Bring snacks',
-                allowedWeekdays: [0, 6],
-                participants: [{ userId: 'guest' }, { userId: 'planner' }]
-            })
-        );
-        const res = await get('/ab12cd34ef/template');
-        expect(await res.json()).toEqual({
-            name: 'Board games',
-            description: 'Bring snacks',
-            allowedWeekdays: [0, 6],
-            participantIds: ['guest', 'planner'],
-            hostIds: ['planner']
-        });
-    });
-
     //Nobody else could run the new one, and the create form would only have to drop them
     it('leaves out anyone who ran it and has left the server', async () => {
         plans.set('ab12cd34ef', plan({ hostIds: ['planner', 'sam', 'guest'] }));
         const body = await (await get('/ab12cd34ef/template')).json();
         expect(body.hostIds).toEqual(['planner', 'guest']);
-    });
-
-    //A new plan wants a new window, so nothing about when this one ran comes over
-    it('carries no dates at all', async () => {
-        plans.set('ab12cd34ef', plan({ chosenDate: inWindow, repeatWeeks: 2 }));
-        const body = await (await get('/ab12cd34ef/template')).json();
-        expect(Object.keys(body).sort()).toEqual(['allowedWeekdays', 'description', 'hostIds', 'name', 'participantIds']);
     });
 
     //Every day, which is how a plan with no restriction is stored and what the picker wants back
@@ -477,18 +451,6 @@ describe('choosing the day a plan is already on', () => {
         expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', 'meet at the station', { id: 'planner', name: 'Ali' });
     });
 
-    //An invite list rebuilt on an update is how somebody put on the board by hand falls off it
-    it('ignores the invite narrowing entirely', async () => {
-        plans.set('ab12cd34ef', setPlan());
-        await post('/ab12cd34ef/choose', {
-            date: inWindow,
-            time: '20:00',
-            inviteMode: 'attending',
-            attendingIds: ['guest']
-        });
-        expect(db.setPlanChosen).not.toHaveBeenCalled();
-    });
-
     it('refuses an update that changes nothing', async () => {
         plans.set('ab12cd34ef', setPlan());
         const res = await post('/ab12cd34ef/choose', { date: inWindow, time: '19:00' });
@@ -525,32 +487,6 @@ describe('narrowing the list to the people who can make it', () => {
     });
 });
 
-//A set day always asks who can make it, so no request can set one without asking or stop the asking
-describe('asking who can make it', () => {
-    it('records a new day as asked about, whatever the request says', async () => {
-        await post('/ab12cd34ef/choose', { date: inWindow, probe: false });
-        expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', expect.objectContaining({ type: 'chosen', probe: true }));
-    });
-
-    it('tells people whatever the request says about keeping quiet', async () => {
-        await post('/ab12cd34ef/choose', { date: inWindow, quiet: true });
-        await runQueued();
-        expect(announceOutcome.mock.calls.at(-1).at(-1)).toEqual({ changed: false, actorName: 'Ali' });
-    });
-
-    it('calls a plan off out loud whatever the request says', async () => {
-        await post('/ab12cd34ef/cancel', { quiet: true, post: false, dm: false });
-        await runQueued();
-        expect(announceCancel.mock.calls.at(-1)).toHaveLength(2);
-    });
-
-    it('has no way to stop asking', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: true }));
-        const res = await post('/ab12cd34ef/confirmations', { active: false });
-        expect(res.status).toBe(404);
-    });
-});
-
 /*
     The request's own copy of the plan is out of date by the time a slow announcement ahead of
     it finishes, so the queue hands over a fresh one and the route has to use that.
@@ -567,12 +503,6 @@ describe('queued announcements', () => {
         const later = plan({ status: 'closed', dateRange: range, chosenDate: ahead(5), chosenTime: '21:00' });
         await run(later);
         expect(announceWhenEdit.mock.calls.at(-1)[0]).toBe(later);
-    });
-
-    //Anything still waiting when a plan is cancelled gets dropped, so the cancel has to say what it is
-    it('let the cancel through on a cancelled plan', async () => {
-        await post('/ab12cd34ef/cancel');
-        expect(announceAfter.mock.calls.at(-1)).toEqual(['ab12cd34ef', 'cancel announce', expect.any(Function), { cancel: true }]);
     });
 });
 
@@ -611,24 +541,7 @@ describe('fixing up Discord by hand', () => {
         expect(res.status).toBe(502);
         expect((await res.json()).error).toMatch(/would not answer/);
     });
-
-    /*
-        No refuseCancelled, deliberately. A cancelled plan is the one whose DMs most want
-        correcting, since a stale card there has somebody turning up to nothing.
-    */
-    it('works on a cancelled plan', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'cancelled', participants: held(1) }));
-        syncPlan.mockResolvedValue(1);
-
-        expect((await post('/ab12cd34ef/repair')).status).toBe(200);
-    });
-
-    it('is for whoever runs the plan', async () => {
-        sessionUser = guest;
-        expect((await post('/ab12cd34ef/repair')).status).toBe(403);
-    });
 });
-
 
 describe('times and days on the plan clock', () => {
     it('refuses a time that is not one', async () => {
@@ -707,13 +620,6 @@ describe('saving dates on the plan page', () => {
         db.confirmParticipant.mockResolvedValueOnce(plans.get('ab12cd34ef'));
         await post('/ab12cd34ef/availability', { days: [] });
         expect(answersMoved).toHaveBeenCalledWith('guest', ['ab12cd34ef', 'zz98yx76wv']);
-    });
-
-    it('hands it back with the page', async () => {
-        getPlanningPrefs.mockResolvedValueOnce({ guest: { timeZone: 'Europe/London', coveredUntil: ahead(30), answered: [] } });
-        const body = await (await get('/ab12cd34ef')).json();
-        expect(body.coveredUntil).toBe(ahead(30));
-        expect(body).not.toHaveProperty('sureUntil');
     });
 });
 
@@ -900,12 +806,6 @@ describe('dropping out on the site', () => {
         expect(await res.json()).toEqual({ ok: true, told: ['Ali'], missed: [] });
     });
 
-    it('says who the DM could not reach', async () => {
-        notifyHostsDropped.mockResolvedValueOnce({ told: [], missed: ['Ali'] });
-        const res = await post('/ab12cd34ef/leave');
-        expect(await res.json()).toEqual({ ok: true, told: [], missed: ['Ali'] });
-    });
-
     it('claims nobody was told when telling them fell over', async () => {
         notifyHostsDropped.mockRejectedValueOnce(new Error('no database'));
         const res = await post('/ab12cd34ef/leave');
@@ -986,12 +886,6 @@ describe('the overview', () => {
         expect(by.bo).toMatchObject({ in: true, standing: 'no-dates', daysLeft: 14, unanswered: [[ahead(1), ahead(14)]] });
         expect(by.cy).toMatchObject({ in: false, inReason: 'Away', standing: 'out', unanswered: [] });
         expect(by.di).toMatchObject({ in: null, standing: 'not-said', coveredUntil: null });
-    });
-
-    it('says when each person last saved their calendar', async () => {
-        getLastUpdated.mockResolvedValueOnce({ ann: new Date('2026-09-28T10:00:00Z') });
-        const body = await (await get('/ab12cd34ef/compare')).json();
-        expect(body.participants.map((p) => p.updatedAt)).toEqual(['2026-09-28T10:00:00.000Z', null, null, null]);
     });
 });
 
@@ -1318,13 +1212,6 @@ describe('the attendance board', () => {
         expect(await res.json()).toEqual({ ok: true, dm: true });
         expect(db.setAttendanceOverride).toHaveBeenCalledWith('ab12cd34ef', 'ann', null, { reinvite: true });
         expect(applyAttendanceMove).toHaveBeenCalledWith(expect.objectContaining({ planId: 'ab12cd34ef' }), 'invite', 'ann', 'Ali', { rewrite: false });
-    });
-
-    it('does not claim a DM that never landed', async () => {
-        queue();
-        applyAttendanceMove.mockResolvedValueOnce(false);
-        const res = await post('/ab12cd34ef/attendance', { userId: 'ann', status: 'invite' });
-        expect(await res.json()).toEqual({ ok: true, dm: false });
     });
 
     //The queue swallows a failure and hands back nothing

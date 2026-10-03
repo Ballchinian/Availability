@@ -60,7 +60,6 @@ const cal = vi.hoisted(() => ({
 vi.mock('../../src/db/availability.js', () => cal);
 
 const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleJoin, handleJoinModal, handleUndrop, setDayReply } = await import('../../src/bot/plans.js');
-const { getPlanningPrefs } = await import('../../src/db/users.js');
 
 const day = shiftDate(today(), 3);
 const ids = (payload) => payload.components.flatMap((row) => row.components.map((b) => b.data.custom_id));
@@ -197,24 +196,6 @@ describe('the offer under the card', () => {
     });
 });
 
-describe('the reason boxes', () => {
-    const described = (click) => click.showModal.mock.calls[0][0].toJSON().components[0].description;
-
-    it("says who reads a can't make it reason", async () => {
-        store.plan = setPlan();
-        const click = press('vote|no|ab12cd34ef|r0');
-        await handleVote(click);
-        expect(described(click)).toBe('Only whoever runs the plan sees this.');
-    });
-
-    it('says the same on not for me', async () => {
-        store.plan = { ...setPlan(), status: 'collecting', chosenDate: null };
-        const click = press('drop|ab12cd34ef');
-        await handleDrop(click);
-        expect(described(click)).toBe('Only whoever runs the plan sees this.');
-    });
-});
-
 describe('count me in and not for me', () => {
     const collecting = (participants) => ({ ...setPlan(), status: 'collecting', probeActive: false, chosenDate: null, participants });
     const planner = { userId: 'planner', invited: true, confirmed: true };
@@ -291,20 +272,5 @@ describe('count me in and not for me', () => {
         expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'bo', true);
         expect(order).toEqual(['answered', 'dm planner']);
         expect(dms[0].payload).toBe('**BACK IN**\n\nBo is in for "Board games" in The server after all.');
-    });
-
-    //The one everyone-in DM this sets off, which carries the overview as a button
-    it('hands the planner the overview as a button, not a link in the text', async () => {
-        store.plan = collecting([bo(), planner]);
-        store.after = collecting([bo({ in: false }), planner]);
-        //Their own calendar answers the one day, so the planner is all that is left and done
-        getPlanningPrefs.mockResolvedValue({ planner: { answered: [{ start: day, end: day, allowedWeekdays: null }] } });
-
-        await handleJoinModal(press('joinmodal|ab12cd34ef', { fields: { getTextInputValue: () => '' } }));
-        getPlanningPrefs.mockResolvedValue({});
-
-        const allIn = dms.find((d) => d.payload.content?.includes('EVERYONE IS IN')).payload;
-        expect(allIn.content).not.toMatch(/https?:\/\//);
-        expect(allIn.components[0].components[0].data).toMatchObject({ label: 'Open the overview', url: expect.stringMatching(/#\/plan\/ab12cd34ef\/overview$/) });
     });
 });

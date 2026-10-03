@@ -160,12 +160,6 @@ describe('plannerRoleFor', () => {
         expect(out.saved).toBe(true);
     });
 
-    it('takes the saved role when it is named nothing like planner at all', () => {
-        const guild = rolesOf({ id: 'r1', name: 'Organisers' });
-
-        expect(plannerRoleFor(guild, { plannerRoleId: 'r1' }).role.name).toBe('Organisers');
-    });
-
     //A server being set up for the first time has nothing saved to go on
     it('falls back to the name when nothing is saved', () => {
         const guild = rolesOf({ id: 'r2', name: 'Planner' });

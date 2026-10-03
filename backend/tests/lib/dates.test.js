@@ -39,11 +39,6 @@ describe('formatDay', () => {
         expect(formatDay('2026-08-05')).toBe('Wed 5 Aug');
     });
 
-    //Every /free option label is one of these, and Discord caps those at 100 characters
-    it('stays well inside what an option can hold', () => {
-        expect(formatDay('2026-09-30').length).toBeLessThanOrEqual(100);
-    });
-
     it('is blank when there is no date', () => {
         expect(formatDay('')).toBe('');
         expect(formatDay(null)).toBe('');

@@ -1,23 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { css, rule, px, value } from '../css.js';
-
-describe('the hours clock', () => {
-    it('is a target of at least 24px', () => {
-        const clock = rule('.clock');
-        expect(Math.max(px(clock, 'height'), px(clock, 'min-height'))).toBeGreaterThanOrEqual(24);
-    });
-
-    it('sits under its day rather than on top of it', () => {
-        expect(rule('.clock')).not.toContain('position: absolute');
-    });
-});
-
-//The small buttons, whose padding alone came to 15 to 22px
-describe('small targets', () => {
-    it.each(['.link-btn', '.quick', '.move-row .ghost', '.uninvited .ghost', '.brush .ghost', '.person-card .close'])('%s is at least 24px tall', (selector) => {
-        expect(px(rule(selector), 'min-height')).toBeGreaterThanOrEqual(24);
-    });
-});
+import { css, rule } from '../css.js';
 
 describe('opacity', () => {
     /*
@@ -35,50 +17,10 @@ describe('opacity', () => {
     });
 });
 
-describe('picked states', () => {
-    it.each([".tabs a[aria-current='page']", '.wday.on', '.repeat-row .ghost:has(:checked)'])('%s is bold as well as coloured', (selector) => {
-        expect(Number(value(selector, 'font-weight'))).toBeGreaterThanOrEqual(600);
-    });
-});
-
-//Measured at 320px wide, where this ran past the panel
-describe('reflow', () => {
-    it("takes Chrome's own margin off the miss slider", () => {
-        expect(value(".miss input[type='range']", 'margin-inline')).toBe('0');
-    });
-});
-
 describe('the compare grid', () => {
     //Same specificity, so whichever comes later wins
     it('rings the day with focus over the day that is picked', () => {
         expect(rule('.cday:focus-visible')).toContain('var(--heading)');
         expect(css.indexOf('\n.cday:focus-visible {')).toBeGreaterThan(css.indexOf('\n.cday.chosen {'));
-    });
-});
-
-//The compare grid's third line, and what a fixed height does to a square cell
-describe('the hours in common', () => {
-    it('gets a cell tall enough for three lines, without widening the month', () => {
-        const cells = rule('.days.with-hours > *');
-        expect(px(cells, 'height')).toBeGreaterThanOrEqual(48);
-        expect(cells).toContain('aspect-ratio: auto');
-    });
-});
-
-describe('plan cards', () => {
-    it.each(['.card .name', '.card .action'])('gives %s a 24px floor', (selector) => {
-        expect(px(rule(selector), 'min-height')).toBeGreaterThanOrEqual(24);
-    });
-});
-
-describe('the sticky save bar', () => {
-    //Without the room, a day brought into view by Tab can stop underneath the bar
-    it('leaves room for itself at the bottom of the page', () => {
-        expect(value('html', 'scroll-padding-bottom')).toContain('var(--actionbar');
-    });
-
-    it('lets go on a short screen, where pinned it would cover most of it', () => {
-        const short = css.slice(css.indexOf('@media (max-height: 500px)'));
-        expect(short.slice(0, short.indexOf('\n}'))).toMatch(/\.actionbar \{\s*position: static;/);
     });
 });

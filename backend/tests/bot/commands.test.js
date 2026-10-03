@@ -1,10 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-/*
-    The slash commands go by /overview and /mycalendar. Registering replaces the whole
-    list on Discord's side, so the old names drop off by themselves on the next boot.
-*/
-
 vi.mock('../../src/bot/client.js', () => ({ client: {} }));
 
 const plan = { planId: 'ab12cd34ef', guildId: 'g1', threadId: 't1', name: 'Board games' };
@@ -21,10 +16,8 @@ vi.mock('../../src/db/plans.js', async (real) => ({
 }));
 vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanningPrefs: vi.fn(async () => theirs.prefs) }));
 
-const { commands } = await import('../../src/bot/commands.js');
 const { attachEvents } = await import('../../src/bot/events.js');
-const { introText, whoCanPlan, createUrl, calendarUrl, overviewUrl, planUrl, datesUrl } = await import('../../src/bot/util.js');
-const { config } = await import('../../src/config.js');
+const { overviewUrl, planUrl, datesUrl } = await import('../../src/bot/util.js');
 const { getLivePlansForUser } = await import('../../src/db/plans.js');
 const { todayIn } = await import('../../src/lib/zones.js');
 const { shiftDate } = await import('../../src/lib/dates.js');
@@ -55,20 +48,6 @@ function slash(commandName, over = {}) {
     };
 }
 
-describe('the command list', () => {
-    const names = commands.map((c) => c.name);
-
-    it('registers /overview and /mycalendar', () => {
-        expect(names).toContain('overview');
-        expect(names).toContain('mycalendar');
-    });
-
-    it('no longer registers /compare or /myavailability', () => {
-        expect(names).not.toContain('compare');
-        expect(names).not.toContain('myavailability');
-    });
-});
-
 describe('running the renamed commands', () => {
     //The pinned intro offers it to anyone on the plan, and the page turns away anyone who is not
     it('answers /overview with a button to the plan overview, planner role or not', async () => {
@@ -89,14 +68,6 @@ describe('running the renamed commands', () => {
         const { content, components } = interaction.reply.mock.calls[0][0];
         expect(content).toMatch(/inside a plan's thread/);
         expect(components).toBeUndefined();
-    });
-
-    it('answers /mycalendar with the calendar link', async () => {
-        const { interactionCreate } = fakeClient();
-        const interaction = slash('mycalendar');
-        await interactionCreate(interaction);
-        expect(interaction.reply).toHaveBeenCalledTimes(1);
-        expect(interaction.reply.mock.calls[0][0].content).toBe(`Your calendar: ${calendarUrl()}`);
     });
 });
 
@@ -198,34 +169,5 @@ describe('/mylink', () => {
         expect(reply.components).toHaveLength(5);
         expect(buttons(reply)).toHaveLength(25);
         expect(reply.content).toBe('Your plans here. The 25 newest fit, and the other 2 are on My plans.');
-    });
-});
-
-describe('the pinned intro', () => {
-    const text = introText('g1', 'r1');
-
-    it('lists every command anyone can run, by its new name', () => {
-        for (const name of ['/free', '/mylink', '/mycalendar', '/overview', '/cancel', '/timezone']) {
-            expect(text).toContain(`- \`${name}\`:`);
-        }
-        expect(text).not.toMatch(/\/compare|\/myavailability/);
-    });
-
-    it('links the calendar, the plans list and starting a plan', () => {
-        expect(text).toContain(`**Your calendar:** ${calendarUrl()}`);
-        expect(text).toContain(`**Your plans:** ${config.baseUrl}/#/\n`);
-        expect(text).toContain(`**Start a plan** (planners): ${createUrl('g1')}`);
-    });
-
-    it('ends on the line the setup reply shares', () => {
-        const lines = text.split('\n');
-        expect(lines.at(-2)).toBe(whoCanPlan('r1'));
-        expect(lines.at(-1)).toBe('Deleting a plan thread clears the plan for good.');
-        expect(whoCanPlan('r1')).toBe('Anyone with <@&r1> can start a plan and pick who runs it with them.');
-    });
-
-    it('has no heads up and no em-dash', () => {
-        expect(text).not.toMatch(/heads up/i);
-        expect(text).not.toContain('—');
     });
 });

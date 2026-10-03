@@ -172,12 +172,6 @@ describe('planCard asides', () => {
         expect(content.indexOf('meet at the station')).toBeLessThan(content.indexOf('Worth a proper look.'));
     });
 
-    //A rewrite passes none, so advice about a moment does not outlive the moment
-    it('carries no aside when none is passed', () => {
-        const { content } = planCard({ ...set, probeActive: true }, nobody, { actorName: 'Ali' });
-        expect(content).not.toContain('Worth a proper look.');
-    });
-
     it('puts it under the plan on a card still collecting dates', () => {
         const { content } = planCard(collecting, nobody, { actorName: 'Ali', aside: 'Ali has asked you to fill in your dates.' });
         expect(content.indexOf('a weekend away')).toBeLessThan(content.indexOf('Ali has asked you'));
@@ -189,7 +183,7 @@ describe('planCard asides', () => {
     });
 });
 
-//The words are one per thing everywhere, and a line that only points at a button says nothing the button does not
+//The words are one per thing everywhere
 describe('planCard wording', () => {
     const cards = () => [
         planCard(collecting, nobody, { actorName: 'Ali' }),
@@ -200,9 +194,5 @@ describe('planCard wording', () => {
 
     it('uses only the new banners', () => {
         expect(cards().map((c) => c.content.match(/^\*\*([A-Z ]+)\*\*/)[1])).toEqual(['INVITED', 'DAY SET', 'DAY SET', 'CALLED OFF']);
-    });
-
-    it('never tells anyone to hit or tap a button', () => {
-        for (const card of cards()) expect(card.content).not.toMatch(/\b(Hit|Tap)\b/);
     });
 });

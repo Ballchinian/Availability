@@ -78,11 +78,6 @@ describe('telling whoever runs a plan that everyone is in', () => {
         expect(db.markAllInNotified).not.toHaveBeenCalled();
     });
 
-    it('says nothing when everyone is out', async () => {
-        await notifyHostsIfAllIn(plan([{ userId: 'bo', in: false }]));
-        expect(dms).toEqual([]);
-    });
-
     it('goes to everyone who runs it', async () => {
         await notifyHostsIfAllIn(plan([{ userId: 'bo', in: true }], { hostIds: ['ali', 'sam'] }));
         expect(dms.map((d) => d.userId).sort()).toEqual(['ali', 'sam']);

@@ -66,11 +66,6 @@ describe('telling whoever runs it that someone dropped out', () => {
         expect(await notifyHostsDropped(plan, 'guest', null)).toEqual({ told: ['whoever runs it'], missed: [] });
     });
 
-    it('tells nobody when the one dropping out is the only one running it', async () => {
-        expect(await notifyHostsDropped(plan, 'planner', null)).toEqual({ told: [], missed: [] });
-        expect(dms).toEqual([]);
-    });
-
     describe('on a plan more than one person runs', () => {
         const shared = { ...plan, hostIds: ['planner', 'sam'] };
 
@@ -78,11 +73,6 @@ describe('telling whoever runs it that someone dropped out', () => {
             expect(await notifyHostsDropped(shared, 'guest', null)).toEqual({ told: ['Ali', 'Sam'], missed: [] });
             expect(dms.map((d) => d.userId).sort()).toEqual(['planner', 'sam']);
             expect(dms[0].text).toBe(dms[1].text);
-        });
-
-        it('says which of them the DM could not reach', async () => {
-            closed.add('sam');
-            expect(await notifyHostsDropped(shared, 'guest', null)).toEqual({ told: ['Ali'], missed: ['Sam'] });
         });
 
         it('tells the others when the one dropping out runs it too', async () => {

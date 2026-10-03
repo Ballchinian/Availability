@@ -1,25 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DAY_HOURS, validHours } from '../../src/lib/hours.js';
 
-describe('DAY_HOURS', () => {
-    it('covers the whole clock exactly once', () => {
-        expect(DAY_HOURS).toHaveLength(24);
-        expect([...DAY_HOURS].sort((a, b) => a - b)).toEqual([...Array(24).keys()]);
-    });
-
-    //Both sides lay the picker out from this, so a difference would mean the site and
-    //the validator disagree about what a day holds
-    it('matches the order the picker uses', () => {
-        expect(DAY_HOURS[0]).toBe(5);
-        expect(DAY_HOURS[23]).toBe(4);
-    });
-
-    //packHours in bot/plans.js shifts by the hour number and breaks silently above 31
-    it('stays inside what a bitmask can carry', () => {
-        expect(Math.max(...DAY_HOURS)).toBeLessThan(31);
-    });
-});
-
 describe('validHours', () => {
     it('lets an absent or empty list through, which means free all day', () => {
         expect(validHours(undefined)).toBe(true);

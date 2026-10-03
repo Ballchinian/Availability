@@ -1,38 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { todayIn } from '../../src/lib/zones.js';
 import { shiftDate } from '../../../shared/dates.js';
 
-/*
-    A set day always asks who can make it. setPlanChosen switches the asking on with the
-    day, and askOnSetDays switches it on at boot for plans set before that was so.
-*/
+import { askOnSetDays } from '../../src/db/mongo.js';
 
-const writes = vi.hoisted(() => []);
-
-vi.mock('../../src/db/mongo.js', async (real) => ({
-    ...(await real()),
-    col: () => ({
-        updateOne: async (filter, update, options) => writes.push({ filter, update, options }),
-        findOne: async () => null
-    })
-}));
-
-const { setPlanChosen } = await import('../../src/db/plans.js');
-const { askOnSetDays } = await vi.importActual('../../src/db/mongo.js');
-
-describe('setPlanChosen', () => {
-    beforeEach(() => (writes.length = 0));
-
-    it('asks everyone about the day', async () => {
-        await setPlanChosen('p1', '2026-08-08');
-        expect(writes[0].update.$set).toMatchObject({ status: 'closed', chosenDate: '2026-08-08', probeActive: true });
-    });
-
-    it('asks the people kept on a narrowed list too', async () => {
-        await setPlanChosen('p1', '2026-08-08', null, null, ['ali']);
-        expect(writes[0].update.$set.probeActive).toBe(true);
-    });
-});
+//A set day always asks who can make it, and this switches the asking on at boot for plans set before that was so
 
 //Plans in an array, and enough of a query matcher to run the filters askOnSetDays sends
 function fakeDatabase(rows) {

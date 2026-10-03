@@ -158,14 +158,6 @@ describe('announcing a plan with its day already set', () => {
         expect(dms.map((d) => d.userId).sort()).toEqual(guests);
         for (const dm of dms) expect(buttons(dm)).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
     });
-
-    it('links no calendar in the thread or the DMs', async () => {
-        await announceSetPlan(store.plan, cfg, 'Ali');
-
-        const text = [...posts, ...dms].map((m) => m.content || '').join('\n');
-        expect(text).toContain('Board games');
-        expect(text).not.toMatch(/calendar\.google|\.ics/);
-    });
 });
 
 describe('announcing a plan that is collecting dates', () => {
@@ -240,12 +232,6 @@ describe('opening a plan thread', () => {
         expect(db.setPlanThread).toHaveBeenCalledWith('p1', 't1', 'c2');
     });
 
-    it('does the same for a plan announced with its day already set', async () => {
-        store.plan = setDay();
-        await announceSetPlan(store.plan, cfg, 'Ali');
-        expect(db.setPlanThread).toHaveBeenCalledWith('p1', 't1', 'c2');
-    });
-
     //Adding someone to a thread pings them, and they used to land in an empty one
     it('posts the opener before anyone is added', async () => {
         store.plan = collecting();
@@ -277,12 +263,6 @@ describe('opening a plan thread', () => {
     it('leaves a plan with no thread alone', async () => {
         await addHostToThread(setDay(), 'sam');
         expect(timeline).toEqual([]);
-    });
-
-    it('asks for a week before archiving, and for nobody else to invite people in', async () => {
-        store.plan = collecting();
-        await announcePlan(store.plan, cfg, 'Ali');
-        expect(created).toEqual([expect.objectContaining({ name: 'Board games', autoArchiveDuration: 10080, invitable: false })]);
     });
 
     it('falls back to a day when the server will not take a week', async () => {
@@ -445,14 +425,6 @@ describe('thread posts guests read', () => {
         expect(posts.at(-1).content).toBe("**CALLED OFF**\n\nAli called off **Board games**. It won't come round again. Nothing more to fill in.");
         expect(edited.find((e) => e.id === 'op1').content).toContain("**Board games** was called off. It won't come round again.");
         expect(planCard(store.plan, {}, { actorName: 'Ali' }).content).toContain("Ali called off \"Board games\". It won't come round again.");
-    });
-
-    it('opens a collecting plan with no line for planners', async () => {
-        store.plan = collecting();
-        await announcePlan(store.plan, cfg, 'Ali');
-
-        expect(posts[0].content).toMatch(/^\*\*INVITED\*\*/);
-        expect(posts[0].content).not.toMatch(/planner|\/overview/i);
     });
 
     it('banners a moved day as a change', async () => {

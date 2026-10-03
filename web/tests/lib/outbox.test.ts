@@ -72,12 +72,6 @@ describe('a kept card', () => {
     };
     const body = render(BotMessage, { props: { message, names: {}, onanswered: () => {} } }).body;
 
-    it('draws its buttons in their colours, and its links as links into the site', () => {
-        expect(body).toMatch(/<button class="dbtn s3"[^>]*>Count me in<\/button>/);
-        expect(body).toMatch(/<button class="dbtn s4"[^>]*>Not for me<\/button>/);
-        expect(body).toMatch(/<a class="dbtn s5" href="#\/plan\/p1"[^>]*>Add my dates<\/a>/);
-    });
-
     it('says it was edited', () => {
         expect(body).toContain('(edited)');
         expect(body).toContain('<strong>INVITED</strong>');

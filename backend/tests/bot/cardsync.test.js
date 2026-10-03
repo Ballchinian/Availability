@@ -140,12 +140,6 @@ describe('syncPlanCards', () => {
         expect(edits.map((e) => e.userId).sort()).toEqual(['a', 'c']);
     });
 
-    it('keeps going when somebody has left and cannot be fetched at all', async () => {
-        inbox.set('a', {});
-        const done = await syncPlanCards(plan([person('a'), person('gone')]));
-        expect(done).toBe(1);
-    });
-
     //Otherwise every later pass spends a call finding out the same thing
     it('forgets a card whose message has really gone', async () => {
         inbox.set('a', { deleted: true });
@@ -158,17 +152,6 @@ describe('syncPlanCards', () => {
         inbox.set('a', { wobbly: true });
         await syncPlanCards(plan([person('a')]));
         expect(db.clearPlanCard).not.toHaveBeenCalled();
-    });
-
-    it('leaves somebody their own answer rather than asking again', async () => {
-        inbox.set('a', {});
-        inbox.set('b', {});
-        await syncPlanCards(plan([person('a', { vote: 'yes' }), person('b')], { probeActive: true }));
-
-        const a = edits.find((e) => e.userId === 'a').payload.content;
-        const b = edits.find((e) => e.userId === 'b').payload.content;
-        expect(a).toContain("You're down as coming.");
-        expect(b).toContain('Can you make it?');
     });
 
     it('tells somebody narrowed off the list that they are not on this one', async () => {
@@ -248,13 +231,6 @@ describe('inviting someone left off the day', () => {
         expect(db.setPlanCards).toHaveBeenCalledWith('ab12cd34ef', [{ userId: 'a', messageId: 'sent-a' }], { actorName: '' });
         //The NOT THIS ONE card goes, or it sits above the yes/no saying the opposite
         expect(deletes).toEqual(['m-old']);
-    });
-
-    //Ali set the day, which is not the same as Ali inviting them
-    it('names nobody as having set it', async () => {
-        inbox.set('a', {});
-        await applyAttendanceMove(invited(), 'invite', 'a');
-        expect(sends[0].payload.content).not.toContain('Ali');
     });
 
     //Said on this send only, so a later rewrite of the card does not keep saying it

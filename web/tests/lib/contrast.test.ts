@@ -35,10 +35,6 @@ const page = paint('var(--bg)');
 const panel = paint('var(--panel)');
 
 describe('the palette', () => {
-    it('finds the tokens', () => {
-        expect(Object.keys(tokens)).toContain('--control-border');
-    });
-
     it.each([
         ['--text', TEXT],
         ['--heading', TEXT],

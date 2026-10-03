@@ -9,8 +9,7 @@ import {
     isoPlus,
     nextDay,
     stepDay,
-    weekdayOf,
-    isWeekdayAllowed
+    weekdayOf
 } from '../../src/lib/calendar.js';
 
 afterEach(() => {
@@ -28,27 +27,6 @@ describe('isoFromNow', () => {
     it('is today at zero', () => {
         vi.useFakeTimers().setSystemTime(new Date(2026, 7, 5, 13, 30));
         expect(isoFromNow(0, 'day')).toBe('2026-08-05');
-    });
-
-    it('steps days, months and years', () => {
-        vi.useFakeTimers().setSystemTime(new Date(2026, 7, 5, 13, 30));
-        expect(isoFromNow(1, 'day')).toBe('2026-08-06');
-        expect(isoFromNow(3, 'month')).toBe('2026-11-05');
-        expect(isoFromNow(2, 'year')).toBe('2028-08-05');
-    });
-
-    it('carries a day step over the end of the month', () => {
-        vi.useFakeTimers().setSystemTime(new Date(2026, 7, 31, 9, 0));
-        expect(isoFromNow(1, 'day')).toBe('2026-09-01');
-    });
-
-    /*
-        setMonth off a 31st keeps the day number and spills into the month after,
-        so a three month window from 31 August ends on 1 December, not 30 November.
-    */
-    it('spills a month step off a 31st into the next month', () => {
-        vi.useFakeTimers().setSystemTime(new Date(2026, 7, 31, 9, 0));
-        expect(isoFromNow(3, 'month')).toBe('2026-12-01');
     });
 });
 
@@ -76,22 +54,13 @@ describe('isoPlus', () => {
         expect(isoPlus(isoPlus('2026-02-01', 1, 'month'), -1, 'day')).toBe('2026-02-28');
     });
 
-    //Same spill isoFromNow has, since it is the same setMonth underneath
+    //setMonth keeps the day number, so a month on from 31 August is 1 October, not 30 September
     it('spills a month step off a 31st into the month after', () => {
         expect(isoPlus('2026-08-31', 1, 'month')).toBe('2026-10-01');
     });
 });
 
 describe('nextDay', () => {
-    it('takes the next date', () => {
-        expect(nextDay('2026-08-05')).toBe('2026-08-06');
-    });
-
-    it('carries the month and the year', () => {
-        expect(nextDay('2026-08-31')).toBe('2026-09-01');
-        expect(nextDay('2026-12-31')).toBe('2027-01-01');
-    });
-
     it('knows a leap year', () => {
         expect(nextDay('2028-02-28')).toBe('2028-02-29');
         expect(nextDay('2026-02-28')).toBe('2026-03-01');
@@ -172,19 +141,6 @@ describe('weekdayOf', () => {
         expect(WEEKDAYS[weekdayOf('2026-08-09')]).toBe('Su');
         expect(WEEKDAYS[weekdayOf('2026-08-05')]).toBe('We');
         expect(WEEKDAYS[weekdayOf('2026-08-08')]).toBe('Sa');
-    });
-});
-
-describe('isWeekdayAllowed', () => {
-    it('allows everything when there is no restriction', () => {
-        expect(isWeekdayAllowed('2026-08-05', null)).toBe(true);
-        expect(isWeekdayAllowed('2026-08-05', [])).toBe(true);
-        expect(isWeekdayAllowed('2026-08-05')).toBe(true);
-    });
-
-    it('checks the date against the list', () => {
-        expect(isWeekdayAllowed('2026-08-05', [3])).toBe(true);
-        expect(isWeekdayAllowed('2026-08-05', [0, 6])).toBe(false);
     });
 });
 

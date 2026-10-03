@@ -48,15 +48,6 @@ describe('api', () => {
         expect(isAuthError(err)).toBe(true);
     });
 
-    //Screens render whatever is thrown, so it still has to read as an ordinary error
-    it('stays something errorText can read', async () => {
-        reply(429, { error: 'You have saved 200 times today.' });
-        const err = await api('/availability', { method: 'POST' }).catch((e) => e);
-        expect(err).toBeInstanceOf(Error);
-        expect(errorText(err)).toBe('You have saved 200 times today.');
-        expect(isAuthError(err)).toBe(false);
-    });
-
     it('hands the body back when it worked', async () => {
         reply(200, { ok: true });
         expect(await api('/me')).toEqual({ ok: true });

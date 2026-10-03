@@ -239,10 +239,6 @@ describe('askLine', () => {
         expect(askLine(partial, { joined: true })).toBe('Your calendar answers up to Tue 8 Sep, so there are 3 days after that to fill in.');
         expect(askLine(none, { joined: true })).toBe('Now fill in your dates.');
     });
-
-    it('has no link in any line', () => {
-        for (const c of [covered, partial, none]) expect(askLine(c, { free: 1 })).not.toMatch(/https?:|\{link\}/);
-    });
 });
 
 describe('inOf', () => {

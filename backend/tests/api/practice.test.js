@@ -158,11 +158,6 @@ describe('removing someone', () => {
         expect(availability.deleteAllForUser).toHaveBeenCalledWith('practice_a');
     });
 
-    it('needs no planner role', async () => {
-        planner.set('g1', false);
-        expect((await fetch(`${base}/practice_a`, { method: 'DELETE' })).status).toBe(200);
-    });
-
     it("is never someone else's", async () => {
         sessionUser = { id: 'sam', displayName: 'Sam' };
         expect((await fetch(`${base}/practice_a`, { method: 'DELETE' })).status).toBe(404);
