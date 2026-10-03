@@ -8,11 +8,12 @@ import { getPlanningPrefs } from '../db/users.js';
 import { refundAction } from '../db/ratelimits.js';
 import { announceAfter } from '../api/announce.js';
 import { fanOut } from '../lib/fanout.js';
-import { realMembers } from '../lib/members.js';
+import { realMembers, memberOf } from '../lib/members.js';
 import { formatDay, formatDate, formatTime, shiftDate, today } from '../lib/dates.js';
 import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered, rowFor, nextStep } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed, hasLapsed } from '../lib/zones.js';
 import { hostIdsOf } from '../lib/hosts.js';
+import { isPracticeId } from '../lib/practice.js';
 import { buildEditMessages, tookOffText, pickedText } from './edits.js';
 
 /*
@@ -24,6 +25,8 @@ import { buildEditMessages, tookOffText, pickedText } from './edits.js';
     Hands back the message, or null when it did not land.
 */
 async function deliver(plan, userId, payload) {
+    //Discord has nobody by that id, and asking costs a request against the rate limit
+    if (isPracticeId(userId)) return null;
     const p = plan.participants?.find((q) => q.userId === userId);
     try {
         const user = await client.users.fetch(userId);
@@ -498,8 +501,7 @@ export async function updateOpener(plan, thread = null) {
 async function memberName(guildId, userId, fallback = 'Someone') {
     try {
         const guild = await client.guilds.fetch(guildId);
-        const member = await guild.members.fetch(userId);
-        return member.displayName;
+        return (await memberOf(guild, userId))?.displayName || fallback;
     } catch {
         return fallback;
     }
@@ -590,6 +592,8 @@ export function answersMoved(userId, planIds) {
 */
 async function openThread(plan, cfg) {
     const guild = await client.guilds.fetch(plan.guildId);
+    //Nobody in the server sees anything of a practice plan
+    if (plan.practice) return { guild, thread: null };
     const channel = await guild.channels.fetch(cfg.plansChannelId);
     const thread = await createThread(channel, threadName(plan), ChannelType.PrivateThread);
     await setPlanThread(plan.planId, thread.id, channel.id);
@@ -615,7 +619,7 @@ export async function announcePlan(plan, cfg, actorName) {
     const ids = onIt(plan).map((p) => p.userId);
 
     //The thread id is only in the database yet, so it is patched on or the card has no thread button
-    const withThread = { ...plan, threadId: thread.id };
+    const withThread = thread ? { ...plan, threadId: thread.id } : plan;
     const asks = await askLines(plan, ids);
     //A repeat has no actor: nobody did this, it just came round, so the card says that instead
     await sendCards(plan, ids, (id) =>
@@ -1504,7 +1508,8 @@ export async function handleMyLink(interaction) {
     }
 
     const userId = interaction.user.id;
-    const found = await getLivePlansForUser(interaction.guildId, userId, shiftDate(today(), -1));
+    //Practice plans are the site's alone
+    const found = (await getLivePlansForUser(interaction.guildId, userId, shiftDate(today(), -1))).filter((plan) => !plan.practice);
     //Left off a set day, there is nothing for them to open, unless they run it
     const leftOff = (plan) => plan.status === 'closed' && !hostIdsOf(plan).includes(userId) &&
         plan.participants.find((p) => p.userId === userId)?.invited === false;

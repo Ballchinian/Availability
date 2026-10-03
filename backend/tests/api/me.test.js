@@ -195,3 +195,21 @@ describe("a made-up person's servers", () => {
         expect(users.getUserById).not.toHaveBeenCalled();
     });
 });
+
+describe('practice plans on my plans', () => {
+    it('are kept off the list of the planner they are for, and handed over on their own', async () => {
+        sessionUser = { id: 'ali' };
+        live.push(plan('cinema'), plan('drill', { practice: 'ali' }));
+        const body = await read();
+        expect(body.plans.map((p) => p.planId)).toEqual(['cinema']);
+        expect(body.practice.map((p) => p.planId)).toEqual(['drill']);
+    });
+
+    it('are the whole list for someone made up', async () => {
+        sessionUser = { id: 'practice_a' };
+        live.push(plan('drill', { practice: 'ali', participants: [{ userId: 'practice_a', in: null }] }));
+        const body = await read();
+        expect(body.plans.map((p) => p.planId)).toEqual(['drill']);
+        expect(body.practice).toEqual([]);
+    });
+});

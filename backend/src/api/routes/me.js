@@ -12,6 +12,7 @@ import { isValidZone, safeZone } from '../../lib/zones.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { rowFor } from '../../lib/coverage.js';
 import { isPracticeId } from '../../lib/practice.js';
+import { memberOf } from '../../lib/members.js';
 
 /*
     What the landing page runs on. Every other screen arrives from a link the bot
@@ -105,7 +106,7 @@ async function namesIn(guildId, ids) {
     if (!ids.length) return [];
     const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId).catch(() => null));
     if (!guild) return [];
-    const members = await Promise.all(ids.map((id) => guild.members.cache.get(id) || guild.members.fetch(id).catch(() => null)));
+    const members = await Promise.all(ids.map((id) => memberOf(guild, id)));
     return members.filter(Boolean).map((m) => m.displayName);
 }
 
@@ -160,13 +161,16 @@ router.get('/plans', requireUser, async (req, res) => {
         getPlanningPrefs([...new Set([req.user.id, ...waitingOn.flatMap((plan) => plan.participants.map((p) => p.userId))])])
     ]);
     const names = new Map(configs.map((cfg) => [cfg.guildId, cfg.guildName]));
-    const rows = (plans) => Promise.all(plans.map((plan) => planRow(plan, req.user.id, names, prefs)));
-    const [plans, past] = await Promise.all([rows(live), rows(over)]);
+    const rows = async (plans) => (await Promise.all(plans.map((plan) => planRow(plan, req.user.id, names, prefs)))).filter(Boolean);
+    //A planner's own practice plans are kept off their real list, and a made-up person has nothing else
+    const real = (plans) => (isPracticeId(req.user.id) ? plans : plans.filter((plan) => !plan.practice));
+    const [plans, past, practice] = await Promise.all([rows(real(live)), rows(real(over)), rows(live.filter((plan) => plan.practice && !isPracticeId(req.user.id)))]);
 
     res.json({
-        plans: plans.filter(Boolean),
+        plans,
         //The ones that are done with, kept apart so the live list stays what the page opens on
-        past: past.filter(Boolean)
+        past,
+        practice
     });
 });
 

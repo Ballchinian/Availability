@@ -190,6 +190,7 @@ Two lists, the live plans and the ones behind them, each plan with:
 * Plans the requester runs count as well as plans they are in, since nothing makes a planner invite themselves to their own plan. A plan made before hosts were stored is run by whoever made it.
 * A set plan the requester was left off the invite list for is left out, unless they run it.
 * Reads everyone's answers on the plans they run that are still finding a day, in one query, since `readyToPick` is everybody's answers.
+* A planner's own practice plans are kept off both lists and come as a third, `practice`, of the live ones only, shaped the same. For someone made up, every plan they have is a practice plan, so they come in the first two lists and `practice` is empty.
 
 ---
 
@@ -204,6 +205,7 @@ Tells the frontend about one server and where the requester stands in it.
 * Server name
 * Whether the requester is a member
 * Whether the requester has the planner role
+* `practice`: whether the requester is someone made up, who can only start practice plans
 
 ### Notes
 
@@ -224,7 +226,8 @@ Real, non-bot members, sorted by display name, each with a username, display nam
 
 ### Notes
 
-The full member list is a rate limited gateway call, so the result is cached per server for about a minute and a single fetch is shared when several requests land at once.
+* The full member list is a rate limited gateway call, so the result is cached per server for about a minute and a single fetch is shared when several requests land at once.
+* `?practice=1` asks for who a practice plan can hold instead: the requester, then their made-up people in that server. Someone made up always gets that list, for the planner behind them.
 
 ---
 
@@ -265,10 +268,13 @@ Planner role only.
 * A set plan's date must be today or later and within two years.
 * A weekday restriction has to leave at least one day inside the picked range, otherwise it is rejected.
 * Capped at a high daily backstop per person, since the planner role is the real gate.
+* Naming any made-up person makes it a practice plan, and so does anyone made up starting one. A practice plan is for the planner behind the made-up people, and can only hold their made-up people and them: anyone else is `400`. It never comes round again, and opens no thread.
 
 ---
 
 # Plans
+
+A practice plan is only there for the planner it is for and their made-up people, and they see no other plans. To anyone else, every route below answers it as a plan that does not exist.
 
 ## GET `/api/plans/:planId/name`
 
@@ -357,7 +363,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * `isPlanner`: whether the requester has the planner role, so could start another plan like it
 * `canTakeOn`: whether the requester could make themselves a host with `/takeon`
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats and who set it to (`repeatBy`, a name, null for a plan from before that was kept), the plans either side of it in its series, and a link to its thread in Discord
-* With the plan, its `rev`, which the edit form sends back so a change made since it opened is caught, and `createdBy`
+* With the plan, its `rev`, which the edit form sends back so a change made since it opened is caught, `createdBy`, and `practice`, whether it is a practice plan
 * For a host, `hostIds`: whoever runs the plan and is still in the server, by id, for the edit form's picker
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `inReason` for someone out, `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
@@ -421,6 +427,7 @@ The same list `GET /api/guilds/:guildId/members` gives a planner, cached the sam
 ### Notes
 
 * Here because whoever runs a plan may not hold the planner role, which the server's own route asks for.
+* On a practice plan it is who that plan can hold: the planner it is for, then their made-up people.
 
 ---
 
@@ -488,6 +495,7 @@ Nothing is posted in the thread. The only people DMed are the ones the change gi
 * Anyone listed as running it who has left the server comes off without that counting as a change. Only names the plan has never had are checked against the server.
 * `400` "Nothing has changed yet." for a save that would change nothing, preview or not.
 * Capped at 20 saves a day per person per server, and 30 a day per plan across everyone who runs it. A preview counts against neither.
+* `400` for a made-up person added to a real plan, anyone but the planner's made-up people and the planner added to a practice plan, or a practice plan set to come round again.
 
 ---
 

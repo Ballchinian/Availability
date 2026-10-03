@@ -20,7 +20,9 @@ import { newlyCovered, answersOn, askFor, daysToFill, toFillRuns, coverageOf, st
 import { diffPlan, whoHears, kindOf } from '../../../../shared/planDiff.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT, SAVE_LIMIT, NO_GUILD, EDIT_LIMIT, PLAN_ANNOUNCE_LIMIT } from '../../lib/limits.js';
-import { realMembers, listMembers, namesFor } from '../../lib/members.js';
+import { realMembers, listMembers, namesFor, memberOf, practiceCircle } from '../../lib/members.js';
+import { isPracticeId } from '../../lib/practice.js';
+import { mixRefusal } from '../practicePlans.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { ipLimit } from '../../lib/iplimit.js';
 
@@ -62,10 +64,16 @@ router.use(requireUser);
 */
 router.param('planId', async (req, res, next, planId) => {
     const plan = await getPlan(planId);
-    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
+    if (!plan || hiddenFrom(plan, req)) return res.status(404).json({ error: 'That plan does not exist.' });
     req.plan = plan;
     next();
 });
+
+//A practice plan is there for the planner it is for and their made-up people, who see nothing else
+function hiddenFrom(plan, req) {
+    if (isPracticeId(req.user.id)) return plan.practice !== req.realUser.id;
+    return Boolean(plan.practice) && plan.practice !== req.user.id;
+}
 
 /*
     For whoever runs the plan, planner role or not, and always about the plan's own
@@ -302,7 +310,7 @@ router.get('/:planId/compare', async (req, res) => {
     if (!ctx.isMember) return res.status(403).json({ error: 'You are not in that server.' });
     const role = planRole(plan, req.user.id);
 
-    const member = (id) => ctx.guild.members.fetch(id).catch(() => null);
+    const member = (id) => memberOf(ctx.guild, id);
     const running = await Promise.all(hostIdsOf(plan).map(member));
     //Who runs it, by name, leaving out anyone no longer in the server
     const hosts = running.filter(Boolean).map((m) => m.displayName);
@@ -426,7 +434,8 @@ router.get('/:planId/compare', async (req, res) => {
             threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null,
             //What the edit form sends back, so a save made since it opened is caught
             rev: plan.rev || 0,
-            createdBy: plan.createdBy
+            createdBy: plan.createdBy,
+            practice: Boolean(plan.practice)
         },
         role,
         hosts,
@@ -477,6 +486,7 @@ router.get('/:planId/template', requirePlanner, async (req, res) => {
     hold.
 */
 router.get('/:planId/members', requireHost, async (req, res) => {
+    if (req.plan.practice) return res.json({ members: await practiceCircle(req.ctx.guild, req.plan.practice) });
     try {
         res.json({ members: await listMembers(req.ctx.guild) });
     } catch (err) {
@@ -792,15 +802,18 @@ router.post('/:planId/edit', requireHost, refuseFinished, async (req, res) => {
     if (form.repeatWeeks && form.repeatWeeks !== (plan.repeatWeeks || null) && !ctx.isPlanner) {
         return res.status(403).json({ error: NEEDS_PLANNER });
     }
+    if (form.repeatWeeks && plan.practice) return res.status(400).json({ error: "A practice plan doesn't come round again." });
 
     //Only names the plan has never had are asked of Discord. Everyone already on it stays exactly as they are.
     const wanted = new Set(form.participantIds);
     const on = plan.participants.map((p) => p.userId);
+    const listed = hostIdsOf(plan);
+    const mixed = await mixRefusal(plan.practice || null, [...wanted, ...form.hostIds].filter((id) => !on.includes(id) && !listed.includes(id)));
+    if (mixed) return res.status(400).json({ error: mixed });
     const joining = await realMembers(ctx.guild, [...wanted].filter((id) => !on.includes(id)));
     const coming = [...on.filter((id) => wanted.has(id)), ...joining];
     if (!coming.length) return res.status(400).json({ error: 'None of those people are in the server.' });
 
-    const listed = hostIdsOf(plan);
     const here = await realMembers(ctx.guild, listed);
     if (here.includes(plan.createdBy) && plan.createdBy !== req.user.id && !form.hostIds.includes(plan.createdBy)) {
         return res.status(403).json({ error: 'Only whoever made this plan can stop running it.' });

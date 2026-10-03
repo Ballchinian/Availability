@@ -135,7 +135,9 @@ export async function createPlan({
     //Everyone who runs it, when that is more than whoever made it. The sweep's list can leave createdBy out.
     hostIds = null,
     //Only the repeat sweep passes one: it claims the id before making the plan, so it has to say which
-    planId = null
+    planId = null,
+    //The planner whose made-up people are on it, see api/practicePlans.js. Null for a real plan.
+    practice = null
 }) {
     const now = new Date();
     const doc = {
@@ -182,6 +184,7 @@ export async function createPlan({
         //The confirmation probe: off while collecting, and on from the moment a day is set
         probeActive: false,
         probeAllYesNotifiedAt: null,
+        practice: practice || null,
         createdAt: now,
         //Seeded here rather than pushed after, so the list always opens on the plan starting
         history: [{ type: 'created', at: now, by: createdBy, byName: actorName || '' }]

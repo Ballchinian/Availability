@@ -312,6 +312,25 @@ describe('opening a plan thread', () => {
     thread post used to lead with every guest, so a plan of about 55 broke the first and
     everything queued behind that post never went out.
 */
+//Nobody in the server sees a practice plan, and Discord is never asked about anyone made up
+describe('a practice plan', () => {
+    const practice = (over = {}) => ({ ...collecting(), practice: 'ali', participants: ['ali', 'practice_pat'].map((userId) => ({ userId, invited: true })), ...over });
+
+    it('opens no thread, and DMs only the planner', async () => {
+        await announcePlan(practice(), cfg, 'Ali');
+        expect(created).toHaveLength(0);
+        expect(posts).toHaveLength(0);
+        expect(db.setPlanThread).not.toHaveBeenCalled();
+        expect(dms.map((d) => d.userId)).toEqual(['ali']);
+    });
+
+    it('opens none with its day set either', async () => {
+        await announceSetPlan(practice({ status: 'closed', chosenDate: '2026-08-08', probeActive: true }), cfg, 'Ali');
+        expect(created).toHaveLength(0);
+        expect(dms.map((d) => d.userId)).toEqual(['ali']);
+    });
+});
+
 describe('a plan of 150 people', () => {
     const crowd = Array.from({ length: 150 }, (_, i) => `1${String(i).padStart(17, '0')}`);
     const big = () => setDay({ threadId: 'thread1', participants: crowd.map((userId) => ({ userId, invited: true })) });
