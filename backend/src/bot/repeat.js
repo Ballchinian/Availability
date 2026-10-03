@@ -132,6 +132,7 @@ async function repeatOne(plan) {
             timeZone: safeZone(cfg.timeZone),
             //The chain carries on by itself, and turning it off on this one is what ends it
             repeatWeeks: plan.repeatWeeks,
+            repeatBy: plan.repeatBy || null,
             repeatedFrom: plan.planId
         });
     } catch (err) {

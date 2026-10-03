@@ -167,9 +167,9 @@ describe('telling the people picked to run it', () => {
 
 //Coming round is always the day it was on some weeks later, which a plan finding its day does not have yet
 describe('a repeat on a new plan', () => {
-    it('is kept on a plan made with its day', async () => {
+    it('is kept on a plan made with its day, as set by whoever made it', async () => {
         await start(form({ announce: true, date: ahead(5), repeatWeeks: 2 }));
-        expect(made().repeatWeeks).toBe(2);
+        expect(made()).toMatchObject({ repeatWeeks: 2, repeatBy: { id: 'ali', name: 'Ali' } });
     });
 
     it('is not kept on a plan asking about dates', async () => {

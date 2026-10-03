@@ -417,8 +417,9 @@ router.get('/:planId/compare', async (req, res) => {
             chosenTime: plan.chosenTime || null,
             chosenNote: plan.chosenNote || null,
             probeActive: Boolean(plan.probeActive),
-            //Whether this comes round again once its day has been, and where the chain has got to
+            //Whether this comes round again once its day has been, who set it to, and where the chain has got to
             repeatWeeks: plan.repeatWeeks || null,
+            repeatBy: plan.repeatWeeks ? plan.repeatBy?.name || null : null,
             repeatedFrom: plan.repeatedFrom || null,
             repeatedInto: plan.repeatedInto || null,
             //The way back to where the plan is actually being talked about
@@ -809,7 +810,7 @@ router.post('/:planId/edit', requireHost, refuseFinished, async (req, res) => {
     const hostIds = [...staying, ...(await realMembers(ctx.guild, form.hostIds.filter((id) => !listed.includes(id))))];
 
     const before = { ...plan, hostIds: here };
-    const edit = planEdit(before, { ...form, participantIds: coming, hostIds });
+    const edit = planEdit(before, { ...form, participantIds: coming, hostIds }, byOf(req));
     const changes = diffPlan(before, edit.plan);
     if (!changes.length) return res.status(400).json({ error: 'Nothing has changed yet.' });
 

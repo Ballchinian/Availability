@@ -170,6 +170,12 @@ describe('who runs the next one', () => {
         expect(repeats()[0].hostIds).toEqual(['ali', 'sam']);
     });
 
+    it('says who set it coming round, the same as the one before', async () => {
+        first().repeatBy = { id: 'ali', name: 'Ali' };
+        await sweepRepeats();
+        expect(repeats()[0].repeatBy).toEqual({ id: 'ali', name: 'Ali' });
+    });
+
     it('is whoever made it, on a plan from before anyone else could', async () => {
         await sweepRepeats();
         expect(repeats()[0].hostIds).toEqual(['ali']);

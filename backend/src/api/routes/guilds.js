@@ -89,7 +89,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             //The clock the plan's day and time are read in, which is the server's
             timeZone: safeZone(ctx.cfg.timeZone),
             //Coming round is always the day it was on, some weeks later, so a plan with no day yet starts as a one off
-            repeatWeeks: setMode ? form.repeatWeeks : null
+            repeatWeeks: setMode ? form.repeatWeeks : null,
+            repeatBy: { id: req.user.id, name: ctx.member.displayName }
         });
 
         //Counted once each, since someone can be named to come and to run it

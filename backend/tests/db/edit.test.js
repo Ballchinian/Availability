@@ -107,6 +107,17 @@ describe('planEdit', () => {
         expect(moved).toMatchObject({ lastRemindedAt: null, allInNotifiedAt: null });
     });
 
+    it('names whoever turns a repeat on or changes it, and nobody once it stops', () => {
+        const ali = { id: 'ali', name: 'Ali' };
+        const on = planEdit(setPlan(), form({ repeatWeeks: 2 }), ali).plan;
+        expect(on.repeatBy).toEqual(ali);
+
+        const sam = { id: 'sam', name: 'Sam' };
+        expect(planEdit(on, form({ repeatWeeks: 2, name: 'Quiz night' }), sam).plan.repeatBy).toEqual(ali);
+        expect(planEdit(on, form({ repeatWeeks: 4 }), sam).plan.repeatBy).toEqual(sam);
+        expect(planEdit(on, form({ repeatWeeks: null }), sam).plan.repeatBy).toBe(null);
+    });
+
     it('takes people off and puts new ones on fresh', () => {
         const { plan } = planEdit(setPlan(), form({ participantIds: ['bo', 'fi'] }));
         expect(plan.participants.map((p) => p.userId)).toEqual(['bo', 'fi']);

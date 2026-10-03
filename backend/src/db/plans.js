@@ -129,6 +129,8 @@ export async function createPlan({
     allowedWeekdays = null,
     timeZone = null,
     repeatWeeks = null,
+    //{ id, name } of whoever set it coming round, which the next one in the series carries on
+    repeatBy = null,
     repeatedFrom = null,
     //Everyone who runs it, when that is more than whoever made it. The sweep's list can leave createdBy out.
     hostIds = null,
@@ -165,6 +167,7 @@ export async function createPlan({
             one plan rather than four.
         */
         repeatWeeks: repeatWeeks || null,
+        repeatBy: repeatWeeks ? repeatBy : null,
         //The plan this one came out of, and the one it went into, so a chain can be followed both ways
         repeatedFrom: repeatedFrom || null,
         repeatedInto: null,
@@ -297,7 +300,8 @@ export async function setGuildPlansTimeZone(guildId, timeZone) {
 
 //Turn repeating on or off. Null is a one off, and stopping never touches the plans already made.
 export async function setPlanRepeat(planId, repeatWeeks) {
-    await col(collections.plans).updateOne({ planId }, moved({ $set: { repeatWeeks: repeatWeeks || null } }));
+    const set = repeatWeeks ? { repeatWeeks } : { repeatWeeks: null, repeatBy: null };
+    await col(collections.plans).updateOne({ planId }, moved({ $set: set }));
     return getPlan(planId);
 }
 
@@ -421,17 +425,20 @@ export async function setPlanChosen(planId, date, time = null, note = null, invi
     with participantIds and hostIds already settled against who is in the server.
 
     wiped is everyone's yes or no going, and restore the answers a day moved back to
-    gets back, the same as setPlanChosen and the old dates screen.
+    gets back, the same as setPlanChosen and the old dates screen. by is whoever saves,
+    who the overview names as setting a repeat they turn on or change.
 */
-export function planEdit(plan, form) {
+export function planEdit(plan, form, by = null) {
     const wasSet = kindOf(plan) === 'set';
+    const repeatWeeks = form.repeatWeeks || null;
     const after = {
         ...plan,
         name: form.name,
         description: form.description,
         //Folded into the description by the form, see aboutOf in shared/planDiff.js
         chosenNote: null,
-        repeatWeeks: form.repeatWeeks || null,
+        repeatWeeks,
+        repeatBy: !repeatWeeks ? null : repeatWeeks === (plan.repeatWeeks || null) ? plan.repeatBy || null : by,
         hostIds: form.hostIds
     };
     let wiped = false;
@@ -498,7 +505,7 @@ export function planEdit(plan, form) {
 
 //What an edit can change on the plan itself. Only what did change is written, so nothing written since the read is put back.
 const EDITABLE = [
-    'name', 'description', 'chosenNote', 'repeatWeeks', 'hostIds', 'status', 'chosenDate', 'chosenTime', 'dateRange', 'allowedWeekdays',
+    'name', 'description', 'chosenNote', 'repeatWeeks', 'repeatBy', 'hostIds', 'status', 'chosenDate', 'chosenTime', 'dateRange', 'allowedWeekdays',
     'round', 'lastRound', 'pastVotes', 'probeActive', 'probeAllYesNotifiedAt', 'lastVoteRemindedAt', 'lastRemindedAt', 'allInNotifiedAt'
 ];
 

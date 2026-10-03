@@ -354,7 +354,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * `hosts`: the names of whoever runs the plan, leaving out anyone no longer in the server
 * `isPlanner`: whether the requester has the planner role, so could start another plan like it
 * `canTakeOn`: whether the requester could make themselves a host with `/takeon`
-* The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
+* The plan, including any date already locked in, the clock the server runs on, whether it repeats and who set it to (`repeatBy`, a name, null for a plan from before that was kept), the plans either side of it in its series, and a link to its thread in Discord
 * With the plan, its `rev`, which the edit form sends back so a change made since it opened is caught, and `createdBy`
 * For a host, `hostIds`: whoever runs the plan and is still in the server, by id, for the edit form's picker
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed

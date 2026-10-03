@@ -964,6 +964,13 @@ describe('the overview', () => {
         expect(body.freeByDate).toEqual({ [ahead(3)]: [{ userId: 'ann', hours: [] }] });
     });
 
+    it('names who set a repeat, and nobody on a plan that does not repeat', async () => {
+        plans.set('ab12cd34ef', { ...plans.get('ab12cd34ef'), repeatWeeks: 2, repeatBy: { id: 'planner', name: 'Ali' } });
+        expect((await (await get('/ab12cd34ef/compare')).json()).plan.repeatBy).toBe('Ali');
+        plans.set('ab12cd34ef', { ...plans.get('ab12cd34ef'), repeatWeeks: null });
+        expect((await (await get('/ab12cd34ef/compare')).json()).plan.repeatBy).toBe(null);
+    });
+
     it('hands the edit form the version it opened on, who made the plan and who runs it', async () => {
         plans.set('ab12cd34ef', { ...plans.get('ab12cd34ef'), rev: 4, hostIds: ['planner', 'gone'] });
         const body = await (await get('/ab12cd34ef/compare')).json();

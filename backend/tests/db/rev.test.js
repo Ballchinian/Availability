@@ -54,6 +54,7 @@ describe('rev', () => {
         await db.setPlanRepeat('p1', null);
         expect(store.writes.every(moves)).toBe(true);
         expect(store.writes.map((u) => u.$set.revBy)).toEqual([null, null]);
+        expect(store.writes[1].$set.repeatBy).toBe(null);
     });
 
     it('stays put for an answer, which the form never sends', async () => {

@@ -7,7 +7,7 @@ import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
 import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
 import Standing from '../../src/lib/compare/Standing.svelte';
 import AnswerBoard, { owing, askAside, askedLine, updatedLine } from '../../src/lib/compare/AnswerBoard.svelte';
-import PlanOverview, { planState } from '../../src/lib/compare/PlanOverview.svelte';
+import PlanOverview, { planState, repeatLine } from '../../src/lib/compare/PlanOverview.svelte';
 import TakeOn from '../../src/lib/compare/TakeOn.svelte';
 import YourAnswer from '../../src/lib/compare/YourAnswer.svelte';
 import Status, { invalidIf } from '../../src/lib/Status.svelte';
@@ -1587,6 +1587,41 @@ describe('a plan overview', () => {
         expect(body).toContain('<p class="muted">The dates it asked about have passed · The server</p>');
         expect(body).not.toContain('Fill in your own dates');
         expect(draw(screen())).toContain('Fill in your own dates');
+    });
+
+    describe('coming round again', () => {
+        const repeating = { ...set, repeatWeeks: 2, repeatBy: 'Ali' };
+
+        it('says how often, who set it, and when the next one is, with where it lands drawn', () => {
+            const body = draw(screen({}, repeating));
+            expect(body).toContain('<h2>Comes round again</h2>');
+            expect(body).toContain(`Every other week, set by Ali. Next one ${formatDate(ahead(18))}, made once this day has been.`);
+            expect(body).toContain('class="rcal"');
+        });
+
+        it('is the same for a guest', () => {
+            expect(draw(screen({ role: 'guest' }, repeating))).toContain('Comes round again');
+        });
+
+        it('says nothing once the plan is over, or for a one off', () => {
+            expect(draw(screen({}, { ...repeating, chosenDate: ahead(-2) }))).not.toContain('Comes round again');
+            expect(draw(screen({}, { ...repeating, status: 'cancelled' }))).not.toContain('Comes round again');
+            expect(draw(screen({}, set))).not.toContain('Comes round again');
+        });
+
+        //Nothing is made until it has a day, so there is no date to give or calendar to draw
+        it('waits for a day on a plan still finding one', () => {
+            const body = draw(screen({}, { repeatWeeks: 2, repeatBy: 'Ali' }));
+            expect(body).toContain('Every other week, set by Ali, once it has a day.');
+            expect(body).not.toContain('class="rcal"');
+        });
+
+        //A repeat turned on before anyone was written down as setting it
+        it('names nobody it has no name for', () => {
+            expect(repeatLine({ ...screen({}, { ...set, repeatWeeks: 1 }).plan }, [])).toBe(
+                'Every week. Nothing follows this one, since the next would land past the two years anything here reaches.'
+            );
+        });
     });
 
     //The one thing everyone came for, so it keeps the box it had

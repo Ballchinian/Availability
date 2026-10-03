@@ -105,8 +105,9 @@ export interface PlanScreen {
 export interface ComparePlan extends Plan {
     guildId: string;
     probeActive: boolean;
-    //How often this comes round again, null for a one off
+    //How often this comes round again, null for a one off, and who set it to. Missing from an older backend.
     repeatWeeks: number | null;
+    repeatBy?: string | null;
     //The plan this one came out of, and the one it went into once its day had been
     repeatedFrom: string | null;
     repeatedInto: string | null;

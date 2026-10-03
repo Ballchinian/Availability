@@ -1,6 +1,7 @@
 <script module lang="ts">
     import { datesPassed } from '../../../../shared/coverage.js';
-    import { formatDate, formatTime } from '../format.js';
+    import type { PlanShape } from '../calendar.js';
+    import { describeRepeat, formatDate, formatTime } from '../format.js';
     import type { ComparePlan } from '../types.js';
 
     //What kind of plan it is and where it has got to, the line under its name
@@ -10,10 +11,20 @@
         if (!when) return datesPassed(plan, today) ? 'The dates it asked about have passed' : `Finding a day, ${formatDate(plan.start)} to ${formatDate(plan.end)}`;
         return plan.chosenDate! < today ? `Was on ${when}` : `Set for ${when}`;
     }
+
+    //How a plan comes round, who set it to, and when next, which is nothing to say until it has a day
+    export function repeatLine(plan: ComparePlan, series: PlanShape[]): string {
+        const every = describeRepeat(plan.repeatWeeks);
+        const how = `${every.charAt(0).toUpperCase()}${every.slice(1)}${plan.repeatBy ? `, set by ${plan.repeatBy}` : ''}`;
+        if (!plan.chosenDate) return `${how}, once it has a day.`;
+        if (!series.length) return `${how}. Nothing follows this one, since the next would land past the two years anything here reaches.`;
+        return `${how}. Next one ${formatDate(series[0].chosen.date)}, made once this day has been.`;
+    }
 </script>
 
 <script lang="ts">
     import { untrack } from 'svelte';
+    import { repeatSeries } from '../calendar.js';
     import { listNames } from '../format.js';
     import type { CompareScreen, LeftPlan } from '../types.js';
     import { todayIn } from '../zone.js';
@@ -22,6 +33,7 @@
     import CancelPanel from './CancelPanel.svelte';
     import DayCompare from './DayCompare.svelte';
     import HistoryPanel from './HistoryPanel.svelte';
+    import RepeatDates from '../RepeatDates.svelte';
     import RepairPanel from './RepairPanel.svelte';
     import Standing from './Standing.svelte';
     import TakeOn from './TakeOn.svelte';
@@ -53,6 +65,13 @@
     const collecting = $derived(data.plan.status === 'collecting');
     //Still finding its day with every day it asked about gone, so there are none left to fill in
     const passed = $derived(collecting && datesPassed(data.plan, today));
+
+    //Where coming round takes it, the same turns the sweep would make
+    const series = $derived(
+        data.plan.repeatWeeks
+            ? repeatSeries({ repeatWeeks: data.plan.repeatWeeks, dateRange: { start: data.plan.start, end: data.plan.end }, chosenDate: data.plan.chosenDate, chosenTime: data.plan.chosenTime })
+            : []
+    );
 
     //What the plan is set for right now, null while it is still open
     const chosen = $derived(
@@ -182,6 +201,15 @@
         {:else}
             <p class="muted">Nobody had filled their dates in before this was called off, so there is nothing to look back at.</p>
         {/if}
+    </section>
+{/if}
+
+<!--Not on a plan that is over, which has handed its repeat on to the next one-->
+{#if data.plan.repeatWeeks && !over}
+    <section class="group">
+        <h2>Comes round again</h2>
+        <p class="muted small">{repeatLine(data.plan, series)}</p>
+        {#if chosen && series.length}<RepeatDates first={chosen.date} shapes={series} />{/if}
     </section>
 {/if}
 
