@@ -112,6 +112,29 @@ Seven of them, and they sort into three lots: two for setting the server up, fou
 - **Frontend:** a Svelte site, served by Netlify on the live domain and by the backend itself anywhere it runs as one container
 - **Data:** MongoDB
 
+## Where things are
+
+Three folders at the top. `web/` is the site, `backend/` is the bot and the API, and `shared/` is the few things both have to agree on, like how a date reads and what a time zone does to it.
+
+The site lives in `web/src/`, a folder per page or part of a page:
+
+- `pages/` has one file per page: My plans, Past plans, My calendar, the plan form (new plans and editing), a plan's dates, its overview, and the legal pages. `App.svelte` beside it says which address opens which.
+- `overview/` is everything on a plan's overview: who has answered, the board on a set day, everyone's days, picking the day, and the panels whoever runs the plan works from.
+- `plan-form/` is the parts of the form: who's coming, the dates and weekdays, coming round again, and the review before an edit saves.
+- `calendar/` is the month grid people fill in, the hours picker, and the dates, hours and clocks behind them.
+- `my-plans/` is the plan cards and the Start a plan button.
+- `practice/` is the Practice section and the messages kept for made-up people.
+- `site/` is what every page leans on: the header, the API calls, who's logged in, the status lines, and how dates and names read.
+
+The backend lives in `backend/src/`:
+
+- `bot/` is everything that happens in Discord. `bot/plans/` is the plan side, a file a job: what the cards say, sending them, the thread, announcing changes, the DMs to whoever runs a plan, the buttons, the slash commands and the reminders.
+- `api/` is what the site talks to. `api/routes/plans/` holds the routes for one plan, split by who uses them, with who's allowed to do what in `gates.js`.
+- `db/` is MongoDB, and `db/plans/` is split the same way, by what it keeps track of.
+- `lib/` is plain logic with no Discord or database in it: dates, clocks, and who has answered what.
+
+Anything outside `bot/plans/` or `db/plans/` goes in through their `index.js`, so moving something between the files inside never touches the rest. Tests are in `web/tests/` and `backend/tests/`, named for what they cover.
+
 ## A typical plan
 
 1. Someone with Manage Server runs `/setup`.
