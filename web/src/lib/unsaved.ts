@@ -8,9 +8,9 @@ import { onMount } from 'svelte';
     a hash link, which never fires beforeunload however far it moves you.
 
     The link half matters more than it sounds: "set your general availability" sits
-    directly under the grid it would throw away.
+    directly under the grid it would throw away. ask is what a link out asks first.
 */
-export function guardUnsaved(dirty: () => boolean) {
+export function guardUnsaved(dirty: () => boolean, ask = 'You have days marked that have not been saved. Leave without saving them?') {
     onMount(() => {
         const warn = (e: BeforeUnloadEvent) => {
             if (!dirty()) return;
@@ -30,7 +30,7 @@ export function guardUnsaved(dirty: () => boolean) {
             const href = link?.getAttribute('href') || '';
             if (!href.startsWith('#') || href === location.hash) return;
             if (!dirty()) return;
-            if (!confirm('You have days marked that have not been saved. Leave without saving them?')) e.preventDefault();
+            if (!confirm(ask)) e.preventDefault();
         };
 
         window.addEventListener('beforeunload', warn);

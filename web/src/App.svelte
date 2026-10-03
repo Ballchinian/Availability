@@ -4,7 +4,6 @@
     import Availability from './routes/Availability.svelte';
     import GenericAvailability from './routes/GenericAvailability.svelte';
     import Overview from './routes/Overview.svelte';
-    import AskDates from './routes/AskDates.svelte';
     import Past from './routes/Past.svelte';
     import Terms from './routes/Terms.svelte';
     import Privacy from './routes/Privacy.svelte';
@@ -24,7 +23,9 @@
         '/plan/:planId/overview': Overview,
         //What the overview was called, and what every DM sent before the rename links to
         '/plan/:planId/compare': Overview,
-        '/plan/:planId/dates': AskDates,
+        //The edit form is the create form opened on the plan. /dates is what it was before, and what /mylink and older pages link to.
+        '/plan/:planId/edit': Create,
+        '/plan/:planId/dates': Create,
         '/terms': Terms,
         '/privacy': Privacy,
         '*': NotFound

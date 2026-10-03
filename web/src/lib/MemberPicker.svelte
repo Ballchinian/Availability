@@ -9,7 +9,8 @@
         scroll rather than stretch the page.
 
         The words are the guest list's unless a form says its own. bulk is Add all and
-        Clear, which only suit a list most of a server ends up on.
+        Clear, which only suit a list most of a server ends up on. locked is anyone picked
+        who stays picked, named with lockedName and never a button.
     */
     let {
         members = [],
@@ -17,7 +18,9 @@
         chosenHead = 'Invited',
         addName = (name: string) => `Add ${name}`,
         removeName = (name: string) => `Remove ${name}`,
-        bulk = true
+        bulk = true,
+        locked = [],
+        lockedName = ''
     }: {
         members?: Member[];
         selectedIds?: string[];
@@ -25,6 +28,8 @@
         addName?: (name: string) => string;
         removeName?: (name: string) => string;
         bulk?: boolean;
+        locked?: string[];
+        lockedName?: string;
     } = $props();
 
     let search = $state('');
@@ -63,6 +68,7 @@
         selectedIds = [...selectedIds, id];
     }
     function remove(id: string) {
+        if (locked.includes(id)) return;
         stayIn(chosen, id);
         selectedIds = selectedIds.filter((x) => x !== id);
     }
@@ -74,7 +80,7 @@
         refocus(() => root?.querySelector<HTMLElement>('.search'));
     }
     function clearAll() {
-        selectedIds = [];
+        selectedIds = selectedIds.filter((id) => locked.includes(id));
         refocus(() => root?.querySelector<HTMLElement>('.search'));
     }
 
@@ -146,17 +152,25 @@
         >
             {#each chosen as m (m.id)}
                 <li>
-                    <button
-                        class="chip selected"
-                        data-member={m.id}
-                        draggable="true"
-                        ondragstart={(e) => onDragStart(e, m.id)}
-                        onclick={() => remove(m.id)}
-                        aria-label={removeName(m.displayName)}
-                    >
-                        <img src={m.avatarUrl} alt="" width="24" height="24" />
-                        <span>{m.displayName}</span>
-                    </button>
+                    {#if locked.includes(m.id)}
+                        <span class="chip selected fixed">
+                            <img src={m.avatarUrl} alt="" width="24" height="24" />
+                            <span>{m.displayName}</span>
+                            {#if lockedName}<span class="muted small">{lockedName}</span>{/if}
+                        </span>
+                    {:else}
+                        <button
+                            class="chip selected"
+                            data-member={m.id}
+                            draggable="true"
+                            ondragstart={(e) => onDragStart(e, m.id)}
+                            onclick={() => remove(m.id)}
+                            aria-label={removeName(m.displayName)}
+                        >
+                            <img src={m.avatarUrl} alt="" width="24" height="24" />
+                            <span>{m.displayName}</span>
+                        </button>
+                    {/if}
                 </li>
             {/each}
             {#if chosen.length === 0}

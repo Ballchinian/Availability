@@ -111,6 +111,9 @@ export interface ComparePlan extends Plan {
     repeatedFrom: string | null;
     repeatedInto: string | null;
     threadUrl: string | null;
+    //What the edit form sends back, so a save made since it opened is caught. Missing from an older backend.
+    rev?: number;
+    createdBy?: string;
 }
 
 /*
@@ -181,8 +184,9 @@ export interface CompareScreen {
         so a missing role reads as host.
     */
     role?: 'host' | 'guest';
-    //Whoever runs it, by name
+    //Whoever runs it, by name, and for whoever runs it the same people by id
     hosts?: string[];
+    hostIds?: string[];
     canTakeOn?: boolean;
     //Whether they hold the planner role, so could start another plan like it
     isPlanner?: boolean;
@@ -200,6 +204,18 @@ export interface CompareScreen {
     freeByDate: Record<string, FreePerson[]>;
     //Oldest first, as it happened. The page turns it round to read latest first.
     history: PlanEvent[];
+}
+
+//POST /plans/:planId/edit with preview, what the review step draws
+export interface EditPreview {
+    changes: EditChange[];
+    //Of everyone the plan will be waiting on, how many have nothing left to do and how many it will ask
+    settled: number;
+    asked: number;
+    //Every message a loud save sends, to the thread or to these people by name
+    messages: { kind: 'post' | 'card' | 'invite' | 'took off' | 'picked'; to: 'thread' | string[]; text: string }[];
+    //Who a quiet save still DMs
+    quietly: { name: string; why: 'cleared' | 'changed' | 'vote' | 'answer' | 'days' }[];
 }
 
 //What the same route sends someone who is not on the plan but could take it on: its name and nothing more of it

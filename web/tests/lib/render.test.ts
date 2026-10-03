@@ -20,6 +20,7 @@ import CompareGrid from '../../src/lib/CompareGrid.svelte';
 import DayCompare from '../../src/lib/compare/DayCompare.svelte';
 import AttendanceBoard, { invitedLine } from '../../src/lib/compare/AttendanceBoard.svelte';
 import MemberPicker from '../../src/lib/MemberPicker.svelte';
+import EditReview from '../../src/lib/EditReview.svelte';
 import RangeField from '../../src/lib/RangeField.svelte';
 import DayGrid from '../../src/lib/DayGrid.svelte';
 import TimePicker from '../../src/lib/TimePicker.svelte';
@@ -37,7 +38,7 @@ import Privacy from '../../src/routes/Privacy.svelte';
 import { auth } from '../../src/lib/auth.svelte.js';
 import { isoFromNow, repeatSeries } from '../../src/lib/calendar.js';
 import { formatDate, formatLong, listNames } from '../../src/lib/format.js';
-import type { ComparePlan, CompareScreen, Member, Participant, PlanScreen, UserGuild, UserPlan } from '../../src/lib/types.js';
+import type { ComparePlan, CompareScreen, EditPreview, Member, Participant, PlanScreen, UserGuild, UserPlan } from '../../src/lib/types.js';
 import type { FreePerson } from '../../src/lib/overlap.js';
 
 /*
@@ -582,6 +583,16 @@ describe('the repeat picker', () => {
         expect(body).toMatch(/value="2" checked[^>]*\/>every other week/);
         expect(body).not.toContain('<button');
     });
+
+    //Running a plan takes no planner role, and making plans come round again does
+    it('leaves someone without the planner role the repeat the plan has, and stopping it', () => {
+        const body = draw({ weeks: 2, was: 2, canStart: false });
+        expect(body).toMatch(/value="1"[^>]*disabled[^>]*\/>every week/);
+        expect(body).toMatch(/value="4"[^>]*disabled[^>]*\/>every 4 weeks/);
+        expect(body).not.toMatch(/value="2"[^>]*disabled/);
+        expect(body).toContain('Only someone with the planner role can make it come round again.');
+        expect(draw({ weeks: 2 })).not.toContain('planner role');
+    });
 });
 
 //"Call it off" is the one name for this, on the site and in Discord alike
@@ -1034,6 +1045,62 @@ describe('the member picker', () => {
             expect(body).not.toContain('Clear');
             expect(draw(['bob'])).toContain('Add all');
         });
+    });
+
+    //Whoever made a plan runs it until they say otherwise, which nobody else can say for them
+    it('draws someone who stays picked as no button, with why', () => {
+        const body = render(MemberPicker, { props: { members, selectedIds: ['bob', 'cat'], locked: ['bob'], lockedName: 'made the plan' } }).body;
+        expect(body).not.toContain('aria-label="Remove BOB"');
+        expect(body).toMatch(/<span class="chip selected fixed">[\s\S]*?BOB[\s\S]*?made the plan<\/span>/);
+        expect(body).toContain('aria-label="Remove CAT"');
+    });
+});
+
+describe('the review before an edit is saved', () => {
+    const review: EditPreview = {
+        changes: [
+            { type: 'name', from: 'Pub quiz', to: 'Quiz night' },
+            { type: 'day', from: '2026-10-10', date: '2026-10-17', time: '19:00' },
+            { type: 'removed', names: ['Jo'] }
+        ],
+        settled: 0,
+        asked: 5,
+        messages: [
+            { kind: 'post', to: 'thread', text: "**CHANGED**\n\nAli changed **Pub quiz**:\n- now called **Quiz night**\n- it's on Sat 17 Oct 2026 at 7pm now" },
+            { kind: 'card', to: ['Ann', 'Bo'], text: "Ali changed **Pub quiz**:\n- now called **Quiz night**\n- it's on Sat 17 Oct 2026 at 7pm now" },
+            { kind: 'took off', to: ['Jo'], text: 'Ali took you off "Pub quiz" in The server.' }
+        ],
+        quietly: [{ name: 'Ann', why: 'cleared' }]
+    };
+    const body = render(EditReview, { props: { review, onsave: () => {}, onback: () => {} } }).body;
+
+    it('lists what the save changes', () => {
+        expect(body).toContain('Name: Quiz night, was Pub quiz');
+        expect(body).toContain('Moved to Sat 17 Oct 2026 at 7pm, from Sat 10 Oct 2026: 5 will be asked');
+        expect(body).toContain('Taking Jo off');
+    });
+
+    //The post and the line on top of each card say the same thing, so it is drawn once
+    it('shows the thread post once, with everyone it reaches by DM, as Discord draws it', () => {
+        expect(body).toContain('In the thread, and on top of the DM to Ann and Bo:');
+        expect(body.match(/now called/g)).toHaveLength(1);
+        expect(body.replace(/<!--[^>]*-->/g, '')).toContain('<ul><li>now called <strong>Quiz night</strong></li>');
+    });
+
+    it('says what goes to someone taken off', () => {
+        expect(body).toContain('To Jo:');
+        expect(body).toContain('Ali took you off');
+    });
+
+    it('names the save for the biggest thing it does, and describes saving quietly by who still hears', () => {
+        expect(body).toContain('Save and move it to Sat 17 Oct');
+        const quiet = body.match(/aria-describedby="([^"]+)"[^>]*>\s*Save quietly/);
+        expect(quiet).not.toBeNull();
+        expect(body).toMatch(new RegExp(`id="${quiet![1]}">[^<]*Ann is still DMed, since the day they answered for has moved\\.`));
+    });
+
+    it('takes focus on a heading of its own', () => {
+        expect(body).toContain('<h2 tabindex="-1">What this changes</h2>');
     });
 });
 

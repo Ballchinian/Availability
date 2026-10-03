@@ -11,11 +11,16 @@
         from is the day a series would count off. A plan still out looking for a day has
         none, and nothing is drawn, which is the honest answer: the sweep makes nothing
         until this one has a day of its own.
+
+        Without canStart, which is the planner role, the only choices are the one the plan
+        already has and stopping it.
     */
-    let { weeks = $bindable(null), from = null, time = null }: {
+    let { weeks = $bindable(null), from = null, time = null, canStart = true, was = null }: {
         weeks?: number | null;
         from?: string | null;
         time?: string | null;
+        canStart?: boolean;
+        was?: number | null;
     } = $props();
 
     const series = $derived(
@@ -33,9 +38,10 @@
         <div class="repeat-row">
             <label class="ghost"><input class="offscreen" type="radio" name={group} value={null} bind:group={weeks} />one off</label>
             {#each REPEAT_WEEKS as w (w)}
-                <label class="ghost"><input class="offscreen" type="radio" name={group} value={w} bind:group={weeks} />{describeRepeat(w)}</label>
+                <label class="ghost"><input class="offscreen" type="radio" name={group} value={w} bind:group={weeks} disabled={!canStart && w !== was} />{describeRepeat(w)}</label>
             {/each}
         </div>
+        {#if !canStart}<p class="muted small">Only someone with the planner role can make it come round again.</p>{/if}
     </fieldset>
     {#if from && weeks}
         {#if series.length}

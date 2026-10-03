@@ -1,12 +1,16 @@
 <script lang="ts">
     import { onMount, tick } from 'svelte';
-    import { router } from 'svelte-spa-router';
-    import { api, errorText } from '../lib/api.js';
+    import { push, router } from 'svelte-spa-router';
+    import { api, errorText, planMembers } from '../lib/api.js';
     import { refocus } from '../lib/focus.js';
     import { auth, loadMe } from '../lib/auth.svelte.js';
     import { isoFromNow, repeatSeries } from '../lib/calendar.js';
-    import { listNames } from '../lib/format.js';
-    import type { CreatedPlan, GuildInfo, Member, PlanTemplate } from '../lib/types.js';
+    import { formatDate, listNames } from '../lib/format.js';
+    import { guardUnsaved } from '../lib/unsaved.js';
+    import { todayIn } from '../lib/zone.js';
+    import type { CompareScreen, CreatedPlan, EditPreview, GuildInfo, Member, PlanTemplate, TakeOnOffer } from '../lib/types.js';
+    import DayCompare from '../lib/compare/DayCompare.svelte';
+    import EditReview from '../lib/EditReview.svelte';
     import MemberPicker from '../lib/MemberPicker.svelte';
     import RangeField from '../lib/RangeField.svelte';
     import RepeatDates from '../lib/RepeatDates.svelte';
@@ -14,7 +18,13 @@
     import Status, { invalidIf } from '../lib/Status.svelte';
     import WeekdayPicker, { chosenDays } from '../lib/WeekdayPicker.svelte';
 
+    /*
+        The create form, and the same form opened on a plan already running at
+        /plan/:planId/edit, every field filled in. Editing saves through a review of what
+        the save would change and who would hear, which the edit route works out.
+    */
     let { params = {} }: { params?: Record<string, string> } = $props();
+    const editing = $derived(Boolean(params.planId));
 
     let loading = $state(true);
     let guildInfo = $state<GuildInfo | null>(null);
@@ -88,6 +98,37 @@
     let copied = $state(false);
 
     /*
+        Editing: the plan as the overview loads it, which is also what the grid under a
+        named day draws from, and the review of what a save would do once asked for.
+    */
+    let editData = $state<CompareScreen | null>(null);
+    const editPlan = $derived(editData?.plan ?? null);
+    let review = $state<EditPreview | null>(null);
+    let reviewing = $state(false);
+    let saving = $state<'' | 'loud' | 'quiet'>('');
+    let saveError = $state('');
+    let reviewButton = $state<HTMLButtonElement>();
+
+    //Which kind it is now, so the choice it already is can say so
+    const wasKind = $derived(editPlan ? (editPlan.chosenDate ? 'announce' : 'collect') : '');
+    //Whoever made the plan stays running it unless they are the one changing it, see the edit route
+    const lockedHosts = $derived(
+        editPlan?.createdBy && editPlan.createdBy !== auth.user?.id && (editData?.hostIds ?? []).includes(editPlan.createdBy)
+            ? [editPlan.createdBy]
+            : []
+    );
+    //A window that began before today can stay where it began, and nothing new can start before today
+    const rangeMin = $derived(editing ? (editPlan && !editPlan.chosenDate && editPlan.start < todayIso ? editPlan.start : todayIso) : minStart);
+
+    //The form as it opened, and whether it went, for asking before anyone leaves with changes unsaved
+    let opened = $state('');
+    let saved = false;
+    function formKey() {
+        return JSON.stringify([planName, planDescription, mode, startDate, endDate, dayOn, setDate, setTime, [...selectedIds].sort(), [...hostIds].sort(), repeatWeeks]);
+    }
+    guardUnsaved(() => editing && !saved && opened !== '' && formKey() !== opened, 'You have changes to this plan that have not been saved. Leave without saving them?');
+
+    /*
         "Plan another like this" on the overview arrives as ?like=<planId>, so a form
         can be opened off a plan made weeks ago. startAnother only carries one made in
         this sitting, which is why both exist.
@@ -120,9 +161,56 @@
         likeName = from.name;
     }
 
+    //Why a plan cannot be changed, or nothing when it can
+    function shut(data: CompareScreen | TakeOnOffer): string {
+        if (data.role === null || data.role === 'guest') return 'Only whoever runs this plan can change it.';
+        if (data.plan.status === 'cancelled') return 'This plan was called off, so there is nothing left to change.';
+        if (data.plan.chosenDate && data.plan.chosenDate < todayIn(data.plan.timeZone)) {
+            return `This plan was on ${formatDate(data.plan.chosenDate)}, so nothing about it can change now.`;
+        }
+        return '';
+    }
+
+    async function openPlan(planId: string) {
+        try {
+            const data = await api<CompareScreen | TakeOnOffer>(`/plans/${planId}/compare`);
+            loadError = shut(data);
+            if (loadError || data.role === null) return;
+            members = await planMembers(planId, data.plan.guildId);
+            editData = data;
+        } catch (err) {
+            loadError = errorText(err);
+            return;
+        }
+        const { plan } = editData;
+        planName = plan.name;
+        //An older plan's note on the day is the end of what it is about now, and saving folds it in
+        planDescription = [plan.description, plan.chosenNote].filter(Boolean).join(' ').slice(0, 280);
+        mode = plan.chosenDate ? 'announce' : 'collect';
+        //A set plan's stored window is its one day, or the dates it was found in, so asking again starts blank
+        startDate = plan.chosenDate ? '' : plan.start;
+        endDate = plan.chosenDate ? '' : plan.end;
+        dayOn = dayOn.map((_, i) => !plan.allowedWeekdays || plan.allowedWeekdays.includes(i));
+        setDate = plan.chosenDate || '';
+        setTime = plan.chosenTime || '';
+        selectedIds = editData.participants.map((p) => p.userId);
+        hostIds = (editData.hostIds ?? []).filter((id) => id !== auth.user?.id);
+        repeatWeeks = plan.repeatWeeks;
+        opened = formKey();
+    }
+
     onMount(async () => {
         await loadMe();
-        if (!auth.user || !params.guildId) {
+        if (!auth.user) {
+            loading = false;
+            return;
+        }
+        if (params.planId) {
+            await openPlan(params.planId);
+            loading = false;
+            return;
+        }
+        if (!params.guildId) {
             loading = false;
             return;
         }
@@ -141,17 +229,18 @@
         loading = false;
     });
 
-    function fail(field: string, msg: string) {
+    function fail(field: string, msg: string): true {
         fault = field;
         formError = msg;
         //Once the line holds the text, so that is what gets read with focus on it
         tick().then(() => errorLine?.focus());
+        return true;
     }
 
-    async function submit() {
+    //Whatever the form is missing, said against the field it is about. True when there was something.
+    function missing(): boolean {
         formError = '';
         fault = '';
-        result = null;
         if (!planName.trim()) return fail('name', 'Give the plan a name.');
 
         if (mode === 'announce') {
@@ -162,41 +251,74 @@
             if (chosenWeekdays.length === 0) return fail('days', 'Pick at least one day people can mark.');
         }
         if (selectedIds.length === 0) return fail('people', 'Pick at least one person.');
+        return false;
+    }
+
+    //The plan as the form has it, which the create and edit routes both read the same way
+    function planBody() {
+        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks };
+        return mode === 'announce'
+            ? { ...common, announce: true, date: setDate, time: setTime || null }
+            : {
+                  ...common,
+                  start: startDate,
+                  end: endDate,
+                  //All seven days is no restriction, so send nothing then
+                  allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays
+              };
+    }
+
+    async function submit() {
+        result = null;
+        if (missing()) return;
 
         submitting = true;
         try {
-            const body =
-                mode === 'announce'
-                    ? {
-                          name: planName.trim(),
-                          description: planDescription.trim(),
-                          announce: true,
-                          date: setDate,
-                          time: setTime || null,
-                          participantIds: selectedIds,
-                          hostIds,
-                          repeatWeeks
-                      }
-                    : {
-                          name: planName.trim(),
-                          description: planDescription.trim(),
-                          start: startDate,
-                          end: endDate,
-                          participantIds: selectedIds,
-                          hostIds,
-                          //All seven days is no restriction, so send nothing then
-                          allowedWeekdays: chosenWeekdays.length === 7 ? null : chosenWeekdays,
-                          repeatWeeks
-                      };
             result = await api<CreatedPlan>(`/guilds/${params.guildId}/plans`, {
                 method: 'POST',
-                body: JSON.stringify(body)
+                body: JSON.stringify(planBody())
             });
             refocus(() => resultLine);
         } catch (err) {
             fail('', errorText(err));
         }
         submitting = false;
+    }
+
+    //Sent with the version the form opened on, so a plan someone changed since is refused rather than written over
+    const editBody = (extra: Record<string, unknown>) => JSON.stringify({ ...planBody(), rev: editPlan?.rev ?? 0, ...extra });
+
+    async function reviewChanges() {
+        if (missing()) return;
+        reviewing = true;
+        saveError = '';
+        try {
+            review = await api<EditPreview>(`/plans/${params.planId}/edit`, { method: 'POST', body: editBody({ preview: true }) });
+        } catch (err) {
+            fail('', errorText(err));
+        }
+        reviewing = false;
+    }
+
+    function backToEditing() {
+        review = null;
+        saveError = '';
+        refocus(() => reviewButton);
+    }
+
+    async function save(quiet: boolean) {
+        saving = quiet ? 'quiet' : 'loud';
+        saveError = '';
+        try {
+            await api(`/plans/${params.planId}/edit`, { method: 'POST', body: editBody({ quiet }) });
+            saved = true;
+            //Straight back to where the answers to it land. saving stays on, so nothing comes back to life while the page changes.
+            push(`/plan/${params.planId}/overview`);
+            return;
+        } catch (err) {
+            saveError = errorText(err);
+        }
+        saving = '';
     }
 
     async function copyLink() {
@@ -230,15 +352,157 @@
     }
 </script>
 
-<svelte:head><title>{guildInfo?.guildName ? `Plan a meetup in ${guildInfo.guildName}` : 'Plan a meetup'}</title></svelte:head>
+<svelte:head>
+    <title>
+        {editing
+            ? editPlan
+                ? `${editPlan.name} · edit`
+                : 'Edit plan'
+            : guildInfo?.guildName
+              ? `Plan a meetup in ${guildInfo.guildName}`
+              : 'Plan a meetup'}
+    </title>
+</svelte:head>
+
+{#snippet form(guildName: string)}
+    <p class="muted">Planning for <strong>{guildName}</strong>.</p>
+
+    {#if likeName}
+        <p class="prompt">
+            Set up like <strong>{likeName}</strong>, with the same days and everyone from it who is still in the
+            server. The dates did not come across, so pick the new window below, and nor did whether it repeats,
+            since the one you copied is still doing that on its own.
+        </p>
+    {/if}
+
+    <div class="field">
+        <label for="planName">Plan name</label>
+        <input id="planName" type="text" bind:value={planName} placeholder="e.g. Camping weekend" maxlength="90" {...invalidIf(fault === 'name', 'form-error')} />
+    </div>
+
+    <div class="field">
+        <label for="planDescription">What is it about? (optional)</label>
+        <textarea id="planDescription" bind:value={planDescription} placeholder="A line or two so people know what they are signing up for." maxlength="280" rows="2"></textarea>
+    </div>
+
+    <fieldset class="field">
+        <legend class="group-label">What kind of plan?</legend>
+        <label class="check">
+            <input type="radio" name="mode" value="collect" bind:group={mode} /> Collect availability, find a day that works{wasKind === 'collect' ? ' (what it is now)' : ''}
+        </label>
+        <label class="check">
+            <input type="radio" name="mode" value="announce" bind:group={mode} /> Announce a set plan, you already know the day{wasKind === 'announce' ? ' (what it is now)' : ''}
+        </label>
+    </fieldset>
+
+    {#if mode === 'collect'}
+        <RangeField bind:start={startDate} bind:end={endDate} min={rangeMin} {fault} errorId="form-error" />
+
+        <fieldset class="field" {...invalidIf(fault === 'days', 'form-error')}>
+            <legend class="group-label">Which days count?</legend>
+            <WeekdayPicker bind:dayOn />
+        </fieldset>
+    {:else}
+        <div class="field range">
+            <div>
+                <label for="setdate">Date</label>
+                <input id="setdate" type="date" bind:value={setDate} min={todayIso} max={maxDate} {...invalidIf(fault === 'date', 'form-error')} />
+            </div>
+            <div>
+                <label for="settime">Time (optional)</label>
+                <input id="settime" type="time" bind:value={setTime} />
+            </div>
+        </div>
+
+        <!--Picking a day off the grid fills in the date above, and the save is what sets it.
+            A plan made with its day has nobody's dates to show, so it only draws once someone has answered.-->
+        {#if editData && editPlan && editData.confirmedCount > 0}
+            <div class="field">
+                <span class="group-label">Who is free when?</span>
+                <DayCompare
+                    planId={editPlan.planId}
+                    start={editPlan.start}
+                    end={editPlan.end}
+                    allowedWeekdays={editPlan.allowedWeekdays}
+                    freeByDate={editData.freeByDate}
+                    participants={editData.participants}
+                    totalParticipants={editData.totalParticipants}
+                    timeZone={editPlan.timeZone}
+                    chosen={editPlan.chosenDate ? { date: editPlan.chosenDate, time: '', note: '' } : null}
+                    readOnly
+                    level={2}
+                    bind:selectedDate={setDate}
+                    onsaved={async () => {}}
+                />
+            </div>
+        {/if}
+
+        {#if editing && editData && editPlan}
+            <RepeatField bind:weeks={repeatWeeks} from={setDate} time={setTime} canStart={editData.isPlanner ?? true} was={editPlan.repeatWeeks} />
+        {/if}
+    {/if}
+
+    <fieldset class="field" {...invalidIf(fault === 'people', 'form-error')}>
+        <legend class="group-label">Who is coming?</legend>
+        <MemberPicker {members} bind:selectedIds />
+    </fieldset>
+
+    <!--Shut with someone picked, the label says who, since the form sends them either way-->
+    <details class="field fold" bind:open={hostsOpen}>
+        <summary class="group-label">
+            Who else runs it?
+            {#if !hostsOpen && hostNames}<span class="picked">{hostNames}</span>{/if}
+        </summary>
+        <p class="muted small">They can change the plan and call it off, whether or not they are coming.</p>
+        <MemberPicker
+            members={others}
+            bind:selectedIds={hostIds}
+            chosenHead="Running it with you"
+            addName={(name) => `Have ${name} run it too`}
+            removeName={(name) => `Stop ${name} running it`}
+            bulk={false}
+            locked={lockedHosts}
+            lockedName="made the plan"
+        />
+    </details>
+
+    <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
+    {#if !editing}
+        <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />
+    {/if}
+
+    <Status class="status" id="form-error" msg={formError} error bind:this={errorLine} />
+
+    {#if editing}
+        <div class="btn-row">
+            <button class="primary" onclick={reviewChanges} disabled={reviewing} bind:this={reviewButton}>
+                {reviewing ? 'Working out what changes...' : 'Review changes'}
+            </button>
+            <a class="link-btn" href="#/plan/{params.planId}/overview">Cancel</a>
+        </div>
+    {:else}
+        <button class="primary" onclick={submit} disabled={submitting}>
+            {#if submitting}Setting it up...{:else if mode === 'announce'}Announce the plan{:else}Create plan{/if}
+        </button>
+    {/if}
+{/snippet}
 
 <section class="screen">
-    <h1>Plan a meetup</h1>
+    <h1>{editing ? 'Edit plan' : 'Plan a meetup'}</h1>
 
     {#if loading}
-        <p class="muted">Loading the server...</p>
+        <p class="muted">{editing ? 'Loading the plan...' : 'Loading the server...'}</p>
     {:else if !auth.user}
-        <p class="muted">Log in above to start a plan.</p>
+        <p class="muted">{editing ? 'Log in above to change this plan.' : 'Log in above to start a plan.'}</p>
+    {:else if editing}
+        {#if loadError || !editPlan}
+            <p class="status error">{loadError || 'Could not load this plan.'}</p>
+            <p class="ways"><a href="#/plan/{params.planId}/overview">Back to the plan</a></p>
+        {:else if review}
+            <EditReview {review} busy={saving} error={saveError} onsave={save} onback={backToEditing} />
+        {:else}
+            {@render form(editPlan.guildName)}
+        {/if}
     {:else if !params.guildId}
         <p class="muted">I need to know which server this plan is for. <a href="#/">Start one from My plans</a>.</p>
     {:else if loadError}
@@ -271,81 +535,6 @@
             </p>
         </div>
     {:else}
-        <p class="muted">Planning for <strong>{guildInfo.guildName}</strong>.</p>
-
-        {#if likeName}
-            <p class="prompt">
-                Set up like <strong>{likeName}</strong>, with the same days and everyone from it who is still in the
-                server. The dates did not come across, so pick the new window below, and nor did whether it repeats,
-                since the one you copied is still doing that on its own.
-            </p>
-        {/if}
-
-        <div class="field">
-            <label for="planName">Plan name</label>
-            <input id="planName" type="text" bind:value={planName} placeholder="e.g. Camping weekend" maxlength="90" {...invalidIf(fault === 'name', 'form-error')} />
-        </div>
-
-        <div class="field">
-            <label for="planDescription">What is it about? (optional)</label>
-            <textarea id="planDescription" bind:value={planDescription} placeholder="A line or two so people know what they are signing up for." maxlength="280" rows="2"></textarea>
-        </div>
-
-        <fieldset class="field">
-            <legend class="group-label">What kind of plan?</legend>
-            <label class="check"><input type="radio" name="mode" value="collect" bind:group={mode} /> Collect availability, find a day that works</label>
-            <label class="check"><input type="radio" name="mode" value="announce" bind:group={mode} /> Announce a set plan, you already know the day</label>
-        </fieldset>
-
-        {#if mode === 'collect'}
-            <RangeField bind:start={startDate} bind:end={endDate} min={minStart} {fault} errorId="form-error" />
-
-            <fieldset class="field" {...invalidIf(fault === 'days', 'form-error')}>
-                <legend class="group-label">Which days count?</legend>
-                <WeekdayPicker bind:dayOn />
-            </fieldset>
-        {:else}
-            <div class="field range">
-                <div>
-                    <label for="setdate">Date</label>
-                    <input id="setdate" type="date" bind:value={setDate} min={todayIso} max={maxDate} {...invalidIf(fault === 'date', 'form-error')} />
-                </div>
-                <div>
-                    <label for="settime">Time (optional)</label>
-                    <input id="settime" type="time" bind:value={setTime} />
-                </div>
-            </div>
-        {/if}
-
-        <fieldset class="field" {...invalidIf(fault === 'people', 'form-error')}>
-            <legend class="group-label">Who is coming?</legend>
-            <MemberPicker {members} bind:selectedIds />
-        </fieldset>
-
-        <!--Shut with someone picked, the label says who, since the form sends them either way-->
-        <details class="field fold" bind:open={hostsOpen}>
-            <summary class="group-label">
-                Who else runs it?
-                {#if !hostsOpen && hostNames}<span class="picked">{hostNames}</span>{/if}
-            </summary>
-            <p class="muted small">They can change the plan and call it off, whether or not they are coming.</p>
-            <MemberPicker
-                members={others}
-                bind:selectedIds={hostIds}
-                chosenHead="Running it with you"
-                addName={(name) => `Have ${name} run it too`}
-                removeName={(name) => `Stop ${name} running it`}
-                bulk={false}
-            />
-        </details>
-
-        <!--Only announce mode has a day for a series to count off, so only it draws a calendar-->
-        <RepeatField bind:weeks={repeatWeeks} from={mode === 'announce' ? setDate : null} time={setTime} />
-
-        <Status class="status" id="form-error" msg={formError} error bind:this={errorLine} />
-
-        <button class="primary" onclick={submit} disabled={submitting}>
-            {#if submitting}Setting it up...{:else if mode === 'announce'}Announce the plan{:else}Create plan{/if}
-        </button>
+        {@render form(guildInfo.guildName)}
     {/if}
 </section>
