@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
+import { readPlanForm } from '../planForm.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
 import { announcePlan, announceSetPlan, notifyHostsPicked } from '../../bot/plans.js';
-import { checkRange, maxEnd, cleanWeekdays, allowedDaysInRange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
-import { DAILY_LIMIT, MAX_PARTICIPANTS } from '../../lib/limits.js';
+import { DAILY_LIMIT } from '../../lib/limits.js';
 import { realMembers, listMembers } from '../../lib/members.js';
 import { safeZone, todayIn } from '../../lib/zones.js';
 
@@ -51,66 +51,23 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to start a plan.' });
 
-    const { name, description, start, end, participantIds, hostIds, announce, date, time, allowedWeekdays, repeatWeeks } = req.body || {};
-
-    const cleanName = String(name || '').trim();
-    if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
-    if (cleanName.length > 90) return res.status(400).json({ error: 'That name is a bit long, keep it under 90 characters.' });
-
-    //The description is optional, just capped if they do write one
-    const cleanDescription = String(description || '').trim();
-    if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
-
-    if (!Array.isArray(participantIds) || participantIds.length === 0) {
-        return res.status(400).json({ error: 'Pick at least one person to invite.' });
-    }
-    if (participantIds.length > MAX_PARTICIPANTS) {
-        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people, which is more than a plan can hold.` });
-    }
-    //Whoever else runs it. Nobody is the usual answer, and the cap is the guest list's, for the same lookups.
-    const picked = Array.isArray(hostIds) ? hostIds : [];
-    if (picked.length > MAX_PARTICIPANTS) {
-        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people to run one plan.` });
-    }
+    const read = readPlanForm(req.body, { today: todayIn(ctx.cfg.timeZone) });
+    if (read.error) return res.status(400).json({ error: read.error });
+    const { form } = read;
 
     /*
         Two ways to start a plan. The usual one collects availability over a date
-        range. The set-plan one already knows the day, so it takes a single date
-        (plus an optional time) and is announced as decided, no collecting.
+        range. The set-plan one already knows the day, so it is announced as decided,
+        no collecting, and its window is that one day.
     */
-    const setMode = announce === true;
-    let dateRange;
-    let chosen = null;
-    //Only a collect-availability plan can be pinned to certain weekdays, a set plan is one day
-    let weekdays = null;
-    if (setMode) {
-        const shape = /^\d{4}-\d{2}-\d{2}$/;
-        if (!shape.test(date || '')) return res.status(400).json({ error: 'Pick the date the plan is on.' });
-        if (date < todayIn(ctx.cfg.timeZone)) return res.status(400).json({ error: 'That date is in the past.' });
-        if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
-        const cleanTime = readTime(time);
-        if (cleanTime === false) return res.status(400).json({ error: BAD_TIME });
-        dateRange = { start: date, end: date };
-        chosen = { date, time: cleanTime };
-    } else {
-        const rangeError = checkRange(start, end, todayIn(ctx.cfg.timeZone));
-        if (rangeError) return res.status(400).json({ error: rangeError });
-        dateRange = { start, end };
-        weekdays = cleanWeekdays(allowedWeekdays);
-        //A restriction that leaves no day inside the picked range would ask for nothing
-        if (weekdays && !allowedDaysInRange(start, end, weekdays).length) {
-            return res.status(400).json({ error: 'None of the days you allowed fall inside that date range.' });
-        }
-    }
-
-    //Whether this comes round again once its day has been. Anything not on the list is a one off.
-    const repeat = REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : null;
+    const setMode = form.set;
+    const dateRange = setMode ? { start: form.date, end: form.date } : form.window;
 
     //Only keep ids that are real, non bot members of this server
-    const validIds = await realMembers(ctx.guild, participantIds);
+    const validIds = await realMembers(ctx.guild, form.participantIds);
     if (validIds.length === 0) return res.status(400).json({ error: 'None of those people are in the server.' });
     //Whoever made it leads the list, whether or not the form named them
-    const hosts = [req.user.id, ...(await realMembers(ctx.guild, picked)).filter((id) => id !== req.user.id)];
+    const hosts = [req.user.id, ...(await realMembers(ctx.guild, form.hostIds)).filter((id) => id !== req.user.id)];
 
     //A high daily backstop, since the planner role is the real gate on who can do this
     const rl = await takeAction(req.user.id, req.params.guildId, 'create', DAILY_LIMIT);
@@ -121,22 +78,22 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     try {
         let plan = await createPlan({
             guildId: req.params.guildId,
-            name: cleanName,
-            description: cleanDescription,
+            name: form.name,
+            description: form.description,
             createdBy: req.user.id,
             hostIds: hosts,
             actorName: ctx.member.displayName,
             dateRange,
             participantIds: validIds,
-            allowedWeekdays: weekdays,
+            allowedWeekdays: setMode ? null : form.allowedWeekdays,
             //The clock the plan's day and time are read in, which is the server's
             timeZone: safeZone(ctx.cfg.timeZone),
-            repeatWeeks: repeat
+            repeatWeeks: form.repeatWeeks
         });
 
         //Counted once each, since someone can be named to come and to run it
         const kept = new Set([...validIds, ...hosts]);
-        const dropped = new Set([...participantIds, ...picked].filter((id) => !kept.has(id))).size;
+        const dropped = new Set([...form.participantIds, ...form.hostIds].filter((id) => !kept.has(id))).size;
 
         /*
             The thread, the pings and the DMs all run after the response. Everything the
@@ -146,7 +103,7 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
         */
         if (setMode) {
             //Record the date straight away, then announce it as decided
-            plan = await setPlanChosen(plan.planId, chosen.date, chosen.time, null);
+            plan = await setPlanChosen(plan.planId, form.date, form.time, null);
             announceAfter(plan.planId, 'set-plan announce', (current) => announceSetPlan(current, ctx.cfg, ctx.member.displayName));
             announceAfter(plan.planId, 'hosts picked', (current) => notifyHostsPicked(current, req.user.id));
             return res.json({ planId: plan.planId, url: planUrl(plan.planId), invited: validIds.length, dropped, set: true });
