@@ -115,6 +115,8 @@ export interface ComparePlan extends Plan {
     //What the edit form sends back, so a save made since it opened is caught. Missing from an older backend.
     rev?: number;
     createdBy?: string;
+    //Holding made-up people, see api/practicePlans.js
+    practice?: boolean;
 }
 
 /*
@@ -293,6 +295,8 @@ export interface GuildInfo {
     guildName: string;
     isMember: boolean;
     isPlanner: boolean;
+    //Asked by someone made up, who can only start practice plans
+    practice?: boolean;
 }
 
 //GET /me/guilds, a server Start a plan can offer

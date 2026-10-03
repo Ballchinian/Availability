@@ -29,6 +29,7 @@
     let loadError = $state('');
     let guilds = $state<UserGuild[]>([]);
     let plans = $state<UserPlan[]>([]);
+    let practicePlans = $state<UserPlan[]>([]);
 
     const sortedPlans = $derived(sortPlans(plans));
 
@@ -41,10 +42,11 @@
         try {
             const [g, p] = await Promise.all([
                 api<{ guilds: UserGuild[] }>('/me/guilds'),
-                api<{ plans: UserPlan[] }>('/me/plans')
+                api<{ plans: UserPlan[]; practice?: UserPlan[] }>('/me/plans')
             ]);
             guilds = g.guilds;
             plans = p.plans;
+            practicePlans = p.practice ?? [];
         } catch (err) {
             loadError = errorText(err);
         }
@@ -85,7 +87,7 @@
                 <PlanCards plans={sortedPlans} />
             {/if}
 
-            <Practice {guilds} />
+            <Practice {guilds} plans={sortPlans(practicePlans)} />
         {/if}
     {/if}
 </section>

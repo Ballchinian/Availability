@@ -86,6 +86,8 @@ Planners get a **Practice** section at the bottom of My plans, for making up peo
 
 **View as** opens the site as that person, from their own My plans, with a line under the header saying who you're viewing as and a way back to you. Logging out logs you out, not them. If they're removed, or you lose the planner role in their server, you're put back as yourself.
 
+**Start a practice plan** opens the usual form with only you and your made-up people to pick from, and so does Start a plan for a made-up person with the planner role. A plan with anyone made up on it is a practice plan: it can only hold your made-up people and you, opens no thread, never comes round again, and nobody else in the server can see it or find it with `/mylink`. Your practice plans sit in the Practice section rather than among your real ones, and the overview says practice next to the server's name. Anything it sends you still comes to your DMs.
+
 ## Commands
 
 Seven of them, and they sort into three lots: two for setting the server up, four anyone can run, and one for whoever runs the plan. Everything the bot says back to you here is only visible to you.

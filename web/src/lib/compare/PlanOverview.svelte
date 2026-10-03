@@ -102,7 +102,7 @@
 </script>
 
 {#snippet state()}
-    {planState(data.plan, today)}{data.plan.guildName ? ` · ${data.plan.guildName}` : ''}
+    {planState(data.plan, today)}{data.plan.guildName ? ` · ${data.plan.guildName}` : ''}{data.plan.practice ? ' · practice' : ''}
 {/snippet}
 
 <!--A day still to come is the one thing on the page everyone came for, so it gets the box.
@@ -148,7 +148,7 @@
     <!--Offered on a cancelled or finished plan too, since one that fell through or has
         already been is the likeliest to be run again-->
     {#if data.isPlanner ?? true}
-        <a href="#/g/{data.plan.guildId}?like={planId}">Plan another like this</a>
+        <a href="#/g/{data.plan.guildId}?like={planId}{data.plan.practice ? '&practice=1' : ''}">Plan another like this</a>
     {/if}
 </p>
 

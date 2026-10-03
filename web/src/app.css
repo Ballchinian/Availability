@@ -1778,8 +1778,12 @@ a.ghost:hover {
 .practice-people {
     list-style: none;
     max-width: 520px;
-    margin: 8px 0 0;
+    margin: 14px 0 0;
     padding: 0;
+}
+
+.practice .start-practice {
+    margin-top: 6px;
 }
 
 .practice-people li {

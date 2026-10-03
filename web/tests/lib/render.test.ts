@@ -1639,6 +1639,13 @@ describe('a plan overview', () => {
         expect(body).toContain('Run by Ali and Sam.');
     });
 
+    //Its planner is the only real person who ever sees one, and may have several on the go beside real ones
+    it('says a practice plan is one, and plans another like it for practice', () => {
+        const body = draw(screen({}, { practice: true }));
+        expect(body).toContain(`<p class="muted">Finding a day, ${formatDate(ahead(3))} to ${formatDate(ahead(10))} · The server · practice</p>`);
+        expect(body).toContain('href="#/g/g1?like=ab12cd34ef&amp;practice=1"');
+    });
+
     //Nothing offers a day that has already gone, and every day of this one has
     it('says when the dates it asked about have passed, and stops offering them to fill in', () => {
         const body = draw(screen({}, { start: ahead(-10), end: ahead(-3) }));

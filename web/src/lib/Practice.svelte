@@ -3,14 +3,15 @@
     import { api, errorText } from './api.js';
     import { auth, viewAs } from './auth.svelte.js';
     import { refocus } from './focus.js';
+    import PlanCards from './PlanCards.svelte';
     import Status, { invalidIf } from './Status.svelte';
-    import type { PracticePerson, UserGuild } from './types.js';
+    import type { PracticePerson, UserGuild, UserPlan } from './types.js';
 
     /*
         A planner's made-up people, each for one server. Only servers where they plan are
         offered, and the list only holds people from those.
     */
-    let { guilds }: { guilds: UserGuild[] } = $props();
+    let { guilds, plans = [] }: { guilds: UserGuild[]; plans?: UserPlan[] } = $props();
 
     //Never while viewing as one of them, who has nobody made up of their own
     const planning = $derived(auth.real ? [] : guilds.filter((g) => g.setupComplete && g.isPlanner));
@@ -108,6 +109,12 @@
         <h2>Practice</h2>
         <p class="muted small">Made-up people to try a plan out on. Nobody real hears about it, apart from you.</p>
 
+        <!--One server's way in leads, the way Start a plan leads My plans. Several get one each, under their names.-->
+        {#if planning.length === 1 && people.length}
+            <a class="ghost start-practice" href="#/g/{planning[0].guildId}?practice=1">Start a practice plan</a>
+        {/if}
+        {#if plans.length}<PlanCards {plans} />{/if}
+
         {#if loadError}
             <p class="status error">{loadError}</p>
         {/if}
@@ -115,6 +122,7 @@
         {#each groups as group (group.guild.guildId)}
             {#if planning.length > 1}<h3>{group.guild.guildName}</h3>{/if}
             {#if group.people.length}
+                {#if planning.length > 1}<a class="ghost start-practice" href="#/g/{group.guild.guildId}?practice=1">Start a practice plan</a>{/if}
                 <ul class="practice-people">
                     {#each group.people as person (person.id)}
                         <li>
