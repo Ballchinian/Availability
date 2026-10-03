@@ -10,7 +10,7 @@ import { isMongoReady } from '../db/mongo.js';
 import authRouter from './routes/auth.js';
 import meRouter from './routes/me.js';
 import guildsRouter from './routes/guilds.js';
-import plansRouter from './routes/plans.js';
+import plansRouter from './routes/plans/index.js';
 import availabilityRouter from './routes/availability.js';
 import practiceRouter from './routes/practice.js';
 

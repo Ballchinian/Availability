@@ -65,7 +65,7 @@ const db = await import('../../src/db/plans/index.js');
 const bot = await import('../../src/bot/plans/index.js');
 const { announceAfter } = await import('../../src/api/announce.js');
 const { takeAction } = await import('../../src/db/ratelimits.js');
-const { default: plansRouter } = await import('../../src/api/routes/plans.js');
+const { default: plansRouter } = await import('../../src/api/routes/plans/index.js');
 
 const NAMES = { ali: 'Ali', sam: 'Sam', bo: 'Bo', cy: 'Cy', di: 'Di' };
 const guild = {
