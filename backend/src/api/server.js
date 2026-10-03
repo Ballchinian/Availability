@@ -12,6 +12,7 @@ import meRouter from './routes/me.js';
 import guildsRouter from './routes/guilds.js';
 import plansRouter from './routes/plans.js';
 import availabilityRouter from './routes/availability.js';
+import practiceRouter from './routes/practice.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,7 @@ export function buildApp() {
     app.use('/api/guilds', guildsRouter);
     app.use('/api/plans', plansRouter);
     app.use('/api/availability', availabilityRouter);
+    app.use('/api/practice', practiceRouter);
 
     //Serve the built site if it is there, otherwise the api runs on its own
     if (existsSync(webDist)) {

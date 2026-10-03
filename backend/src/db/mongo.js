@@ -21,7 +21,8 @@ export const collections = {
     users: 'users',
     availability: 'availability',
     plans: 'plans',
-    ratelimits: 'ratelimits'
+    ratelimits: 'ratelimits',
+    practice: 'practice'
 };
 
 export async function connectMongo() {
@@ -132,6 +133,8 @@ async function ensureIndexes(database) {
     await database.collection(collections.plans).createIndex({ needsRepair: 1 }, { partialFilterExpression: { needsRepair: true } });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
+    await database.collection(collections.practice).createIndex({ id: 1 }, { unique: true });
+    await database.collection(collections.practice).createIndex({ ownerId: 1, guildId: 1 });
 }
 
 /*

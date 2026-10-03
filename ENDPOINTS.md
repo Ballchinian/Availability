@@ -779,3 +779,61 @@ Save the requester's general timetable for a window.
 ### Notes
 
 * The range has to be valid and within two years.
+
+---
+
+# Practice
+
+A planner's made-up people, for trying a plan out without anyone real hearing about it. Each one is made for one server and belongs to whoever made them.
+
+## GET `/api/practice` (session)
+
+The requester's made-up people.
+
+### Returns
+
+Each one, oldest first, with:
+
+* `id`, which always starts `practice_` and is never all digits, so one that reaches Discord by mistake is refused there rather than finding somebody
+* The server it was made for, by id and name
+* `displayName`
+* `planner`: whether they count as holding the planner role
+
+### Notes
+
+* Only people from servers where the requester still has the planner role.
+
+---
+
+## POST `/api/practice` (session)
+
+Make someone up.
+
+### Input
+
+* `guildId`
+* `displayName`: up to 32 characters, trimmed
+* `planner` (optional): `true` to have them hold the planner role. Anything else is no.
+
+### Returns
+
+* `person`, shaped as in the list above
+
+### Notes
+
+* Needs the planner role in that server.
+* At most 10 for each planner in each server, refused with `409` past that.
+
+---
+
+## DELETE `/api/practice/:id` (session)
+
+Remove one of the requester's made-up people.
+
+### Effects
+
+* They come off every plan they were on, as anyone leaving the server would, and their calendar is deleted.
+
+### Notes
+
+* Needs no planner role, since it only takes away. Someone else's, or an id that isn't there, is `404`.
