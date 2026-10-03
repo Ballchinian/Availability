@@ -2,6 +2,7 @@ import { coverageOf, inOf, standing, askedDays, askLine, datesPassed } from '../
 import { safeZone, todayIn, retimeDay, instantToWall } from './zones.js';
 import { gatherFreeDays } from './freedays.js';
 import { hostIdsOf } from './hosts.js';
+import { owedOn, kindOf } from '../../../shared/planDiff.js';
 
 /*
     shared/coverage.js passed straight back out, the same arrangement dates.js and
@@ -96,4 +97,15 @@ export function newlyCovered(plans, userId, before, after) {
             return now.total > 0 && now.state === 'covered' && coverageOf(answersOn(plan, before, p)).state !== 'covered';
         })
         .map((plan) => ({ planId: plan.planId, name: plan.name }));
+}
+
+//owedOn for everyone on either side of an edit, before it and after it, as whoHears reads them
+export function owedAcross(before, after, prefs = {}) {
+    const owedIn = (plan, id) => {
+        const p = plan.participants.find((q) => q.userId === id);
+        if (!p) return null;
+        return owedOn(p, plan, kindOf(plan) === 'set' ? null : coverageOf(answersOn(plan, prefs[id], p)));
+    };
+    const ids = new Set([...before.participants, ...after.participants].map((p) => p.userId));
+    return Object.fromEntries([...ids].map((id) => [id, { before: owedIn(before, id), after: owedIn(after, id) }]));
 }

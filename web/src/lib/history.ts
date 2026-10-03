@@ -1,6 +1,6 @@
-import { formatDate, formatTime, describeWeekdays, describeRepeat } from './format.js';
+import { formatDate, formatTime, describeWeekdays, describeRepeat, listNames } from './format.js';
 import { isoOf } from './calendar.js';
-import type { PlanEvent } from './types.js';
+import type { EditChange, PlanEvent } from './types.js';
 
 /*
     A plan's history as sentences. Nothing here reads the plan itself: every line is
@@ -18,6 +18,42 @@ function whenOf(date: string, time: string | null): string {
 
 function plural(count: number, one: string, many: string): string {
     return `${count} ${count === 1 ? one : many}`;
+}
+
+function windowOf(change: { start: string; end: string; allowedWeekdays: number[] | null }): string {
+    const days = describeWeekdays(change.allowedWeekdays);
+    return `${formatDate(change.start)} to ${formatDate(change.end)}${days ? `, ${days} only` : ''}`;
+}
+
+//One change a save on the edit form made, as a phrase in the line listing them all
+export function describeChange(change: EditChange): string {
+    switch (change.type) {
+        case 'name':
+            return `renamed it ${change.to}`;
+        case 'description':
+            return change.to ? 'changed what it is about' : 'took out what it is about';
+        case 'set':
+            return `set the day to ${whenOf(change.date, change.time)}`;
+        case 'day':
+            return `moved the day from ${formatDate(change.from)} to ${whenOf(change.date, change.time)}`;
+        case 'time':
+            return change.to ? `changed the time to ${formatTime(change.to)}` : 'took the time off';
+        case 'collect':
+            return `went back out for dates, ${windowOf(change)}`;
+        case 'window':
+            return `changed the dates to ${windowOf(change)}`;
+        case 'repeat':
+            return change.to ? `set it to come round ${describeRepeat(change.to)}` : 'stopped it coming round again';
+        case 'added':
+            return `added ${listNames(change.names)}`;
+        case 'removed':
+            return `took ${listNames(change.names)} off`;
+        case 'hosts':
+            return [
+                change.added.length ? `had ${listNames(change.added)} run it too` : '',
+                change.removed.length ? `stopped ${listNames(change.removed)} running it` : ''
+            ].filter(Boolean).join(' and ');
+    }
 }
 
 /*
@@ -86,6 +122,8 @@ export function describeEvent(event: PlanEvent): string {
             return 'called the plan off';
         case 'tookon':
             return 'took the plan on';
+        case 'edited':
+            return `${listNames(event.changes.map(describeChange))}${event.quiet ? ', quietly' : ''}`;
     }
 }
 

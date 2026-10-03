@@ -23,6 +23,16 @@ export async function realMembers(guild, given) {
     return kept.filter(Boolean);
 }
 
+//Display names by id, for whoever of ids is still in the server
+export async function namesFor(guild, ids) {
+    const names = {};
+    await fanOut([...new Set(ids)], async (id) => {
+        const member = guild.members.cache.get(id) || (await guild.members.fetch(id).catch(() => null));
+        if (member) names[id] = member.displayName;
+    });
+    return names;
+}
+
 /*
     Fetching the whole member list is a gateway call (opcode 8) that Discord rate
     limits hard, so we cannot do it on every page load. We hold the list per guild

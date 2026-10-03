@@ -114,6 +114,23 @@ export interface ComparePlan extends Plan {
 }
 
 /*
+    One change a save on the edit form made, as the route records it and its review shows
+    it. The same as Change in shared/planDiff.d.ts, with names where that has ids.
+*/
+export type EditChange =
+    | { type: 'name'; from: string; to: string }
+    | { type: 'description'; to: string }
+    | { type: 'set'; date: string; time: string | null }
+    | { type: 'day'; from: string; date: string; time: string | null }
+    | { type: 'time'; from: string | null; to: string | null }
+    | { type: 'collect'; start: string; end: string; allowedWeekdays: number[] | null }
+    | { type: 'window'; start: string; end: string; allowedWeekdays: number[] | null }
+    | { type: 'repeat'; from: number | null; to: number | null }
+    | { type: 'added'; names: string[] }
+    | { type: 'removed'; names: string[] }
+    | { type: 'hosts'; added: string[]; removed: string[] };
+
+/*
     What every line of a plan's history carries. byName is who did it as they were called
     at the time, stored with the event rather than looked up now, so the list does not
     rewrite itself when someone changes their nickname or leaves.
@@ -151,7 +168,9 @@ export type PlanEvent =
     | (EventBase & { type: 'repeatended' })
     | (EventBase & { type: 'cancelled' })
     //Someone who did not run the plan made themselves one of the people who do
-    | (EventBase & { type: 'tookon' });
+    | (EventBase & { type: 'tookon' })
+    //One save on the edit form, however much it changed
+    | (EventBase & { type: 'edited'; changes: EditChange[]; quiet: boolean });
 
 //GET /plans/:planId/compare, a plan's overview as someone on it is sent it
 export interface CompareScreen {

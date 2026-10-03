@@ -64,7 +64,9 @@ vi.mock('../../src/db/plans.js', () => ({
         'setPlanRepeat',
         'addPlanEvent',
         'addHost',
-        'recordVote'
+        'recordVote',
+        'planEdit',
+        'applyPlanEdit'
     )
 }));
 
@@ -112,7 +114,8 @@ vi.mock('../../src/bot/plans.js', () =>
         'askAgain',
         'announceJoin',
         'announceVote',
-        'addHostToThread'
+        'addHostToThread',
+        'announceEdit'
     )
 );
 
@@ -1255,6 +1258,13 @@ describe('the overview', () => {
         expect(body.freeByDate).toEqual({ [ahead(3)]: [{ userId: 'ann', hours: [] }] });
     });
 
+    it('hands the edit form the version it opened on, who made the plan and who runs it', async () => {
+        plans.set('ab12cd34ef', { ...plans.get('ab12cd34ef'), rev: 4, hostIds: ['planner', 'gone'] });
+        const body = await (await get('/ab12cd34ef/compare')).json();
+        expect(body.plan).toMatchObject({ rev: 4, createdBy: 'planner' });
+        expect(body.hostIds).toEqual(['planner']);
+    });
+
     it('says where each person stands', async () => {
         const body = await (await get('/ab12cd34ef/compare')).json();
         const by = Object.fromEntries(body.participants.map((p) => [p.userId, p]));
@@ -1325,8 +1335,10 @@ describe('what a guest is shown on the overview', () => {
         expect((await get('/ab12cd34ef/compare')).status).toBe(403);
     });
 
-    it('names whoever runs it', async () => {
-        expect((await read()).hosts).toEqual(['PLANNER', 'SAM']);
+    it('names whoever runs it, and keeps their ids for whoever runs it', async () => {
+        const body = await read();
+        expect(body.hosts).toEqual(['PLANNER', 'SAM']);
+        expect(body.hostIds).toBeUndefined();
     });
 
     it('leaves out the reasons and everything a host works from', async () => {

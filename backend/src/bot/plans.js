@@ -13,6 +13,7 @@ import { formatDay, formatDate, formatTime, shiftDate, today } from '../lib/date
 import { answersOn, coverageOf, owes, askFor, inOf, everyoneAnswered, rowFor, nextStep } from '../lib/coverage.js';
 import { safeZone, planInstant, instantToWall, discordStamp, dayHasPassed, hasLapsed } from '../lib/zones.js';
 import { hostIdsOf } from '../lib/hosts.js';
+import { buildEditMessages, tookOffText, pickedText } from './edits.js';
 
 /*
     Every DM about a plan goes out through here, and never throws. Discord answers 50007
@@ -111,6 +112,18 @@ async function retireCard(userId, messageId) {
         await msg.delete().catch(() => msg.edit({ content: "There's a newer message about this plan.", components: [] }));
     } catch {
         //Gone already, or out of reach, which leaves nothing to do from here
+    }
+}
+
+//A card edited where it sits, which tells nobody
+async function rewriteCard(userId, messageId, payload) {
+    try {
+        const user = await client.users.fetch(userId);
+        const dm = await user.createDM();
+        const msg = await dm.messages.fetch(messageId);
+        await msg.edit(payload);
+    } catch {
+        //Gone already, or out of reach
     }
 }
 
@@ -883,6 +896,94 @@ export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reope
 }
 
 /*
+    The Discord side of one save on the edit form, sending what buildEditMessages built
+    for the review. The pin and every card are brought in line whatever else happens,
+    which is all a quiet save does for most people. before is the plan as the save read
+    it, changes what moved, heard who gets a fresh card (see whoHears) and owing whoever
+    now has something to do, who the thread post pings when their card did not land.
+*/
+export async function announceEdit(plan, cfg, { before, changes, actorName, quiet = false, heard = [], owing = [] }) {
+    const guildName = cfg?.guildName || '';
+    const where = guildName ? ` in ${guildName}` : '';
+    const messages = buildEditMessages(before, plan, changes, { actorName, guildName, quiet, heard });
+    const message = (kind) => messages.find((m) => m.kind === kind);
+    const of = (type) => changes.find((c) => c.type === type);
+    const on = new Set(plan.participants.map((p) => p.userId));
+    const runs = new Set(hostIdsOf(plan));
+    const day = of('set') || of('day');
+
+    //Whoever set or moved the day is who every later rewrite of a card names, so it is written down before any reads it back
+    const lead = day ? { actorName, moved: Boolean(before.chosenDate) } : { keepLead: true };
+    let current = plan;
+    if (day) {
+        const held = plan.participants.filter((p) => p.cardMessageId);
+        await setPlanCards(plan.planId, held.map((p) => ({ userId: p.userId, messageId: p.cardMessageId })), lead);
+        current = { ...plan, participants: plan.participants.map((p) => ({ ...p, cardActor: actorName, cardMoved: lead.moved })) };
+    }
+
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
+    if (thread) {
+        await reviveThread(thread);
+        await updateOpener(current, thread).catch(() => {});
+    }
+
+    //Told, or on a quiet save their card turned into saying so, and out of the thread unless they run it
+    const off = (of('removed')?.ids || []).filter((id) => !on.has(id));
+    await fanOut(off, async (id) => {
+        const card = before.participants.find((p) => p.userId === id)?.cardMessageId;
+        const line = { content: tookOffText(actorName, before, where), components: [] };
+        if (message('took off')) {
+            if ((await deliver(current, id, line)) && card) await retireCard(id, card);
+        } else if (card) {
+            await rewriteCard(id, card, line);
+        }
+        if (thread && !runs.has(id)) await thread.members.remove(id).catch(() => {});
+    });
+
+    //Not running it and not coming leaves nothing for them in the thread
+    for (const id of of('hosts')?.removed || []) {
+        if (thread && !on.has(id)) await thread.members.remove(id).catch(() => {});
+    }
+    const picked = message('picked');
+    if (picked) {
+        if (thread) await addToThread(thread, picked.to);
+        await deliverEach(current, picked.to, { content: banner('YOU RUN THIS') + picked.text, components: [overviewRow(current)] });
+    }
+
+    //The invitation everyone else got, which puts them in the thread and on the pin's tally as well
+    const added = (of('added')?.ids || []).filter((id) => on.has(id));
+    if (added.length) await announceAddition(current, added, actorName);
+
+    const fresh = (message('card')?.to || []).filter((id) => on.has(id));
+    const asks = await askLines(current, fresh);
+    const sent = fresh.length
+        ? await sendCards(current, fresh, (id) =>
+            planCard(current, current.participants.find((p) => p.userId === id), {
+                guildName,
+                actorName: '',
+                title: 'CHANGED',
+                aside: message('card').text,
+                ask: asks[id]
+            }), lead)
+        : [];
+    const reached = new Set([...sent.map((s) => s.userId), ...added]);
+
+    const post = message('post');
+    if (post && thread) {
+        const buttons = day ? [probeRow(current)] : of('collect') || of('window') ? [new ActionRowBuilder().addComponents(datesButton(current))] : [];
+        await postMentioning(thread, owing.filter((id) => on.has(id) && !reached.has(id)), { content: post.text, components: buttons });
+    }
+
+    //Everyone else's card says what the plan says now
+    await syncPlanCards(current, cfg, { only: current.participants.map((p) => p.userId).filter((id) => !reached.has(id)) })
+        .catch((err) => console.error('[plans] edit card sync failed:', err));
+
+    if (thread) renameThread(thread, threadName(current));
+    await notifyHostsIfAllIn(current).catch(() => {});
+    await notifyHostsAllYes(current).catch(() => {});
+}
+
+/*
     Cancel a plan. It gets marked cancelled and, when post is on, the thread is told,
     but the thread is left in place: deleting it by hand is what finally
     clears the plan. When dm is on everyone gets a DM. The creator gets their daily
@@ -1403,7 +1504,7 @@ function notifyHostsBackIn(plan, userId) {
 */
 export function notifyHostsPicked(plan, userId) {
     return tellHosts(plan, userId, (name, where) => ({
-        content: banner('YOU RUN THIS') + `${name} picked you to run "${plan.name}"${where} with them.`,
+        content: banner('YOU RUN THIS') + pickedText(name, plan, where),
         components: [overviewRow(plan)]
     }));
 }

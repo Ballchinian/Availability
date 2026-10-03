@@ -243,7 +243,7 @@ Planner role only.
 * For a collect-availability plan: a start and end date
 * `allowedWeekdays` (optional, collect plans only): the weekdays people can mark, as numbers 0 (Sunday) to 6, e.g. `[0, 6]` for weekends. Left out, or all seven, means the whole range.
 * For a set plan: `announce` set to true, a single `date`, and an optional `time`
-* `repeatWeeks` (optional): `1`, `2` or `4` to have this come round again that many weeks after its day has been. Anything else, including left out, is a one off.
+* `repeatWeeks` (optional): `1`, `2` or `4` to have this come round again that many weeks after its day has been. Left out or null is a one off, and anything else is refused.
 
 ### Effects
 
@@ -357,6 +357,8 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * `isPlanner`: whether the requester has the planner role, so could start another plan like it
 * `canTakeOn`: whether the requester could make themselves a host with `/takeon`
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats, the plans either side of it in its series, and a link to its thread in Discord
+* With the plan, its `rev`, which the edit form sends back so a change made since it opened is caught, and `createdBy`
+* For a host, `hostIds`: whoever runs the plan and is still in the server, by id, for the edit form's picker
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `inReason` for someone out, `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
 * `updatedAt`: when each of them last saved anything on their calendar, null if they never have
@@ -378,7 +380,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * An empty hours list still means free all day, and survives as one from anybody whose clock matches the server's, which on most servers is everybody.
 
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
-* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, people being added, someone dropping out or coming back, someone taking the plan on, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, a save on the edit form with everything it changed, people being added, someone dropping out or coming back, someone taking the plan on, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
 * Every line but one was done by a person. Coming round again is written by the repeat sweep on a timer, so it carries no name and reads as a sentence of its own.
 * Capped at the most recent 100, and this is the only place history is exposed, so only people on the plan ever read it.
 * `403` for anyone who is not on the plan, planner role or not. The one exception is someone who could take it on: they get `role: null`, `canTakeOn: true`, `hosts`, and of the plan only its id, name and server, which is no more than its link already gives away.
@@ -440,6 +442,52 @@ For a planner, once nobody who runs the plan is still in the server. For anyone 
 * Nobody is DMed about it.
 * Says yes again, and changes nothing, for someone who already runs the plan.
 * `403` for anyone else, and `409` if the plan was called off or its day has been. The `403` comes first, so someone who couldn't take it on is told nothing about the plan.
+
+---
+
+## POST `/api/plans/:planId/edit` (session)
+
+Change a plan, all of it in one save. This is what the edit form sends.
+
+Hosts only.
+
+### Input
+
+* Everything the create route takes, for the plan as it should be now: the name, description, who is coming, `hostIds`, either a window with `allowedWeekdays` or `announce` with a `date` and `time`, and `repeatWeeks`
+* `rev`: the plan's `rev` from `/compare`, as it was when the form opened
+* `quiet` (optional), see below
+* `preview` (optional): true to write nothing and get back what the save would do
+
+### Effects
+
+* Writes the lot at once. A day set or moved asks everyone on the day's list again, and a day moved back to one of its last three gets those answers back. Only the time moving leaves every answer standing. A set plan sent back for dates loses its day and every yes or no, and each person is asked only for what their calendar doesn't already answer.
+* Someone left out of the list comes off the plan. They're DMed "{name} took you off ...", their card is taken down, and they leave the thread unless they run it. Someone new gets the same invitation everyone else got.
+* Someone newly picked to run it is put in the thread and DMed who picked them. Someone who stops running it and isn't coming leaves the thread.
+* One post in the thread lists what changed, under the plan's old name, and everyone the change reaches gets a fresh card with the same list on top. A new name, a repeat, and what it's about before there's a day are only posted, never DMed. Who comes and who runs it are only ever said to the people they're about.
+* Records one `edited` line in the history, with every change and whether it was quiet.
+
+### Returns
+
+* `{ ok: true, quiet }`
+* With `preview`:
+  * `changes`, with names where there are people
+  * `settled` and `asked`: of everyone the plan will be waiting on, how many have nothing left to do and how many it will ask something
+  * `messages`: each message a loud save sends, with `kind` (`post`, `card`, `invite`, `took off` or `picked`), `to` (`thread`, or a list of names) and `text`
+  * `quietly`: who a quiet save would still DM, each with why
+
+### Quiet
+
+Nothing is posted in the thread. The only people DMed are the ones the change gives something new to answer: anyone whose yes or no it cleared, anyone who owed nothing before and owes something now, anyone added, and anyone picked to run it. Someone taken off has their card edited into saying so, which pings nobody. Everyone else's card is rewritten where it sits.
+
+### Notes
+
+* `409` when the plan's `rev` has moved since the form opened, naming whoever moved it: "Sam changed this plan while you were editing. Reload to see their changes." It moves on any change to something the form sends, from any route, and never on an answer, which the form doesn't send. The save itself only lands while `rev` is still the one it read, so two saves from the same version can't both go through.
+* `403` for someone without the planner role turning a repeat on or changing how often. Stopping one is fine.
+* `403` for anyone but whoever made the plan leaving them out of `hostIds`. Whoever saves always runs it, whether `hostIds` names them or not.
+* A day or window can stay where it is after it has gone, so a plan whose dates have passed can still be renamed. A new window can start today, or wherever the old one started.
+* Anyone listed as running it who has left the server comes off without that counting as a change. Only names the plan has never had are checked against the server.
+* `400` "Nothing has changed yet." for a save that would change nothing, preview or not.
+* Capped at 20 saves a day per person per server, and 30 a day per plan across everyone who runs it. A preview counts against neither.
 
 ---
 

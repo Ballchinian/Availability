@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { describeEvent, hasActor, timeAgo } from '../../src/lib/history.js';
-import type { PlanEvent } from '../../src/lib/types.js';
+import type { EditChange, PlanEvent } from '../../src/lib/types.js';
 
 const base = { at: '2026-08-05T18:00:00.000Z', by: '1', byName: 'Ethan' };
 
@@ -172,5 +172,39 @@ describe('timeAgo', () => {
 
     it('is blank for a stamp it cannot read', () => {
         expect(timeAgo('not a date', now)).toBe('');
+    });
+});
+
+describe('an edit', () => {
+    const edited = (changes: EditChange[], quiet = false): PlanEvent => ({ ...base, type: 'edited', changes, quiet });
+
+    it('lists everything one save changed in one line', () => {
+        expect(
+            describeEvent(
+                edited([
+                    { type: 'name', from: 'Pub quiz', to: 'Quiz night' },
+                    { type: 'day', from: '2026-08-12', date: '2026-08-19', time: '19:00' },
+                    { type: 'added', names: ['Sam', 'Jo'] }
+                ])
+            )
+        ).toBe('renamed it Quiz night, moved the day from Wed 12 Aug 2026 to Wed 19 Aug 2026 at 7pm and added Sam and Jo');
+    });
+
+    it('says when it was quiet', () => {
+        expect(describeEvent(edited([{ type: 'time', from: '19:00', to: null }], true))).toBe('took the time off, quietly');
+    });
+
+    it('says what a plan sent back for dates asks about', () => {
+        expect(describeEvent(edited([{ type: 'collect', start: '2026-09-01', end: '2026-09-14', allowedWeekdays: [0, 6] }]))).toBe(
+            'went back out for dates, Tue 1 Sep 2026 to Mon 14 Sep 2026, weekends only'
+        );
+    });
+
+    it('names who started and stopped running it', () => {
+        expect(describeEvent(edited([{ type: 'hosts', added: ['Sam'], removed: ['Jo'] }]))).toBe('had Sam run it too and stopped Jo running it');
+    });
+
+    it('puts the name in front', () => {
+        expect(hasActor(edited([{ type: 'description', to: '' }]))).toBe(true);
     });
 });

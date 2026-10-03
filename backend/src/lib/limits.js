@@ -10,6 +10,14 @@
 export const DAILY_LIMIT = 30;
 
 /*
+    Saves on the edit form, per person per server, and per plan across everyone who runs
+    it, so a plan run by five cannot be changed five times as often. A save can DM the
+    whole guest list, so these sit lower than the rest.
+*/
+export const EDIT_LIMIT = 20;
+export const PLAN_ANNOUNCE_LIMIT = 30;
+
+/*
     How many people one request may name at once, when starting a plan or adding
     to one. Every id that is not already cached costs a REST call to Discord, so
     without a cap ten thousand ids means ten thousand round trips. Far above any
