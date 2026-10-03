@@ -40,7 +40,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock('../../src/db/plans.js', () => db);
 const bot = vi.hoisted(() => ({ announcePlan: vi.fn(), announceSetPlan: vi.fn(), notifyHostsPicked: vi.fn() }));
-vi.mock('../../src/bot/plans.js', () => bot);
+vi.mock('../../src/bot/plans/index.js', () => bot);
 const queued = vi.hoisted(() => ({ announceAfter: vi.fn() }));
 vi.mock('../../src/api/announce.js', () => queued);
 vi.mock('../../src/bot/util.js', () => ({ planUrl: (planId) => `https://site/#/plan/${planId}` }));

@@ -21,7 +21,7 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn() }));
 const users = vi.hoisted(() => ({ addAnswered: vi.fn(async () => []) }));
 vi.mock('../../src/db/users.js', () => users);
 const order = vi.hoisted(() => []);
-vi.mock('../../src/bot/plans.js', () => ({
+vi.mock('../../src/bot/plans/index.js', () => ({
     answersMoved: vi.fn(() => order.push('planner told')),
     setDayReply: vi.fn(() => ({ content: 'The day and the yes/no', components: [] }))
 }));
@@ -30,7 +30,7 @@ vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/p
 const { handleFree, handleFreeComponent } = await import('../../src/bot/availability.js');
 const { getPlanByThread } = await import('../../src/db/plans.js');
 const { getGuildConfig } = await import('../../src/db/guilds.js');
-const { answersMoved } = await import('../../src/bot/plans.js');
+const { answersMoved } = await import('../../src/bot/plans/index.js');
 
 const day = (n) => shiftDate(today(), n);
 const window = (start, end) => ({

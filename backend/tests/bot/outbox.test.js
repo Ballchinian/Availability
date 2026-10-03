@@ -80,7 +80,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
 
 const { userFor, channelFor } = await import('../../src/bot/outbox.js');
 const { pinMessage } = await import('../../src/bot/util.js');
-const { announcePlan, announceSetPlan, syncPlan, announceCancel, remindStragglers } = await import('../../src/bot/plans.js');
+const { announcePlan, announceSetPlan, syncPlan, announceCancel, remindStragglers } = await import('../../src/bot/plans/index.js');
 const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = await import('discord.js');
 
 beforeEach(() => {

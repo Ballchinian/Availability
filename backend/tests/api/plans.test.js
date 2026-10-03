@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceWhenEdit, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans.js';
+import { announceWhenEdit, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans/index.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
@@ -93,7 +93,7 @@ vi.mock('../../src/db/users.js', () => ({
     getPlanningPrefs: vi.fn(async () => ({})),
     addAnswered: vi.fn()
 }));
-vi.mock('../../src/bot/plans.js', () =>
+vi.mock('../../src/bot/plans/index.js', () =>
     stubs(
         'announceOutcome',
         'announceWhenEdit',

@@ -27,7 +27,7 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ 
 const db = vi.hoisted(() => ({ markProbeAllYes: vi.fn(async () => {}), setDmsClosed: vi.fn(async () => {}) }));
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 
-const { announceVote } = await import('../../src/bot/plans.js');
+const { announceVote } = await import('../../src/bot/plans/index.js');
 
 const day = shiftDate(today(), 3);
 const plan = (bo, cy = { vote: 'yes' }) => ({

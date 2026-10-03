@@ -35,7 +35,7 @@ vi.mock('../../src/bot/client.js', () => ({
 }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 
-const { notifyHostsDropped, notifyHostsPicked, announceJoin } = await import('../../src/bot/plans.js');
+const { notifyHostsDropped, notifyHostsPicked, announceJoin } = await import('../../src/bot/plans/index.js');
 
 const plan = { planId: 'p1', guildId: 'g1', name: 'Board games', createdBy: 'planner' };
 

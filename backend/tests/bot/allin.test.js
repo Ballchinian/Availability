@@ -27,7 +27,7 @@ vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }))
 const prefs = vi.hoisted(() => ({ rows: {} }));
 vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanningPrefs: vi.fn(async () => prefs.rows) }));
 
-const { notifyHostsIfAllIn } = await import('../../src/bot/plans.js');
+const { notifyHostsIfAllIn } = await import('../../src/bot/plans/index.js');
 
 const ahead = (n) => shiftDate(todayIn('Europe/London'), n);
 const plan = (participants, over = {}) => ({

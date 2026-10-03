@@ -30,7 +30,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
     getLastUpdated: vi.fn(async () => ({}))
 }));
 
-const { remindStragglers, remindVoters, askAgain } = await import('../../src/bot/plans.js');
+const { remindStragglers, remindVoters, askAgain } = await import('../../src/bot/plans/index.js');
 
 const ahead = (n) => shiftDate(todayIn('Europe/London'), n);
 const plan = (participants, over = {}) => ({

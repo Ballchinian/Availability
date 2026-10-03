@@ -4,7 +4,7 @@ import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
 import { readPlanForm } from '../planForm.js';
 import { createPlan, setPlanChosen } from '../../db/plans.js';
-import { announcePlan, announceSetPlan, notifyHostsPicked } from '../../bot/plans.js';
+import { announcePlan, announceSetPlan, notifyHostsPicked } from '../../bot/plans/index.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';

@@ -32,7 +32,7 @@ vi.mock('../../src/bot/client.js', () => ({
     }
 }));
 
-const { handleVote, handleVoteModal, handleUndrop } = await import('../../src/bot/plans.js');
+const { handleVote, handleVoteModal, handleUndrop } = await import('../../src/bot/plans/index.js');
 
 function press(customId, message = null) {
     return { customId, message, user: { id: 'bo', username: 'bo' }, inGuild: () => false, update: vi.fn(async () => {}), showModal: vi.fn(async () => {}) };

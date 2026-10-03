@@ -4,7 +4,7 @@ import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySumm
 import { getUserById, setCoveredUntil, getPlanningPrefs } from '../../db/users.js';
 import { getCollectingPlansForUser } from '../../db/plans.js';
 import { newlyCovered } from '../../lib/coverage.js';
-import { answersMoved } from '../../bot/plans.js';
+import { answersMoved } from '../../bot/plans/index.js';
 import { maxEnd } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone } from '../../lib/zones.js';

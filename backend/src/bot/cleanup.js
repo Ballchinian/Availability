@@ -6,7 +6,7 @@ import { deleteOutboxFor } from '../db/outbox.js';
 import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel } from './util.js';
-import { syncPlanCards, afterLeaving } from './plans.js';
+import { syncPlanCards, afterLeaving } from './plans/index.js';
 import { dayHasPassed } from '../lib/zones.js';
 
 /*

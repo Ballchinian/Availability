@@ -18,7 +18,7 @@ vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }))
 const pins = vi.hoisted(() => ({ pinMessage: vi.fn(async () => {}) }));
 vi.mock('../../src/bot/util.js', async (real) => ({ ...(await real()), ...pins }));
 
-const { syncPlan, updateOpener } = await import('../../src/bot/plans.js');
+const { syncPlan, updateOpener } = await import('../../src/bot/plans/index.js');
 
 /*
     held is which message ids the thread still has. Anything else fetches as gone, which

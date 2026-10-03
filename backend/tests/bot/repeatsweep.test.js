@@ -74,7 +74,7 @@ vi.mock('../../src/bot/client.js', () => ({
 }));
 
 const discord = vi.hoisted(() => ({ announceSetPlan: vi.fn(), announcePlan: vi.fn(), syncPlan: vi.fn() }));
-vi.mock('../../src/bot/plans.js', () => discord);
+vi.mock('../../src/bot/plans/index.js', () => discord);
 
 const { sweepRepeats } = await import('../../src/bot/repeat.js');
 

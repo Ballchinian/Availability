@@ -3,7 +3,7 @@ import { getPlan, getPlanByThread, getOpenPlansForUser, getCollectingPlansForUse
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange } from '../db/availability.js';
 import { addAnswered } from '../db/users.js';
-import { answersMoved, setDayReply } from './plans.js';
+import { answersMoved, setDayReply } from './plans/index.js';
 import { planUrl } from './util.js';
 import { allowedDaysInRange, formatDay, formatDate } from '../lib/dates.js';
 import { todayIn } from '../lib/zones.js';

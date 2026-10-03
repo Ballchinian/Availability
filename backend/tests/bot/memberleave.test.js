@@ -35,7 +35,7 @@ const availability = vi.hoisted(() => ({ deleteAllForUser: vi.fn() }));
 vi.mock('../../src/db/availability.js', () => availability);
 vi.mock('../../src/bot/util.js', () => ({ findWritableChannel: vi.fn() }));
 const bot = vi.hoisted(() => ({ syncPlanCards: vi.fn(async () => 0), afterLeaving: vi.fn(async () => {}) }));
-vi.mock('../../src/bot/plans.js', () => bot);
+vi.mock('../../src/bot/plans/index.js', () => bot);
 
 const { onGuildMemberRemove, onGuildMemberAdd, onGuildMemberUpdate, onGuildDelete } = await import('../../src/bot/cleanup.js');
 

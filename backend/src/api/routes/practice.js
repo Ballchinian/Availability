@@ -6,7 +6,7 @@ import { removeUserFromGuildPlans } from '../../db/plans.js';
 import { deleteAllForUser } from '../../db/availability.js';
 import { getTokenVersion } from '../../db/users.js';
 import { getOutbox, outboxShape, deleteOutboxFor } from '../../db/outbox.js';
-import { afterLeaving } from '../../bot/plans.js';
+import { afterLeaving } from '../../bot/plans/index.js';
 import { newPracticeId, isPracticeId, PRACTICE_LIMIT, PRACTICE_NAME_MAX } from '../../lib/practice.js';
 import { dayHasPassed } from '../../lib/zones.js';
 

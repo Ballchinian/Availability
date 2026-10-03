@@ -59,7 +59,7 @@ const cal = vi.hoisted(() => ({
 }));
 vi.mock('../../src/db/availability.js', () => cal);
 
-const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleJoin, handleJoinModal, handleUndrop, setDayReply } = await import('../../src/bot/plans.js');
+const { handleVote, handleBlockDay, handleUnblockDay, handleDrop, handleJoin, handleJoinModal, handleUndrop, setDayReply } = await import('../../src/bot/plans/index.js');
 
 const day = shiftDate(today(), 3);
 const ids = (payload) => payload.components.flatMap((row) => row.components.map((b) => b.data.custom_id));

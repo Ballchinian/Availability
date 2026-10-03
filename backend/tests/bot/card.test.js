@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planCard } from '../../src/bot/plans.js';
+import { planCard } from '../../src/bot/plans/index.js';
 
 /*
     The DM saying what a plan is. What matters is that one send and a rebuild a fortnight

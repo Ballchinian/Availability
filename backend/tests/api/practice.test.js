@@ -62,7 +62,7 @@ vi.mock('../../src/db/outbox.js', async (real) => ({
     getOutbox: vi.fn(async (to) => outbox.filter((m) => m.to === to)),
     deleteOutboxFor: vi.fn(async () => {})
 }));
-vi.mock('../../src/bot/plans.js', () => bot);
+vi.mock('../../src/bot/plans/index.js', () => bot);
 
 const { default: practiceRouter } = await import('../../src/api/routes/practice.js');
 

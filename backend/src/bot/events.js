@@ -3,7 +3,7 @@ import { registerCommands } from './commands.js';
 import { startSetup, handleSetupComponent } from './setup.js';
 import { handleTimeZone, handleZoneAutocomplete } from './timezone.js';
 import { handleFree, handleFreeComponent } from './availability.js';
-import { handleOverview, handleMyLink, handleMyCalendar, handleCancel, handlePlanComponent, handleDrop, handleUndrop, handleJoin, handleJoinModal, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans.js';
+import { handleOverview, handleMyLink, handleMyCalendar, handleCancel, handlePlanComponent, handleDrop, handleUndrop, handleJoin, handleJoinModal, handleVote, handleVoteModal, handleBlockDay, handleUnblockDay } from './plans/index.js';
 import { onThreadDelete, onChannelDelete, onGuildDelete, onGuildMemberRemove, onGuildMemberAdd, onGuildMemberUpdate } from './cleanup.js';
 import { findAnnounceChannel, welcomeText, warmGuildMembers } from './util.js';
 import { inviteUrl } from './permissions.js';

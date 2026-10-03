@@ -55,14 +55,14 @@ vi.mock('../../src/db/plans.js', async (real) => ({
     }),
     addPlanEvent: vi.fn()
 }));
-vi.mock('../../src/bot/plans.js', () => stubs('announceEdit'));
+vi.mock('../../src/bot/plans/index.js', () => stubs('announceEdit'));
 vi.mock('../../src/bot/util.js', () => stubs('threadUrl'));
 vi.mock('../../src/api/announce.js', () => stubs('announceAfter'));
 vi.mock('../../src/db/ratelimits.js', () => ({ takeAction: vi.fn(async () => ({ allowed: true })), refundAction: vi.fn() }));
 vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
 
 const db = await import('../../src/db/plans.js');
-const bot = await import('../../src/bot/plans.js');
+const bot = await import('../../src/bot/plans/index.js');
 const { announceAfter } = await import('../../src/api/announce.js');
 const { takeAction } = await import('../../src/db/ratelimits.js');
 const { default: plansRouter } = await import('../../src/api/routes/plans.js');

@@ -75,7 +75,7 @@ vi.mock('../../src/db/availability.js', async (real) => ({
     getLastUpdated: vi.fn(async () => ({}))
 }));
 
-const { announceEdit } = await import('../../src/bot/plans.js');
+const { announceEdit } = await import('../../src/bot/plans/index.js');
 const { diffPlan } = await import('../../../shared/planDiff.js');
 
 const cfg = { guildName: 'The server' };

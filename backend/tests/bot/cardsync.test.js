@@ -69,7 +69,7 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ 
 
 vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
 
-const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition, applyAttendanceMove, remindVoters, announceCancel } = await import('../../src/bot/plans.js');
+const { syncPlanCards, announceOutcome, announceWhenEdit, announceAddition, applyAttendanceMove, remindVoters, announceCancel } = await import('../../src/bot/plans/index.js');
 
 const person = (userId, over = {}) => ({
     userId,

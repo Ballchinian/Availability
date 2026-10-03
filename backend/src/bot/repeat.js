@@ -2,7 +2,7 @@ import { getPlan, getPlansDueToRepeat, getPlansNeedingRepair, claimForRepeat, re
 import { getGuildConfig } from '../db/guilds.js';
 import { isMongoReady } from '../db/mongo.js';
 import { client } from './client.js';
-import { announcePlan, announceSetPlan, syncPlan } from './plans.js';
+import { announcePlan, announceSetPlan, syncPlan } from './plans/index.js';
 import { shortId } from '../lib/ids.js';
 import { today, shiftDate, nextPlanShape } from '../lib/dates.js';
 import { safeZone, dayHasPassed } from '../lib/zones.js';

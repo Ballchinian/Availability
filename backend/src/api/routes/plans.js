@@ -9,7 +9,7 @@ import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, recordVo
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary, getLastUpdated } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceCancel, leavePlan, notifyHostsDropped, syncPlan, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread, announceEdit } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceCancel, leavePlan, notifyHostsDropped, syncPlan, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread, announceEdit } from '../../bot/plans/index.js';
 import { buildEditMessages } from '../../bot/edits.js';
 import { threadUrl } from '../../bot/util.js';
 import { formatDate, shiftDate, weekdayAllowed, allowedDaysInRange, readTime, BAD_TIME } from '../../lib/dates.js';

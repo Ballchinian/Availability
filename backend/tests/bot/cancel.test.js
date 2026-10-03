@@ -32,7 +32,7 @@ const db = vi.hoisted(() => ({
 vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/ratelimits.js', () => ({ refundAction: vi.fn(async () => {}) }));
 
-const { handleCancel, handlePlanComponent } = await import('../../src/bot/plans.js');
+const { handleCancel, handlePlanComponent } = await import('../../src/bot/plans/index.js');
 const { announceAfter } = await import('../../src/api/announce.js');
 
 const press = (userId = 'ali') => ({
