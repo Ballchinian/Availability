@@ -19,25 +19,20 @@
     import { todayIn } from '../zone.js';
     import { refocus } from '../focus.js';
     import ClockNote from '../ClockNote.svelte';
-    import AboutPanel from './AboutPanel.svelte';
-    import AddPeople from './AddPeople.svelte';
     import CancelPanel from './CancelPanel.svelte';
     import DayCompare from './DayCompare.svelte';
-    import EditDetails from './EditDetails.svelte';
     import HistoryPanel from './HistoryPanel.svelte';
     import RepairPanel from './RepairPanel.svelte';
-    import RepeatPanel from './RepeatPanel.svelte';
     import Standing from './Standing.svelte';
     import TakeOn from './TakeOn.svelte';
-    import WhenPanel from './WhenPanel.svelte';
     import YourAnswer from './YourAnswer.svelte';
 
     /*
-        A plan's overview, for everyone on it. Whoever runs the plan gets the panels that
-        change it, each of which owns its own form and its own message and asks for a
-        refetch when it changes something. A guest gets the same picture to read: where
-        everyone stands, everyone's days, what has happened. Once a plan is over, called
-        off or its day been, nobody changes anything.
+        A plan's overview, for everyone on it. Whoever runs the plan gets the way to the
+        edit form and the few things done from here, each of which owns its own message
+        and asks for a refetch when it changes something. A guest gets the same picture to
+        read: where everyone stands, everyone's days, what has happened. Once a plan is
+        over, called off or its day been, nobody changes anything.
 
         Everything arrives as props so a test can draw it, which the route around it,
         loading in onMount, never can be.
@@ -63,17 +58,6 @@
     const chosen = $derived(
         data.plan.chosenDate ? { date: data.plan.chosenDate, time: data.plan.chosenTime || '', note: data.plan.chosenNote || '' } : null
     );
-
-    //Held here rather than left on the <details>, which a refetch would refold
-    let changing = $state(false);
-
-    /*
-        Quiet: nothing done from this page pings anybody. The pin and everyone's DM are
-        still rewritten, so what people hold stays true, they just are not told it
-        changed. Deliberately not remembered across a load: a forgotten quiet mode is
-        how a real date change reaches nobody.
-    */
-    let quiet = $state(false);
 
     //A day already gone is out on the grid, so it cannot be the one picked there
     let selectedDate = $state<string | null>(
@@ -128,6 +112,12 @@
 {#if data.canTakeOn && !over}
     <TakeOn {planId} ontaken={taken} />
 {/if}
+{#if data.plan.repeatedFrom}
+    <p class="muted small">This came round from <a href="#/plan/{data.plan.repeatedFrom}/overview">the one before it</a>.</p>
+{/if}
+{#if data.plan.repeatedInto}
+    <p class="muted small">This one has come round again. <a href="#/plan/{data.plan.repeatedInto}/overview">Open the one after it</a>.</p>
+{/if}
 
 <p class="ways">
     {#if data.plan.threadUrl}
@@ -147,23 +137,6 @@
     <p class="muted small">Deleting its thread in Discord clears it for good.</p>
 {/if}
 
-{#if host && !over}
-    <div class="hush" class:on={quiet}>
-        <label class="check"><input type="checkbox" bind:checked={quiet} /> Quiet: fix things without telling anyone</label>
-        <p class="muted small">
-            {#if quiet}
-                Nothing you do here pings anybody until you turn this off. The pinned post and
-                everyone's DM are still rewritten where they sit, so what people
-                are holding stays correct, they just are not told it changed. Reloading the page
-                turns this off again.
-            {:else}
-                Turn this on to put a mistake right without announcing it. Everyone's DM still gets
-                corrected, nobody is pinged about the correction.
-            {/if}
-        </p>
-    </div>
-{/if}
-
 <!--For anyone on the guest list, whoever runs the plan included: the board moves people, and this is their own word-->
 {#if data.you && chosen && !over}
     <YourAnswer
@@ -179,8 +152,8 @@
 <Standing {planId} {data} {host} {over} onmoved={onrefresh} />
 
 <!--Everyone's days leads the page while the day is still open, since which day is the
-    whole question then. Once it is set this section is gone and the grid is one button
-    inside Edit plan. A cancelled plan keeps it either way, to look back at.-->
+    whole question then. Once it is set this section is gone and the grid is on the edit
+    form, under the date. A cancelled plan keeps it either way, to look back at.-->
 {#if !chosen || cancelled}
     <section class="group">
         <h2>Everyone's days</h2>
@@ -203,7 +176,6 @@
                 names={data.seesDays ?? true}
                 unansweredCounts={data.unansweredCounts ?? null}
                 {chosen}
-                {quiet}
                 bind:selectedDate
                 onsaved={changed}
             />
@@ -213,57 +185,9 @@
     </section>
 {/if}
 
+<!--One way in to changing it, since the form holds every part of the plan and says what a save sends before it does-->
 {#if host && !over}
-    <!--A list of what you came here wanting, not of what the app would have to do about it.
-        Whether a change costs everyone their answer is worked out from the change itself,
-        so it is said on the button that does it rather than by filing it under a heading.-->
-    <details class="group" bind:open={changing}>
-        <summary>Edit plan</summary>
-
-        <div class="tools">
-            <!--A screen rather than a panel: it is the create form again, both of its modes,
-                and the only way to a day outside the window. Named for where the plan stands,
-                since "the day is wrong" says nothing on one that has no day yet.-->
-            <a class="ghost" href="#/plan/{planId}/dates">
-                {chosen ? 'The day is wrong' : 'None of these days work'}
-            </a>
-
-            <!--Only on a plan that has a day. The one small edit that costs nobody their
-                answer, which is why it stays a panel rather than joining the screen above.-->
-            {#if chosen}
-                <WhenPanel {planId} chosenDate={chosen.date} time={chosen.time} {quiet} onsaved={onrefresh} />
-            {/if}
-
-            <AboutPanel
-                {planId}
-                name={data.plan.name}
-                description={data.plan.description}
-                note={chosen?.note ?? ''}
-                chosenDate={data.plan.chosenDate}
-                {quiet}
-                onsaved={onrefresh}
-            />
-
-            <EditDetails {planId} name={data.plan.name} description={data.plan.description} onsaved={onrefresh} />
-
-            <AddPeople {planId} guildId={data.plan.guildId} participants={data.participants} {quiet} onadded={onrefresh} />
-
-            <RepeatPanel
-                {planId}
-                repeatWeeks={data.plan.repeatWeeks}
-                repeatedFrom={data.plan.repeatedFrom}
-                repeatedInto={data.plan.repeatedInto}
-                start={data.plan.start}
-                end={data.plan.end}
-                chosenDate={data.plan.chosenDate}
-                chosenTime={data.plan.chosenTime}
-                canStart={data.isPlanner ?? true}
-                onchanged={onrefresh}
-            />
-
-            <RepairPanel {planId} />
-        </div>
-    </details>
+    <p class="edit-plan"><a class="ghost" href="#/plan/{planId}/edit">Edit plan</a></p>
 {/if}
 
 <HistoryPanel history={data.history} />
@@ -273,4 +197,5 @@
         <h2>End this plan</h2>
         <CancelPanel {planId} oncancelled={changed} />
     </section>
+    <RepairPanel {planId} />
 {/if}

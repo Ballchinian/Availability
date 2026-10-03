@@ -5,7 +5,8 @@
 
     /*
         For when Discord and the plan have drifted apart: somebody deleted the pinned post,
-        or an announcement went out while Discord was down and only the log knows.
+        or an announcement went out while Discord was down and only the log knows. Sends
+        nothing and pings nobody, so it needs no step before it.
     */
     let { planId }: { planId: string } = $props();
 
@@ -13,11 +14,7 @@
 
     async function repair() {
         await panel.run(async () => {
-            const res = await api<{ cards: number; holders: number; thread: boolean }>(
-                `/plans/${planId}/repair`,
-                { method: 'POST' }
-            );
-            panel.close();
+            const res = await api<{ cards: number; holders: number; thread: boolean }>(`/plans/${planId}/repair`, { method: 'POST' });
             const thread = res.thread ? 'Pinned post put right. ' : '';
             if (!res.holders) return `${thread}Nobody is holding a DM about this plan, so there was none to correct.`;
             //Named rather than glossed: the gap is people who binned their DM or have them closed
@@ -28,21 +25,8 @@
     }
 </script>
 
-<div class="repair" class:wide={panel.open || Boolean(panel.msg)}>
-    {#if !panel.open}
-        <button class="ghost" onclick={() => panel.show()} {@attach panel.opener}>Discord has gone wrong</button>
-    {:else}
-        <p class="muted small">
-            Out of step with Discord? This rewrites the pinned post and everyone's DM
-            from the plan as it stands, and puts back anything that has been deleted. Nothing is sent and
-            nobody is pinged, so it is safe to press whenever something looks wrong.
-        </p>
-        <div class="btn-row">
-            <button class="primary" onclick={repair} disabled={panel.busy}>
-                {panel.busy ? 'Fixing up...' : 'Fix it up'}
-            </button>
-            <button class="ghost" onclick={() => panel.close()}>Cancel</button>
-        </div>
-    {/if}
-    <Status class="status small" msg={panel.msg} error={panel.failed} />
-</div>
+<p class="muted small repair">
+    Something missing in Discord?
+    <button class="link-btn" onclick={repair} disabled={panel.busy}>{panel.busy ? 'Putting it back...' : 'Put it back'}</button>
+</p>
+<Status class="status small" msg={panel.msg} error={panel.failed} />

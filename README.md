@@ -20,9 +20,8 @@ It's built to be shared. Any server can invite the bot and gets its own plans, t
 - One list of every plan you're on, each with a button for what it wants from you next
 - An overview for everyone on the plan, which colours days by how many people are free, with a slider for how many you'll let miss out
 - Whoever runs a plan can change it without the planner role, and a planner can take one on when nobody running it is left
-- Changes named after what you came wanting: the day, the time, the name, who's on it, or going back out for different dates altogether
-- Optional DMs and thread posts, so you can keep any action as quiet as you like
-- A quiet switch for putting a mistake right: everyone's DM is corrected where it sits, nobody is told it changed
+- One edit form for everything about a plan, which shows every message a save will send, and who gets it, before it sends anything
+- Save quietly, for putting a mistake right: everyone's DM is corrected where it sits, and only people with something new to answer are told
 - Once a day is set, the thread's pinned post becomes the yes/no, with a count that keeps itself up to date
 - Noise limits so nobody can get blasted with pings
 - Multi server support, fully isolated per server
@@ -45,13 +44,11 @@ If everyone running a plan leaves the server, any planner there can take it on f
 
 Anyone who would rather not click the link can run `/free` in the plan's thread instead and tick their days off a list right there. It writes exactly what the site writes, so the two can be used on the same plan interchangeably. The one thing it can't do is narrow a day to certain hours, since a Discord list has nowhere to put that: a day ticked there is a day free all through, and the reply says where to go if that isn't true.
 
-If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone. Every action that reaches people, locking in a date, moving the range, adding someone, has its own toggles for whether to post in the thread or DM, so a plan can be as loud or as quiet as you want. Calling a plan off is the exception: that always tells everyone.
+If the day is already decided, the planner can skip all that and announce a set plan instead: give it a name, a date and time, and who is coming, and the bot just tells everyone.
 
 ### Changing a plan that is already running
 
-Everything you can do to a plan lives under **Edit plan** on its overview, for whoever runs it, and each one is named after the reason you came rather than after what the app has to do about it. **The time is wrong**, **What it is about is wrong**, **The name is wrong** and **Someone else should be on it** are each a small form and cost nobody their answer. Whether a change means people have to look again is worked out from the change itself, so it is said on the button that does it instead of being filed under a scarier heading.
-
-The big one is **The day is wrong**, called **None of these days work** on a plan that has not got a day yet. Both open the edit form, which is the create form over again on the plan you already have, with everything filled in: the name, what it's about, its window or its day, who's coming, who else runs it and whether it repeats. Change whatever you like, take someone off by moving them back across, and press **Review changes**. Before anything is sent, that lists what changes and every message that would go out, with who gets each one, and the save button is named for the biggest thing it does, like **Save and move it to Sat 10 Oct**. Naming a day asks everyone on it if they're coming. Asking about dates again only asks each person for the days their calendar doesn't already answer. Either way the thread gets one message listing what changed, rather than one per thing you moved.
+Whoever runs a plan changes it with **Edit plan** on its overview, which opens the edit form. That's the create form over again on the plan you already have, with everything filled in: the name, what it's about, its window or its day, who's coming, who else runs it and whether it repeats. Change whatever you like, take someone off by moving them back across, and press **Review changes**. Before anything is sent, that lists what changes and every message that would go out, with who gets each one, and the save button is named for the biggest thing it does, like **Save and move it to Sat 10 Oct**. Naming a day asks everyone on it if they're coming. Asking about dates again only asks each person for the days their calendar doesn't already answer. Either way the thread gets one message listing what changed, rather than one per thing you moved.
 
 **Save quietly** sits beside it, for putting a mistake right. It posts nothing in the thread and only DMs the people the change gives something new to do, like someone whose yes the move took away, and the review says who those are before you press it. Everyone else's DM is corrected where it sits.
 
@@ -59,19 +56,15 @@ If somebody else changes the plan while you have the form open, the review says 
 
 Naming a day is not held to the window the plan asked about. Pick something outside it and the window simply stretches to reach it, so a plan that went out asking about August can still land on the first weekend of September without anybody having to answer anything again.
 
-The grid is the only way to a day you are picking off what people said, whether or not anyone has answered yet. Every day in the window is clickable, and a day nobody is free on says why it looks dim and lets you set it anyway. It leads the overview while the day is still being found, and once there is a day it sits under the date on the edit form, which is the only place it is still worth a look. Picking a day there fills the date in.
+The grid is the only way to a day you are picking off what people said, whether or not anyone has answered yet. Every day in the window is clickable, one nobody is free on included. It leads the overview while the day is still being found, and once there is a day it sits under the date on the edit form, which is the only place it is still worth a look. Picking a day there fills the date in.
 
 ### Fixing things without a fuss
 
-Everything the bot has said about a plan, it can go back and correct. It remembers the pinned post at the top of the thread, the confirmation if one is running, and the one DM each person is holding that says what the plan is, and every change rewrites all three before it does anything else. Editing a message in Discord notifies nobody, so getting the time wrong and fixing it a minute later leaves seventeen people holding a DM that just says the right time, with nothing to tell them it ever said anything else.
+Everything the bot has said about a plan, it can go back and correct. It remembers the pinned post at the top of the thread, which is the yes/no once there's a day, and the one DM each person is holding that says what the plan is, and every change rewrites both before it does anything else. Editing a message in Discord notifies nobody, so getting the time wrong and fixing it a minute later leaves seventeen people holding a DM that just says the right time, with nothing to tell them it ever said anything else.
 
-There is a **quiet** switch on the overview for the rest of it. With it on, nothing you do pings anybody: no DM, no thread post, no mentions. The corrections still happen, so everyone ends up holding the truth, they are simply not told it changed. It is for the mess you made yourself rather than for keeping people in the dark, and it turns itself off when the page reloads so it cannot be left on by accident. Moving a plan's day quietly asks you to confirm twice, because somebody could turn up on the wrong day.
+That is what **Save quietly** leans on. Nobody who already knew what to do is told it changed, and the people who do hear are only the ones the change asks something new of. Discord pings people the moment they're added to a private thread, so anyone added still hears, and gets their invitation too. A brand new plan is never quiet for the same reason, which is why fixing the plan you have beats starting another. Calling a plan off, and setting its day off the grid, always tell everyone.
 
-Two things it cannot do, both because Discord pings people the moment they are added to a private thread: a brand new plan is never quiet, and adding somebody to an existing one is only half quiet. The panel says so rather than pretending otherwise, which is also why fixing the plan you have beats starting another.
-
-Asking everyone to confirm is a switch rather than a one-shot round. Close it and every yes and no stays on record; open it again and the same message in the thread comes back to life with the tally intact, rather than a second poll appearing below the first. Nothing clears people's answers except the day itself actually moving.
-
-If the two ever drift apart anyway, because somebody deleted the pinned post or Discord was down when an announcement went out, **Discord has gone wrong** under Edit plan rewrites the lot and puts back whatever is missing. It sends nothing and pings nobody, so it is safe to press whenever something looks wrong.
+If the two ever drift apart anyway, because somebody deleted the pinned post or Discord was down when an announcement went out, **Put it back**, at the foot of the overview for whoever runs the plan, rewrites the lot and puts back whatever is missing. It sends nothing and pings nobody, so it is safe to press whenever something looks wrong.
 
 ### Plans that come round again
 

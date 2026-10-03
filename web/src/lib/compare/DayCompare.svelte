@@ -26,7 +26,6 @@
         totalParticipants = 0,
         timeZone = '',
         chosen = null,
-        quiet = false,
         readOnly = false,
         guest = false,
         names = true,
@@ -44,7 +43,6 @@
         totalParticipants?: number;
         timeZone?: string;
         chosen?: { date: string; time: string; note: string } | null;
-        quiet?: boolean;
         //A cancelled plan, where the grid is only there to look back at
         readOnly?: boolean;
         //Someone who does not run the plan, who reads a day and cannot set it
@@ -141,7 +139,6 @@
         {participants}
         {inCount}
         {totalParticipants}
-        {quiet}
         {guest}
         {onsaved}
     />

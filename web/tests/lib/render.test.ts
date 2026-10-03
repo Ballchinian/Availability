@@ -3,15 +3,10 @@ import { render } from 'svelte/server';
 import ClockNote from '../../src/lib/ClockNote.svelte';
 import PickPanel, { invitees } from '../../src/lib/compare/PickPanel.svelte';
 import CancelPanel from '../../src/lib/compare/CancelPanel.svelte';
-import AboutPanel from '../../src/lib/compare/AboutPanel.svelte';
-import AddPeople from '../../src/lib/compare/AddPeople.svelte';
-import EditDetails from '../../src/lib/compare/EditDetails.svelte';
 import RemindPanel from '../../src/lib/compare/RemindPanel.svelte';
 import RepairPanel from '../../src/lib/compare/RepairPanel.svelte';
-import RepeatPanel from '../../src/lib/compare/RepeatPanel.svelte';
 import Standing from '../../src/lib/compare/Standing.svelte';
 import AnswerBoard, { owing, askAside, askedLine, updatedLine } from '../../src/lib/compare/AnswerBoard.svelte';
-import WhenPanel from '../../src/lib/compare/WhenPanel.svelte';
 import PlanOverview, { planState } from '../../src/lib/compare/PlanOverview.svelte';
 import TakeOn from '../../src/lib/compare/TakeOn.svelte';
 import YourAnswer from '../../src/lib/compare/YourAnswer.svelte';
@@ -169,11 +164,6 @@ describe('what setting a day says it will do', () => {
         expect(body).not.toContain('come off the list');
     });
 
-    //The buttons need a message to sit on, so quiet still posts the yes/no, just without the pings
-    it('still posts the yes/no under quiet mode, pinging nobody', () => {
-        expect(draw({ quiet: true })).toContain('Posts the yes/no in the thread pinging nobody');
-    });
-
     //Nothing changing to the answers is what anyone expects, so it goes unsaid
     it('says only who hears when only the time or note is changing', () => {
         const body = draw({ participants: onPlan, chosen: { date: '2026-08-12', time: '', note: '' } });
@@ -204,10 +194,6 @@ describe('what setting a day says it will do', () => {
             chosen: { date: '2026-08-12', time: '', note: '' }
         });
         expect(body).toContain('DMs 2 people to say what changed');
-    });
-
-    it('tells nobody about a quiet edit to a day that is staying put', () => {
-        expect(draw({ quiet: true, chosen: { date: '2026-08-12', time: '', note: '' } })).toContain('tells nobody');
     });
 });
 
@@ -1329,17 +1315,12 @@ describe('the status line on each panel', () => {
     const planId = 'ab12cd34ef';
     const done = async () => {};
     const panels: [string, () => string][] = [
-        ['what it is about', () => render(AboutPanel, { props: { planId, onsaved: done } }).body],
-        ['adding people', () => render(AddPeople, { props: { planId, guildId: '1', onadded: done } }).body],
         ['the board', () => render(AttendanceBoard, { props: { planId, chosenDate: '2026-08-12', onmoved: done } }).body],
         ['calling it off', () => render(CancelPanel, { props: { planId, oncancelled: () => {} } }).body],
-        ['the name', () => render(EditDetails, { props: { planId, onsaved: done } }).body],
         ['the picked day', () => render(PickPanel, { props: { planId, selectedDate: '2026-08-12', onsaved: done } }).body],
         ['the nudge', () => render(RemindPanel, { props: { planId } }).body],
         ['the repair', () => render(RepairPanel, { props: { planId } }).body],
-        ['the repeat', () => render(RepeatPanel, { props: { planId, onchanged: done } }).body],
-        ['taking it on', () => render(TakeOn, { props: { planId, ontaken: done } }).body],
-        ['the time', () => render(WhenPanel, { props: { planId, chosenDate: '2026-08-12', onsaved: done } }).body]
+        ['taking it on', () => render(TakeOn, { props: { planId, ontaken: done } }).body]
     ];
 
     it.each(panels)('%s', (_, draw) => {
@@ -1624,9 +1605,9 @@ describe('a plan overview', () => {
 
     it('gives whoever runs it the ways to change it', () => {
         const body = draw(screen());
-        expect(body).toContain('<summary>Edit plan</summary>');
+        expect(body).toContain('<a class="ghost" href="#/plan/ab12cd34ef/edit">Edit plan</a>');
         expect(body).toContain('Call it off</button>');
-        expect(body).toContain('Quiet: fix things without telling anyone');
+        expect(body).toContain('Something missing in Discord?');
         expect(body).toContain('Nudge the 1 still to answer');
         expect(body).toContain('Plan another like this');
         expect(body).toContain('Away that week');
@@ -1642,7 +1623,7 @@ describe('a plan overview', () => {
 
         it('has nothing else a host works from, and nothing that changes anyone', () => {
             const body = draw(screen(guest));
-            for (const gone of ['Quiet', 'Nudge', 'aria-expanded', 'Ask again', 'moved back by', 'DMs closed', 'Plan another like this', 'Discord has gone wrong']) {
+            for (const gone of ['Quiet', 'Nudge', 'aria-expanded', 'Ask again', 'moved back by', 'DMs closed', 'Plan another like this', 'Something missing in Discord']) {
                 expect(body).not.toContain(gone);
             }
         });
@@ -1732,7 +1713,7 @@ describe('a plan overview', () => {
         it('leaves whoever ran it everything to read and nothing to change', () => {
             const body = draw(screen({ participants: voters }, been));
             expect(body).toContain(`<p class="muted">Was on ${formatDate(ahead(-2))} at 7pm · The server</p>`);
-            for (const gone of ['Edit plan', 'Call it off', 'Quiet', 'Nudge', 'bchip', 'Invite them']) expect(body).not.toContain(gone);
+            for (const gone of ['Edit plan', 'Call it off', 'Nudge', 'bchip', 'Invite them', 'Something missing in Discord']) expect(body).not.toContain(gone);
             expect(body).toContain('(Working late)');
             expect(body).toContain('<h3>Not invited to this date (1)</h3>');
             expect(body).toContain('Plan another like this');
@@ -1767,7 +1748,7 @@ describe('a plan overview', () => {
         const { role, hosts, canTakeOn, isPlanner, seesDays, you, ...old } = screen();
         void [role, hosts, canTakeOn, isPlanner, seesDays, you];
         const body = draw(old);
-        expect(body).toContain('<summary>Edit plan</summary>');
+        expect(body).toContain('>Edit plan</a>');
         expect(body).toContain('Plan another like this');
         expect(body).not.toContain('Run by');
         expect(body).not.toContain('Nobody who runs this');
@@ -2048,20 +2029,6 @@ describe('the fill-in grid, to look at', () => {
     it('says the hours of a day narrowed down, and puts no clock on a day free all of it', () => {
         const clocks = [...body.matchAll(/<span class="clock">([\s\S]*?)<\/span>/g)].map((m) => m[1].replace(/<svg[\s\S]*?<\/svg>/, '').trim());
         expect(clocks).toEqual(['5h']);
-    });
-});
-
-//Turning a repeat on makes plans, which takes the planner role. Stopping one does not.
-describe('the repeat, for someone who runs a plan with no planner role', () => {
-    const draw = (repeatWeeks: number | null) =>
-        bare(render(RepeatPanel, { props: { planId: 'ab12cd34ef', repeatWeeks, canStart: false, onchanged: async () => {} } }).body);
-
-    it('is not offered on a plan that does not repeat', () => {
-        expect(draw(null)).not.toContain('<button');
-    });
-
-    it('can be stopped on one that does', () => {
-        expect(draw(2)).toContain('Comes round every other week, stop it');
     });
 });
 

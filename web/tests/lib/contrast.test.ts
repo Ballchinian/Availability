@@ -99,7 +99,6 @@ describe('controls', () => {
         '.wday',
         '.col-head .search',
         '.field textarea',
-        '.edit textarea',
         ".pick-panel input[type='time']",
         ".horizon-row input[type='date']"
     ])('%s is edged in --control-border', (selector) => {

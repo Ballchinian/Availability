@@ -32,7 +32,6 @@
         inCount = 0,
         totalParticipants = 0,
         chosen = null,
-        quiet = false,
         guest = false,
         onsaved
     }: {
@@ -44,7 +43,6 @@
         participants?: Participant[];
         inCount?: number;
         totalParticipants?: number;
-        quiet?: boolean;
         guest?: boolean;
         chosen?: { date: string; time: string; note: string } | null;
         onsaved: () => Promise<void>;
@@ -135,18 +133,9 @@
     const isCurrent = $derived(Boolean(isUpdate && time === chosen!.time));
 
     /*
-        An edited DM makes no sound, so a day moved quietly never reaches anyone who read
-        the old one. Editing the time on a day that is staying put is what quiet mode is
-        for and goes without this.
-    */
-    let owned = $state(false);
-    const risky = $derived(quiet && !isUpdate);
-    const blocked = $derived(risky && !owned);
-
-    /*
-        What pressing the button does to people, given the switches as they stand. Quiet
-        and the invite radio each pull it a different way, and what they add up to is the
-        one thing about this panel nothing else on screen shows.
+        What pressing the button does to people, given the invite radio as it stands, which
+        is the one thing about this panel nothing else on screen shows. Never quiet: a day
+        set from the grid always tells people, and quiet saves are the edit form's.
 
         Takes a thread for granted the same way the invite list does: a plan whose thread has
         gone is what the repair panel is for.
@@ -155,15 +144,7 @@
         const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
         const invited = people(totalParticipants - outCount - dropping);
 
-        if (isUpdate) {
-            return quiet
-                ? 'Rewrites the pinned post and the DMs everyone already holds, and tells nobody.'
-                : `Rewrites the pinned post and DMs ${people(invitedNow)} to say what changed.`;
-        }
-
-        if (quiet) {
-            return 'Posts the yes/no in the thread pinging nobody, and quietly rewrites the DMs everyone already holds.';
-        }
+        if (isUpdate) return `Rewrites the pinned post and DMs ${people(invitedNow)} to say what changed.`;
         return `Posts the yes/no in the thread, pings ${invited} and DMs them the same buttons. I'll DM you when everyone is in, or if someone can't make it.`;
     });
 
@@ -175,8 +156,7 @@
                     date: selectedDate,
                     time: time || null,
                     inviteMode: canNarrow ? inviteMode : 'all',
-                    attendingIds: inviteIds,
-                    quiet
+                    attendingIds: inviteIds
                 })
             });
             //Refetch so the invite list and the board reflect what was just set
@@ -232,12 +212,8 @@
                 above show what they are set to and never what they come to together-->
             <p class="muted small">{outcome}</p>
 
-            {#if risky}
-                <p class="status error small">Anyone who has already read their DM keeps the old day, since nothing tells them to look again.</p>
-                <label class="check"><input type="checkbox" bind:checked={owned} /> I know, set it quietly anyway</label>
-            {/if}
             <Status class="status" msg={panel.msg} error={panel.failed} />
-            <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent || blocked}>
+            <button class="primary" onclick={lockIn} disabled={panel.busy || isCurrent}>
                 {#if panel.busy}Saving...{:else if isCurrent}Already set for {formatDate(selectedDate)}{:else if isUpdate}Update {formatDate(selectedDate)}{:else if chosen}Move it to {formatDate(selectedDate)}{:else}Set it to {formatDate(selectedDate)}{/if}
             </button>
         {/if}

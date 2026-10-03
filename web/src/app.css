@@ -722,26 +722,6 @@ a.primary {
     color: inherit;
 }
 
-/* The quiet switch, loud on screen so it cannot be left on without being noticed */
-.hush {
-    margin: 14px 0;
-    padding: 10px 14px;
-    border-radius: 8px;
-    border: 1px dashed var(--border);
-    font-size: 14px;
-}
-
-.hush.on {
-    border-style: solid;
-    border-color: #d9a441;
-    background: rgba(217, 164, 65, 0.12);
-}
-
-.hush .check {
-    margin: 0;
-    font-weight: 600;
-}
-
 .small {
     font-size: 12px;
 }
@@ -1182,29 +1162,14 @@ a.primary {
 
 /* Compare view */
 
-/*
-    The buttons that open the panels under one heading, side by side until the screen
-    runs out of room. A panel that is open is a form rather than a button and takes the
-    whole row, and so does a shut one still showing what it just did, or its one line of
-    feedback would be squeezed into a button's width.
-*/
-.tools {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 10px;
-    margin-top: 10px;
+/* The overview's way to the edit form, between everyone's days and what has happened */
+.edit-plan {
+    margin: 18px 0 0;
 }
 
-/* Capped, or a long label like "Comes round every other week, change it" runs off a 320px screen rather than wrapping */
-.tools > * {
-    flex: 0 0 auto;
-    max-width: 100%;
-    margin: 0;
-}
-
-.tools > .wide {
-    flex: 1 0 100%;
+/* At the very foot of what whoever runs a plan sees */
+.repair {
+    margin: 18px 0 0;
 }
 
 .miss {
@@ -1335,9 +1300,9 @@ a.primary {
 }
 
 /*
-    One action in the change list is a screen rather than a panel, so it is a link sitting
-    in a row of buttons. Everything here is undoing what a link is: the colour, the
-    underline, and the baseline it would otherwise sit on a pixel off from its neighbours.
+    A way on that is a page rather than something done here, drawn as the button beside it
+    would be. Everything here is undoing what a link is: the colour, the underline, and the
+    baseline it would otherwise sit on a pixel off from its neighbours.
 */
 a.ghost {
     display: inline-block;
@@ -1573,11 +1538,7 @@ a.ghost:hover {
     font-weight: 600;
 }
 
-/*
-    Only where it is a block of its own on a form, which is the create form and the dates
-    screen. Unscoped this also hit the copy inside a .tools row, where it beat that row's
-    own margin reset on source order and sat the button 8px below the ones beside it.
-*/
+/* Only where it is a block of its own on the form, rather than anywhere a .repeat might end up */
 .screen > .repeat {
     margin: 8px 0 4px;
 }
@@ -1747,22 +1708,6 @@ a.ghost:hover {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-}
-
-.edit input[type='time'],
-.edit input[type='text'],
-.edit textarea {
-    background: var(--bg);
-    border: 1px solid var(--control-border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 7px 10px;
-    font-size: 14px;
-    font-family: inherit;
-    width: 100%;
-    max-width: 360px;
-    margin: 2px 0 6px;
-    resize: vertical;
 }
 
 /* What has happened to a plan, folded away under the grid. Spacing comes from .group */
