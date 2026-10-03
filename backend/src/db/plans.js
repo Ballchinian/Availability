@@ -85,9 +85,6 @@ function clearedProbe(invitedIds = null) {
     };
 }
 
-//Everyone takes another look. In place for the same reason clearedProbe is.
-const unconfirmAll = { 'participants.$[].confirmed': false, 'participants.$[].confirmedAt': null };
-
 /*
     Every write that changes something the edit form sends moves rev on, so a form opened
     before it is refused rather than saving over it. by is { id, name } of whoever made
@@ -591,54 +588,6 @@ export async function setVoteReminded(planId) {
     await col(collections.plans).updateOne({ planId }, { $set: { lastVoteRemindedAt: new Date() } });
 }
 
-/*
-    The window, the weekdays and the repeat in one write, for the screen that goes back
-    out for different dates, which is the only way the site moves any of them. They used
-    to have a setter each, so three changes meant three writes and three announcements
-    landing in the thread together.
-
-    reopen sends everyone back for their dates. Without it a pure narrowing leaves every
-    confirmation standing, and the only tidying left is a set day the narrowed weekdays
-    no longer collect, which is dropped on its own.
-*/
-export async function setPlanDates(planId, { start, end, allowedWeekdays, repeatWeeks, reopen }) {
-    const set = {
-        'dateRange.start': start,
-        'dateRange.end': end,
-        allowedWeekdays: allowedWeekdays || null,
-        repeatWeeks: repeatWeeks || null
-    };
-    const plan = await getPlan(planId);
-
-    if (reopen) {
-        Object.assign(set, {
-            status: 'collecting',
-            chosenDate: null,
-            chosenTime: null,
-            chosenNote: null,
-            ...unconfirmAll,
-            ...clearedProbe().set,
-            pastVotes: stashVotes(plan),
-            //A fresh round of dates to chase up, so clear the cooldown and the all-in nudge
-            lastRemindedAt: null,
-            allInNotifiedAt: null
-        });
-    } else if (plan.chosenDate && !weekdayAllowed(plan.chosenDate, allowedWeekdays)) {
-        Object.assign(set, {
-            status: 'collecting',
-            chosenDate: null,
-            chosenTime: null,
-            chosenNote: null,
-            ...clearedProbe().set,
-            pastVotes: stashVotes(plan),
-            allInNotifiedAt: null
-        });
-    }
-
-    await col(collections.plans).updateOne({ planId }, moved({ $set: set }));
-    return getPlan(planId);
-}
-
 export async function setPlanThread(planId, threadId, threadParentId) {
     await col(collections.plans).updateOne({ planId }, { $set: { threadId, threadParentId } });
 }
@@ -646,18 +595,6 @@ export async function setPlanThread(planId, threadId, threadParentId) {
 //Remember which message opened the thread, so a later edit can rewrite that pinned post
 export async function setPlanOpener(planId, messageId) {
     await col(collections.plans).updateOne({ planId }, { $set: { openerMessageId: messageId } });
-}
-
-//Change a plan's title and description, leaving everything else (dates, guests) alone
-/*
-    The name and what the plan is about. chosenNote goes with them: the day used to carry
-    a line of its own alongside the description, always rendered on the next line down and
-    never tellable apart from it, so the two are one field now. Saving here is where a plan
-    that still holds an old note lets go of it, the form having offered both joined up.
-*/
-export async function setPlanDetails(planId, name, description) {
-    await col(collections.plans).updateOne({ planId }, moved({ $set: { name, description, chosenNote: null } }));
-    return getPlan(planId);
 }
 
 export async function deletePlan(planId) {

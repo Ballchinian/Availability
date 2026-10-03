@@ -188,48 +188,6 @@ describe('syncPlanCards', () => {
 });
 
 /*
-    Setting a day quietly. The trap being avoided is a quiet path that still sends: a fresh
-    DM pings, and a ping is the one thing quiet mode exists to stop.
-*/
-describe('announceOutcome under quiet', () => {
-    it('rewrites the cards people hold rather than sending new ones', async () => {
-        for (const id of ['a', 'b']) inbox.set(id, {});
-        const p = plan([person('a'), person('b')], { threadId: null });
-
-        await announceOutcome(p, { guildName: 'The server' }, { changed: false, actorName: 'Ali', quiet: true });
-
-        expect(sends).toHaveLength(0);
-        expect(edits).toHaveLength(2);
-        expect(edits[0].payload.content).toContain('7pm');
-    });
-
-    //The lead a card carries has to move on with it or the rewrite says the wrong thing
-    it('moves the actor and the moved flag on without a send', async () => {
-        inbox.set('a', {});
-        const p = plan([person('a', { cardActor: 'Bo', cardMoved: false })], { threadId: null });
-
-        await announceOutcome(p, { guildName: 'The server' }, { changed: true, actorName: 'Ali', quiet: true });
-
-        expect(db.setPlanCards).toHaveBeenCalledWith(
-            'ab12cd34ef',
-            [{ userId: 'a', messageId: 'm-a' }],
-            { actorName: 'Ali', moved: true }
-        );
-        expect(edits[0].payload.content).toContain('Ali moved the plan');
-    });
-
-    it('still sends when it is not asked to keep quiet', async () => {
-        inbox.set('a', {});
-        const p = plan([person('a')], { threadId: null });
-
-        await announceOutcome(p, { guildName: 'The server' }, { changed: false, actorName: 'Ali' });
-
-        expect(sends).toHaveLength(1);
-        expect(edits).toHaveLength(0);
-    });
-});
-
-/*
     An announcement waits its turn behind any other for the same plan, then gets the plan as
     it is by then, which a later save may have moved on from what it was queued to say.
 */

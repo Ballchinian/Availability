@@ -54,11 +54,9 @@ When Discord refuses a DM because the person has DMs closed (its `50007`), that 
 
 ## Quiet
 
-Most plan routes take an optional `quiet: true`, which forces off everything that would reach somebody who is not already looking: no new DM, no new thread post, and no mentions on anything that still has to be posted. It always beats a `post` or `dm` the caller also sent, so the site and the server cannot disagree about how loud something was.
+Only a save on the edit form can be quiet (`POST /api/plans/:planId/edit` with `quiet: true`, see there). Setting a day off the grid and calling a plan off always tell everyone, whatever a request asks, and the other routes that change a plan were folded into the edit route.
 
-What quiet never turns off is the rewriting above. Everyone still ends up holding the truth, they are just not told it changed. It is for a planner putting their own mistake right rather than announcing the mistake to everybody.
-
-Two things it cannot do. Adding somebody to a private thread pings them and Discord offers no way around that, so a quiet `add` is only half quiet and says so. And a brand new plan cannot be quiet at all, for the same reason, which is why editing an existing plan is the better way out of a mess.
+What quiet never turns off is the rewriting above. Everyone still ends up holding the truth, they are just not told it changed. Adding somebody to a private thread pings them and Discord offers no way around that, so a brand new plan can never be quiet, which is why editing the plan you have is the better way out of a mess.
 
 ---
 
@@ -380,7 +378,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * An empty hours list still means free all day, and survives as one from anybody whose clock matches the server's, which on most servers is everybody.
 
 * Each history line carries what happened, when, who did it, and their display name as it was at the time. The name is stored with the event rather than looked up now, so the list does not rewrite itself when someone changes their nickname or leaves the server.
-* Recorded: the plan starting, a day being set or moved or called off, the range or the weekdays changing, a trip back out for different dates that moved several of those at once, the title or description being edited, a save on the edit form with everything it changed, people being added, someone dropping out or coming back, someone taking the plan on, a nudge going out, repeating being turned on or off, the plan coming round again, and the plan being cancelled. Availability being filled in is not, since the confirmed count above already says that.
+* Recorded: the plan starting, a day being set or moved off the grid, a save on the edit form with everything it changed, someone dropping out or coming back, someone taking the plan on, a nudge going out, the plan coming round again or stopping, and the plan being cancelled. Plans from before the edit form also carry lines for the routes it replaced: the range, the weekdays or the title changing, a trip back out for different dates, people being added and repeating being turned on or off. Availability being filled in is not, since the confirmed count above already says that.
 * Every line but one was done by a person. Coming round again is written by the repeat sweep on a timer, so it carries no name and reads as a sentence of its own.
 * Capped at the most recent 100, and this is the only place history is exposed, so only people on the plan ever read it.
 * `403` for anyone who is not on the plan, planner role or not. The one exception is someone who could take it on: they get `role: null`, `canTakeOn: true`, `hosts`, and of the plan only its id, name and server, which is no more than its link already gives away.
@@ -503,11 +501,10 @@ Hosts only.
 * Time (optional)
 * `inviteMode`: who is still invited once this is set. `attending` narrows the plan to the people in `attendingIds`, anything else keeps everyone on the list. Anyone who said Not for me stays on a narrowed list too, but nothing is sent to them: their card just changes to the day, so they can still say I'm coming.
 * `attendingIds`: who stays invited, worked out by the overview: the people who can make the day, plus anyone who hasn't answered for it (not said if they're in, or in but their answer doesn't reach that day) unless the planner unticked that
-* `quiet` (optional): rewrite everything in place and tell nobody
 
 ### Two things, decided by the date
 
-Picking the day the plan is **already set for** is an edit to the time and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` is ignored, since it has nothing to decide. Everyone's DM and the pinned post are rewritten where they sit, and unless `quiet` is set the people still invited get a fresh card naming what moved, with the yes/no buttons again. Answers `edited: true`.
+Picking the day the plan is **already set for** is an edit to the time and nothing else. Every vote stands, the confirmation keeps running, and the invite list is left exactly as it is, because nobody answered about a different day. `inviteMode` is ignored, since it has nothing to decide. Everyone's DM and the pinned post are rewritten where they sit, and the people still invited get a fresh card naming what moved, with the yes/no buttons again. Answers `edited: true`.
 
 Picking **any other day** is a set or a move, and behaves as it always has, below. This split is the fix for an update having wiped a confirmation round that was halfway through.
 
@@ -517,14 +514,14 @@ Picking **any other day** is a set or a move, and behaves as it always has, belo
 * Narrows the invite list when asked. Anyone left off is not pinged, not DMed, and does not count in the confirmation tally. Moving or undoing the date invites everyone back.
 * Always DMs the people still invited, then posts the outcome in the thread, pinging only the ones the DM could not reach. Setting a different date counts as a reorganise.
 * The pinned opener becomes the yes/no before anything is sent, and its tally keeps itself current as votes land. The thread post carries the buttons too, for the people it pings.
-* `quiet` on a move posts nothing: the pin and everyone's card are rewritten where they sit.
-* The thread is renamed to carry the new day, last and best effort, quiet or not.
+* The thread is renamed to carry the new day, last and best effort.
+* Never quiet: a `quiet` sent with it is ignored. Quiet saves are the edit form's.
 
 ### Notes
 
 * `409` if the plan was called off, or its day has been.
 * `400` on an edit that does not move the time.
-* No `note` is read. What a plan is about is one field, edited on `/details`; a note an older plan still carries is passed through untouched here rather than wiped by an edit that was never about it.
+* No `note` is read. What a plan is about is one field, changed on the edit form; a note an older plan still carries is passed through untouched here rather than wiped by an edit that was never about it.
 * Capped at a high daily backstop per person, since it pings and DMs everyone. An edit spends the same allowance: it is quieter, but it still rewrites a DM per person.
 
 ---
@@ -609,31 +606,6 @@ Hosts only.
 
 ---
 
-## POST `/api/plans/:planId/repeat` (session)
-
-Whether this plan comes round again once its day has been and gone.
-
-Hosts only. Turning a repeat on, or changing how often, takes the planner role as well, since it makes plans. Any host can stop one.
-
-### Input
-
-* `repeatWeeks`: `1`, `2` or `4`, or `null` to make it a one off. Anything else is a `400`.
-
-### Effects
-
-* Saves it on the plan, and records the change in the plan's history.
-* Nothing is scheduled. The next plan is only made after this one's day has passed.
-
-### Notes
-
-* Allowed on a plan with no date yet, on purpose: somebody who knows this is their fortnightly thing should not have to come back and say so once the day is picked.
-* Nothing happens to plans the series has already made. Repeating is a standing instruction on whichever plan is currently live.
-* Cancelling a plan ends the series too, since only a plan with a day that has passed is ever picked up.
-* `403` for a host without the planner role asking for anything but a one off.
-* `409` if the plan was called off, or its day has been.
-
----
-
 ## POST `/api/plans/:planId/remind` (session)
 
 Nudge whoever the plan is waiting on.
@@ -659,143 +631,22 @@ Hosts only.
 
 ---
 
-## POST `/api/plans/:planId/dates` (session)
-
-When is it: the day, or a fresh round of dates, plus the guest list and the repeat, all in one press.
-
-Two modes, the same two the create form has, picked by whether a `date` is sent. Naming a day sets the plan to it; leaving it out asks everyone about a window instead.
-
-Hosts only.
-
-### Input
-
-Shared by both modes:
-
-* `participantIds` (optional): the full guest list as the screen has it
-* `repeatWeeks` (optional): 1, 2, 4, or `null` for a one off
-* `post` (optional, default true): whether to post the change in the thread
-* `dm` (optional, default true): whether to DM everyone
-* `quiet` (optional): forces both of the above off
-
-Naming the day:
-
-* `date`: the day the plan is on, which does **not** have to fall inside the window
-* `time` (optional): `HH:MM`
-
-Asking about a window:
-
-* New start and end date
-* `allowedWeekdays` (optional): the weekdays people can mark, as numbers 0 (Sunday) to 6, or `null`/all seven for the whole range
-* Note (optional): carried into the message that goes out
-
-### Effects
-
-Both modes set the window, the weekdays and the repeat in a single write, then add anyone new to the guest list, and send one thread post and one round of DMs for the whole change. Anyone added gets the ordinary invitation instead, since it already carries the day or the new window. The thread's name follows along: the day goes on the end when one is named and comes off when the plan goes back to asking.
-
-Naming a day:
-
-* Stretches the window to reach the day when it falls outside, leaving the rest of it alone, and adds the day's weekday to the set the plan asks about when a restriction would have excluded it.
-* Nobody is asked anything, so nothing is reopened and every answer already given stands.
-* A day that moved clears the confirmation round and invites everyone back, the same as `/choose`. A day that stayed put is an edit to the time and costs nobody their answer.
-
-Asking about a window:
-
-* Reopens the plan and resets everyone's confirmed flag when the window moved, or when the weekdays opened a day nobody has been asked about. A window that stayed put falls back to the weekday rule, so a pure narrowing leaves every answer standing.
-
-### Returns
-
-* `set`: present and true when a day was named
-* `chosenDate` and `chosenTime`, when a day was named
-* `reopened`: whether everyone was sent back for their dates, when a window was asked about
-* `start`, `end`, `allowedWeekdays`, `repeatWeeks`: the plan as it now stands
-* `added`: how many people were new to the plan
-
-### Notes
-
-* Nobody is ever taken off here. A list arriving short of someone already on the plan means the picker did not know about them, not that they are meant to go.
-* Stretching is the only way to a day the plan never asked about. `/choose`, which the grid uses, still holds a date to the window, since a day picked off the grid can only be one that is drawn on it.
-* At least one of the picked weekdays has to fall inside the new window.
-* The request has to change something: the same day, time, window, days, people and repeat is refused.
-* A `repeatWeeks` that turns a repeat on, or changes how often, is a `403` from a host without the planner role. Leaving it as it was, or stopping it, is fine.
-* Shares one daily backstop with the other ways a window moves, since it is the same ask.
-* `/add` and `/repeat` are still reached on their own from the overview, since adding a person and turning a repeat on are their own reasons to be there. The window and the days had a route each before this one, and each put its own message in the thread.
-
----
-
-## POST `/api/plans/:planId/details` (session)
-
-Change a plan's title and what it says it is about.
-
-Hosts only.
-
-### Input
-
-* Name
-* Description
-* `quiet` (optional): rewrite everything in place and tell nobody
-
-### Effects
-
-* Updates the stored title and description, and clears any `chosenNote` the plan still carries.
-* Renames the thread to the new title, with the day still on the end if the plan has one.
-* Rewrites the pinned opening message and every DM card so they show the new title and description.
-* On a plan whose day is already set, sends everyone still invited a fresh card saying what it is about has changed, unless `quiet`.
-
-### Notes
-
-* Nothing goes in the thread either way.
-* The description is the one field for what a plan is about. A day used to carry a `chosenNote` beside it, drawn on the next line down in every message and never tellable apart from it on screen, so the two are one field now: the site hands both back joined up and saving stores them as one. Plans made before that keep rendering their note until the next save here.
-* A plan still collecting says nothing at all, since there is no arrangement yet for a correction to be about.
-* Same rules as creating a plan: the name is required and caps at 90 characters, the description at 280.
-* `409` if the plan was called off, or its day has been.
-* A no-op edit, where nothing changed and there is no note to fold in, is rejected.
-* The thread rename is best effort and goes last, with nothing waiting on it, since Discord allows two renames a thread every ten minutes.
-
----
-
 ## POST `/api/plans/:planId/cancel` (session)
 
 Cancel a plan.
 
 Hosts only.
 
-### Input
-
-* `post` (optional, default true): whether to post the cancellation in the thread
-* `dm` (optional, default true): whether to DM everyone
-
 ### Effects
 
 * Marks the plan cancelled.
-* DMs everyone, then posts in the thread pinging whoever the DM missed, each according to `dm` and `post`.
+* DMs everyone, then posts in the thread pinging whoever the DM missed. Always both: nothing a request sends makes it quieter.
 
 ### Notes
 
 * The thread is left to be deleted by hand.
 * Cancelling an already cancelled plan is a no-op, so nobody is told twice.
 * `409` once the plan's day has been.
-
----
-
-## POST `/api/plans/:planId/add` (session)
-
-Pull extra people into a running plan.
-
-Hosts only.
-
-### Input
-
-* The people to add
-* `dm` (optional, default true): whether to DM the new people
-
-### Effects
-
-* Adds them to the plan and pulls them into the thread.
-* DMs the new people unless `dm` is off.
-
-### Notes
-
-* Anyone already in, and anyone not a real non-bot member, is skipped.
 
 ---
 

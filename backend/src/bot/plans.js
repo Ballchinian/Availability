@@ -644,10 +644,9 @@ export async function announceSetPlan(plan, cfg, actorName) {
 /*
     Pull extra people into a plan that is already running. They slip into the
     thread quietly, no ping and no post about it. The welcome goes by DM instead,
-    the same card everyone got at the start. The DM is optional, dm off just adds
-    them to the thread. actorName is the planner who added them.
+    the same card everyone got at the start. actorName is whoever added them.
 */
-export async function announceAddition(plan, newIds, actorName, { dm = true } = {}) {
+export async function announceAddition(plan, newIds, actorName) {
     //Anyone gone again by the time this runs would be invited to a plan they are not on
     const still = new Set(plan.participants.map((p) => p.userId));
     newIds = newIds.filter((id) => still.has(id));
@@ -664,15 +663,13 @@ export async function announceAddition(plan, newIds, actorName, { dm = true } = 
     }
 
     //The same card everyone else holds, so a late joiner rides the same rewrites
-    if (dm) {
-        const asks = await askLines(plan, newIds);
-        await sendCards(plan, newIds, (id) =>
-            planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
-                guildName: guild.name,
-                actorName,
-                ask: asks[id]
-            }), { actorName });
-    }
+    const asks = await askLines(plan, newIds);
+    await sendCards(plan, newIds, (id) =>
+        planCard(plan, plan.participants.find((p) => p.userId === id) || {}, {
+            guildName: guild.name,
+            actorName,
+            ask: asks[id]
+        }), { actorName });
 }
 
 /*
@@ -733,37 +730,13 @@ export async function syncPlan(plan, { cfg = null, cards = true } = {}) {
     planner left off the invite list hears nothing. The card names who set or moved it.
 
     The post carries the buttons too, since the people it pings are the ones with no card
-    to press them on. The tally stays on the pin.
-
-    quiet sends no card and posts nothing. The pin and everyone's card are rewritten where
-    they sit instead, so the DM they already hold quietly becomes the new day.
+    to press them on. The tally stays on the pin. Never quiet: a day set off the grid always
+    tells people, and quiet saves are the edit form's.
 */
-export async function announceOutcome(plan, cfg, { changed, actorName, quiet = false, added = [] }) {
-    /*
-        Anyone arriving with the day is left out of this and handed to announceAddition:
-        their invitation already carries the day, so being pinged about it changing is
-        about a plan they have never seen.
-    */
-    const isNew = new Set(added);
-    const ids = invitedOnly(plan).map((p) => p.userId).filter((id) => !isNew.has(id));
-
-    //Ahead of every branch below, quiet included: this is what puts them in the thread at all
-    if (added.length) await announceAddition(plan, added, actorName, { dm: !quiet });
+export async function announceOutcome(plan, cfg, { changed, actorName }) {
+    const ids = invitedOnly(plan).map((p) => p.userId);
     //Sent back out for dates since this was queued, which announces itself
     if (!plan.chosenDate) return;
-
-    /*
-        Quiet rewrites the cards people already hold rather than sending new ones. The ids
-        stay put and only the lead they carry moves on, which has to be written down before
-        the sync reads it back.
-    */
-    if (quiet) {
-        const held = plan.participants.filter((p) => p.cardMessageId);
-        await setPlanCards(plan.planId, held.map((p) => ({ userId: p.userId, messageId: p.cardMessageId })), { actorName, moved: changed });
-        const relabelled = { ...plan, participants: plan.participants.map((p) => ({ ...p, cardActor: actorName, cardMoved: changed })) };
-        await syncPlan(relabelled, { cfg }).catch((err) => console.error('[plans] quiet outcome sync failed:', err));
-        return;
-    }
 
     await syncPlan(plan, { cfg, cards: false }).catch((err) => console.error('[plans] outcome sync failed:', err));
 
@@ -792,7 +765,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
         or anyone the new card missed, but the cards they hold would still be about the old day.
     */
     const reached = new Set(sent.map((s) => s.userId));
-    const stale = plan.participants.map((p) => p.userId).filter((id) => !reached.has(id) && !isNew.has(id));
+    const stale = plan.participants.map((p) => p.userId).filter((id) => !reached.has(id));
     if (stale.length) {
         await syncPlanCards(plan, cfg, { only: stale })
             .catch((err) => console.error('[plans] stale card sync failed:', err));
@@ -800,17 +773,16 @@ export async function announceOutcome(plan, cfg, { changed, actorName, quiet = f
 }
 
 /*
-    A time or note edit on a day that is staying put. Everything already sent is brought
-    into line first, which pings nobody, so a quiet fix leaves every DM correct and no
-    trace of the correction.
+    A time or note edit on a day that is staying put, from setting the day it is already on
+    off the grid. Everything already sent is brought into line first, which pings nobody.
 
-    Loud sends a fresh card and no thread post: the pin and the confirmation already carry
-    the change, and a second post about a note reads as noise. The card puts the buttons
-    back in front of anyone who said yes to the old time.
+    Then a fresh card and no thread post: the pin already carries the change, and a second
+    post about a time reads as noise. The card puts the buttons back in front of anyone who
+    said yes to the old time.
 */
-export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet = false }) {
+export async function announceWhenEdit(plan, cfg, { actorName, was = {} }) {
     await syncPlan(plan, { cfg });
-    if (quiet || !plan.chosenDate) return;
+    if (!plan.chosenDate) return;
 
     const ids = invitedOnly(plan).map((p) => p.userId);
     if (!ids.length) return;
@@ -826,73 +798,6 @@ export async function announceWhenEdit(plan, cfg, { actorName, was = {}, quiet =
     if (!bits.length) return;
 
     await resendCards(plan, ids, cfg, { title: 'CHANGED', aside: `${actorName} ${bits.join(' and ')}.` });
-}
-
-/*
-    What the plan says it is about has changed on a plan whose day is already set. The pin
-    and every card carry it, so they are rewritten either way; the fresh card on top is
-    because this one field now holds what the day's own note used to, and "meet at the pub,
-    not the station" reaching nobody is the whole reason that note spoke up when it changed.
-
-    Nothing goes in the thread. A plan still out looking for a day says nothing at all:
-    there is no arrangement yet for a correction to be about.
-*/
-export async function announceDetailsEdit(plan, cfg, { actorName, quiet = false }) {
-    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] details sync failed:', err));
-    if (quiet || !plan.chosenDate) return;
-
-    const ids = invitedOnly(plan).map((p) => p.userId);
-    if (!ids.length) return;
-
-    await resendCards(plan, ids, cfg, {
-        title: 'CHANGED',
-        aside: plan.description ? `${actorName} changed what it's about.` : `${actorName} took out what it's about.`
-    });
-}
-
-/*
-    One post for a change that moved several things at once: the window, which days count,
-    and anyone new on the list. The window and the days used to move down separate routes
-    with a post each, which put three messages in the thread within a second of each other
-    and read as a fault rather than as one decision.
-
-    Anyone added is left out of the ids this writes to and handed to announceAddition
-    instead: the invitation already carries the window and the days, so a second message
-    telling them what changed would be about a plan they have never seen.
-*/
-export async function announcePlanDates(plan, cfg, { actorName, daysLabel, reopened, note, added = [], post = true, dm = true }) {
-    //Every card carries the window and the days, so they are all wrong until this runs
-    await syncPlan(plan, { cfg }).catch((err) => console.error('[plans] dates sync failed:', err));
-
-    const isNew = new Set(added);
-    const ids = onIt(plan).map((p) => p.userId).filter((id) => !isNew.has(id));
-    const range = `${formatDate(plan.dateRange.start)} to ${formatDate(plan.dateRange.end)}`;
-    const days = daysLabel ? `, ${daysLabel} only` : '';
-    //A round reopened means fill it in, which the button says, and anything narrower means nothing to do
-    const tail = reopened ? '' : ' Nothing to do, your saved days still stand.';
-    const extra = note ? `\n${note}` : '';
-
-    //The card carries the range itself, so the aside leaves it out
-    const sent = dm && ids.length
-        ? await resendCards(plan, ids, cfg, {
-            title: 'CHANGED',
-            aside: `${actorName} is asking about different dates${daysLabel ? `, ${daysLabel} only` : ''}.${tail}${extra}`
-        })
-        : [];
-
-    if (post && plan.threadId) {
-        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
-        if (thread) {
-            await reviveThread(thread);
-            await postMentioning(thread, missedBy(ids, sent), {
-                content: banner('CHANGED') +
-                    `${actorName} is asking about different dates for **${plan.name}**: ${range}${days}.${tail}${extra}`,
-                components: reopened ? [new ActionRowBuilder().addComponents(datesButton(plan))] : []
-            });
-        }
-    }
-
-    if (added.length) await announceAddition(plan, added, actorName, { dm });
 }
 
 /*
@@ -984,30 +889,30 @@ export async function announceEdit(plan, cfg, { before, changes, actorName, quie
 }
 
 /*
-    Cancel a plan. It gets marked cancelled and, when post is on, the thread is told,
-    but the thread is left in place: deleting it by hand is what finally
-    clears the plan. When dm is on everyone gets a DM. The creator gets their daily
-    plan slot back since the plan never really ran. actorName is whoever cancelled it.
+    Cancel a plan. It gets marked cancelled and the thread and everyone on it are told,
+    but the thread is left in place: deleting it by hand is what finally clears the
+    plan. The creator gets their daily plan slot back since the plan never really ran.
+    actorName is whoever cancelled it.
 */
-export async function cancelPlan(plan, actorId, actorName, { post = true, dm = true } = {}) {
+export async function cancelPlan(plan, actorId, actorName) {
     if (!(await markPlanCancelled(plan.planId))) return false;
     await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
     await addPlanEvent(plan.planId, { type: 'cancelled', by: actorId, byName: actorName }).catch(() => {});
     //In the queue the site's saves wait in, or a cancel from here lands in the middle of one of their announcements
-    await announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, actorName, { post, dm }), { cancel: true });
+    await announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, actorName), { cancel: true });
     return true;
 }
 
 //The telling-everyone half, split off so the site can send it after it has responded
-export async function announceCancel(plan, actorName, { post = true, dm = true } = {}) {
+export async function announceCancel(plan, actorName) {
     //Nobody should be left holding a card that still says they are coming on the twelfth
     await syncPlan(plan).catch((err) => console.error('[plans] cancel sync failed:', err));
 
     const ids = onIt(plan).map((p) => p.userId);
-    const cfg = dm ? await getGuildConfig(plan.guildId).catch(() => null) : null;
-    const sent = dm ? await resendCards(plan, ids, cfg, { actorName }) : [];
+    const cfg = await getGuildConfig(plan.guildId).catch(() => null);
+    const sent = await resendCards(plan, ids, cfg, { actorName });
 
-    if (post && plan.threadId) {
+    if (plan.threadId) {
         const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);

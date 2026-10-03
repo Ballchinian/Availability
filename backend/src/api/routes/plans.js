@@ -5,21 +5,21 @@ import { planRole, canTakeOn } from '../roles.js';
 import { forGuest, historyForGuest, nameless, unansweredCounts } from '../guestview.js';
 import { announceAfter } from '../announce.js';
 import { readPlanForm } from '../planForm.js';
-import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, recordVote, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setPlanDates, addParticipants, setPlanDetails, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, setPlanRepeat, addPlanEvent, addHost, planEdit, applyPlanEdit } from '../../db/plans.js';
+import { getPlan, getCollectingPlansForUser, confirmParticipant, setIn, recordVote, setPlanChosen, setPlanWhen, setReminded, setVoteReminded, setAttendanceOverride, setSentBack, setAskedAgain, markPlanCancelled, addPlanEvent, addHost, planEdit, applyPlanEdit } from '../../db/plans.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityInRange, getAvailabilityForUsersInRange, replaceAvailabilityInRange, getAvailabilitySummary, getLastUpdated } from '../../db/availability.js';
 import { setCoveredUntil, getPlanningPrefs, addAnswered } from '../../db/users.js';
-import { announceOutcome, announceWhenEdit, announceDetailsEdit, remindStragglers, remindVoters, announcePlanDates, announceCancel, leavePlan, notifyHostsDropped, announceAddition, syncPlan, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread, announceEdit } from '../../bot/plans.js';
+import { announceOutcome, announceWhenEdit, remindStragglers, remindVoters, announceCancel, leavePlan, notifyHostsDropped, syncPlan, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread, announceEdit } from '../../bot/plans.js';
 import { buildEditMessages } from '../../bot/edits.js';
 import { threadUrl } from '../../bot/util.js';
-import { maxEnd, formatDate, shiftDate, weekdayAllowed, weekdayOf, allowedDaysInRange, cleanWeekdays, describeWeekdays, weekdayChange, readTime, BAD_TIME, REPEAT_WEEKS } from '../../lib/dates.js';
+import { formatDate, shiftDate, weekdayAllowed, allowedDaysInRange, readTime, BAD_TIME } from '../../lib/dates.js';
 import { validHours } from '../../lib/hours.js';
 import { safeZone, todayIn, dayHasPassed } from '../../lib/zones.js';
 import { gatherFreeDays } from '../../lib/freedays.js';
 import { newlyCovered, answersOn, askFor, daysToFill, toFillRuns, coverageOf, standing, inOf, owedAcross } from '../../lib/coverage.js';
 import { diffPlan, whoHears, kindOf } from '../../../../shared/planDiff.js';
 import { takeAction, refundAction } from '../../db/ratelimits.js';
-import { DAILY_LIMIT, MAX_PARTICIPANTS, SAVE_LIMIT, NO_GUILD, EDIT_LIMIT, PLAN_ANNOUNCE_LIMIT } from '../../lib/limits.js';
+import { DAILY_LIMIT, SAVE_LIMIT, NO_GUILD, EDIT_LIMIT, PLAN_ANNOUNCE_LIMIT } from '../../lib/limits.js';
 import { realMembers, listMembers, namesFor } from '../../lib/members.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { ipLimit } from '../../lib/iplimit.js';
@@ -115,20 +115,6 @@ function finished(plan) {
     if (plan.status === 'cancelled') return 'This plan was called off.';
     if (dayHasPassed(plan)) return `This plan was on ${formatDate(plan.chosenDate)}, so nothing about it can change now.`;
     return null;
-}
-
-/*
-    How loudly a request wants to land. quiet forces off everything that would reach
-    somebody who is not already looking, so a planner fixing their own mistake is not
-    announcing the mistake to seventeen people.
-
-    What quiet never turns off is the rewriting: the pin, the confirmation and every card
-    are brought in line whatever this says, since an edit reaches nobody and a DM left
-    saying the wrong time is the thing worth avoiding in the first place.
-*/
-function loudness(body = {}) {
-    const quiet = body.quiet === true;
-    return { quiet, post: !quiet && body.post !== false, dm: !quiet && body.dm !== false };
 }
 
 router.get('/:planId', async (req, res) => {
@@ -531,7 +517,7 @@ router.post('/:planId/takeon', async (req, res) => {
 router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => {
     const { plan, ctx } = req;
 
-    const { date, time, inviteMode, attendingIds, quiet } = req.body || {};
+    const { date, time, inviteMode, attendingIds } = req.body || {};
     if (typeof date !== 'string' || date < plan.dateRange.start || date > plan.dateRange.end) {
         return res.status(400).json({ error: 'Pick a date inside the plan range.' });
     }
@@ -545,8 +531,8 @@ router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => 
     if (cleanTime === false) return res.status(400).json({ error: BAD_TIME });
     /*
         Carried through rather than taken from the caller. What a plan is about is one field
-        now, edited on details, and a day being moved is not a reason to lose the line an
-        older plan still holds beside it.
+        now, changed on the edit form, and a day being moved is not a reason to lose the line
+        an older plan still holds beside it.
     */
     const cleanNote = plan.chosenNote || null;
 
@@ -572,17 +558,9 @@ router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => 
         const was = { time: plan.chosenTime || null, note: cleanNote };
         await setPlanWhen(plan.planId, cleanTime, cleanNote, byOf(req));
 
-        await addPlanEvent(plan.planId, {
-            type: 'when',
-            by: req.user.id,
-            byName: ctx.member.displayName,
-            time: cleanTime,
-            quiet: quiet === true
-        });
+        await addPlanEvent(plan.planId, { type: 'when', by: req.user.id, byName: ctx.member.displayName, time: cleanTime });
 
-        announceAfter(plan.planId, 'when edit', (current) =>
-            announceWhenEdit(current, ctx.cfg, { actorName: ctx.member.displayName, was, quiet: quiet === true })
-        );
+        announceAfter(plan.planId, 'when edit', (current) => announceWhenEdit(current, ctx.cfg, { actorName: ctx.member.displayName, was }));
 
         return res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed: false, edited: true });
     }
@@ -614,15 +592,9 @@ router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => 
     if (changed) event.from = plan.chosenDate;
     await addPlanEvent(plan.planId, event);
 
-    announceAfter(plan.planId, 'outcome post', (current) =>
-        announceOutcome(current, ctx.cfg, {
-            changed,
-            actorName: ctx.member.displayName,
-            quiet: quiet === true
-        })
-    );
+    announceAfter(plan.planId, 'outcome post', (current) => announceOutcome(current, ctx.cfg, { changed, actorName: ctx.member.displayName }));
 
-    res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed, quiet: quiet === true });
+    res.json({ ok: true, chosenDate: date, chosenTime: cleanTime, chosenNote: cleanNote, changed });
 });
 
 /*
@@ -734,33 +706,6 @@ router.post('/:planId/askagain', requireHost, refuseFinished, async (req, res) =
 });
 
 const NEEDS_PLANNER = 'You need the planner role to make a plan come round again.';
-
-/*
-    Turn repeating on or off. Nothing is scheduled by saying yes: the next plan is only
-    made once this one's day has been and gone, so this is a standing instruction on the
-    live plan rather than a calendar of its own, and turning it off is just as immediate.
-
-    Deliberately allowed on a plan with no date yet. Setting it up front is the point,
-    since somebody who knows this is their fortnightly thing should not have to come back
-    and say so after the day is picked.
-
-    Turning one on, or changing how often, makes plans, so it takes the planner role as
-    well. Anyone who runs the plan can stop it.
-*/
-router.post('/:planId/repeat', requireHost, refuseFinished, async (req, res) => {
-    const { plan, ctx } = req;
-
-    const { repeatWeeks } = req.body || {};
-    const wanted = repeatWeeks === null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
-    if (wanted === false) return res.status(400).json({ error: 'That is not a repeat I can do.' });
-    if (wanted === (plan.repeatWeeks || null)) return res.json({ ok: true, repeatWeeks: wanted });
-    if (wanted && !ctx.isPlanner) return res.status(403).json({ error: NEEDS_PLANNER });
-
-    await setPlanRepeat(plan.planId, wanted);
-    await addPlanEvent(plan.planId, { type: 'repeat', by: req.user.id, byName: ctx.member.displayName, repeatWeeks: wanted });
-
-    res.json({ ok: true, repeatWeeks: wanted });
-});
 
 //Why an edit is out of date: someone changed the plan after the form opened, the reader included, in another tab
 function staleEdit(plan, userId) {
@@ -929,244 +874,6 @@ router.post('/:planId/remind', requireHost, refuseFinished, async (req, res) => 
     res.json({ ok: true, pinged, kind });
 });
 
-/*
-    Everything the "ask about different dates" screen sets, in one go: the window, which
-    weekdays count, who is on it and whether it comes round again. The window, the days
-    and undoing a set date each had a route of their own before this, and each put its
-    own message in the thread.
-
-    Reopening reads the window first. A moved window always sends everyone back for their
-    dates, since the days they answered about are not the days being asked any more. A
-    window that stayed put falls back to the weekday rule, where opening a day reopens and
-    a pure narrowing leaves every answer standing.
-
-    Nobody is ever taken off here. A list arriving short of someone already on the plan
-    means the picker did not know about them, not that they are meant to go, and dropping
-    people is what the guest list panel is for.
-*/
-router.post('/:planId/dates', requireHost, refuseFinished, async (req, res) => {
-    const { plan, ctx } = req;
-
-    const { start, end, allowedWeekdays, participantIds, repeatWeeks, note, date, time } = req.body || {};
-    const { quiet, post, dm } = loudness(req.body);
-
-    //Naming the day outright rather than asking about a window, the fork the create form takes
-    const setMode = typeof date === 'string' && date.length > 0;
-    const shape = /^\d{4}-\d{2}-\d{2}$/;
-
-    let window;
-    let weekdays;
-
-    if (setMode) {
-        if (!shape.test(date)) return res.status(400).json({ error: 'Pick a valid date.' });
-        if (date < todayIn(plan.timeZone)) return res.status(400).json({ error: 'That date is in the past.' });
-        if (date > maxEnd()) return res.status(400).json({ error: 'That date cannot be more than two years away.' });
-
-        /*
-            Stretched to reach the day rather than replaced by it, which is what makes a day
-            outside the window pickable at all. The rest of the window is left alone so the
-            dates people already gave are still about something.
-        */
-        window = {
-            start: date < plan.dateRange.start ? date : plan.dateRange.start,
-            end: date > plan.dateRange.end ? date : plan.dateRange.end
-        };
-
-        /*
-            A day named by hand joins the set the plan asks about. Left out, the plan would sit
-            on a day its own weekday rule says it never collects, and every path that reads the
-            two together treats that as a day to be dropped.
-        */
-        weekdays = plan.allowedWeekdays || null;
-        if (weekdays && !weekdayAllowed(date, weekdays)) {
-            weekdays = [...new Set([...weekdays, weekdayOf(date)])].sort((a, b) => a - b);
-        }
-    } else {
-        if (!shape.test(start || '') || !shape.test(end || '')) {
-            return res.status(400).json({ error: 'Pick a valid start and end date.' });
-        }
-        if (start > end) return res.status(400).json({ error: 'The start date is after the end date.' });
-        if (end < todayIn(plan.timeZone)) return res.status(400).json({ error: 'That whole range is in the past.' });
-        if (end > maxEnd()) return res.status(400).json({ error: 'The end date cannot be more than two years away.' });
-
-        window = { start, end };
-        weekdays = cleanWeekdays(allowedWeekdays);
-        if (weekdays && !allowedDaysInRange(start, end, weekdays).length) {
-            return res.status(400).json({ error: 'None of those days fall inside that range.' });
-        }
-    }
-
-    const wanted = repeatWeeks == null ? null : REPEAT_WEEKS.includes(repeatWeeks) ? repeatWeeks : false;
-    if (wanted === false) return res.status(400).json({ error: 'That is not a repeat I can do.' });
-    if (wanted && wanted !== (plan.repeatWeeks || null) && !ctx.isPlanner) return res.status(403).json({ error: NEEDS_PLANNER });
-
-    //Only the people the plan has never had. Anyone already on it is left exactly as they are.
-    const already = new Set(plan.participants.map((p) => p.userId));
-    const asked = Array.isArray(participantIds) ? participantIds.filter((id) => !already.has(id)) : [];
-    if (asked.length > MAX_PARTICIPANTS) {
-        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people to add at once.` });
-    }
-    const toAdd = asked.length ? await realMembers(ctx.guild, asked) : [];
-
-    const movedWindow = window.start !== plan.dateRange.start || window.end !== plan.dateRange.end;
-    const { same: sameDays, opensADay } = weekdayChange(plan.allowedWeekdays, weekdays);
-    const movedRepeat = wanted !== (plan.repeatWeeks || null);
-    const cleanTime = readTime(time);
-    if (setMode && cleanTime === false) return res.status(400).json({ error: BAD_TIME });
-    //A day is new when the plan had none, moved when it had a different one
-    const movedDay = setMode && date !== plan.chosenDate;
-    const movedTime = setMode && cleanTime !== (plan.chosenTime || null);
-
-    if (!movedWindow && sameDays && !movedRepeat && !movedDay && !movedTime && toAdd.length === 0) {
-        return res.status(400).json({
-            error: setMode
-                ? 'Nothing changed there. Move the day, the time, the people or the repeat.'
-                : 'Nothing changed there. Move the window, the days, the people or the repeat.'
-        });
-    }
-
-    //Shares one cooldown with the other ways a window moves, since it is the same ask
-    const rl = await takeAction(req.user.id, plan.guildId, 'extend', DAILY_LIMIT);
-    if (!rl.allowed) {
-        return res.status(429).json({ error: `You have changed the dates ${DAILY_LIMIT} times today. Try again in ${rl.retryAfterHours} hours.` });
-    }
-
-    const cleanNote = String(note || '').trim().slice(0, 200) || null;
-    /*
-        Only asking again sends people back over their dates. Naming a day asks nobody
-        anything, so every answer already given stands however far the window stretched
-        to reach it.
-    */
-    const reopen = !setMode && (movedWindow || opensADay);
-
-    await setPlanDates(plan.planId, {
-        start: window.start,
-        end: window.end,
-        allowedWeekdays: weekdays,
-        repeatWeeks: wanted,
-        reopen
-    });
-    if (toAdd.length) await addParticipants(plan.planId, toAdd, byOf(req));
-
-    if (setMode) {
-        /*
-            The same two halves the choose route has. A day that is staying put is an edit to
-            the time, which costs nobody their answer; a day that moved starts the round again.
-        */
-        if (movedDay) {
-            await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null, null, byOf(req));
-            const event = { type: plan.chosenDate ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: true };
-            if (plan.chosenDate) event.from = plan.chosenDate;
-            await addPlanEvent(plan.planId, event);
-        } else {
-            await setPlanWhen(plan.planId, cleanTime, plan.chosenNote || null, byOf(req));
-            await addPlanEvent(plan.planId, {
-                type: 'when',
-                by: req.user.id,
-                byName: ctx.member.displayName,
-                time: cleanTime,
-                quiet
-            });
-        }
-
-        const wasTime = plan.chosenTime || null;
-        announceAfter(plan.planId, 'dates day post', async (current) => {
-            if (movedDay) {
-                await announceOutcome(current, ctx.cfg, {
-                    changed: Boolean(plan.chosenDate),
-                    actorName: ctx.member.displayName,
-                    quiet: quiet || !post,
-                    added: toAdd
-                });
-            } else {
-                await announceWhenEdit(current, ctx.cfg, {
-                    actorName: ctx.member.displayName,
-                    was: { time: wasTime, note: plan.chosenNote || null },
-                    quiet: quiet || !dm
-                });
-                if (toAdd.length) await announceAddition(current, toAdd, ctx.member.displayName, { dm });
-            }
-        });
-
-        return res.json({
-            ok: true,
-            start: window.start,
-            end: window.end,
-            allowedWeekdays: weekdays,
-            repeatWeeks: wanted,
-            added: toAdd.length,
-            chosenDate: date,
-            chosenTime: cleanTime,
-            set: true,
-            quiet
-        });
-    }
-
-    await addPlanEvent(plan.planId, {
-        type: 'dates',
-        by: req.user.id,
-        byName: ctx.member.displayName,
-        start: window.start,
-        end: window.end,
-        allowedWeekdays: weekdays,
-        added: toAdd.length,
-        reopened: reopen
-    });
-
-    announceAfter(plan.planId, 'dates post', (current) =>
-        announcePlanDates(current, ctx.cfg, {
-            actorName: ctx.member.displayName,
-            daysLabel: describeWeekdays(weekdays),
-            reopened: reopen,
-            note: cleanNote,
-            added: toAdd,
-            post,
-            dm
-        })
-    );
-
-    res.json({ ok: true, start: window.start, end: window.end, allowedWeekdays: weekdays, repeatWeeks: wanted, added: toAdd.length, reopened: reopen, quiet });
-});
-
-/*
-    A plan's title and what it is about. Renaming reaches into Discord and renames the
-    thread with it; the description is rewritten wherever it already sits.
-
-    One field now holds what the description and the day's own note held between them,
-    which is why a plan with a day set DMs everyone about a change here. Saving also lets
-    go of any note still stored, the form having handed both back joined up.
-*/
-router.post('/:planId/details', requireHost, refuseFinished, async (req, res) => {
-    const { plan, ctx } = req;
-
-    const { name, description } = req.body || {};
-    const quiet = req.body?.quiet === true;
-
-    //Same shape as creating a plan: a name (required) and a description (optional), both capped
-    const cleanName = String(name || '').trim();
-    if (!cleanName) return res.status(400).json({ error: 'Give the plan a name.' });
-    if (cleanName.length > 90) return res.status(400).json({ error: 'That name is a bit long, keep it under 90 characters.' });
-
-    const cleanDescription = String(description || '').trim();
-    if (cleanDescription.length > 280) return res.status(400).json({ error: 'Keep the description under 280 characters.' });
-
-    //The note counts as changed too, since saving is what folds it into the description
-    if (cleanName === plan.name && cleanDescription === (plan.description || '') && !plan.chosenNote) {
-        return res.status(400).json({ error: 'Nothing changed there. Edit the title or the description to update it.' });
-    }
-
-    const renamed = cleanName !== plan.name;
-    await setPlanDetails(plan.planId, cleanName, cleanDescription);
-
-    await addPlanEvent(plan.planId, { type: 'details', by: req.user.id, byName: ctx.member.displayName, renamed });
-
-    announceAfter(plan.planId, 'details edit', (current) =>
-        announceDetailsEdit(current, ctx.cfg, { actorName: ctx.member.displayName, quiet })
-    );
-
-    res.json({ ok: true, name: cleanName, description: cleanDescription, quiet });
-});
-
 //Cancel a plan: mark it cancelled, ping and DM everyone, leave the thread to be deleted by hand
 router.post('/:planId/cancel', requireHost, async (req, res) => {
     const { plan, ctx } = req;
@@ -1174,14 +881,12 @@ router.post('/:planId/cancel', requireHost, async (req, res) => {
     if (plan.status === 'cancelled') return res.json({ ok: true });
     if (dayHasPassed(plan)) return res.status(409).json({ error: finished(plan) });
 
-    const { quiet, post, dm } = loudness(req.body);
-
     //Marked cancelled here rather than inside the announcement, so a reload sees it gone straight away
     let cancelled;
     try {
         cancelled = await markPlanCancelled(plan.planId);
         //Cancelled by something else since this request read the plan, which has told everyone already
-        if (!cancelled) return res.json({ ok: true, quiet });
+        if (!cancelled) return res.json({ ok: true });
         await refundAction(plan.createdBy, plan.guildId, 'create', plan.createdAt);
         await addPlanEvent(plan.planId, { type: 'cancelled', by: req.user.id, byName: ctx.member.displayName });
     } catch (err) {
@@ -1189,36 +894,9 @@ router.post('/:planId/cancel', requireHost, async (req, res) => {
         return res.status(500).json({ error: 'Could not call the plan off.' });
     }
 
-    announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, ctx.member.displayName, { post, dm }), { cancel: true });
+    announceAfter(plan.planId, 'cancel announce', (current) => announceCancel(current, ctx.member.displayName), { cancel: true });
 
-    res.json({ ok: true, quiet });
-});
-
-//Pull extra people into a running plan
-router.post('/:planId/add', requireHost, refuseFinished, async (req, res) => {
-    const { plan, ctx } = req;
-
-    const { userIds } = req.body || {};
-    const { quiet, dm } = loudness(req.body);
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-        return res.status(400).json({ error: 'Pick at least one person to add.' });
-    }
-    if (userIds.length > MAX_PARTICIPANTS) {
-        return res.status(400).json({ error: `That is more than ${MAX_PARTICIPANTS} people to add at once.` });
-    }
-
-    //Skip anyone already in, and keep only real non bot members of this server
-    const already = new Set(plan.participants.map((p) => p.userId));
-    const toAdd = await realMembers(ctx.guild, userIds.filter((id) => !already.has(id)));
-    if (toAdd.length === 0) return res.status(400).json({ error: 'Nobody new to add there.' });
-
-    await addParticipants(plan.planId, toAdd, byOf(req));
-
-    await addPlanEvent(plan.planId, { type: 'added', by: req.user.id, byName: ctx.member.displayName, count: toAdd.length });
-
-    announceAfter(plan.planId, 'add announce', (current) => announceAddition(current, toAdd, ctx.member.displayName, { dm }));
-
-    res.json({ ok: true, added: toAdd.length, quiet });
+    res.json({ ok: true });
 });
 
 /*

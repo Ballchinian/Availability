@@ -203,16 +203,6 @@ describe('setting a day on a running plan', () => {
         await announceOutcome(store.plan, cfg, { changed: false, actorName: 'Ali' }).catch(() => {});
         expect(dms.map((d) => d.userId).sort()).toEqual(guests);
     });
-
-    //The pin carries the buttons now, so quiet has no reason to post anything at all
-    it('rewrites the pin when quiet, and posts, mentions and DMs nothing', async () => {
-        store.plan.openerMessageId = 'op1';
-        await announceOutcome(store.plan, cfg, { changed: false, actorName: 'Ali', quiet: true });
-
-        expect(posts).toEqual([]);
-        expect(dms).toEqual([]);
-        expect(buttons(edited.find((e) => e.id === 'op1'))).toEqual(['vote|yes|p1|r0', 'vote|no|p1|r0']);
-    });
 });
 
 describe('the line under Count me in', () => {

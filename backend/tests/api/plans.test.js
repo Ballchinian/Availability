@@ -3,7 +3,7 @@ import express from 'express';
 import * as db from '../../src/db/plans.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
-import { announceOutcome, announceWhenEdit, announcePlanDates, announceCancel, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans.js';
+import { announceOutcome, announceWhenEdit, announceCancel, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans.js';
 import { refundAction } from '../../src/db/ratelimits.js';
 import { addAnswered, setCoveredUntil, getPlanningPrefs } from '../../src/db/users.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../src/db/availability.js';
@@ -54,14 +54,10 @@ vi.mock('../../src/db/plans.js', () => ({
         'setPlanWhen',
         'setReminded',
         'setVoteReminded',
-        'setPlanDates',
-        'addParticipants',
-        'setPlanDetails',
         'setAttendanceOverride',
         'setSentBack',
         'setAskedAgain',
         'setIn',
-        'setPlanRepeat',
         'addPlanEvent',
         'addHost',
         'recordVote',
@@ -103,11 +99,9 @@ vi.mock('../../src/bot/plans.js', () =>
         'announceWhenEdit',
         'remindStragglers',
         'remindVoters',
-        'announcePlanDates',
         'announceCancel',
         'leavePlan',
         'notifyHostsDropped',
-        'announceAddition',
         'answersMoved',
         'syncPlan',
         'applyAttendanceMove',
@@ -209,7 +203,7 @@ const runQueued = () => {
 };
 
 //The routes that refuse to touch a cancelled plan, which is all of them bar the three below
-const changing = ['/choose', '/attendance', '/askagain', '/repeat', '/remind', '/dates', '/details', '/add'];
+const changing = ['/choose', '/attendance', '/askagain', '/remind', '/edit'];
 
 describe('the plan gate', () => {
     /*
@@ -246,7 +240,7 @@ describe('the plan gate', () => {
     });
 
     it('looks the plan up once however many gates read it', async () => {
-        const res = await post('/ab12cd34ef/repeat', { repeatWeeks: null });
+        const res = await post('/ab12cd34ef/choose', { date: inWindow });
         expect(res.status).toBe(200);
         expect(lookups).toEqual(['ab12cd34ef']);
     });
@@ -307,13 +301,14 @@ describe('the plan gate', () => {
             const res = await post(`/ab12cd34ef${path}`, { date: inWindow });
             expect([path, res.status]).toEqual([path, 409]);
         }
-        expect(db.setPlanDates).not.toHaveBeenCalled();
+        expect(db.applyPlanEdit).not.toHaveBeenCalled();
         expect(db.markPlanCancelled).not.toHaveBeenCalled();
     });
 
     it('still changes a plan whose day is today where the server is', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: todayIn('Pacific/Auckland'), timeZone: 'Pacific/Auckland' }));
-        expect((await post('/ab12cd34ef/details', { name: 'Quiz night' })).status).toBe(200);
+        const today = todayIn('Pacific/Auckland');
+        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: today, timeZone: 'Pacific/Auckland', dateRange: { start: today, end: today } }));
+        expect((await post('/ab12cd34ef/choose', { date: today, time: '20:00' })).status).toBe(200);
     });
 
     //The routes that deliberately go without it
@@ -445,39 +440,6 @@ describe('a plan as a template', () => {
     });
 });
 
-//Turning a repeat on makes plans, which is what the planner role is for
-describe('a repeat and the planner role', () => {
-    beforeEach(() => (plannerAnswer = asMember));
-
-    it('is not turned on by someone who runs the plan without the role', async () => {
-        const res = await post('/ab12cd34ef/repeat', { repeatWeeks: 2 });
-        expect(res.status).toBe(403);
-        expect((await res.json()).error).toMatch(/planner role/);
-        expect(db.setPlanRepeat).not.toHaveBeenCalled();
-    });
-
-    it('is not changed by them either', async () => {
-        plans.set('ab12cd34ef', plan({ repeatWeeks: 1 }));
-        expect((await post('/ab12cd34ef/repeat', { repeatWeeks: 4 })).status).toBe(403);
-        expect(db.setPlanRepeat).not.toHaveBeenCalled();
-    });
-
-    it('can be stopped by them', async () => {
-        plans.set('ab12cd34ef', plan({ repeatWeeks: 2 }));
-        expect((await post('/ab12cd34ef/repeat', { repeatWeeks: null })).status).toBe(200);
-        expect(db.setPlanRepeat).toHaveBeenCalledWith('ab12cd34ef', null);
-    });
-
-    it('is not turned on through the dates screen either, which still saves one left as it was', async () => {
-        plans.set('ab12cd34ef', plan({ repeatWeeks: 2 }));
-        expect((await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), repeatWeeks: 4 })).status).toBe(403);
-        expect(db.setPlanDates).not.toHaveBeenCalled();
-
-        expect((await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), repeatWeeks: 2 })).status).toBe(200);
-        expect((await post('/ab12cd34ef/dates', { start: ahead(40), end: ahead(60), repeatWeeks: null })).status).toBe(200);
-    });
-});
-
 /*
     Which of the two things the choose route does. Picking the day the plan is already on
     used to run through setPlanChosen, which wipes every vote, takes the confirmation down
@@ -505,9 +467,9 @@ describe('choosing the day a plan is already on', () => {
     });
 
     /*
-        What a plan is about is one field now, edited on details. A note an older plan still
-        holds is carried through here rather than read off the request, or moving the time
-        would quietly take a line off the pin that nothing on this route is about.
+        What a plan is about is one field now, changed on the edit form. A note an older plan
+        still holds is carried through here rather than read off the request, or moving the
+        time would quietly take a line off the pin that nothing on this route is about.
     */
     it('carries a stored note through untouched', async () => {
         plans.set('ab12cd34ef', setPlan());
@@ -554,11 +516,6 @@ describe('choosing the day a plan is already on', () => {
     });
 });
 
-/*
-    Quiet forces off everything that would reach somebody who is not already looking. What
-    it never turns off is the rewriting, which is why a quiet fix still leaves everyone
-    holding a correct DM.
-*/
 describe('narrowing the list to the people who can make it', () => {
     //Nothing reaches them, and their card keeps I'm coming for a change of mind
     it('keeps anyone who said Not for me on it', async () => {
@@ -575,52 +532,22 @@ describe('asking who can make it', () => {
         expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', expect.objectContaining({ type: 'chosen', probe: true }));
     });
 
+    it('tells people whatever the request says about keeping quiet', async () => {
+        await post('/ab12cd34ef/choose', { date: inWindow, quiet: true });
+        await runQueued();
+        expect(announceOutcome.mock.calls.at(-1).at(-1)).toEqual({ changed: false, actorName: 'Ali' });
+    });
+
+    it('calls a plan off out loud whatever the request says', async () => {
+        await post('/ab12cd34ef/cancel', { quiet: true, post: false, dm: false });
+        await runQueued();
+        expect(announceCancel.mock.calls.at(-1)).toHaveLength(2);
+    });
+
     it('has no way to stop asking', async () => {
         plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, probeActive: true }));
         const res = await post('/ab12cd34ef/confirmations', { active: false });
         expect(res.status).toBe(404);
-    });
-});
-
-describe('quiet mode', () => {
-    const flagsOf = (fn) => fn.mock.calls.at(-1).at(-1);
-
-    it('silences a window moving both ways', async () => {
-        await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), quiet: true });
-        runQueued();
-        expect(flagsOf(announcePlanDates)).toMatchObject({ post: false, dm: false });
-    });
-
-    //A ticked box and quiet mode cannot both win, or the page and the server disagree
-    it('beats a box the panel left ticked', async () => {
-        await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60), quiet: true, post: true, dm: true });
-        runQueued();
-        expect(flagsOf(announcePlanDates)).toMatchObject({ post: false, dm: false });
-    });
-
-    it('leaves a request that says nothing about it as loud as ever', async () => {
-        await post('/ab12cd34ef/dates', { start: ahead(30), end: ahead(60) });
-        runQueued();
-        expect(flagsOf(announcePlanDates)).toMatchObject({ post: true, dm: true });
-    });
-
-    it('silences a cancel when it is asked to', async () => {
-        await post('/ab12cd34ef/cancel', { quiet: true });
-        runQueued();
-        expect(flagsOf(announceCancel)).toMatchObject({ post: false, dm: false });
-    });
-
-    it('carries through to setting a day', async () => {
-        await post('/ab12cd34ef/choose', { date: inWindow, quiet: true });
-        runQueued();
-        expect(flagsOf(announceOutcome)).toMatchObject({ quiet: true });
-    });
-
-    it('carries through to an edit of the time or note', async () => {
-        plans.set('ab12cd34ef', plan({ status: 'closed', chosenDate: inWindow, chosenTime: '19:00' }));
-        await post('/ab12cd34ef/choose', { date: inWindow, time: '20:00', quiet: true });
-        runQueued();
-        expect(flagsOf(announceWhenEdit)).toMatchObject({ quiet: true });
     });
 });
 
@@ -703,14 +630,6 @@ describe('fixing up Discord by hand', () => {
 });
 
 
-/*
-    The one route that changes the window, the days, the crowd and the repeat together.
-    What matters is which of those four it decides has moved, since that is what sets
-    whether everyone goes back for their dates and what the single post ends up saying.
-
-    Its dates are worked out from today rather than written down: this route refuses a
-    window that has already been, so fixed dates here would pass until the day they did not.
-*/
 describe('times and days on the plan clock', () => {
     it('refuses a time that is not one', async () => {
         const res = await post('/ab12cd34ef/choose', { date: inWindow, time: '25:99' });
@@ -720,26 +639,7 @@ describe('times and days on the plan clock', () => {
     });
 
     //1pm UTC on the 26th, which is the 27th in Auckland and still the 26th nearly everywhere else
-    it('reads today as the date where the server is', async () => {
-        vi.useFakeTimers({ toFake: ['Date'] });
-        vi.setSystemTime(new Date('2026-09-26T13:00:00Z'));
-        try {
-            const on = (timeZone) => plans.set('ab12cd34ef', plan({ timeZone, dateRange: { start: '2026-09-20', end: '2026-10-10' } }));
-
-            on('Pacific/Auckland');
-            const there = await post('/ab12cd34ef/dates', { date: '2026-09-26' });
-            expect(there.status).toBe(400);
-            expect((await there.json()).error).toMatch(/in the past/);
-
-            on('Europe/London');
-            const here = await post('/ab12cd34ef/dates', { date: '2026-09-26' });
-            expect(here.status).toBe(200);
-        } finally {
-            vi.useRealTimers();
-        }
-    });
-
-    it('reads it the same way when the day is picked off the grid', async () => {
+    it('reads today as the date where the server is when the day is picked off the grid', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-09-26T13:00:00Z'));
         try {
@@ -757,200 +657,6 @@ describe('times and days on the plan clock', () => {
         } finally {
             vi.useRealTimers();
         }
-    });
-});
-
-describe('going back out for different dates', () => {
-    //The first Monday a month out, so a Monday to Friday window is the same shape whenever this runs
-    const monday = (() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 30);
-        d.setDate(d.getDate() + ((8 - d.getDay()) % 7));
-        return d;
-    })();
-    const friday = new Date(monday.getTime() + 4 * 86400000);
-
-    const window = { start: ahead(30), end: ahead(60) };
-    const moved = { start: ahead(90), end: ahead(120) };
-
-    const dates = (body) => post('/ab12cd34ef/dates', body);
-    //The plan's own window, so a request repeating it is the one that has changed nothing
-    const standing = (over = {}) => plan({ dateRange: { start: window.start, end: window.end }, ...over });
-
-    beforeEach(() => plans.set('ab12cd34ef', standing()));
-
-    it('moves the window and sends everyone back for their dates', async () => {
-        const res = await dates(moved);
-
-        expect(res.status).toBe(200);
-        expect(await res.json()).toMatchObject({ start: moved.start, end: moved.end, reopened: true });
-        expect(db.setPlanDates).toHaveBeenCalledWith('ab12cd34ef', {
-            start: moved.start,
-            end: moved.end,
-            allowedWeekdays: null,
-            repeatWeeks: null,
-            reopen: true
-        });
-    });
-
-    //A window that stayed put falls back to the weekday rule, where taking days away costs nobody their answer
-    it('narrows the days without sending anyone back', async () => {
-        const res = await dates({ ...window, allowedWeekdays: [0, 6] });
-
-        expect(await res.json()).toMatchObject({ reopened: false, allowedWeekdays: [0, 6] });
-        expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reopen: false }));
-    });
-
-    it('sends everyone back when a day nobody was asked about opens', async () => {
-        plans.set('ab12cd34ef', standing({ allowedWeekdays: [0, 6] }));
-        expect(await (await dates({ ...window, allowedWeekdays: null })).json()).toMatchObject({ reopened: true });
-    });
-
-    it('carries the repeat into the same write rather than a second one', async () => {
-        await dates({ ...window, repeatWeeks: 2 });
-        expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ repeatWeeks: 2 }));
-        expect(db.setPlanRepeat).not.toHaveBeenCalled();
-    });
-
-    it('refuses a repeat that is not one of the offered intervals', async () => {
-        expect((await dates({ ...window, repeatWeeks: 3 })).status).toBe(400);
-        expect(db.setPlanDates).not.toHaveBeenCalled();
-    });
-
-    //Four things it could change and none of them did, so there is nothing to announce
-    it('refuses a request that moves nothing at all', async () => {
-        const res = await dates(window);
-        expect(res.status).toBe(400);
-        expect((await res.json()).error).toMatch(/Nothing changed/);
-        expect(db.setPlanDates).not.toHaveBeenCalled();
-    });
-
-    it('refuses days that fall nowhere inside the new window', async () => {
-        const res = await dates({ start: iso(monday), end: iso(friday), allowedWeekdays: [0, 6] });
-        expect(res.status).toBe(400);
-        expect((await res.json()).error).toMatch(/None of those days/);
-    });
-
-    it('refuses a window that has already been', async () => {
-        const res = await dates({ start: '2020-01-01', end: '2020-01-31' });
-        expect(res.status).toBe(400);
-        expect((await res.json()).error).toMatch(/in the past/);
-    });
-
-    //One post for the lot, rather than the three the panels it stands in for would have sent
-    it('announces the change once', async () => {
-        await dates({ ...moved, allowedWeekdays: [0, 6] });
-        expect(announceAfter).toHaveBeenCalledTimes(1);
-        runQueued();
-        expect(announcePlanDates).toHaveBeenCalledTimes(1);
-    });
-
-    it('goes quiet on both the thread and the DMs when asked', async () => {
-        await dates({ ...moved, quiet: true });
-        runQueued();
-        expect(announcePlanDates.mock.calls.at(-1).at(-1)).toMatchObject({ post: false, dm: false });
-    });
-
-    //Nobody is ever taken off here, so a list missing someone already on the plan changes nothing
-    it('adds only the people the plan has never had', async () => {
-        plannerAnswer = {
-            ...asPlanner,
-            guild: { members: { cache: { get: (id) => ({ id, user: { bot: false } }) }, fetch: async () => null } }
-        };
-        const res = await dates({ ...window, participantIds: ['guest', 'newbie'] });
-
-        expect(await res.json()).toMatchObject({ added: 1 });
-        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['newbie'], { id: 'planner', name: 'Ali' });
-    });
-
-    /*
-        The other half of the same screen: naming the day rather than asking about a window.
-        Nobody is asked anything, so the window only ever stretches to reach the day and every
-        answer already given stands.
-    */
-    describe('naming the day instead', () => {
-        it('sets the day without sending anyone back for their dates', async () => {
-            const res = await dates({ date: ahead(40) });
-
-            expect(res.status).toBe(200);
-            expect(await res.json()).toMatchObject({ set: true, chosenDate: ahead(40) });
-            expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reopen: false }));
-            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), null, null, null, { id: 'planner', name: 'Ali' });
-        });
-
-        it('records the day as asked about, the same as picking it off the grid', async () => {
-            await dates({ date: ahead(40) });
-            expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', expect.objectContaining({ type: 'chosen', probe: true }));
-        });
-
-        //A day inside the window needs no stretching, so the window it already had comes back
-        it('leaves a window that already reaches the day alone', async () => {
-            await dates({ date: ahead(40) });
-            expect(db.setPlanDates).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.objectContaining({ start: window.start, end: window.end })
-            );
-        });
-
-        it('stretches the end out to reach a day past the window', async () => {
-            const res = await dates({ date: ahead(100) });
-            expect(await res.json()).toMatchObject({ start: window.start, end: ahead(100) });
-        });
-
-        it('stretches the start back to reach a day before the window', async () => {
-            const res = await dates({ date: ahead(5) });
-            expect(await res.json()).toMatchObject({ start: ahead(5), end: window.end });
-        });
-
-        /*
-            A day named by hand joins the weekdays the plan asks about. Left out, the plan would
-            sit on a day its own rule says it never collects, which setPlanDates reads as a day
-            to drop.
-        */
-        it('opens the weekday a hand-picked day falls on', async () => {
-            plans.set('ab12cd34ef', standing({ allowedWeekdays: [0, 6] }));
-            await dates({ date: iso(monday) });
-            expect(db.setPlanDates).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.objectContaining({ allowedWeekdays: [0, 1, 6] })
-            );
-        });
-
-        it('takes the time along with the day', async () => {
-            await dates({ date: ahead(40), time: '19:00' });
-            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), '19:00', null, null, { id: 'planner', name: 'Ali' });
-        });
-
-        //The same fork the choose route takes: a day staying put is an edit, and keeps every answer
-        it('edits the time rather than moving the day when the day is the same', async () => {
-            plans.set('ab12cd34ef', standing({ status: 'closed', chosenDate: ahead(40), chosenTime: '19:00' }));
-            await dates({ date: ahead(40), time: '20:00' });
-
-            expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', null, { id: 'planner', name: 'Ali' });
-            expect(db.setPlanChosen).not.toHaveBeenCalled();
-        });
-
-        it('refuses a day that has already been', async () => {
-            const res = await dates({ date: '2020-01-01' });
-            expect(res.status).toBe(400);
-            expect((await res.json()).error).toMatch(/in the past/);
-        });
-
-        it('refuses a request that moves neither the day nor anything else', async () => {
-            plans.set('ab12cd34ef', standing({ status: 'closed', chosenDate: ahead(40) }));
-            const res = await dates({ date: ahead(40) });
-            expect(res.status).toBe(400);
-            expect((await res.json()).error).toMatch(/Nothing changed/);
-        });
-
-        //One press, one post, the same promise the window half of this screen makes
-        it('announces the day once', async () => {
-            await dates({ date: ahead(40) });
-            expect(announceAfter).toHaveBeenCalledTimes(1);
-            await runQueued();
-            expect(announceOutcome).toHaveBeenCalledTimes(1);
-            expect(announcePlanDates).not.toHaveBeenCalled();
-        });
     });
 });
 

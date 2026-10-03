@@ -11,7 +11,6 @@ import {
     allowedDaysInRange,
     describeWeekdays,
     cleanWeekdays,
-    weekdayChange,
     readTime
 } from '../../src/lib/dates.js';
 
@@ -253,38 +252,6 @@ describe('cleanWeekdays', () => {
 
     it('sorts and dedupes', () => {
         expect(cleanWeekdays([5, 1, 1, '5'])).toEqual([1, 5]);
-    });
-});
-
-describe('weekdayChange', () => {
-    it('spots the same set whatever order it arrives in', () => {
-        expect(weekdayChange([1, 3], [3, 1]).same).toBe(true);
-        expect(weekdayChange([1, 3], [1, 3]).opensADay).toBe(false);
-    });
-
-    //A plan with no restriction and one pinned to all seven days ask about the same days
-    it('reads null and every weekday as the same set', () => {
-        expect(weekdayChange(null, [0, 1, 2, 3, 4, 5, 6]).same).toBe(true);
-        expect(weekdayChange([0, 1, 2, 3, 4, 5, 6], null).same).toBe(true);
-        expect(weekdayChange(null, null).same).toBe(true);
-    });
-
-    it('opens a day when the change adds one', () => {
-        expect(weekdayChange([1], [1, 3])).toEqual({ same: false, opensADay: true });
-    });
-
-    it('opens a day when the change swaps one out for another', () => {
-        expect(weekdayChange([1], [3])).toEqual({ same: false, opensADay: true });
-    });
-
-    it('does not open a day when the change only takes days away', () => {
-        expect(weekdayChange([1, 3, 5], [3])).toEqual({ same: false, opensADay: false });
-        expect(weekdayChange(null, [0, 6])).toEqual({ same: false, opensADay: false });
-    });
-
-    //Dropping the restriction opens every day the plan was not already asking about
-    it('opens days when the restriction is lifted', () => {
-        expect(weekdayChange([0, 6], null)).toEqual({ same: false, opensADay: true });
     });
 });
 

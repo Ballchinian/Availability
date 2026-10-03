@@ -16,7 +16,7 @@ vi.mock('../../src/db/mongo.js', async (real) => ({
     })
 }));
 
-const { roundFor, setPlanChosen, setPlanDates } = await import('../../src/db/plans.js');
+const { roundFor, setPlanChosen } = await import('../../src/db/plans.js');
 
 const SAT = '2026-09-12';
 const SUN = '2026-09-13';
@@ -114,12 +114,5 @@ describe('moving the day', () => {
         store.plan = onDay(SAT);
         await setPlanChosen('p1', SUN);
         expect(store.bulk).toEqual([]);
-    });
-
-    //Going back out for dates wipes the answers, so they are kept first
-    it('keeps the answers when the plan goes back to collecting', async () => {
-        store.plan = onDay(SAT);
-        await setPlanDates('p1', { start: SAT, end: '2026-09-30', allowedWeekdays: null, repeatWeeks: null, reopen: true });
-        expect(store.writes[0].update.$set.pastVotes[0]).toMatchObject({ date: SAT, round: 1 });
     });
 });

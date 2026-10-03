@@ -237,6 +237,26 @@ describe('what an edit can do', () => {
         expect(plans.get('p1').participants.map((p) => p.userId)).toEqual(['bo']);
     });
 
+    //1pm UTC on the 26th, which is the 27th in Auckland and still the 26th nearly everywhere else
+    it('reads today as the date where the server is', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-26T13:00:00Z'));
+        try {
+            const on = (timeZone) => plans.set('p1', stored({ timeZone, dateRange: { start: '2026-09-20', end: '2026-10-10' } }));
+            const day = form({ announce: true, date: '2026-09-26', time: null });
+
+            on('Pacific/Auckland');
+            const there = await edit(day);
+            expect(there.status).toBe(400);
+            expect(await errorOf(there)).toBe('That date is in the past.');
+
+            on('Europe/London');
+            expect((await edit(day)).status).toBe(200);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('refuses a list with nobody left on it who is in the server', async () => {
         expect(await errorOf(await edit(form({ participantIds: ['gone'] })))).toBe('None of those people are in the server.');
     });

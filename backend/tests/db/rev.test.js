@@ -49,13 +49,11 @@ describe('rev', () => {
         expect(moved.map((u) => u.$set.revBy.id)).toEqual(['ali', 'ali', 'ali', 'bo', 'ali', 'bo']);
     });
 
-    it('moves on for a cancel, a repeat and the old routes, naming nobody', async () => {
+    it('moves on for a cancel and a repeat stopping, naming nobody', async () => {
         await db.markPlanCancelled('p1');
-        await db.setPlanRepeat('p1', 2);
-        await db.setPlanDetails('p1', 'Quiz night', '');
-        await db.setPlanDates('p1', { start: '2026-10-01', end: '2026-10-14', allowedWeekdays: null, repeatWeeks: null, reopen: false });
+        await db.setPlanRepeat('p1', null);
         expect(store.writes.every(moves)).toBe(true);
-        expect(store.writes.map((u) => u.$set.revBy)).toEqual([null, null, null, null]);
+        expect(store.writes.map((u) => u.$set.revBy)).toEqual([null, null]);
     });
 
     it('stays put for an answer, which the form never sends', async () => {
