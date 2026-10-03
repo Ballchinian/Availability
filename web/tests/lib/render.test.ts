@@ -526,7 +526,7 @@ describe('the repeat dates calendar', () => {
 });
 
 /*
-    The repeat picker both screens share. What it has to get right is when there is a day
+    The repeat picker on the form. What it has to get right is when there is a day
     for a series to count off at all: without one the sweep makes nothing, and a calendar
     drawn anyway would be promising dates from a day that does not exist.
 */
@@ -561,13 +561,43 @@ describe('the repeat picker', () => {
     });
 
     //Running a plan takes no planner role, and making plans come round again does
-    it('leaves someone without the planner role the repeat the plan has, and stopping it', () => {
-        const body = draw({ weeks: 2, was: 2, canStart: false });
+    it('leaves someone without the planner role only a one off', () => {
+        const body = draw({ weeks: null, canStart: false });
         expect(body).toMatch(/value="1"[^>]*disabled[^>]*\/>every week/);
         expect(body).toMatch(/value="4"[^>]*disabled[^>]*\/>every 4 weeks/);
-        expect(body).not.toMatch(/value="2"[^>]*disabled/);
+        expect(body).not.toMatch(/disabled[^>]*\/>one off/);
         expect(body).toContain('Only someone with the planner role can make it come round again.');
         expect(draw({ weeks: 2 })).not.toContain('planner role');
+    });
+
+    //A plan already coming round is not asked again, only offered the end of it
+    it('says how a plan already repeating comes round, with one box to make this the last', () => {
+        const body = draw({ weeks: 2, was: 2, by: 'Ali', from: '2026-08-06' });
+        expect(body).toContain('<legend class="lbl">Comes round again</legend>');
+        expect(body).toContain('Every other week, set by Ali.');
+        expect(body).not.toContain('type="radio"');
+        expect(body.match(/type="checkbox"/g)).toHaveLength(1);
+        expect(body).toContain('Make this the last time it comes round');
+        expect(body).not.toMatch(/type="checkbox"[^>]*checked/);
+        expect(body).toContain('rcal');
+    });
+
+    it('ticks the box and draws nothing once it is the last', () => {
+        const body = draw({ weeks: null, was: 2, from: '2026-08-06' });
+        expect(body).toMatch(/type="checkbox"[^>]*checked/);
+        expect(body).not.toContain('rcal');
+    });
+
+    //Sent back out for dates, it keeps coming round, and has no day yet to count from
+    it('says a plan finding its day comes round once it has one', () => {
+        expect(draw({ weeks: 1, was: 1 })).toContain('Every week, once it has a day.');
+    });
+
+    //Stopping is open to whoever runs it, planner or not
+    it('lets someone without the planner role make it the last', () => {
+        const body = draw({ weeks: 2, was: 2, canStart: false });
+        expect(body).not.toMatch(/type="checkbox"[^>]*disabled/);
+        expect(body).not.toContain('planner role');
     });
 });
 

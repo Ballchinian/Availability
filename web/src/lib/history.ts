@@ -43,7 +43,7 @@ export function describeChange(change: EditChange): string {
         case 'window':
             return `changed the dates to ${windowOf(change)}`;
         case 'repeat':
-            return change.to ? `set it to come round ${describeRepeat(change.to)}` : 'stopped it coming round again';
+            return change.to ? `set it to come round ${describeRepeat(change.to)}` : 'made this the last time it comes round';
         case 'added':
             return `added ${listNames(change.names)}`;
         case 'removed':

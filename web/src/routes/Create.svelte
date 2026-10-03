@@ -111,6 +111,7 @@
 
     //Which kind it is now, so the choice it already is can say so
     const wasKind = $derived(editPlan ? (editPlan.chosenDate ? 'announce' : 'collect') : '');
+    const wasRepeating = $derived(Boolean(editPlan?.repeatWeeks));
     //Whoever made the plan stays running it unless they are the one changing it, see the edit route
     const lockedHosts = $derived(
         editPlan?.createdBy && editPlan.createdBy !== auth.user?.id && (editData?.hostIds ?? []).includes(editPlan.createdBy)
@@ -257,7 +258,7 @@
     //The plan as the form has it, which the create and edit routes both read the same way
     function planBody() {
         //A plan already repeating keeps it while it goes back to finding a day, and comes round again once it has one
-        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks: mode === 'announce' || editing ? repeatWeeks : null };
+        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks: mode === 'announce' || wasRepeating ? repeatWeeks : null };
         return mode === 'announce'
             ? { ...common, announce: true, date: setDate, time: setTime || null }
             : {
@@ -438,7 +439,18 @@
             </div>
         {/if}
 
-        <RepeatField bind:weeks={repeatWeeks} from={setDate} time={setTime} canStart={editData?.isPlanner ?? true} was={editPlan?.repeatWeeks ?? null} />
+    {/if}
+
+    <!--A plan already coming round keeps it while it goes back to finding a day, so only that plan is shown it there-->
+    {#if mode === 'announce' || wasRepeating}
+        <RepeatField
+            bind:weeks={repeatWeeks}
+            from={mode === 'announce' ? setDate : null}
+            time={setTime}
+            canStart={editData?.isPlanner ?? true}
+            was={editPlan?.repeatWeeks ?? null}
+            by={editPlan?.repeatBy ?? null}
+        />
     {/if}
 
     <fieldset class="field" {...invalidIf(fault === 'people', 'form-error')}>

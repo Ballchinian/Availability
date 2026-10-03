@@ -44,7 +44,7 @@ export function reviewLine(change: EditChange, preview: Pick<EditPreview, 'settl
         case 'window':
             return `Now asking about ${windowOf(change)}${counts(preview)}`;
         case 'repeat':
-            return change.to ? `Comes round ${describeRepeat(change.to)}` : 'Stops coming round again';
+            return change.to ? `Comes round ${describeRepeat(change.to)}` : 'This is the last time it comes round';
         case 'added':
             return `Adding ${listNames(change.names)}`;
         case 'removed':

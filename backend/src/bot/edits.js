@@ -31,7 +31,7 @@ export function changeLine(change) {
         case 'window':
             return `it asks about ${windowOf(change)} now`;
         case 'repeat':
-            return change.to ? `it comes round ${describeRepeat(change.to)}` : "it doesn't come round again now";
+            return change.to ? `it comes round ${describeRepeat(change.to)}` : "this is the last time it comes round";
         default:
             return '';
     }
