@@ -1,14 +1,9 @@
 <script module lang="ts">
     import type { PlanScreen } from '../lib/types.js';
 
-    /*
-        A plan with its day set has no dates left to ask for, and its overview is where
-        someone says if they're coming, so this page hands over to it. Only when the answer
-        carries a role: a backend from before that keeps the overview to planners, and
-        would turn a guest away.
-    */
+    //A plan with its day set has no dates left to ask for, and its overview is where someone says if they're coming
     export function belongsOnOverview(screen: PlanScreen): boolean {
-        return screen.plan.status === 'closed' && Boolean(screen.role);
+        return screen.plan.status === 'closed';
     }
 </script>
 
@@ -17,7 +12,7 @@
     import { replace } from 'svelte-spa-router';
     import { api, errorText, ApiError } from '../lib/api.js';
     import { auth, loadMe, loginHref } from '../lib/auth.svelte.js';
-    import { formatDate, formatTime } from '../lib/format.js';
+    import { formatDate } from '../lib/format.js';
     import { countDays, isoFromNow, isWeekdayAllowed } from '../lib/calendar.js';
     import { browserZone, clocksAgree } from '../lib/zone.js';
     import { guardUnsaved, selectionKey } from '../lib/unsaved.js';
@@ -51,11 +46,6 @@
     //The one date across every plan they are in, so the page takes the same ends as My calendar
     let coveredUntil = $state('');
 
-    let leaveArmed = $state(false);
-    let leaving = $state(false);
-    let left = $state<LeftPlan | null>(null);
-    let leaveError = $state('');
-
     //Count me in or Not for me, and the reason box the second one opens
     let answering = $state(false);
     let answerError = $state('');
@@ -76,10 +66,8 @@
     const mine = browserZone();
     const clocksDiffer = $derived(Boolean(data && mine && !clocksAgree(data.plan.timeZone, mine)));
 
-    //A day already picked and already been, so all this page has left to do is say so
     const todayIso = isoFromNow(0, 'day');
     const maxDate = isoFromNow(2, 'year');
-    const beenAndGone = $derived(Boolean(data?.plan.chosenDate && data.plan.chosenDate < todayIso));
 
     //Which weekdays this plan asks about, null when it wants the whole range
     const allowedWeekdays = $derived<number[] | null>(data?.plan.allowedWeekdays ?? null);
@@ -178,28 +166,6 @@
         }
         answering = false;
     }
-
-    let dropButton = $state<HTMLButtonElement>();
-    let leftLine = $state<HTMLElement>();
-
-    function keepPlan() {
-        leaveArmed = false;
-        refocus(() => dropButton);
-    }
-
-    async function leave() {
-        leaveError = '';
-        leaving = true;
-        try {
-            //An older backend answers without the names, which reads as nobody told
-            const res = await api<Partial<LeftPlan>>(`/plans/${params.planId}/leave`, { method: 'POST' });
-            left = { told: res.told ?? [], missed: res.missed ?? [] };
-            refocus(() => leftLine);
-        } catch (err) {
-            leaveError = errorText(err);
-        }
-        leaving = false;
-    }
 </script>
 
 <svelte:head><title>{planName ? `${planName} · your dates` : 'Your dates'}</title></svelte:head>
@@ -233,24 +199,6 @@
     {/if}
 {/snippet}
 
-<!--Offered on a set day that is still ahead of you, which is exactly when somebody finds
-    out they cannot come. A plan still finding its day asks Not for me instead.-->
-{#snippet dropOut()}
-    <div class="danger">
-        {#if !leaveArmed}
-            <button class="ghost danger-btn" onclick={() => (leaveArmed = true)} bind:this={dropButton}>Drop out of this plan</button>
-        {:else}
-            <span class="small">Drop out of this plan? You come off the guest list, and I'll DM whoever runs it.</span>
-            <button class="ghost danger-btn" onclick={leave} disabled={leaving}>
-                {leaving ? 'Dropping out...' : 'Yes, drop me out'}
-            </button>
-            <button class="ghost" onclick={keepPlan}>No</button>
-        {/if}
-    </div>
-    <!--Outside the row above, where an empty line would still take a gap-->
-    <Status class="status" msg={leaveError} error />
-{/snippet}
-
 <section class="screen">
     <!--The plan's name, since the other availability page is this one's twin and the
         heading was the one place they had nothing to tell them apart-->
@@ -268,38 +216,8 @@
         {/if}
     {:else if loadError || !data}
         <p class="status error">{loadError || 'Could not load this plan.'}</p>
-    {:else if left}
-        <p class="prompt good" bind:this={leftLine}>
-            You have dropped out of <strong>{data.plan.name}</strong>, and you will not get any more nudges about it.
-            {#if left.told.length}I DMed {left.told.join(', ')} to say so.{/if}
-            {#if left.missed.length}I could not DM {left.missed.join(', ')}, so let them know yourself.{/if}
-        </p>
     {:else if data.plan.status === 'cancelled'}
         <p class="prompt">This plan was called off, so there is nothing to fill in. Your group will sort out a new one if they still want to meet.</p>
-    {:else if data.plan.status === 'closed'}
-        <!--Only reached while the backend is older than the site, for the few minutes a deploy
-            takes: every other time a plan with its day goes to its overview.-->
-        {#if data.plan.guildName}<p class="muted">In {data.plan.guildName}</p>{/if}
-        {#if data.plan.description}
-            <p class="muted small">{data.plan.description}</p>
-        {/if}
-
-        <div class="prompt good">
-            <p>
-                {beenAndGone ? 'This was set for' : 'This is set for'}
-                {formatDate(data.plan.chosenDate)}{data.plan.chosenTime ? ` at ${formatTime(data.plan.chosenTime)}` : ''},
-                so there is nothing left to fill in here.
-            </p>
-            {#if data.plan.chosenTime}<ClockNote zone={data.plan.timeZone} date={data.plan.chosenDate} time={data.plan.chosenTime} />{/if}
-            {#if data.plan.chosenNote}<p>{data.plan.chosenNote}</p>{/if}
-        </div>
-
-        <p class="muted small">
-            Your saved days are still yours to change for everything else, in
-            <a href="#/availability">your calendar</a>.
-        </p>
-
-        {#if !beenAndGone}{@render dropOut()}{/if}
     {:else}
         <p class="muted">
             {data.plan.guildName ? `${data.plan.guildName} · ` : ''}{formatDate(data.plan.start)} to {formatDate(data.plan.end)}

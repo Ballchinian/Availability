@@ -1462,11 +1462,6 @@ describe('the page of a plan that has its day', () => {
         expect(belongsOnOverview(page('collecting', 'guest'))).toBe(false);
         expect(belongsOnOverview(page('cancelled', 'guest'))).toBe(false);
     });
-
-    //For the few minutes a deploy takes, when the overview would turn a guest away
-    it('stays where it is on a backend that still keeps the overview to planners', () => {
-        expect(belongsOnOverview(page('closed'))).toBe(false);
-    });
 });
 
 //The line under a plan's name: what kind of plan it is, and where it has got to
