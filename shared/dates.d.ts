@@ -1,7 +1,8 @@
 /*
     Types for dates.js, which is plain .js so node can run it unbuilt. Signatures
     only, no logic, so there is nothing here that can disagree with the code. The
-    site imports these through web/src/lib, which is where they get their names.
+    site imports these through web/src/site/format.ts and web/src/calendar/calendar.ts,
+    which is where they get their names.
 */
 
 export function formatDay(iso?: string | null): string;

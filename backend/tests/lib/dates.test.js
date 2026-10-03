@@ -188,7 +188,7 @@ describe('allowedDaysInRange', () => {
 
 describe('describeWeekdays', () => {
     /*
-        The site's copy in web/src/lib/format.ts returns a blank string here on
+        The site's copy in web/src/site/format.ts returns a blank string here on
         purpose, because it renders into a chip rather than a sentence. Merging the
         two has to keep both wordings.
     */

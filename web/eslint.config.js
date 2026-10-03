@@ -24,7 +24,7 @@ export default ts.config(
             eqeqeq: ['error', 'smart'],
             'prefer-const': 'error',
             /*
-                On since the api payloads got real interfaces in lib/types.ts and
+                On since the api payloads got real interfaces in site/types.ts and
                 nothing in src/ is any any more. A new one means a payload nobody
                 wrote the shape of, which is the thing worth catching.
             */

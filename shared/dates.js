@@ -15,7 +15,7 @@
     that neither vitest nor the vite build will show you.
 
     Anything that only one side needs stays on that side: backend/src/lib/dates.js
-    holds the range and validation half, web/src/lib/calendar.ts the grid layout.
+    holds the range and validation half, web/src/calendar/calendar.ts the grid layout.
 */
 
 const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

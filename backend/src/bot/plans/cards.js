@@ -68,7 +68,7 @@ export function noMoreLine(plan) {
     return plan.repeatWeeks ? " It won't come round again." : '';
 }
 
-//The round the buttons are about, see roundFor in db/plans.js. Buttons from before rounds carry none.
+//The round the buttons are about, see roundFor in db/plans/day.js. Buttons from before rounds carry none.
 export function roundOf(customId) {
     const tag = customId.split('|').find((bit) => /^r\d+$/.test(bit));
     return tag ? Number(tag.slice(1)) : 0;

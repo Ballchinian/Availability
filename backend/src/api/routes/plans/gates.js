@@ -28,7 +28,7 @@ export async function requireHost(req, res, next) {
     next();
 }
 
-//Whoever is making a change, for a form opened before it to name. See moved in db/plans.js.
+//Whoever is making a change, for a form opened before it to name. See db/plans/rev.js.
 export const byOf = (req) => ({ id: req.user.id, name: req.ctx.member.displayName });
 
 //Starting another plan like this one is starting a plan, so it takes the planner role as well as being on this one

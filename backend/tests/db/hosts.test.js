@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /*
     Who runs a plan, written against plans held in an array, with enough of Mongo's
-    matching and array operators to run what db/plans.js sends. A field that is missing
+    matching and array operators to run what db/plans/ sends. A field that is missing
     stays missing until something sets it, since that is what a plan from before hosts is.
 */
 

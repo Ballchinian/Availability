@@ -7,11 +7,12 @@
     and a hike starting at 6am both come out contiguous either side of it, and anything
     that covers the seam itself is free all day, which is stored as nothing at all.
 
-    The same list lives in web/src/lib/hours.ts for the picker, so a change to the window
-    or the order has to be made on both sides or they disagree about what a day can hold.
+    The same list lives in web/src/calendar/hours.ts for the picker, so a change to the
+    window or the order has to be made on both sides or they disagree about what a day
+    can hold.
 
-    Nothing outside this list is ever stored. packHours in bot/plans.js shifts by the
-    hour number, which silently breaks above 31, so staying inside 0 to 23 matters.
+    Nothing outside this list is ever stored. packHours in bot/plans/buttons.js shifts
+    by the hour number, which silently breaks above 31, so staying inside 0 to 23 matters.
 */
 export const DAY_HOURS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4];
 

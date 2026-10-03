@@ -27,7 +27,7 @@ export function freshParticipant(userId) {
         cardMessageId: null,
         cardActor: '',
         cardMoved: false,
-        //Discord's 50007 on the last DM tried, see deliver in bot/plans.js
+        //Discord's 50007 on the last DM tried, see deliver in bot/plans/send.js
         dmsClosed: false
     };
 }
