@@ -1,4 +1,4 @@
-import { markAllInNotified, markProbeAllYes } from '../../db/plans.js';
+import { markAllInNotified, markProbeAllYes } from '../../db/plans/index.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getPlanningPrefs } from '../../db/users.js';
 import { everyoneAnswered } from '../../lib/coverage.js';

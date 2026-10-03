@@ -70,7 +70,7 @@ const db = vi.hoisted(() => ({
     setPlanCards: vi.fn(async () => {}),
     setDmsClosed: vi.fn(async () => {})
 }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanningPrefs: vi.fn(async () => ({})) }));
 vi.mock('../../src/db/availability.js', async (real) => ({
     ...(await real()),

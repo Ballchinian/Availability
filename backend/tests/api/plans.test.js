@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express from 'express';
-import * as db from '../../src/db/plans.js';
+import * as db from '../../src/db/plans/index.js';
 import plansRouter from '../../src/api/routes/plans.js';
 import { announceAfter } from '../../src/api/announce.js';
 import { announceWhenEdit, syncPlan, leavePlan, notifyHostsDropped, applyAttendanceMove, askAgain, announceJoin, announceVote, answersMoved, addHostToThread } from '../../src/bot/plans/index.js';
@@ -40,7 +40,7 @@ vi.mock('../../src/api/context.js', () => ({
     guildContext: vi.fn(async () => plannerAnswer)
 }));
 
-vi.mock('../../src/db/plans.js', () => ({
+vi.mock('../../src/db/plans/index.js', () => ({
     getPlan: vi.fn(async (planId) => {
         lookups.push(planId);
         return plans.get(planId) || null;

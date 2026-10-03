@@ -21,7 +21,7 @@ vi.mock('../../src/db/mongo.js', () => ({
     })
 }));
 
-const { addParticipants } = await import('../../src/db/plans.js');
+const { addParticipants } = await import('../../src/db/plans/index.js');
 
 const ids = () => store.doc.participants.map((p) => p.userId);
 

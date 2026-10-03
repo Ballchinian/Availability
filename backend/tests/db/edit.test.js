@@ -19,7 +19,7 @@ vi.mock('../../src/db/mongo.js', async (real) => ({
     })
 }));
 
-const { planEdit, applyPlanEdit } = await import('../../src/db/plans.js');
+const { planEdit, applyPlanEdit } = await import('../../src/db/plans/index.js');
 
 const SAT = '2026-10-10';
 const people = () => [

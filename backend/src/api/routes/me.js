@@ -3,7 +3,7 @@ import { client } from '../../bot/client.js';
 import { requireUser } from '../../lib/session.js';
 import { getUserById, setUserGuilds, setUserTimeZone, getPlanningPrefs } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
-import { getActivePlansForUser, getFinishedPlansForUser } from '../../db/plans.js';
+import { getActivePlansForUser, getFinishedPlansForUser } from '../../db/plans/index.js';
 import { getPracticePerson } from '../../db/practice.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { planRole } from '../roles.js';

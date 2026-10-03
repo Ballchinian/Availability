@@ -29,7 +29,7 @@ vi.mock('../../src/db/mongo.js', () => {
     };
 });
 
-const { deletePlansUnderChannel } = await import('../../src/db/plans.js');
+const { deletePlansUnderChannel } = await import('../../src/db/plans/index.js');
 
 const ids = (plans) => plans.map((p) => p.planId).sort();
 

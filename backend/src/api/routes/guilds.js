@@ -3,7 +3,7 @@ import { requireUser } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { announceAfter } from '../announce.js';
 import { readPlanForm } from '../planForm.js';
-import { createPlan, setPlanChosen } from '../../db/plans.js';
+import { createPlan, setPlanChosen } from '../../db/plans/index.js';
 import { announcePlan, announceSetPlan, notifyHostsPicked } from '../../bot/plans/index.js';
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';

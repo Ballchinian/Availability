@@ -1,6 +1,6 @@
 import { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { planUrl, overviewUrl, datesUrl, calendarUrl } from '../util.js';
-import { getPlan, getPlanByThread, getLivePlansForUser } from '../../db/plans.js';
+import { getPlan, getPlanByThread, getLivePlansForUser } from '../../db/plans/index.js';
 import { getPlanningPrefs } from '../../db/users.js';
 import { formatDate, shiftDate, today } from '../../lib/dates.js';
 import { rowFor, nextStep } from '../../lib/coverage.js';

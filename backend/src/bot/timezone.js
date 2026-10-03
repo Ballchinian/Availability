@@ -1,7 +1,7 @@
 import { MessageFlags } from 'discord.js';
 import { config } from '../config.js';
 import { getGuildConfig, saveGuildConfig } from '../db/guilds.js';
-import { setGuildPlansTimeZone } from '../db/plans.js';
+import { setGuildPlansTimeZone } from '../db/plans/index.js';
 import { safeZone, isValidZone, zoneOffsetLabel } from '../lib/zones.js';
 import { announceToServer } from './util.js';
 

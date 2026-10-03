@@ -38,7 +38,7 @@ const db = vi.hoisted(() => ({
     createPlan: vi.fn(async (fields) => ({ planId: 'ab12cd34ef', ...fields })),
     setPlanChosen: vi.fn(async (planId) => ({ planId }))
 }));
-vi.mock('../../src/db/plans.js', () => db);
+vi.mock('../../src/db/plans/index.js', () => db);
 const bot = vi.hoisted(() => ({ announcePlan: vi.fn(), announceSetPlan: vi.fn(), notifyHostsPicked: vi.fn() }));
 vi.mock('../../src/bot/plans/index.js', () => bot);
 const queued = vi.hoisted(() => ({ announceAfter: vi.fn() }));

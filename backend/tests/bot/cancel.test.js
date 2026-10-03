@@ -29,7 +29,7 @@ const db = vi.hoisted(() => ({
     addPlanEvent: vi.fn(async () => {}),
     setPlanCards: vi.fn(async () => {})
 }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/ratelimits.js', () => ({ refundAction: vi.fn(async () => {}) }));
 
 const { handleCancel, handlePlanComponent } = await import('../../src/bot/plans/index.js');

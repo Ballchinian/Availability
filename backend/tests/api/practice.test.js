@@ -49,7 +49,7 @@ vi.mock('../../src/db/practice.js', async () => {
     };
 });
 const plans = vi.hoisted(() => ({ removeUserFromGuildPlans: vi.fn(async () => []) }));
-vi.mock('../../src/db/plans.js', () => plans);
+vi.mock('../../src/db/plans/index.js', () => plans);
 const availability = vi.hoisted(() => ({ deleteAllForUser: vi.fn(async () => {}) }));
 vi.mock('../../src/db/availability.js', () => availability);
 const bot = vi.hoisted(() => ({ afterLeaving: vi.fn(async () => {}) }));

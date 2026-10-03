@@ -45,7 +45,7 @@ const fake = vi.hoisted(() => {
     };
 });
 
-vi.mock('../../src/db/plans.js', () => fake.db);
+vi.mock('../../src/db/plans/index.js', () => fake.db);
 vi.mock('../../src/db/mongo.js', () => ({ isMongoReady: () => true }));
 vi.mock('../../src/db/guilds.js', () => ({
     getGuildConfig: async () => ({ setupComplete: true, plansChannelId: 'c1', plannerRoleId: 'planners', timeZone: 'Europe/London' })

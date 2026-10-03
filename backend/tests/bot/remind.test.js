@@ -21,7 +21,7 @@ vi.mock('../../src/bot/client.js', () => ({
     }
 }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), setPlanCards: vi.fn(async () => {}), setDmsClosed: vi.fn(async () => {}) }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), setPlanCards: vi.fn(async () => {}), setDmsClosed: vi.fn(async () => {}) }));
 const prefs = vi.hoisted(() => ({ rows: {} }));
 vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanningPrefs: vi.fn(async () => prefs.rows) }));
 vi.mock('../../src/db/availability.js', async (real) => ({

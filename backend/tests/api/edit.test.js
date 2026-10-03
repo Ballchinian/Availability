@@ -44,7 +44,7 @@ vi.mock('../../src/db/practice.js', () => ({
 }));
 
 //planEdit is the real one. Saving stands in for the guarded write: it lands only on the rev it was read at.
-vi.mock('../../src/db/plans.js', async (real) => ({
+vi.mock('../../src/db/plans/index.js', async (real) => ({
     ...(await real()),
     getPlan: vi.fn(async (planId) => structuredClone(plans.get(planId) || null)),
     applyPlanEdit: vi.fn(async (plan, edit, by) => {
@@ -61,7 +61,7 @@ vi.mock('../../src/api/announce.js', () => stubs('announceAfter'));
 vi.mock('../../src/db/ratelimits.js', () => ({ takeAction: vi.fn(async () => ({ allowed: true })), refundAction: vi.fn() }));
 vi.mock('../../src/db/users.js', () => ({ getPlanningPrefs: vi.fn(async () => ({})) }));
 
-const db = await import('../../src/db/plans.js');
+const db = await import('../../src/db/plans/index.js');
 const bot = await import('../../src/bot/plans/index.js');
 const { announceAfter } = await import('../../src/api/announce.js');
 const { takeAction } = await import('../../src/db/ratelimits.js');

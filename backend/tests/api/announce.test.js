@@ -8,7 +8,7 @@ import { announceAfter } from '../../src/api/announce.js';
 
 const store = vi.hoisted(() => new Map());
 
-vi.mock('../../src/db/plans.js', () => ({
+vi.mock('../../src/db/plans/index.js', () => ({
     getPlan: vi.fn(async (planId) => store.get(planId) || null)
 }));
 

@@ -13,7 +13,7 @@ vi.mock('../../src/bot/client.js', () => ({
 }));
 
 const db = vi.hoisted(() => ({ setPlanOpener: vi.fn(), forgetProbeMessage: vi.fn(async () => {}) }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), ...db }));
 
 const pins = vi.hoisted(() => ({ pinMessage: vi.fn(async () => {}) }));
 vi.mock('../../src/bot/util.js', async (real) => ({ ...(await real()), ...pins }));

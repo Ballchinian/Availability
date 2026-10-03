@@ -29,7 +29,7 @@ const db = vi.hoisted(() => ({
     deletePlan: vi.fn(async () => {}),
     clearPlanCard: vi.fn(async () => {})
 }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/guilds.js', async (real) => ({ ...(await real()), getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 
 const { onThreadDelete } = await import('../../src/bot/cleanup.js');

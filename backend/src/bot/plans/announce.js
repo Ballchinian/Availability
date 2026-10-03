@@ -1,7 +1,7 @@
 import { ActionRowBuilder } from 'discord.js';
 import { client } from '../client.js';
 import { reviveThread } from '../util.js';
-import { markPlanCancelled, removeParticipant, addPlanEvent, setPlanCards } from '../../db/plans.js';
+import { markPlanCancelled, removeParticipant, addPlanEvent, setPlanCards } from '../../db/plans/index.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { refundAction } from '../../db/ratelimits.js';
 import { announceAfter } from '../../api/announce.js';

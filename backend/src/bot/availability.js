@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } from 'discord.js';
-import { getPlan, getPlanByThread, getOpenPlansForUser, getCollectingPlansForUser, confirmParticipant } from '../db/plans.js';
+import { getPlan, getPlanByThread, getOpenPlansForUser, getCollectingPlansForUser, confirmParticipant } from '../db/plans/index.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange } from '../db/availability.js';
 import { addAnswered } from '../db/users.js';

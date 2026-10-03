@@ -16,7 +16,7 @@ vi.mock('../../src/db/mongo.js', async (real) => ({
     })
 }));
 
-const { roundFor, setPlanChosen } = await import('../../src/db/plans.js');
+const { roundFor, setPlanChosen } = await import('../../src/db/plans/index.js');
 
 const SAT = '2026-09-12';
 const SUN = '2026-09-13';

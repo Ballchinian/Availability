@@ -1,4 +1,4 @@
-import { getPlan, getPlansDueToRepeat, getPlansNeedingRepair, claimForRepeat, releaseRepeatClaim, createPlan, setPlanChosen, setPlanRepeat, setNeedsRepair, addPlanEvent } from '../db/plans.js';
+import { getPlan, getPlansDueToRepeat, getPlansNeedingRepair, claimForRepeat, releaseRepeatClaim, createPlan, setPlanChosen, setPlanRepeat, setNeedsRepair, addPlanEvent } from '../db/plans/index.js';
 import { getGuildConfig } from '../db/guilds.js';
 import { isMongoReady } from '../db/mongo.js';
 import { client } from './client.js';

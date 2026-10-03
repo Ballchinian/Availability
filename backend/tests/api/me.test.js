@@ -42,7 +42,7 @@ vi.mock('../../src/db/guilds.js', () => ({ getGuildConfigs: vi.fn(async () => [{
 vi.mock('../../src/db/practice.js', () => ({
     getPracticePerson: vi.fn(async (id) => (id === 'practice_a' ? { id, ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: true } : null))
 }));
-vi.mock('../../src/db/plans.js', () => ({
+vi.mock('../../src/db/plans/index.js', () => ({
     getActivePlansForUser: vi.fn(async () => live),
     getFinishedPlansForUser: vi.fn(async () => over)
 }));

@@ -31,7 +31,7 @@ const guilds = vi.hoisted(() => ({
     getGuildConfig: vi.fn(async () => store.cfg),
     markSetupBroken: vi.fn(async () => {})
 }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/guilds.js', async (real) => ({ ...(await real()), ...guilds }));
 
 const { onChannelDelete } = await import('../../src/bot/cleanup.js');

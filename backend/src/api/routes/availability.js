@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireUser } from '../../lib/session.js';
 import { getAvailabilityInRange, replaceAvailabilityInRange, getAvailabilitySummary } from '../../db/availability.js';
 import { getUserById, setCoveredUntil, getPlanningPrefs } from '../../db/users.js';
-import { getCollectingPlansForUser } from '../../db/plans.js';
+import { getCollectingPlansForUser } from '../../db/plans/index.js';
 import { newlyCovered } from '../../lib/coverage.js';
 import { answersMoved } from '../../bot/plans/index.js';
 import { maxEnd } from '../../lib/dates.js';

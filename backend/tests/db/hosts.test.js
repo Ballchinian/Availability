@@ -63,7 +63,7 @@ vi.mock('../../src/db/mongo.js', () => {
     };
 });
 
-const { addHost, getActivePlansForUser, getFinishedPlansForUser, getLivePlansForUser, removeUserFromGuildPlans } = await import('../../src/db/plans.js');
+const { addHost, getActivePlansForUser, getFinishedPlansForUser, getLivePlansForUser, removeUserFromGuildPlans } = await import('../../src/db/plans/index.js');
 const { hostIdsOf } = await import('../../src/lib/hosts.js');
 const { canTakeOn } = await import('../../src/api/roles.js');
 

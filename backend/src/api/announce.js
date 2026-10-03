@@ -1,4 +1,4 @@
-import { getPlan } from '../db/plans.js';
+import { getPlan } from '../db/plans/index.js';
 
 //The last announcement queued for each plan, dropped once it has run
 const queues = new Map();

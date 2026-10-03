@@ -9,7 +9,7 @@ vi.mock('../../src/db/guilds.js', async (real) => ({
 }));
 //What /mylink finds for whoever runs it, set per case
 const theirs = vi.hoisted(() => ({ plans: [], prefs: {} }));
-vi.mock('../../src/db/plans.js', async (real) => ({
+vi.mock('../../src/db/plans/index.js', async (real) => ({
     ...(await real()),
     getPlanByThread: vi.fn(async (threadId) => (threadId === 't1' ? plan : null)),
     getLivePlansForUser: vi.fn(async () => theirs.plans)
@@ -18,7 +18,7 @@ vi.mock('../../src/db/users.js', async (real) => ({ ...(await real()), getPlanni
 
 const { attachEvents } = await import('../../src/bot/events.js');
 const { overviewUrl, planUrl, datesUrl } = await import('../../src/bot/util.js');
-const { getLivePlansForUser } = await import('../../src/db/plans.js');
+const { getLivePlansForUser } = await import('../../src/db/plans/index.js');
 const { todayIn } = await import('../../src/lib/zones.js');
 const { shiftDate } = await import('../../src/lib/dates.js');
 

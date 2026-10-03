@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireUser, issueSession, loadSession } from '../../lib/session.js';
 import { guildContext } from '../context.js';
 import { getPracticePeople, getPracticePerson, addPracticePerson, removePracticePerson } from '../../db/practice.js';
-import { removeUserFromGuildPlans } from '../../db/plans.js';
+import { removeUserFromGuildPlans } from '../../db/plans/index.js';
 import { deleteAllForUser } from '../../db/availability.js';
 import { getTokenVersion } from '../../db/users.js';
 import { getOutbox, outboxShape, deleteOutboxFor } from '../../db/outbox.js';

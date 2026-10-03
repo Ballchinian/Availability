@@ -1,5 +1,5 @@
 import { client } from '../client.js';
-import { setPlanCards, clearPlanCard, setDmsClosed } from '../../db/plans.js';
+import { setPlanCards, clearPlanCard, setDmsClosed } from '../../db/plans/index.js';
 import { getGuildConfig } from '../../db/guilds.js';
 import { getAvailabilityForUsersInRange, getLastUpdated } from '../../db/availability.js';
 import { getPlanningPrefs } from '../../db/users.js';

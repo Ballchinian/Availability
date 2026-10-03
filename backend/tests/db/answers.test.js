@@ -18,7 +18,7 @@ vi.mock('../../src/db/mongo.js', () => ({
     })
 }));
 
-const { confirmParticipant, recordVote, setIn, setSentBack } = await import('../../src/db/plans.js');
+const { confirmParticipant, recordVote, setIn, setSentBack } = await import('../../src/db/plans/index.js');
 
 const bo = () => store.doc.participants[0];
 

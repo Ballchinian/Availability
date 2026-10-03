@@ -1,6 +1,6 @@
 import { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, LabelBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { client } from '../client.js';
-import { getPlan, recordVote, addParticipants, setPlanCards, setIn } from '../../db/plans.js';
+import { getPlan, recordVote, addParticipants, setPlanCards, setIn } from '../../db/plans/index.js';
 import { getAvailabilityInRange, blockDay, setDayFree } from '../../db/availability.js';
 import { getPlanningPrefs } from '../../db/users.js';
 import { realMembers } from '../../lib/members.js';

@@ -22,7 +22,7 @@ const practice = vi.hoisted(() => ({ removePracticePeople: vi.fn(async () => [])
 vi.mock('../../src/db/practice.js', () => practice);
 const outbox = vi.hoisted(() => ({ deleteOutboxFor: vi.fn(async () => {}) }));
 vi.mock('../../src/db/outbox.js', () => outbox);
-vi.mock('../../src/db/plans.js', () => plans);
+vi.mock('../../src/db/plans/index.js', () => plans);
 const users = vi.hoisted(() => ({
     getUserById: vi.fn(),
     forgetUser: vi.fn(),

@@ -15,7 +15,7 @@ const db = vi.hoisted(() => ({
     addPlanEvent: vi.fn(async () => {}),
     setPlanCards: vi.fn(async () => {})
 }));
-vi.mock('../../src/db/plans.js', async (real) => ({ ...(await real()), ...db }));
+vi.mock('../../src/db/plans/index.js', async (real) => ({ ...(await real()), ...db }));
 vi.mock('../../src/db/guilds.js', () => ({ getGuildConfig: vi.fn(async () => ({ guildName: 'The server' })) }));
 vi.mock('../../src/bot/client.js', () => ({
     client: {

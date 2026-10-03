@@ -1,7 +1,7 @@
 import { ChannelType } from 'discord.js';
 import { client } from '../client.js';
 import { createThread, reviveThread, pinMessage } from '../util.js';
-import { setPlanThread, setPlanOpener, forgetProbeMessage } from '../../db/plans.js';
+import { setPlanThread, setPlanOpener, forgetProbeMessage } from '../../db/plans/index.js';
 import { fanOut } from '../../lib/fanout.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { outboxThreadId } from '../../lib/practice.js';

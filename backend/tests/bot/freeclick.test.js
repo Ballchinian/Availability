@@ -8,7 +8,7 @@ import { today, shiftDate, allowedDaysInRange } from '../../src/lib/dates.js';
 */
 
 const store = vi.hoisted(() => ({ plan: null }));
-vi.mock('../../src/db/plans.js', () => ({
+vi.mock('../../src/db/plans/index.js', () => ({
     getPlan: vi.fn(async () => store.plan),
     getPlanByThread: vi.fn(),
     getOpenPlansForUser: vi.fn(),
@@ -28,7 +28,7 @@ vi.mock('../../src/bot/plans/index.js', () => ({
 vi.mock('../../src/bot/util.js', () => ({ planUrl: () => 'https://example.test/plan' }));
 
 const { handleFree, handleFreeComponent } = await import('../../src/bot/availability.js');
-const { getPlanByThread } = await import('../../src/db/plans.js');
+const { getPlanByThread } = await import('../../src/db/plans/index.js');
 const { getGuildConfig } = await import('../../src/db/guilds.js');
 const { answersMoved } = await import('../../src/bot/plans/index.js');
 

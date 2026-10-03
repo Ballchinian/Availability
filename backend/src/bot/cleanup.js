@@ -1,6 +1,6 @@
 import { client } from './client.js';
 import { getGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
-import { getPlanByThread, deletePlan, deletePlansForGuild, deletePlansUnderChannel, removeUserFromGuildPlans, deletePracticePlans } from '../db/plans.js';
+import { getPlanByThread, deletePlan, deletePlansForGuild, deletePlansUnderChannel, removeUserFromGuildPlans, deletePracticePlans } from '../db/plans/index.js';
 import { removePracticePeople } from '../db/practice.js';
 import { deleteOutboxFor } from '../db/outbox.js';
 import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
