@@ -48,7 +48,7 @@ describe('leaving a server', () => {
         ]);
         await onGuildMemberRemove(member);
 
-        expect(plans.removeUserFromGuildPlans).toHaveBeenCalledWith('g1', 'bo');
+        expect(plans.removeUserFromGuildPlans).toHaveBeenCalledWith('g1', 'bo', expect.objectContaining({ id: 'bo' }));
         expect(bot.afterLeaving.mock.calls).toEqual([[live]]);
     });
 

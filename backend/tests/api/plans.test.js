@@ -509,7 +509,7 @@ describe('choosing the day a plan is already on', () => {
     it('carries a stored note through untouched', async () => {
         plans.set('ab12cd34ef', setPlan());
         await post('/ab12cd34ef/choose', { date: inWindow, time: '20:00', note: 'somewhere else' });
-        expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', 'meet at the station');
+        expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', 'meet at the station', { id: 'planner', name: 'Ali' });
     });
 
     //An invite list rebuilt on an update is how somebody put on the board by hand falls off it
@@ -561,7 +561,7 @@ describe('narrowing the list to the people who can make it', () => {
     it('keeps anyone who said Not for me on it', async () => {
         plans.set('ab12cd34ef', plan({ participants: [{ userId: 'ann', in: true }, { userId: 'bo', in: true }, { userId: 'cy', in: false }] }));
         await post('/ab12cd34ef/choose', { date: inWindow, inviteMode: 'attending', attendingIds: ['ann'] });
-        expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', inWindow, null, null, ['ann', 'cy']);
+        expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', inWindow, null, null, ['ann', 'cy'], { id: 'planner', name: 'Ali' });
     });
 });
 
@@ -857,7 +857,7 @@ describe('going back out for different dates', () => {
         const res = await dates({ ...window, participantIds: ['guest', 'newbie'] });
 
         expect(await res.json()).toMatchObject({ added: 1 });
-        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['newbie']);
+        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['newbie'], { id: 'planner', name: 'Ali' });
     });
 
     /*
@@ -872,7 +872,7 @@ describe('going back out for different dates', () => {
             expect(res.status).toBe(200);
             expect(await res.json()).toMatchObject({ set: true, chosenDate: ahead(40) });
             expect(db.setPlanDates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reopen: false }));
-            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), null, null);
+            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), null, null, null, { id: 'planner', name: 'Ali' });
         });
 
         it('records the day as asked about, the same as picking it off the grid', async () => {
@@ -915,7 +915,7 @@ describe('going back out for different dates', () => {
 
         it('takes the time along with the day', async () => {
             await dates({ date: ahead(40), time: '19:00' });
-            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), '19:00', null);
+            expect(db.setPlanChosen).toHaveBeenCalledWith('ab12cd34ef', ahead(40), '19:00', null, null, { id: 'planner', name: 'Ali' });
         });
 
         //The same fork the choose route takes: a day staying put is an edit, and keeps every answer
@@ -923,7 +923,7 @@ describe('going back out for different dates', () => {
             plans.set('ab12cd34ef', standing({ status: 'closed', chosenDate: ahead(40), chosenTime: '19:00' }));
             await dates({ date: ahead(40), time: '20:00' });
 
-            expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', null);
+            expect(db.setPlanWhen).toHaveBeenCalledWith('ab12cd34ef', '20:00', null, { id: 'planner', name: 'Ali' });
             expect(db.setPlanChosen).not.toHaveBeenCalled();
         });
 
@@ -1449,7 +1449,7 @@ describe('taking a plan on', () => {
 
         expect(res.status).toBe(200);
         //Ali comes off the list, having left
-        expect(db.addHost).toHaveBeenCalledWith('ab12cd34ef', 'stranger', ['planner']);
+        expect(db.addHost).toHaveBeenCalledWith('ab12cd34ef', 'stranger', ['planner'], expect.objectContaining({ id: 'stranger' }));
         expect(db.addPlanEvent).toHaveBeenCalledWith('ab12cd34ef', { type: 'tookon', by: 'stranger', byName: 'Cass' });
     });
 
@@ -1476,7 +1476,7 @@ describe('taking a plan on', () => {
     it('lets someone who can manage the server step in on any plan, and leaves whoever runs it on the list', async () => {
         plannerAnswer = { ...orphaned, isPlanner: false, canManage: true, guild: serverOf('planner', 'stranger') };
         expect((await post('/ab12cd34ef/takeon')).status).toBe(200);
-        expect(db.addHost).toHaveBeenCalledWith('ab12cd34ef', 'stranger', []);
+        expect(db.addHost).toHaveBeenCalledWith('ab12cd34ef', 'stranger', [], expect.objectContaining({ id: 'stranger' }));
     });
 
     it('says yes again to someone who already runs it, and writes nothing', async () => {

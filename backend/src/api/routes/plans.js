@@ -80,6 +80,9 @@ async function requireHost(req, res, next) {
     next();
 }
 
+//Whoever is making a change, for a form opened before it to name. See moved in db/plans.js.
+const byOf = (req) => ({ id: req.user.id, name: req.ctx.member.displayName });
+
 //Starting another plan like this one is starting a plan, so it takes the planner role as well as being on this one
 async function requirePlanner(req, res, next) {
     const ctx = await guildContext(req.plan.guildId, req.user.id, { requirePlanner: true });
@@ -508,7 +511,7 @@ router.post('/:planId/takeon', async (req, res) => {
     const over = finished(plan);
     if (over) return res.status(409).json({ error: over });
 
-    await addHost(plan.planId, req.user.id, listed.filter((id) => !here.includes(id)));
+    await addHost(plan.planId, req.user.id, listed.filter((id) => !here.includes(id)), { id: req.user.id, name: ctx.member.displayName });
     await addPlanEvent(plan.planId, { type: 'tookon', by: req.user.id, byName: ctx.member.displayName });
     announceAfter(plan.planId, 'take on', (current) => addHostToThread(current, req.user.id));
 
@@ -558,7 +561,7 @@ router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => 
         }
 
         const was = { time: plan.chosenTime || null, note: cleanNote };
-        await setPlanWhen(plan.planId, cleanTime, cleanNote);
+        await setPlanWhen(plan.planId, cleanTime, cleanNote, byOf(req));
 
         await addPlanEvent(plan.planId, {
             type: 'when',
@@ -595,7 +598,7 @@ router.post('/:planId/choose', requireHost, refuseFinished, async (req, res) => 
 
     //If a date was already set and this is a different one, it is a reorganise
     const changed = Boolean(plan.chosenDate && plan.chosenDate !== date);
-    await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds);
+    await setPlanChosen(plan.planId, date, cleanTime, cleanNote, invitedIds, byOf(req));
 
     const event = { type: changed ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: true };
     //The day it moved off, which is the whole point of recording a move rather than a set
@@ -901,7 +904,7 @@ router.post('/:planId/dates', requireHost, refuseFinished, async (req, res) => {
         repeatWeeks: wanted,
         reopen
     });
-    if (toAdd.length) await addParticipants(plan.planId, toAdd);
+    if (toAdd.length) await addParticipants(plan.planId, toAdd, byOf(req));
 
     if (setMode) {
         /*
@@ -909,12 +912,12 @@ router.post('/:planId/dates', requireHost, refuseFinished, async (req, res) => {
             the time, which costs nobody their answer; a day that moved starts the round again.
         */
         if (movedDay) {
-            await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null);
+            await setPlanChosen(plan.planId, date, cleanTime, plan.chosenNote || null, null, byOf(req));
             const event = { type: plan.chosenDate ? 'moved' : 'chosen', by: req.user.id, byName: ctx.member.displayName, date, time: cleanTime, probe: true };
             if (plan.chosenDate) event.from = plan.chosenDate;
             await addPlanEvent(plan.planId, event);
         } else {
-            await setPlanWhen(plan.planId, cleanTime, plan.chosenNote || null);
+            await setPlanWhen(plan.planId, cleanTime, plan.chosenNote || null, byOf(req));
             await addPlanEvent(plan.planId, {
                 type: 'when',
                 by: req.user.id,
@@ -1067,7 +1070,7 @@ router.post('/:planId/add', requireHost, refuseFinished, async (req, res) => {
     const toAdd = await realMembers(ctx.guild, userIds.filter((id) => !already.has(id)));
     if (toAdd.length === 0) return res.status(400).json({ error: 'Nobody new to add there.' });
 
-    await addParticipants(plan.planId, toAdd);
+    await addParticipants(plan.planId, toAdd, byOf(req));
 
     await addPlanEvent(plan.planId, { type: 'added', by: req.user.id, byName: ctx.member.displayName, count: toAdd.length });
 

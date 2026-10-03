@@ -87,6 +87,17 @@ function clearedProbe(invitedIds = null) {
 const unconfirmAll = { 'participants.$[].confirmed': false, 'participants.$[].confirmedAt': null };
 
 /*
+    Every write that changes something the edit form sends moves rev on, so a form opened
+    before it is refused rather than saving over it. by is { id, name } of whoever made
+    the change, for that refusal to name. Answers leave rev alone: the form never sends
+    one, so it cannot save over one, and a plan people are busy answering would otherwise
+    refuse every edit made to it.
+*/
+function moved(update, by = null) {
+    return { ...update, $set: { ...update.$set, revBy: by }, $inc: { rev: 1 } };
+}
+
+/*
     A plan gathers a handful of these at most, but nothing ever prunes them, so the list
     is capped and the oldest fall off the end rather than growing without limit.
 */
@@ -287,7 +298,7 @@ export async function setGuildPlansTimeZone(guildId, timeZone) {
 
 //Turn repeating on or off. Null is a one off, and stopping never touches the plans already made.
 export async function setPlanRepeat(planId, repeatWeeks) {
-    await col(collections.plans).updateOne({ planId }, { $set: { repeatWeeks: repeatWeeks || null } });
+    await col(collections.plans).updateOne({ planId }, moved({ $set: { repeatWeeks: repeatWeeks || null } }));
     return getPlan(planId);
 }
 
@@ -375,12 +386,12 @@ export function roundFor(plan, date) {
     wiped and everyone is asked about this one, a set day always asking. invitedIds
     is who stays invited for this date, null keeps everyone on the list.
 */
-export async function setPlanChosen(planId, date, time = null, note = null, invitedIds = null) {
+export async function setPlanChosen(planId, date, time = null, note = null, invitedIds = null, by = null) {
     const { restore, ...turn } = roundFor(await getPlan(planId), date);
     const { set, options } = clearedProbe(invitedIds);
     await col(collections.plans).updateOne(
         { planId },
-        { $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set, probeActive: true, ...turn } },
+        moved({ $set: { chosenDate: date, chosenTime: time, chosenNote: note, status: 'closed', ...set, probeActive: true, ...turn } }, by),
         options
     );
     //After the wipe above rather than in it, since the wipe reaches every participant
@@ -410,8 +421,8 @@ export async function setPlanChosen(planId, date, time = null, note = null, invi
     every vote, the confirmation and the invite list all stand, since the day people
     answered about is the same day. Going through setPlanChosen for this wiped the lot.
 */
-export async function setPlanWhen(planId, time, note) {
-    await col(collections.plans).updateOne({ planId }, { $set: { chosenTime: time, chosenNote: note } });
+export async function setPlanWhen(planId, time, note, by = null) {
+    await col(collections.plans).updateOne({ planId }, moved({ $set: { chosenTime: time, chosenNote: note } }, by));
     return getPlan(planId);
 }
 
@@ -426,7 +437,7 @@ export async function setPlanWhen(planId, time, note) {
 export async function markPlanCancelled(planId) {
     return col(collections.plans).findOneAndUpdate(
         { planId, status: { $ne: 'cancelled' } },
-        { $set: { status: 'cancelled' } },
+        moved({ $set: { status: 'cancelled' } }),
         { returnDocument: 'after' }
     );
 }
@@ -486,7 +497,7 @@ export async function setPlanDates(planId, { start, end, allowedWeekdays, repeat
         });
     }
 
-    await col(collections.plans).updateOne({ planId }, { $set: set });
+    await col(collections.plans).updateOne({ planId }, moved({ $set: set }));
     return getPlan(planId);
 }
 
@@ -507,7 +518,7 @@ export async function setPlanOpener(planId, messageId) {
     that still holds an old note lets go of it, the form having offered both joined up.
 */
 export async function setPlanDetails(planId, name, description) {
-    await col(collections.plans).updateOne({ planId }, { $set: { name, description, chosenNote: null } });
+    await col(collections.plans).updateOne({ planId }, moved({ $set: { name, description, chosenNote: null } }));
     return getPlan(planId);
 }
 
@@ -542,13 +553,13 @@ export async function deletePlansUnderChannel(guildId, channelId, { unknownParen
     would lose whoever made it. Three writes, each safe to land twice, so two people taking
     a plan on together both end up running it.
 */
-export async function addHost(planId, userId, gone = []) {
+export async function addHost(planId, userId, gone = [], by = null) {
     const plan = await getPlan(planId);
     if (!plan) return null;
     const plans = col(collections.plans);
     await plans.updateOne({ planId, hostIds: { $exists: false } }, { $set: { hostIds: hostIdsOf(plan) } });
     if (gone.length) await plans.updateOne({ planId }, { $pull: { hostIds: { $in: gone } } });
-    await plans.updateOne({ planId }, { $addToSet: { hostIds: userId } });
+    await plans.updateOne({ planId }, moved({ $addToSet: { hostIds: userId } }, by));
     return getPlan(planId);
 }
 
@@ -558,19 +569,19 @@ export async function addHost(planId, userId, gone = []) {
     down as empty first, or it would go on reading as run by them. Hands back the plans
     they were on, as they now stand, since whoever is left may now all have answered.
 */
-export async function removeUserFromGuildPlans(guildId, userId) {
+export async function removeUserFromGuildPlans(guildId, userId, by = null) {
     const plans = col(collections.plans);
     const ids = (await plans.find({ $and: [{ guildId }, onPlan(userId)] }).toArray()).map((plan) => plan.planId);
     if (!ids.length) return [];
 
     await plans.updateMany({ guildId, hostIds: { $exists: false }, createdBy: userId }, { $set: { hostIds: [] } });
-    await plans.updateMany({ guildId }, { $pull: { participants: { userId }, hostIds: userId } });
+    await plans.updateMany({ planId: { $in: ids } }, moved({ $pull: { participants: { userId }, hostIds: userId } }, by));
     return plans.find({ planId: { $in: ids } }).toArray();
 }
 
 //Drop one person from a single plan's guest list, for when they opt out themselves
-export async function removeParticipant(planId, userId) {
-    await col(collections.plans).updateOne({ planId }, { $pull: { participants: { userId } } });
+export async function removeParticipant(planId, userId, by = null) {
+    await col(collections.plans).updateOne({ planId }, moved({ $pull: { participants: { userId } } }, by));
     return getPlan(planId);
 }
 
@@ -581,7 +592,7 @@ export async function removeParticipant(planId, userId) {
     them is, so two adds landing together cannot put the same person on twice. When the
     other add got there first the write misses and this reads the plan again.
 */
-export async function addParticipants(planId, userIds) {
+export async function addParticipants(planId, userIds, by = null) {
     const ids = [...new Set(userIds)];
     for (let tries = 0; tries < 3; tries++) {
         const plan = await getPlan(planId);
@@ -592,11 +603,11 @@ export async function addParticipants(planId, userIds) {
 
         const res = await col(collections.plans).updateOne(
             { planId, 'participants.userId': { $nin: fresh } },
-            {
+            moved({
                 $push: { participants: { $each: fresh.map((id) => freshParticipant(id)) } },
                 //A new face means not everyone is in yet, so let the all-in nudge fire again later
                 $set: { allInNotifiedAt: null }
-            }
+            }, by)
         );
         if (res.modifiedCount) return getPlan(planId);
     }

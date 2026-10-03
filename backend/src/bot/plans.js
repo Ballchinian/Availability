@@ -927,7 +927,7 @@ export async function leavePlan(plan, userId, actorName) {
 }
 
 async function dropOut(plan, userId, actorName) {
-    const updated = await removeParticipant(plan.planId, userId);
+    const updated = await removeParticipant(plan.planId, userId, { id: userId, name: actorName || '' });
     await addPlanEvent(plan.planId, { type: 'left', by: userId, byName: actorName || '' }).catch(() => {});
     return updated;
 }
@@ -1041,7 +1041,7 @@ export async function handleUndrop(interaction) {
         if (!guild || !(await realMembers(guild, [interaction.user.id])).length) {
             return interaction.update({ content: `You are not in the server "${plan.name}" is in anymore, so I cannot put you back on it.`, components: [] });
         }
-        await addParticipants(planId, [interaction.user.id]);
+        await addParticipants(planId, [interaction.user.id], { id: interaction.user.id, name: await memberName(plan.guildId, interaction.user.id) });
     }
 
     const updated = await setIn(planId, interaction.user.id, true);

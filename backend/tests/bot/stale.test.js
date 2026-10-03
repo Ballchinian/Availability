@@ -81,7 +81,7 @@ describe('undoing a drop out', () => {
     it('puts someone still in the server back on', async () => {
         store.plan = dropped();
         await handleUndrop(press('undrop|ab12cd34ef')).catch(() => {});
-        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['bo']);
+        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['bo'], expect.objectContaining({ id: 'bo' }));
     });
 
     it('turns away someone who has left the server', async () => {

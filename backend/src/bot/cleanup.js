@@ -87,7 +87,7 @@ export async function onGuildDelete(guild) {
 }
 
 export async function onGuildMemberRemove(member) {
-    const plans = await removeUserFromGuildPlans(member.guild.id, member.id);
+    const plans = await removeUserFromGuildPlans(member.guild.id, member.id, { id: member.id, name: member.displayName || '' });
     /*
         Whoever is left on a plan may now all have answered, which nothing else would
         notice, and a set day's pin was counting them. A plan that is over has nobody

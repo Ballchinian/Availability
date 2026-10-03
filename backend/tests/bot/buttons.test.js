@@ -287,7 +287,7 @@ describe('count me in and not for me', () => {
 
         await handleUndrop(press('undrop|ab12cd34ef'));
 
-        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['bo']);
+        expect(db.addParticipants).toHaveBeenCalledWith('ab12cd34ef', ['bo'], expect.objectContaining({ id: 'bo' }));
         expect(db.setIn).toHaveBeenCalledWith('ab12cd34ef', 'bo', true);
         expect(order).toEqual(['answered', 'dm planner']);
         expect(dms[0].payload).toBe('**BACK IN**\n\nBo is in for "Board games" in The server after all.');
