@@ -4,12 +4,14 @@ import { requireUser } from '../../lib/session.js';
 import { getUserById, setUserGuilds, setUserTimeZone, getPlanningPrefs } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
 import { getActivePlansForUser, getFinishedPlansForUser } from '../../db/plans.js';
+import { getPracticePerson } from '../../db/practice.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { planRole } from '../roles.js';
 import { today } from '../../lib/dates.js';
 import { isValidZone, safeZone } from '../../lib/zones.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { rowFor } from '../../lib/coverage.js';
+import { isPracticeId } from '../../lib/practice.js';
 
 /*
     What the landing page runs on. Every other screen arrives from a link the bot
@@ -36,7 +38,23 @@ async function sharedGuildIds(userId) {
     return ids;
 }
 
+//A made-up person's one server, which Discord knows nothing about them in
+async function practiceGuilds(personId) {
+    const person = await getPracticePerson(personId);
+    if (!person) return [];
+    const [cfg] = await getGuildConfigs([person.guildId]);
+    const guild = client.guilds.cache.get(person.guildId);
+    return [{
+        guildId: person.guildId,
+        guildName: cfg?.guildName || guild?.name || '',
+        iconUrl: guild?.iconURL({ size: 64 }) || null,
+        setupComplete: Boolean(cfg?.setupComplete),
+        isPlanner: person.planner
+    }];
+}
+
 router.get('/guilds', requireUser, async (req, res) => {
+    if (isPracticeId(req.user.id)) return res.json({ guilds: await practiceGuilds(req.user.id) });
     const ids = await sharedGuildIds(req.user.id);
     const configs = await getGuildConfigs(ids);
     const byId = new Map(configs.map((cfg) => [cfg.guildId, cfg]));

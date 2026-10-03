@@ -7,6 +7,9 @@ import express from 'express';
 */
 
 let sessionUser = null;
+//Set while viewing as someone made up
+let realUser = null;
+const issued = [];
 const stored = [];
 //Where the requester plans, by server
 const planner = new Map();
@@ -14,9 +17,13 @@ const planner = new Map();
 vi.mock('../../src/lib/session.js', () => ({
     requireUser: (req, res, next) => {
         req.user = sessionUser;
+        req.realUser = realUser || sessionUser;
         next();
-    }
+    },
+    loadSession: async () => (sessionUser ? { user: sessionUser, real: realUser || sessionUser, tv: 3, ended: null } : null),
+    issueSession: (res, user, tv, real = null) => issued.push({ user, tv, real })
 }));
+vi.mock('../../src/db/users.js', () => ({ getTokenVersion: async () => 3 }));
 vi.mock('../../src/api/context.js', () => ({
     guildContext: vi.fn(async (guildId, userId, { requirePlanner = false } = {}) => {
         if (!planner.has(guildId)) return { error: 404, message: 'I am not in that server.' };
@@ -71,6 +78,8 @@ beforeEach(() => {
     planner.set('g1', true);
     planner.set('g2', false);
     sessionUser = { id: 'ali', displayName: 'Ali' };
+    realUser = null;
+    issued.length = 0;
 });
 
 const add = (body) => fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -149,5 +158,56 @@ describe('removing someone', () => {
         sessionUser = { id: 'sam', displayName: 'Sam' };
         expect((await fetch(`${base}/practice_a`, { method: 'DELETE' })).status).toBe(404);
         expect(stored).toHaveLength(1);
+    });
+});
+
+describe('viewing as someone made up', () => {
+    const pat = { id: 'practice_a', ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: false };
+    const as = (id) => fetch(`${base}/as/${id}`, { method: 'POST' });
+
+    beforeEach(() => {
+        stored.push(pat);
+    });
+
+    it('signs the session in as them, with the planner behind it', async () => {
+        const res = await as('practice_a');
+        expect(res.status).toBe(200);
+        expect(issued).toEqual([{ user: { id: 'practice_a', username: '', displayName: 'Pat', avatar: '' }, tv: 3, real: sessionUser }]);
+    });
+
+    it("is never someone else's made-up person", async () => {
+        sessionUser = { id: 'sam', displayName: 'Sam' };
+        expect((await as('practice_a')).status).toBe(404);
+        expect(issued).toHaveLength(0);
+    });
+
+    it('takes the planner role in their server', async () => {
+        planner.set('g1', false);
+        expect((await as('practice_a')).status).toBe(403);
+        expect(issued).toHaveLength(0);
+    });
+
+    //Switching from one to the next goes by who is really there
+    it('moves straight on to another of theirs', async () => {
+        stored.push({ ...pat, id: 'practice_b', displayName: 'Lou' });
+        realUser = { id: 'ali', displayName: 'Ali' };
+        sessionUser = { id: 'practice_a', displayName: 'Pat' };
+        expect((await as('practice_b')).status).toBe(200);
+        expect(issued[0].real).toEqual(realUser);
+    });
+
+    it('goes back to the planner', async () => {
+        realUser = { id: 'ali', displayName: 'Ali' };
+        sessionUser = { id: 'practice_a', displayName: 'Pat' };
+        const res = await fetch(`${base}/back`, { method: 'POST' });
+        expect(await res.json()).toEqual({ user: realUser, real: null });
+        expect(issued).toEqual([{ user: realUser, tv: 3, real: null }]);
+    });
+
+    it('makes and removes people as the planner while viewing as one', async () => {
+        realUser = { id: 'ali', displayName: 'Ali' };
+        sessionUser = { id: 'practice_a', displayName: 'Pat' };
+        await add({ guildId: 'g1', displayName: 'Kim' });
+        expect(stored.at(-1).ownerId).toBe('ali');
     });
 });

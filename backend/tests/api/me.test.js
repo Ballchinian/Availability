@@ -38,7 +38,10 @@ vi.mock('../../src/bot/client.js', () => ({
     }
 }));
 vi.mock('../../src/bot/cleanup.js', () => ({ computeUserGuilds: vi.fn() }));
-vi.mock('../../src/db/guilds.js', () => ({ getGuildConfigs: vi.fn(async () => [{ guildId: 'g1', guildName: 'The server' }]) }));
+vi.mock('../../src/db/guilds.js', () => ({ getGuildConfigs: vi.fn(async () => [{ guildId: 'g1', guildName: 'The server', setupComplete: true }]) }));
+vi.mock('../../src/db/practice.js', () => ({
+    getPracticePerson: vi.fn(async (id) => (id === 'practice_a' ? { id, ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: true } : null))
+}));
 vi.mock('../../src/db/plans.js', () => ({
     getActivePlansForUser: vi.fn(async () => live),
     getFinishedPlansForUser: vi.fn(async () => over)
@@ -180,5 +183,15 @@ describe('my plans', () => {
         const [host] = (await read()).plans;
         expect(host.datesPassed).toBe(true);
         expect(nextStep(host)).toMatchObject({ label: 'Ask about new dates', page: 'dates' });
+    });
+});
+
+//Discord has never heard of a made-up person, so their one server comes off the record of them
+describe("a made-up person's servers", () => {
+    it('is the server they were made for, planner or not as they were made', async () => {
+        sessionUser = { id: 'practice_a' };
+        const { guilds } = await (await fetch(`${base}/guilds`)).json();
+        expect(guilds).toEqual([{ guildId: 'g1', guildName: 'The server', iconUrl: null, setupComplete: true, isPlanner: true }]);
+        expect(users.getUserById).not.toHaveBeenCalled();
     });
 });

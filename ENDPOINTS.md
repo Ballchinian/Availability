@@ -18,6 +18,8 @@ Most actions also depend on where the requester stands:
 
 A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.
 
+A planner can view the site as one of their made-up people (see Practice below). The session is then that person's, with the planner carried beside them, and every route acts as the made-up person. Logout and the version check go by the planner. Every request also checks that the made-up person is still there and the planner still has the planner role in its server; when either has gone, the request is refused with `401` and `practiceEnded: true`, and the cookie is signed back in as the planner.
+
 A plan that is over can't be changed: one called off, or one whose day has been on the server's clock. Every route that would change one answers `409`. Without that, a host with no planner role could send last month's plan back out for dates and have started a new one.
 
 ## Clocks
@@ -113,7 +115,7 @@ Clear the session cookie and retire the token behind it.
 
 ## GET `/api/auth/me`
 
-Return the logged-in person, or `null` if nobody is.
+Return the logged-in person as `user`, or `null` if nobody is. While a planner views the site as someone made up, `user` is that person and `real` is the planner; otherwise `real` is `null`. A practice session that has had to end is signed back in as the planner here, and comes back as them.
 
 ---
 
@@ -837,3 +839,40 @@ Remove one of the requester's made-up people.
 ### Notes
 
 * Needs no planner role, since it only takes away. Someone else's, or an id that isn't there, is `404`.
+
+---
+
+## POST `/api/practice/as/:id` (session)
+
+View the site as one of the requester's made-up people.
+
+### Effects
+
+* The session cookie is signed in as that person, with the requester carried as the planner behind them. See Authentication above.
+
+### Returns
+
+* `user`, the made-up person, and `real`, the planner
+
+### Notes
+
+* Only the requester's own, and only while they have the planner role in its server. Works the same while already viewing as another of theirs.
+* The list, adding and removing above all act for the planner, even while they view the site as someone.
+
+---
+
+## POST `/api/practice/back`
+
+Back to the planner.
+
+### Effects
+
+* The session cookie is signed in as the planner again.
+
+### Returns
+
+* `user`, the planner, and `real` as `null`
+
+### Notes
+
+* Read straight off the cookie rather than through the usual check, so it still works once practice has had to end.
