@@ -4,14 +4,12 @@ import { requireUser } from '../../lib/session.js';
 import { getUserById, setUserGuilds, setUserTimeZone, getPlanningPrefs } from '../../db/users.js';
 import { getGuildConfigs } from '../../db/guilds.js';
 import { getActivePlansForUser, getFinishedPlansForUser } from '../../db/plans/index.js';
-import { getPracticePerson } from '../../db/practice.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { planRole } from '../roles.js';
 import { today } from '../../lib/dates.js';
 import { isValidZone, safeZone } from '../../lib/zones.js';
 import { hostIdsOf } from '../../lib/hosts.js';
 import { rowFor } from '../../lib/coverage.js';
-import { isPracticeId } from '../../lib/practice.js';
 import { memberOf } from '../../lib/members.js';
 
 /*
@@ -39,23 +37,7 @@ async function sharedGuildIds(userId) {
     return ids;
 }
 
-//A made-up person's one server, which Discord knows nothing about them in
-async function practiceGuilds(personId) {
-    const person = await getPracticePerson(personId);
-    if (!person) return [];
-    const [cfg] = await getGuildConfigs([person.guildId]);
-    const guild = client.guilds.cache.get(person.guildId);
-    return [{
-        guildId: person.guildId,
-        guildName: cfg?.guildName || guild?.name || '',
-        iconUrl: guild?.iconURL({ size: 64 }) || null,
-        setupComplete: Boolean(cfg?.setupComplete),
-        isPlanner: person.planner
-    }];
-}
-
 router.get('/guilds', requireUser, async (req, res) => {
-    if (isPracticeId(req.user.id)) return res.json({ guilds: await practiceGuilds(req.user.id) });
     const ids = await sharedGuildIds(req.user.id);
     const configs = await getGuildConfigs(ids);
     const byId = new Map(configs.map((cfg) => [cfg.guildId, cfg]));
@@ -161,16 +143,13 @@ router.get('/plans', requireUser, async (req, res) => {
         getPlanningPrefs([...new Set([req.user.id, ...waitingOn.flatMap((plan) => plan.participants.map((p) => p.userId))])])
     ]);
     const names = new Map(configs.map((cfg) => [cfg.guildId, cfg.guildName]));
-    const rows = async (plans) => (await Promise.all(plans.map((plan) => planRow(plan, req.user.id, names, prefs)))).filter(Boolean);
-    //A planner's own practice plans are kept off their real list, and a made-up person has nothing else
-    const real = (plans) => (isPracticeId(req.user.id) ? plans : plans.filter((plan) => !plan.practice));
-    const [plans, past, practice] = await Promise.all([rows(real(live)), rows(real(over)), rows(live.filter((plan) => plan.practice && !isPracticeId(req.user.id)))]);
+    const rows = (plans) => Promise.all(plans.map((plan) => planRow(plan, req.user.id, names, prefs)));
+    const [plans, past] = await Promise.all([rows(live), rows(over)]);
 
     res.json({
-        plans,
+        plans: plans.filter(Boolean),
         //The ones that are done with, kept apart so the live list stays what the page opens on
-        past,
-        practice
+        past: past.filter(Boolean)
     });
 });
 

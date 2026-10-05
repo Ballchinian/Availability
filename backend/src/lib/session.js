@@ -22,14 +22,9 @@ const MAX_AGE_MS = MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 //Secure cookies only make sense once we are actually on https
 const secure = config.baseUrl.startsWith('https');
 
-/*
-    real is set while a planner views the site as one of their made-up people: user is
-    that person, real is the planner, and tokenVersion is the planner's, so their logout
-    ends this too.
-*/
-export function issueSession(res, user, tokenVersion = 0, real = null) {
+export function issueSession(res, user, tokenVersion = 0) {
     const token = jwt.sign(
-        { uid: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, tv: tokenVersion, ...(real ? { real } : {}) },
+        { uid: user.id, username: user.username, displayName: user.displayName, avatar: user.avatar, tv: tokenVersion },
         config.sessionSecret,
         { expiresIn: `${MAX_AGE_DAYS}d` }
     );
@@ -50,9 +45,15 @@ function readToken(req) {
     }
 }
 
-//tokenVersion stays out of this: it is a detail of the check, not part of who they are
+/*
+    tokenVersion stays out of this: it is a detail of the check, not part of who they are.
+    A token signed while practice mode let a planner view the site as someone made up
+    carries the planner in real, under the planner's tokenVersion, and reads as them.
+    Tokens last MAX_AGE_DAYS, so real can go a month after practice mode went.
+*/
 function asUser(p) {
-    return { id: p.uid, username: p.username, displayName: p.displayName, avatar: p.avatar, ...(p.real ? { real: p.real } : {}) };
+    const who = p.real ?? { id: p.uid, username: p.username, displayName: p.displayName, avatar: p.avatar };
+    return { id: who.id, username: who.username, displayName: who.displayName, avatar: who.avatar };
 }
 
 /*
@@ -76,45 +77,18 @@ export function getSessionUser(req) {
 export async function loadSessionUser(req) {
     const p = readToken(req);
     if (!p) return null;
-    if (!isMongoReady()) return asUser(p);
+    const user = asUser(p);
+    if (!isMongoReady()) return user;
 
-    const current = await getTokenVersion(p.real?.id ?? p.uid);
+    const current = await getTokenVersion(user.id);
     if (current !== null && current !== (p.tv || 0)) return null;
-    return asUser(p);
+    return user;
 }
 
-/*
-    The session as the routes take it: who it is for, and who is really there, the same
-    person unless a planner is viewing as someone made up. That has to stop the moment
-    they could not start it again, and ended says why. The person is then the planner,
-    for the caller to sign back in as. Loaded only for a practice session, since it
-    reaches for Discord.
-*/
-export async function loadSession(req) {
-    const found = await loadSessionUser(req);
-    if (!found) return null;
-    const { real, ...user } = found;
-    const tv = readToken(req).tv || 0;
-    if (!real) return { user, real: user, tv, ended: null };
-
-    const { practiceEnded } = await import('../api/practising.js');
-    const ended = await practiceEnded(user.id, real.id);
-    return ended ? { user: real, real, tv, ended } : { user, real, tv, ended: null };
-}
-
-/*
-    Gate for routes that need someone logged in. A practice session that has had to end
-    is refused rather than carried on as the planner, since whatever it was about to do
-    was meant for somebody else.
-*/
+//Gate for routes that need someone logged in
 export async function requireUser(req, res, next) {
-    const session = await loadSession(req);
-    if (!session) return res.status(401).json({ error: 'You need to log in first.' });
-    if (session.ended) {
-        issueSession(res, session.real, session.tv);
-        return res.status(401).json({ error: session.ended, practiceEnded: true });
-    }
-    req.user = session.user;
-    req.realUser = session.real;
+    const user = await loadSessionUser(req);
+    if (!user) return res.status(401).json({ error: 'You need to log in first.' });
+    req.user = user;
     next();
 }

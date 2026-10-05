@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireUser } from '../../../lib/session.js';
 import { getPlan } from '../../../db/plans/index.js';
 import { ipLimit } from '../../../lib/iplimit.js';
-import { hiddenFrom } from './gates.js';
 import { answerRoutes } from './answers.js';
 import { overviewRoutes } from './overview.js';
 import { runningRoutes } from './running.js';
@@ -41,7 +40,7 @@ router.use(requireUser);
 */
 router.param('planId', async (req, res, next, planId) => {
     const plan = await getPlan(planId);
-    if (!plan || hiddenFrom(plan, req)) return res.status(404).json({ error: 'That plan does not exist.' });
+    if (!plan) return res.status(404).json({ error: 'That plan does not exist.' });
     req.plan = plan;
     next();
 });

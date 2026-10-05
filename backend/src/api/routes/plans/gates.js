@@ -2,15 +2,8 @@ import { guildContext } from '../../context.js';
 import { planRole } from '../../roles.js';
 import { formatDate } from '../../../lib/dates.js';
 import { dayHasPassed } from '../../../lib/zones.js';
-import { isPracticeId } from '../../../lib/practice.js';
 
 //Who can do what to a plan, checked before a route runs
-
-//A practice plan is there for the planner it is for and their made-up people, who see nothing else
-export function hiddenFrom(plan, req) {
-    if (isPracticeId(req.user.id)) return plan.practice !== req.realUser.id;
-    return Boolean(plan.practice) && plan.practice !== req.user.id;
-}
 
 /*
     For whoever runs the plan, planner role or not, and always about the plan's own

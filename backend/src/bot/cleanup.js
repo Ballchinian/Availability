@@ -1,8 +1,6 @@
 import { client } from './client.js';
 import { getGuildConfig, deleteGuildConfig, markSetupBroken } from '../db/guilds.js';
-import { getPlanByThread, deletePlan, deletePlansForGuild, deletePlansUnderChannel, removeUserFromGuildPlans, deletePracticePlans } from '../db/plans/index.js';
-import { removePracticePeople } from '../db/practice.js';
-import { deleteOutboxFor } from '../db/outbox.js';
+import { getPlanByThread, deletePlan, deletePlansForGuild, deletePlansUnderChannel, removeUserFromGuildPlans } from '../db/plans/index.js';
 import { getUserById, forgetUser, getUsersInGuild, removeUserGuild, addUserGuild } from '../db/users.js';
 import { deleteAllForUser } from '../db/availability.js';
 import { findWritableChannel } from './util.js';
@@ -77,36 +75,9 @@ export async function onChannelDelete(channel) {
     }
 }
 
-/*
-    A planner's practice in a server goes once they cannot practise there any more: their
-    made-up people, the practice plans that hold them, and everything kept for either.
-    Their own cards on those plans say the plan has gone, as a deleted thread's do.
-*/
-export async function forgetPractice(ownerId, guildId) {
-    const plans = await deletePracticePlans(ownerId, guildId);
-    for (const plan of plans) {
-        await syncPlanCards({ ...plan, deleted: true }).catch((err) => console.error('[cleanup] retiring practice cards failed:', err));
-    }
-    const people = await removePracticePeople(ownerId, guildId);
-    for (const id of people) await deleteAllForUser(id);
-    await deleteOutboxFor(plans.map((plan) => plan.planId), people);
-}
-
-//Losing the planner role ends practice. A member from before the cache filled says nothing of before, so is checked anyway.
-export async function onGuildMemberUpdate(before, after) {
-    const cfg = await getGuildConfig(after.guild.id);
-    if (!cfg?.plannerRoleId || after.roles.cache.has(cfg.plannerRoleId)) return;
-    if (!before.partial && !before.roles.cache.has(cfg.plannerRoleId)) return;
-    await forgetPractice(after.id, after.guild.id);
-}
-
 export async function onGuildDelete(guild) {
-    const plans = await deletePlansForGuild(guild.id);
+    await deletePlansForGuild(guild.id);
     await deleteGuildConfig(guild.id);
-    //Made-up people first, so the loop below does not leave each a record with only a session version on it
-    const people = await removePracticePeople(null, guild.id);
-    for (const id of people) await deleteAllForUser(id);
-    await deleteOutboxFor(plans.filter((plan) => plan.practice).map((plan) => plan.planId), people);
 
     const users = await getUsersInGuild(guild.id);
     for (const u of users) {
@@ -116,8 +87,6 @@ export async function onGuildDelete(guild) {
 }
 
 export async function onGuildMemberRemove(member) {
-    //Before the plans they leave, so a practice plan of theirs is gone rather than told they left it
-    await forgetPractice(member.id, member.guild.id);
     const plans = await removeUserFromGuildPlans(member.guild.id, member.id, { id: member.id, name: member.displayName || '' });
     /*
         Whoever is left on a plan may now all have answered, which nothing else would

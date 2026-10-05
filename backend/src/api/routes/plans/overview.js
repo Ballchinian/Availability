@@ -11,8 +11,7 @@ import { shiftDate } from '../../../lib/dates.js';
 import { safeZone } from '../../../lib/zones.js';
 import { gatherFreeDays } from '../../../lib/freedays.js';
 import { answersOn, daysToFill, toFillRuns, coverageOf, standing, inOf } from '../../../lib/coverage.js';
-import { realMembers, listMembers, namesFor, memberOf, practiceCircle } from '../../../lib/members.js';
-import { getOutbox, outboxShape } from '../../../db/outbox.js';
+import { realMembers, listMembers, memberOf } from '../../../lib/members.js';
 import { hostIdsOf } from '../../../lib/hosts.js';
 import { requireHost, requirePlanner, finished } from './gates.js';
 
@@ -152,12 +151,10 @@ export function overviewRoutes(router) {
                 repeatedFrom: plan.repeatedFrom || null,
                 repeatedInto: plan.repeatedInto || null,
                 //The way back to where the plan is actually being talked about
-                //A practice plan's thread is drawn on the overview itself
-                threadUrl: plan.threadId && !plan.practice ? threadUrl(plan.guildId, plan.threadId) : null,
+                threadUrl: plan.threadId ? threadUrl(plan.guildId, plan.threadId) : null,
                 //What the edit form sends back, so a save made since it opened is caught
                 rev: plan.rev || 0,
-                createdBy: plan.createdBy,
-                practice: Boolean(plan.practice)
+                createdBy: plan.createdBy
             },
             role,
             hosts,
@@ -180,25 +177,6 @@ export function overviewRoutes(router) {
                 : { unansweredCounts: unansweredCounts(Object.fromEntries(joined.map((p) => [p.userId, daysToFill(answers[p.userId])])), free) }),
             history: host ? history : historyForGuest(history)
         });
-    });
-
-    /*
-        A practice plan's thread, kept on the site in place of one in Discord: the pinned post
-        first, then the rest, newest first. For anyone on the plan, with the names of whoever
-        a post could mention.
-    */
-    router.get('/:planId/thread', async (req, res) => {
-        const { plan } = req;
-        if (!plan.practice) return res.status(404).json({ error: 'This plan has its thread in Discord.' });
-        if (!planRole(plan, req.user.id)) return res.status(403).json({ error: 'You are not on this plan.' });
-
-        const ctx = await guildContext(plan.guildId, req.user.id);
-        if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
-        const [rows, names] = await Promise.all([
-            getOutbox('thread', plan.planId),
-            namesFor(ctx.guild, [...plan.participants.map((p) => p.userId), ...hostIdsOf(plan)])
-        ]);
-        res.json({ messages: [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)].map(outboxShape), names });
     });
 
     /*
@@ -227,7 +205,6 @@ export function overviewRoutes(router) {
         hold.
     */
     router.get('/:planId/members', requireHost, async (req, res) => {
-        if (req.plan.practice) return res.json({ members: await practiceCircle(req.ctx.guild, req.plan.practice) });
         try {
             res.json({ members: await listMembers(req.ctx.guild) });
         } catch (err) {

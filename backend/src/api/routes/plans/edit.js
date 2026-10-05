@@ -10,7 +10,6 @@ import { diffPlan, whoHears, kindOf } from '../../../../../shared/planDiff.js';
 import { takeAction, refundAction } from '../../../db/ratelimits.js';
 import { EDIT_LIMIT, PLAN_ANNOUNCE_LIMIT } from '../../../lib/limits.js';
 import { realMembers, namesFor } from '../../../lib/members.js';
-import { mixRefusal } from '../../practicePlans.js';
 import { hostIdsOf } from '../../../lib/hosts.js';
 import { requireHost, byOf, refuseFinished } from './gates.js';
 
@@ -102,18 +101,15 @@ export function editRoutes(router) {
         if (form.repeatWeeks && form.repeatWeeks !== (plan.repeatWeeks || null) && !ctx.isPlanner) {
             return res.status(403).json({ error: NEEDS_PLANNER });
         }
-        if (form.repeatWeeks && plan.practice) return res.status(400).json({ error: "A practice plan doesn't come round again." });
 
         //Only names the plan has never had are asked of Discord. Everyone already on it stays exactly as they are.
         const wanted = new Set(form.participantIds);
         const on = plan.participants.map((p) => p.userId);
-        const listed = hostIdsOf(plan);
-        const mixed = await mixRefusal(plan.practice || null, [...wanted, ...form.hostIds].filter((id) => !on.includes(id) && !listed.includes(id)));
-        if (mixed) return res.status(400).json({ error: mixed });
         const joining = await realMembers(ctx.guild, [...wanted].filter((id) => !on.includes(id)));
         const coming = [...on.filter((id) => wanted.has(id)), ...joining];
         if (!coming.length) return res.status(400).json({ error: 'None of those people are in the server.' });
 
+        const listed = hostIdsOf(plan);
         const here = await realMembers(ctx.guild, listed);
         if (here.includes(plan.createdBy) && plan.createdBy !== req.user.id && !form.hostIds.includes(plan.createdBy)) {
             return res.status(403).json({ error: 'Only whoever made this plan can stop running it.' });

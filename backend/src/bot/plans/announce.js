@@ -7,7 +7,6 @@ import { refundAction } from '../../db/ratelimits.js';
 import { announceAfter } from '../../api/announce.js';
 import { fanOut } from '../../lib/fanout.js';
 import { hostIdsOf } from '../../lib/hosts.js';
-import { channelFor } from '../outbox.js';
 import { buildEditMessages, tookOffText } from '../edits.js';
 import { threadName, datesButton, overviewRow, banner, whenLine, noMoreLine, probeRow, onIt, invitedOnly, planCard } from './cards.js';
 import { deliver, deliverEach, sendCards, resendCards, askLines, retireCard, rewriteCard, missedBy, postMentioning, memberName, syncPlanCards } from './send.js';
@@ -85,7 +84,7 @@ export async function announceAddition(plan, newIds, actorName) {
 
     const guild = await client.guilds.fetch(plan.guildId);
 
-    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
         await addToThread(thread, newIds);
@@ -128,7 +127,7 @@ export async function announceOutcome(plan, cfg, { changed, actorName }) {
         }), { actorName, moved: changed });
 
     if (plan.threadId) {
-        const thread = await channelFor(plan.threadId).catch(() => null);
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {
@@ -206,7 +205,7 @@ export async function announceEdit(plan, cfg, { before, changes, actorName, quie
         current = { ...plan, participants: plan.participants.map((p) => ({ ...p, cardActor: actorName, cardMoved: lead.moved })) };
     }
 
-    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
         await updateOpener(current, thread).catch(() => {});
@@ -293,7 +292,7 @@ export async function announceCancel(plan, actorName) {
     const sent = await resendCards(plan, ids, cfg, { actorName });
 
     if (plan.threadId) {
-        const thread = await channelFor(plan.threadId).catch(() => null);
+        const thread = await client.channels.fetch(plan.threadId).catch(() => null);
         if (thread) {
             await reviveThread(thread);
             await postMentioning(thread, missedBy(ids, sent), {

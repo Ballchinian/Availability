@@ -10,28 +10,14 @@ import { MAX_PARTICIPANTS } from '../../src/lib/limits.js';
 */
 
 let sessionUser = null;
-//The planner behind a made-up person, while viewing as one
-let realUser = null;
 let ctx = null;
 const lookups = [];
 
 vi.mock('../../src/lib/session.js', () => ({
     requireUser: (req, res, next) => {
         req.user = sessionUser;
-        req.realUser = realUser || sessionUser;
         next();
     }
-}));
-//Pat and Lou are Ali's made-up people, Kim is Sam's
-const madeUp = vi.hoisted(() => [
-    { id: 'practice_pat', ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: false },
-    { id: 'practice_lou', ownerId: 'ali', guildId: 'g1', displayName: 'Lou', planner: true },
-    { id: 'practice_kim', ownerId: 'sam', guildId: 'g1', displayName: 'Kim', planner: false }
-]);
-vi.mock('../../src/db/practice.js', () => ({
-    getPracticePerson: async (id) => madeUp.find((p) => p.id === id) || null,
-    getPracticePeople: async (ownerId, guildId) => madeUp.filter((p) => p.ownerId === ownerId && p.guildId === guildId),
-    getPracticePeopleById: async (ids) => madeUp.filter((p) => ids.includes(p.id))
 }));
 vi.mock('../../src/api/context.js', () => ({ guildContext: vi.fn(async () => ctx) }));
 const db = vi.hoisted(() => ({
@@ -50,13 +36,12 @@ const { default: guildsRouter } = await import('../../src/api/routes/guilds.js')
 
 const inServer = new Map([['ali', false], ['sam', false], ['jo', false], ['bo', false], ['robo', true]]);
 const guild = {
-    id: 'g1',
     members: {
         cache: new Map(),
         fetch: async (id) => {
             lookups.push(id);
             if (!inServer.has(id)) throw new Error('Unknown Member');
-            return { id, user: { bot: inServer.get(id), username: id }, displayName: id, displayAvatarURL: () => '' };
+            return { id, user: { bot: inServer.get(id) } };
         }
     }
 };
@@ -90,7 +75,6 @@ beforeEach(() => {
     vi.clearAllMocks();
     lookups.length = 0;
     sessionUser = { id: 'ali' };
-    realUser = null;
     ctx = asPlanner;
 });
 
@@ -184,60 +168,5 @@ describe('starting a plan without the planner role', () => {
         expect(res.status).toBe(403);
         expect((await res.json()).error).toMatch(/planner role/);
         expect(db.createPlan).not.toHaveBeenCalled();
-    });
-});
-
-//A plan holding anyone made up is for practice, and holds only that planner's made-up people and them
-describe('a practice plan', () => {
-    const { MIXED } = { MIXED: 'A practice plan can only have your made-up people and you on it.' };
-
-    it('is what naming made-up people starts, for the planner, never coming round', async () => {
-        const res = await start(form({ participantIds: ['practice_pat', 'ali'], hostIds: ['practice_lou'], announce: true, date: ahead(4), repeatWeeks: 2 }));
-        expect(res.status).toBe(200);
-        expect(made()).toMatchObject({ practice: 'ali', participantIds: ['practice_pat', 'ali'], hostIds: ['ali', 'practice_lou'], repeatWeeks: null });
-        expect(lookups).toEqual(['ali']);
-    });
-
-    it('never has a real person on it besides the planner', async () => {
-        const res = await start(form({ participantIds: ['practice_pat', 'bo'] }));
-        expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe(MIXED);
-        expect(db.createPlan).not.toHaveBeenCalled();
-    });
-
-    it("never has someone else's made-up people", async () => {
-        const res = await start(form({ participantIds: ['practice_pat', 'practice_kim'] }));
-        expect(res.status).toBe(400);
-        expect(db.createPlan).not.toHaveBeenCalled();
-    });
-
-    it('is any plan a made-up planner starts, for the planner behind them', async () => {
-        sessionUser = { id: 'practice_lou' };
-        realUser = { id: 'ali' };
-        ctx = { ...asPlanner, member: { displayName: 'Lou' }, practice: madeUp[1] };
-        await start(form({ participantIds: ['practice_pat'] }));
-        expect(made()).toMatchObject({ practice: 'ali', createdBy: 'practice_lou', hostIds: ['practice_lou'], participantIds: ['practice_pat'] });
-    });
-
-    it('cannot hold a real person a made-up planner names', async () => {
-        sessionUser = { id: 'practice_lou' };
-        realUser = { id: 'ali' };
-        ctx = { ...asPlanner, member: { displayName: 'Lou' }, practice: madeUp[1] };
-        expect((await start(form({ participantIds: ['bo'] }))).status).toBe(400);
-    });
-});
-
-describe('who the picker offers for practice', () => {
-    const offered = async (query = '') => (await (await fetch(`${base}/g1/members${query}`)).json()).members.map((m) => m.id);
-
-    it('is the planner and their made-up people when they ask for it', async () => {
-        expect(await offered('?practice=1')).toEqual(['ali', 'practice_pat', 'practice_lou']);
-    });
-
-    it('is the same for someone made up, whatever they ask', async () => {
-        sessionUser = { id: 'practice_lou' };
-        realUser = { id: 'ali' };
-        ctx = { ...asPlanner, member: { displayName: 'Lou' }, practice: madeUp[1] };
-        expect(await offered()).toEqual(['ali', 'practice_pat', 'practice_lou']);
     });
 });

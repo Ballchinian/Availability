@@ -11,7 +11,6 @@ import { EDIT_LIMIT } from '../../src/lib/limits.js';
 */
 
 let sessionUser = null;
-let realUser = null;
 let ctx = null;
 const plans = new Map();
 const lookups = [];
@@ -21,27 +20,10 @@ const { stubs } = vi.hoisted(() => ({ stubs: (...names) => Object.fromEntries(na
 vi.mock('../../src/lib/session.js', () => ({
     requireUser: (req, res, next) => {
         req.user = sessionUser;
-        req.realUser = realUser || sessionUser;
         next();
     }
 }));
 vi.mock('../../src/api/context.js', () => ({ guildContext: vi.fn(async () => ctx) }));
-//Pat and Lou are Ali's made-up people
-const madeUp = vi.hoisted(() => [
-    { id: 'practice_pat', ownerId: 'ali', guildId: 'g1', displayName: 'Pat', planner: false },
-    { id: 'practice_lou', ownerId: 'ali', guildId: 'g1', displayName: 'Lou', planner: true }
-]);
-//A practice plan's thread: the pin, and a post after it
-const kept = vi.hoisted(() => [
-    { id: 'm2', planId: 'p1', to: 'thread', content: 'Later', components: [], pinned: false, at: new Date('2026-10-02'), editedAt: null },
-    { id: 'm1', planId: 'p1', to: 'thread', content: 'Pinned', components: [], pinned: true, at: new Date('2026-10-01'), editedAt: null }
-]);
-vi.mock('../../src/db/outbox.js', async (real) => ({ ...(await real()), getOutbox: vi.fn(async (to, planId) => kept.filter((m) => m.to === to && m.planId === planId)) }));
-vi.mock('../../src/db/practice.js', () => ({
-    getPracticePerson: async (id) => madeUp.find((p) => p.id === id) || null,
-    getPracticePeople: async (ownerId, guildId) => madeUp.filter((p) => p.ownerId === ownerId && p.guildId === guildId),
-    getPracticePeopleById: async (ids) => madeUp.filter((p) => ids.includes(p.id))
-}));
 
 //planEdit is the real one. Saving stands in for the guarded write: it lands only on the rev it was read at.
 vi.mock('../../src/db/plans/index.js', async (real) => ({
@@ -69,7 +51,6 @@ const { default: plansRouter } = await import('../../src/api/routes/plans/index.
 
 const NAMES = { ali: 'Ali', sam: 'Sam', bo: 'Bo', cy: 'Cy', di: 'Di' };
 const guild = {
-    id: 'g1',
     members: {
         cache: new Map(),
         fetch: async (id) => {
@@ -147,7 +128,6 @@ beforeEach(() => {
     plans.clear();
     plans.set('p1', stored());
     sessionUser = { id: 'ali' };
-    realUser = null;
     ctx = asHost('ali');
 });
 
@@ -347,78 +327,5 @@ describe('a save', () => {
         expect(current.name).toBe('Quiz night');
         expect(opts).toMatchObject({ actorName: 'Ali', quiet: false, heard: [], before: { name: 'Board games' } });
         expect(opts.changes).toEqual([{ type: 'name', from: 'Board games', to: 'Quiz night' }]);
-    });
-});
-
-//Ali's practice plan holds Pat and Ali, and is run by Ali and Lou
-describe('editing a practice plan', () => {
-    beforeEach(() => {
-        plans.set('p1', stored({ practice: 'ali', hostIds: ['ali', 'practice_lou'], participants: [{ userId: 'practice_pat', in: null, invited: true }, { userId: 'ali', in: null, invited: true }] }));
-    });
-    const practiceForm = (over = {}) => form({ participantIds: ['practice_pat', 'ali'], hostIds: ['practice_lou'], ...over });
-
-    it("takes more of the planner's made-up people", async () => {
-        const res = await edit(practiceForm({ hostIds: [], participantIds: ['practice_pat', 'ali', 'practice_lou'], preview: true }));
-        expect(res.status).toBe(200);
-    });
-
-    it('never takes a real person besides the planner', async () => {
-        const res = await edit(practiceForm({ participantIds: ['practice_pat', 'ali', 'bo'] }));
-        expect(res.status).toBe(400);
-        expect(await errorOf(res)).toBe('A practice plan can only have your made-up people and you on it.');
-        expect(db.applyPlanEdit).not.toHaveBeenCalled();
-    });
-
-    it('never comes round again', async () => {
-        const res = await edit(practiceForm({ announce: true, date: ahead(3), repeatWeeks: 2 }));
-        expect(res.status).toBe(400);
-        expect(await errorOf(res)).toBe("A practice plan doesn't come round again.");
-    });
-
-    it('is not there for anyone else', async () => {
-        sessionUser = { id: 'sam' };
-        ctx = asHost('sam');
-        expect((await edit(practiceForm({ name: 'Quiz night' }))).status).toBe(404);
-    });
-
-    it("is there for the planner's made-up people", async () => {
-        sessionUser = { id: 'practice_lou' };
-        realUser = { id: 'ali' };
-        ctx = asHost('ali', { member: { displayName: 'Lou' } });
-        expect((await edit(practiceForm({ name: 'Quiz night', hostIds: ['ali'] }))).status).toBe(200);
-    });
-});
-
-describe('a real plan', () => {
-    it('never takes anyone made up', async () => {
-        const res = await edit(form({ participantIds: ['bo', 'cy', 'practice_pat'] }));
-        expect(res.status).toBe(400);
-        expect(await errorOf(res)).toBe('Made-up people can only go on a practice plan.');
-    });
-
-    it('is not there for anyone made up', async () => {
-        sessionUser = { id: 'practice_lou' };
-        realUser = { id: 'ali' };
-        expect((await edit(form({ name: 'Quiz night' }))).status).toBe(404);
-    });
-});
-
-describe("a practice plan's thread", () => {
-    const thread = () => fetch(`${base}/p1/thread`);
-
-    it('leads with the pin, then the rest newest first, with names for anyone on it', async () => {
-        plans.set('p1', stored({ practice: 'ali', hostIds: ['ali'], participants: [{ userId: 'practice_pat', in: null, invited: true }] }));
-        const body = await (await thread()).json();
-        expect(body.messages.map((m) => m.content)).toEqual(['Pinned', 'Later']);
-        expect(body.names).toEqual({ ali: 'Ali', practice_pat: 'Pat' });
-    });
-
-    it('is in Discord for a real plan', async () => {
-        expect((await thread()).status).toBe(404);
-    });
-
-    it('is only for people on the plan', async () => {
-        plans.set('p1', stored({ practice: 'ali', hostIds: ['practice_lou'], participants: [{ userId: 'practice_pat', in: null, invited: true }] }));
-        expect((await thread()).status).toBe(403);
     });
 });

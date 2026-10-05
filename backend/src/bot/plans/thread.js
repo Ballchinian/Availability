@@ -4,8 +4,6 @@ import { createThread, reviveThread, pinMessage } from '../util.js';
 import { setPlanThread, setPlanOpener, forgetProbeMessage } from '../../db/plans/index.js';
 import { fanOut } from '../../lib/fanout.js';
 import { hostIdsOf } from '../../lib/hosts.js';
-import { outboxThreadId } from '../../lib/practice.js';
-import { channelFor } from '../outbox.js';
 import { threadName, opener } from './cards.js';
 import { syncPlanCards } from './send.js';
 
@@ -24,7 +22,7 @@ function threadPeople(plan) {
 
 //Someone who took the plan on goes in its thread, which is where /overview and /cancel are run
 export async function addHostToThread(plan, userId) {
-    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
     if (!thread) return;
     await reviveThread(thread);
     await addToThread(thread, [userId]);
@@ -74,7 +72,7 @@ async function placeThreadMessage(thread, messageId, payload) {
 */
 export async function updateOpener(plan, thread = null) {
     if (!plan.threadId || !plan.openerMessageId) return;
-    thread ??= await channelFor(plan.threadId).catch(() => null);
+    thread ??= await client.channels.fetch(plan.threadId).catch(() => null);
     if (!thread) return;
     await reviveThread(thread);
 
@@ -98,11 +96,9 @@ export async function updateOpener(plan, thread = null) {
 */
 export async function openThread(plan, cfg) {
     const guild = await client.guilds.fetch(plan.guildId);
-    //A practice plan's is kept on the site, and nobody in the server sees anything of it
-    const thread = plan.practice
-        ? await channelFor(outboxThreadId(plan.planId))
-        : await createThread(await guild.channels.fetch(cfg.plansChannelId), threadName(plan), ChannelType.PrivateThread);
-    await setPlanThread(plan.planId, thread.id, plan.practice ? null : cfg.plansChannelId);
+    const channel = await guild.channels.fetch(cfg.plansChannelId);
+    const thread = await createThread(channel, threadName(plan), ChannelType.PrivateThread);
+    await setPlanThread(plan.planId, thread.id, channel.id);
 
     //No @ here, adding people to the thread already pings them
     const pinned = await thread.send(opener(plan));
@@ -121,7 +117,7 @@ export async function openThread(plan, cfg) {
     pings nobody. cards: false is for an announcement about to send everyone a fresh one.
 */
 export async function syncPlan(plan, { cfg = null, cards = true } = {}) {
-    const thread = plan.threadId ? await channelFor(plan.threadId).catch(() => null) : null;
+    const thread = plan.threadId ? await client.channels.fetch(plan.threadId).catch(() => null) : null;
     if (thread) {
         await reviveThread(thread);
         await updateOpener(plan, thread);

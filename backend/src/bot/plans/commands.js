@@ -56,8 +56,7 @@ export async function handleMyLink(interaction) {
     }
 
     const userId = interaction.user.id;
-    //Practice plans are the site's alone
-    const found = (await getLivePlansForUser(interaction.guildId, userId, shiftDate(today(), -1))).filter((plan) => !plan.practice);
+    const found = await getLivePlansForUser(interaction.guildId, userId, shiftDate(today(), -1));
     //Left off a set day, there is nothing for them to open, unless they run it
     const leftOff = (plan) => plan.status === 'closed' && !hostIdsOf(plan).includes(userId) &&
         plan.participants.find((p) => p.userId === userId)?.invited === false;

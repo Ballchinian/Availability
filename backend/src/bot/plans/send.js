@@ -7,7 +7,6 @@ import { fanOut } from '../../lib/fanout.js';
 import { memberOf } from '../../lib/members.js';
 import { shiftDate } from '../../lib/dates.js';
 import { askFor } from '../../lib/coverage.js';
-import { userFor } from '../outbox.js';
 import { planCard } from './cards.js';
 
 /*
@@ -16,13 +15,12 @@ import { planCard } from './cards.js';
     them so whoever runs the plan knows the thread is the only way to reach them. Any other
     failure is a blip or someone gone, which says nothing about their settings.
 
-    Hands back the message, or null when it did not land. Anyone made up gets theirs in
-    the outbox, see outbox.js.
+    Hands back the message, or null when it did not land.
 */
 export async function deliver(plan, userId, payload) {
     const p = plan.participants?.find((q) => q.userId === userId);
     try {
-        const user = await userFor(userId, plan.planId);
+        const user = await client.users.fetch(userId);
         const msg = await user.send(payload);
         if (p?.dmsClosed) await setDmsClosed(plan.planId, userId, false).catch(() => {});
         return msg;
@@ -102,7 +100,7 @@ export async function cardFor(plan, p, opts = {}) {
 //Discord can refuse the delete, and then the card at least loses its buttons
 export async function retireCard(userId, messageId) {
     try {
-        const user = await userFor(userId);
+        const user = await client.users.fetch(userId);
         const dm = await user.createDM();
         const msg = await dm.messages.fetch(messageId);
         await msg.delete().catch(() => msg.edit({ content: "There's a newer message about this plan.", components: [] }));
@@ -114,7 +112,7 @@ export async function retireCard(userId, messageId) {
 //A card edited where it sits, which tells nobody
 export async function rewriteCard(userId, messageId, payload) {
     try {
-        const user = await userFor(userId);
+        const user = await client.users.fetch(userId);
         const dm = await user.createDM();
         const msg = await dm.messages.fetch(messageId);
         await msg.edit(payload);
@@ -206,7 +204,7 @@ export async function syncPlanCards(plan, cfg = null, { only = null } = {}) {
     let done = 0;
     await fanOut(holders, async (p) => {
         try {
-            const user = await userFor(p.userId);
+            const user = await client.users.fetch(p.userId);
             const dm = await user.createDM();
             const msg = await dm.messages.fetch(p.cardMessageId);
             await msg.edit(planCard(plan, p, { guildName, ask: asks[p.userId] }));

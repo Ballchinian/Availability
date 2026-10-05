@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { config } from '../../config.js';
 import { buildAuthorizeUrl, exchangeCode, fetchDiscordUser } from '../../lib/discordOauth.js';
-import { issueSession, clearSession, getSessionUser, loadSession } from '../../lib/session.js';
+import { issueSession, clearSession, getSessionUser, loadSessionUser } from '../../lib/session.js';
 import { upsertUser, setUserGuilds, revokeSessions } from '../../db/users.js';
 import { computeUserGuilds } from '../../bot/cleanup.js';
 import { ipLimit } from '../../lib/iplimit.js';
@@ -100,7 +100,7 @@ router.post('/logout', async (req, res) => {
     //Clearing the cookie only asks the browser nicely, so retire the token itself as well
     if (user) {
         try {
-            await revokeSessions((user.real ?? user).id);
+            await revokeSessions(user.id);
         } catch (err) {
             console.warn('[auth] could not revoke sessions:', err.message);
         }
@@ -109,16 +109,9 @@ router.post('/logout', async (req, res) => {
     res.json({ ok: true });
 });
 
-/*
-    Who is logged in right now, or null, and real when that is a made-up person the
-    planner in real is viewing as. A practice session that has had to end is signed
-    back in as the planner here.
-*/
+//Who is logged in right now, or null
 router.get('/me', async (req, res) => {
-    const session = await loadSession(req);
-    if (!session) return res.json({ user: null, real: null });
-    if (session.ended) issueSession(res, session.real, session.tv);
-    res.json({ user: session.user, real: session.user.id === session.real.id ? null : session.real });
+    res.json({ user: await loadSessionUser(req) });
 });
 
 export default router;

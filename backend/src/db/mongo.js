@@ -21,9 +21,7 @@ export const collections = {
     users: 'users',
     availability: 'availability',
     plans: 'plans',
-    ratelimits: 'ratelimits',
-    practice: 'practice',
-    practiceOutbox: 'practiceOutbox'
+    ratelimits: 'ratelimits'
 };
 
 export async function connectMongo() {

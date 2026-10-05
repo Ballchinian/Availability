@@ -135,12 +135,6 @@ describe('/mylink', () => {
         ]);
     });
 
-    //Practice plans are the site's, and nobody in Discord is meant to come across them
-    it('leaves out a practice plan', async () => {
-        theirs.plans = [live('p1', 'Drill', { practice: 'bo' }), live('p2', 'Picnic')];
-        expect(buttons(await run()).map(([label]) => label)).toEqual(["Picnic: Say if you're in"]);
-    });
-
     //Thirty days on it is under Past plans, so it is not listed as still on here
     it('leaves out a plan that never got a day', async () => {
         theirs.plans = [live('p1', 'Cinema', { dateRange: { start: ahead(-40), end: ahead(-31) } }), live('p2', 'Picnic')];

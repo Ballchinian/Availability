@@ -8,8 +8,7 @@ import { announcePlan, announceSetPlan, notifyHostsPicked } from '../../bot/plan
 import { planUrl } from '../../bot/util.js';
 import { takeAction } from '../../db/ratelimits.js';
 import { DAILY_LIMIT } from '../../lib/limits.js';
-import { realMembers, listMembers, practiceCircle } from '../../lib/members.js';
-import { practiceOwnerFor, mixRefusal } from '../practicePlans.js';
+import { realMembers, listMembers } from '../../lib/members.js';
 import { safeZone, todayIn } from '../../lib/zones.js';
 
 /*
@@ -21,7 +20,7 @@ import { safeZone, todayIn } from '../../lib/zones.js';
 
 const router = Router();
 
-//Tells the frontend the server name and whether this person can plan here, and whether they are made up
+//Tells the frontend the server name and whether this person can plan here
 router.get('/:guildId', requireUser, async (req, res) => {
     const ctx = await guildContext(req.params.guildId, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
@@ -29,8 +28,7 @@ router.get('/:guildId', requireUser, async (req, res) => {
         guildId: ctx.cfg.guildId,
         guildName: ctx.cfg.guildName,
         isMember: ctx.isMember,
-        isPlanner: ctx.isPlanner,
-        practice: Boolean(ctx.practice)
+        isPlanner: ctx.isPlanner
     });
 });
 
@@ -38,10 +36,6 @@ router.get('/:guildId/members', requireUser, async (req, res) => {
     const ctx = await guildContext(req.params.guildId, req.user.id);
     if (ctx.error) return res.status(ctx.error).json({ error: ctx.message });
     if (!ctx.isPlanner) return res.status(403).json({ error: 'You need the planner role to do that.' });
-
-    //Someone made up, or a planner starting a practice plan, picks from the planner and their made-up people
-    const owner = ctx.practice?.ownerId ?? (req.query.practice === '1' ? req.user.id : null);
-    if (owner) return res.json({ members: await practiceCircle(ctx.guild, owner) });
 
     try {
         const list = await listMembers(ctx.guild);
@@ -69,11 +63,6 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
     const setMode = form.set;
     const dateRange = setMode ? { start: form.date, end: form.date } : form.window;
 
-    const named = [...form.participantIds, ...form.hostIds];
-    const practice = practiceOwnerFor(req, named);
-    const mixed = await mixRefusal(practice, named);
-    if (mixed) return res.status(400).json({ error: mixed });
-
     //Only keep ids that are real, non bot members of this server
     const validIds = await realMembers(ctx.guild, form.participantIds);
     if (validIds.length === 0) return res.status(400).json({ error: 'None of those people are in the server.' });
@@ -100,9 +89,8 @@ router.post('/:guildId/plans', requireUser, async (req, res) => {
             //The clock the plan's day and time are read in, which is the server's
             timeZone: safeZone(ctx.cfg.timeZone),
             //Coming round is always the day it was on, some weeks later, so a plan with no day yet starts as a one off
-            repeatWeeks: setMode && !practice ? form.repeatWeeks : null,
-            repeatBy: { id: req.user.id, name: ctx.member.displayName },
-            practice
+            repeatWeeks: setMode ? form.repeatWeeks : null,
+            repeatBy: { id: req.user.id, name: ctx.member.displayName }
         });
 
         //Counted once each, since someone can be named to come and to run it
