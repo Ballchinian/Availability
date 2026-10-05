@@ -134,12 +134,7 @@
         can be opened off a plan made weeks ago. startAnother only carries one made in
         this sitting, which is why both exist.
     */
-    const query = new URLSearchParams(router.querystring || '');
-    const likeId = query.get('like');
-    //A planner starting one with their made-up people, from the Practice section
-    const practiceAsked = query.get('practice') === '1';
-    //Someone made up only ever starts practice plans, and those never come round again
-    const practice = $derived(editing ? Boolean(editPlan?.practice) : practiceAsked || Boolean(guildInfo?.practice));
+    const likeId = new URLSearchParams(router.querystring || '').get('like');
     //Set only once the copy has landed, since it is what the note at the top of the form reads
     let likeName = $state('');
 
@@ -223,7 +218,7 @@
         try {
             guildInfo = await api<GuildInfo>(`/guilds/${params.guildId}`);
             if (guildInfo.isPlanner) {
-                const res = await api<{ members: Member[] }>(`/guilds/${params.guildId}/members${practiceAsked ? '?practice=1' : ''}`);
+                const res = await api<{ members: Member[] }>(`/guilds/${params.guildId}/members`);
                 members = res.members;
             }
         } catch (err) {
@@ -263,7 +258,7 @@
     //The plan as the form has it, which the create and edit routes both read the same way
     function planBody() {
         //A plan already repeating keeps it while it goes back to finding a day, and comes round again once it has one
-        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks: (mode === 'announce' || wasRepeating) && !practice ? repeatWeeks : null };
+        const common = { name: planName.trim(), description: planDescription.trim(), participantIds: selectedIds, hostIds, repeatWeeks: mode === 'announce' || wasRepeating ? repeatWeeks : null };
         return mode === 'announce'
             ? { ...common, announce: true, date: setDate, time: setTime || null }
             : {
@@ -372,7 +367,7 @@
 </svelte:head>
 
 {#snippet form(guildName: string)}
-    <p class="muted">{practice ? 'Practising in' : 'Planning for'} <strong>{guildName}</strong>.</p>
+    <p class="muted">Planning for <strong>{guildName}</strong>.</p>
 
     {#if likeName}
         <p class="prompt">
@@ -447,7 +442,7 @@
     {/if}
 
     <!--A plan already coming round keeps it while it goes back to finding a day, so only that plan is shown it there-->
-    {#if (mode === 'announce' || wasRepeating) && !practice}
+    {#if mode === 'announce' || wasRepeating}
         <RepeatField
             bind:weeks={repeatWeeks}
             from={mode === 'announce' ? setDate : null}
@@ -524,9 +519,7 @@
         <p class="muted">You need the planner role in {guildInfo.guildName} to start a plan. Ask an admin to give it to you.</p>
     {:else if result}
         <div class="result" bind:this={resultLine}>
-            {#if practice}
-                <p>Done. <strong>{planName}</strong> is made, for practice.</p>
-            {:else if result.set}
+            {#if result.set}
                 <p>Done. <strong>{planName}</strong> is set. I opened a thread for the {result.invited} {result.invited === 1 ? 'person' : 'people'} you picked and DM'd them a yes/no so you know who is coming.</p>
                 <!--The date it is set for, and where a repeat takes it, drawn rather than said-->
                 {#if setDate}<RepeatDates first={setDate} shapes={repeatDates} />{/if}

@@ -23,7 +23,6 @@ import PersonDialog, { daysOf, daysLine, daysSpoken } from '../src/overview/Pers
 import PlanCards from '../src/my-plans/PlanCards.svelte';
 import PlanList from '../src/calendar/PlanList.svelte';
 import StartPlan from '../src/my-plans/StartPlan.svelte';
-import Practice from '../src/practice/Practice.svelte';
 import { sortPlans } from '../src/pages/MyPlans.svelte';
 import { belongsOnOverview } from '../src/pages/PlanDates.svelte';
 import { isoFromNow, repeatSeries } from '../src/calendar/calendar.js';
@@ -760,38 +759,6 @@ describe('the start a plan button', () => {
     });
 });
 
-//Made-up people are a planner's, made for a server they plan in
-describe('the practice section', () => {
-    const guild = (guildId: string, over: Partial<UserGuild> = {}): UserGuild => ({
-        guildId,
-        guildName: `Server ${guildId}`,
-        iconUrl: null,
-        setupComplete: true,
-        isPlanner: true,
-        ...over
-    });
-    const draw = (guilds: UserGuild[]) => render(Practice, { props: { guilds } }).body;
-
-    it('is not there for someone who plans nowhere', () => {
-        expect(draw([guild('1', { isPlanner: false }), guild('2', { setupComplete: false })]).replace(/<!--[^>]*-->/g, '')).toBe('');
-    });
-
-    it('asks only for a name and the planner role with one server to make them for', () => {
-        const body = draw([guild('1'), guild('2', { isPlanner: false })]);
-        expect(body).toContain('<h2>Practice</h2>');
-        expect(body).toContain('<label for="practice-name">Name</label>');
-        expect(body).toContain('Has the planner role');
-        expect(body).not.toContain('<select');
-    });
-
-    it('asks which server when there are several', () => {
-        const body = draw([guild('1'), guild('2'), guild('3', { setupComplete: false })]);
-        expect(body).toContain('<label for="practice-guild">Server</label>');
-        expect(body).toContain('Server 2');
-        expect(body).not.toContain('Server 3');
-    });
-});
-
 describe('the attendance board', () => {
     const person = (userId: string, vote: Participant['vote']): Participant => ({
         userId,
@@ -1353,13 +1320,6 @@ describe('a plan overview', () => {
         const body = draw(screen());
         expect(body).toContain(`<p class="muted">Finding a day, ${formatDate(ahead(3))} to ${formatDate(ahead(10))} · The server</p>`);
         expect(body).toContain('Run by Ali and Sam.');
-    });
-
-    //Its planner is the only real person who ever sees one, and may have several on the go beside real ones
-    it('says a practice plan is one, and plans another like it for practice', () => {
-        const body = draw(screen({}, { practice: true }));
-        expect(body).toContain(`<p class="muted">Finding a day, ${formatDate(ahead(3))} to ${formatDate(ahead(10))} · The server · practice</p>`);
-        expect(body).toContain('href="#/g/g1?like=ab12cd34ef&amp;practice=1"');
     });
 
     //Nothing offers a day that has already gone, and every day of this one has

@@ -16,8 +16,6 @@
     import { onMount } from 'svelte';
     import { api, errorText } from '../site/api.js';
     import { auth, loadMe } from '../site/auth.svelte.js';
-    import KeptMessages from '../practice/KeptMessages.svelte';
-    import Practice from '../practice/Practice.svelte';
     import StartPlan from '../my-plans/StartPlan.svelte';
 
     /*
@@ -30,18 +28,8 @@
     let loadError = $state('');
     let guilds = $state<UserGuild[]>([]);
     let plans = $state<UserPlan[]>([]);
-    let practicePlans = $state<UserPlan[]>([]);
 
     const sortedPlans = $derived(sortPlans(plans));
-
-    //An answer given from one of their messages moves what their plans want next
-    async function reloadPlans() {
-        try {
-            plans = (await api<{ plans: UserPlan[] }>('/me/plans')).plans;
-        } catch {
-            //The list stays as it was, and the message says what went wrong
-        }
-    }
 
     onMount(async () => {
         await loadMe();
@@ -52,11 +40,10 @@
         try {
             const [g, p] = await Promise.all([
                 api<{ guilds: UserGuild[] }>('/me/guilds'),
-                api<{ plans: UserPlan[]; practice?: UserPlan[] }>('/me/plans')
+                api<{ plans: UserPlan[] }>('/me/plans')
             ]);
             guilds = g.guilds;
             plans = p.plans;
-            practicePlans = p.practice ?? [];
         } catch (err) {
             loadError = errorText(err);
         }
@@ -89,21 +76,12 @@
         {:else}
             <StartPlan {guilds} />
 
-            {#if plans.length === 0 && auth.real}
-                <p class="muted">Nothing on the go.</p>
-            {:else if plans.length === 0}
+            {#if plans.length === 0}
                 <p class="muted">
                     Nothing on the go. When someone invites you to a plan it turns up here, and you get a DM with the link as well.
                 </p>
             {:else}
                 <PlanCards plans={sortedPlans} />
-            {/if}
-
-            <Practice {guilds} plans={sortPlans(practicePlans)} />
-
-            <!--What the bot would have DMed the made-up person being viewed as-->
-            {#if auth.real}
-                <KeptMessages path="/practice/messages" title="Their messages" empty="I haven't sent them anything yet." onanswered={reloadPlans} />
             {/if}
         {/if}
     {/if}

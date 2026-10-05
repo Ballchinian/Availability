@@ -33,7 +33,6 @@
     import CancelPanel from './CancelPanel.svelte';
     import DayCompare from './DayCompare.svelte';
     import HistoryPanel from './HistoryPanel.svelte';
-    import KeptMessages from '../practice/KeptMessages.svelte';
     import RepeatDates from '../calendar/RepeatDates.svelte';
     import RepairPanel from './RepairPanel.svelte';
     import Standing from './Standing.svelte';
@@ -103,7 +102,7 @@
 </script>
 
 {#snippet state()}
-    {planState(data.plan, today)}{data.plan.guildName ? ` · ${data.plan.guildName}` : ''}{data.plan.practice ? ' · practice' : ''}
+    {planState(data.plan, today)}{data.plan.guildName ? ` · ${data.plan.guildName}` : ''}
 {/snippet}
 
 <!--A day still to come is the one thing on the page everyone came for, so it gets the box.
@@ -149,12 +148,11 @@
     <!--Offered on a cancelled or finished plan too, since one that fell through or has
         already been is the likeliest to be run again-->
     {#if data.isPlanner ?? true}
-        <a href="#/g/{data.plan.guildId}?like={planId}{data.plan.practice ? '&practice=1' : ''}">Plan another like this</a>
+        <a href="#/g/{data.plan.guildId}?like={planId}">Plan another like this</a>
     {/if}
 </p>
 
-<!--Neither of these is so of a practice plan, whose thread and DMs only the bot writes to-->
-{#if host && over && !data.plan.practice}
+{#if host && over}
     <p class="muted small">Deleting its thread in Discord clears it for good.</p>
 {/if}
 
@@ -220,11 +218,6 @@
     <p class="edit-plan"><a class="ghost" href="#/plan/{planId}/edit">Edit plan</a></p>
 {/if}
 
-<!--A practice plan's thread is kept here rather than in Discord-->
-{#if data.plan.practice}
-    <KeptMessages path="/plans/{planId}/thread" title="The thread" empty="Nothing has been posted in it yet." stamp={data} onanswered={onrefresh} />
-{/if}
-
 <HistoryPanel history={data.history} />
 
 {#if host && !over}
@@ -232,5 +225,5 @@
         <h2>End this plan</h2>
         <CancelPanel {planId} repeats={Boolean(data.plan.repeatWeeks)} oncancelled={changed} />
     </section>
-    {#if !data.plan.practice}<RepairPanel {planId} />{/if}
+    <RepairPanel {planId} />
 {/if}

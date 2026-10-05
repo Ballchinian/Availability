@@ -21,8 +21,6 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 
     if (!res.ok) {
         const message = (body && body.error) || res.statusText;
-        //The planner is signed back in as themselves by now, and the header has to hear it
-        if (body?.practiceEnded) window.dispatchEvent(new Event('practiceended'));
         //Screens render the thrown message straight into the UI, so the path stays in the console
         console.error(`${path} failed: ${message}`);
         throw new ApiError(message, res.status);
