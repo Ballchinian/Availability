@@ -46,6 +46,7 @@ export async function connectMongo() {
         //A missed pass is caught on the next boot, and is no reason to go without a database
         await askOnSetDays(database).catch((err) => console.error('[mongo] turning on yes/no for set days failed:', err));
         await carryOverAnswers(database).catch((err) => console.error('[mongo] carrying answers over failed:', err));
+        await clearPractice(database).catch((err) => console.error('[mongo] clearing practice mode failed:', err));
         client = attempt;
         db = database;
     } catch (err) {
@@ -134,13 +135,6 @@ async function ensureIndexes(database) {
     await database.collection(collections.plans).createIndex({ needsRepair: 1 }, { partialFilterExpression: { needsRepair: true } });
     //One counter per person per server per action, the key we look spam up by
     await database.collection(collections.ratelimits).createIndex({ userId: 1, guildId: 1, action: 1 }, { unique: true });
-    await database.collection(collections.practice).createIndex({ id: 1 }, { unique: true });
-    await database.collection(collections.practice).createIndex({ ownerId: 1, guildId: 1 });
-    await database.collection(collections.practiceOutbox).createIndex({ id: 1 }, { unique: true });
-    await database.collection(collections.practiceOutbox).createIndex({ to: 1, at: -1 });
-    await database.collection(collections.practiceOutbox).createIndex({ planId: 1 });
-    //Mongo drops anything kept for practice 30 days after it was sent, edits or not
-    await database.collection(collections.practiceOutbox).createIndex({ at: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 }
 
 /*
@@ -204,6 +198,28 @@ export async function carryOverAnswers(database) {
         );
     }
     return byUser.size;
+}
+
+/*
+    What practice mode left: plans made to practise on, whose threads were only ever kept
+    here, and the made-up people with their calendars. A planner's own DM cards on those
+    plans stay in Discord, and a press on one says the plan is gone. Runs every boot and
+    finds nothing once it has. The rate limits go before the plans, since a plan's own
+    allowance is keyed by its planId and a failure part way must still find them.
+*/
+export async function clearPractice(database) {
+    const plans = database.collection(collections.plans);
+    const planIds = (await plans.find({ practice: { $ne: null } }, { projection: { planId: 1 } }).toArray()).map((p) => p.planId);
+    const madeUp = { $regex: '^practice_' };
+
+    await database.collection(collections.ratelimits).deleteMany({ $or: [{ userId: madeUp }, { userId: { $in: planIds } }] });
+    if (planIds.length) await plans.deleteMany({ planId: { $in: planIds } });
+    const { deletedCount } = await database.collection(collections.users).deleteMany({ userId: madeUp });
+    await database.collection(collections.availability).deleteMany({ userId: madeUp });
+    //The driver ignores a collection that is not there
+    await database.collection('practice').drop();
+    await database.collection('practiceOutbox').drop();
+    return planIds.length + deletedCount;
 }
 
 export async function closeMongo() {
