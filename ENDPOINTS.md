@@ -18,8 +18,6 @@ Most actions also depend on where the requester stands:
 
 A missing or expired session comes back as `401`. A valid session without the right standing comes back as `403`.
 
-A planner can view the site as one of their made-up people (see Practice below). The session is then that person's, with the planner carried beside them, and every route acts as the made-up person. Logout and the version check go by the planner. Every request also checks that the made-up person is still there and the planner still has the planner role in its server; when either has gone, the request is refused with `401` and `practiceEnded: true`, and the cookie is signed back in as the planner.
-
 A plan that is over can't be changed: one called off, or one whose day has been on the server's clock. Every route that would change one answers `409`. Without that, a host with no planner role could send last month's plan back out for dates and have started a new one.
 
 ## Clocks
@@ -47,8 +45,6 @@ Every yes/no button carries the round it was sent in, and a new day is a new rou
 Editing a message notifies nobody in Discord. That is what the whole arrangement rests on: a wrong time or a wrong note can be put right without the correction itself becoming an event, and the people it was wrong for end up holding a DM that is simply correct.
 
 A card that cannot be reached is skipped, never replaced, since sending a new one would ping them. A card whose message has really gone (Discord's `10008`) is forgotten so later passes stop paying for it; any other failure is left alone and tried again.
-
-None of this reaches Discord for a practice plan or anyone made up. Their cards, and everything posted in a practice plan's thread, opener and pin included, are kept in an outbox on the site instead, edited and deleted the same way, and read back through `GET /api/practice/messages` and `GET /api/plans/:planId/thread`. Anything to the planner behind them is a real DM.
 
 ## Who gets pinged
 
@@ -117,7 +113,7 @@ Clear the session cookie and retire the token behind it.
 
 ## GET `/api/auth/me`
 
-Return the logged-in person as `user`, or `null` if nobody is. While a planner views the site as someone made up, `user` is that person and `real` is the planner; otherwise `real` is `null`. A practice session that has had to end is signed back in as the planner here, and comes back as them.
+Return the logged-in person, or `null` if nobody is.
 
 ---
 
@@ -192,7 +188,6 @@ Two lists, the live plans and the ones behind them, each plan with:
 * Plans the requester runs count as well as plans they are in, since nothing makes a planner invite themselves to their own plan. A plan made before hosts were stored is run by whoever made it.
 * A set plan the requester was left off the invite list for is left out, unless they run it.
 * Reads everyone's answers on the plans they run that are still finding a day, in one query, since `readyToPick` is everybody's answers.
-* A planner's own practice plans are kept off both lists and come as a third, `practice`, of the live ones only, shaped the same. For someone made up, every plan they have is a practice plan, so they come in the first two lists and `practice` is empty.
 
 ---
 
@@ -207,7 +202,6 @@ Tells the frontend about one server and where the requester stands in it.
 * Server name
 * Whether the requester is a member
 * Whether the requester has the planner role
-* `practice`: whether the requester is someone made up, who can only start practice plans
 
 ### Notes
 
@@ -228,8 +222,7 @@ Real, non-bot members, sorted by display name, each with a username, display nam
 
 ### Notes
 
-* The full member list is a rate limited gateway call, so the result is cached per server for about a minute and a single fetch is shared when several requests land at once.
-* `?practice=1` asks for who a practice plan can hold instead: the requester, then their made-up people in that server. Someone made up always gets that list, for the planner behind them.
+The full member list is a rate limited gateway call, so the result is cached per server for about a minute and a single fetch is shared when several requests land at once.
 
 ---
 
@@ -270,13 +263,10 @@ Planner role only.
 * A set plan's date must be today or later and within two years.
 * A weekday restriction has to leave at least one day inside the picked range, otherwise it is rejected.
 * Capped at a high daily backstop per person, since the planner role is the real gate.
-* Naming any made-up person makes it a practice plan, and so does anyone made up starting one. A practice plan is for the planner behind the made-up people, and can only hold their made-up people and them: anyone else is `400`. It never comes round again, and its thread is kept on the site rather than opened in Discord.
 
 ---
 
 # Plans
-
-A practice plan is only there for the planner it is for and their made-up people, and they see no other plans. To anyone else, every route below answers it as a plan that does not exist.
 
 ## GET `/api/plans/:planId/name`
 
@@ -365,7 +355,7 @@ For anyone on the plan: whoever runs it, and its guests. A host gets all of it. 
 * `isPlanner`: whether the requester has the planner role, so could start another plan like it
 * `canTakeOn`: whether the requester could make themselves a host with `/takeon`
 * The plan, including any date already locked in, the clock the server runs on, whether it repeats and who set it to (`repeatBy`, a name, null for a plan from before that was kept), the plans either side of it in its series, and a link to its thread in Discord
-* With the plan, its `rev`, which the edit form sends back so a change made since it opened is caught, `createdBy`, and `practice`, whether it is a practice plan
+* With the plan, its `rev`, which the edit form sends back so a change made since it opened is caught, and `createdBy`
 * For a host, `hostIds`: whoever runs the plan and is still in the server, by id, for the edit form's picker
 * Everyone on the plan, with names, avatars, whether they confirmed, their confirmation vote and reason, any manual call a planner made on them, whether they are still invited to the set date, and `dmsClosed` when the last DM was refused because their DMs are closed
 * Where each of them stands: `in` (true, false once they've said Not for me, null if they haven't said), `inReason` for someone out, `standing` (one of `not-said`, `done`, `days-left`, `no-dates`, `out`), `daysLeft`, their `coveredUntil`, and `sentBack` with the name of whoever moved them back, if someone did
@@ -429,24 +419,6 @@ The same list `GET /api/guilds/:guildId/members` gives a planner, cached the sam
 ### Notes
 
 * Here because whoever runs a plan may not hold the planner role, which the server's own route asks for.
-* On a practice plan it is who that plan can hold: the planner it is for, then their made-up people.
-
----
-
-## GET `/api/plans/:planId/thread` (session)
-
-A practice plan's thread, which the site keeps in place of one in Discord.
-
-For anyone on the plan.
-
-### Returns
-
-* `messages`: the pinned opener first, then every other post, newest first. Each has its `id`, `content` as Discord would have drawn it, `components` as the JSON Discord would have been sent, `pinned`, `at`, and `editedAt` once it has been edited.
-* `names`: the names of everyone on the plan and running it, by id, for the mentions in `content`
-
-### Notes
-
-* `404` for a real plan, whose thread is in Discord.
 
 ---
 
@@ -514,7 +486,6 @@ Nothing is posted in the thread. The only people DMed are the ones the change gi
 * Anyone listed as running it who has left the server comes off without that counting as a change. Only names the plan has never had are checked against the server.
 * `400` "Nothing has changed yet." for a save that would change nothing, preview or not.
 * Capped at 20 saves a day per person per server, and 30 a day per plan across everyone who runs it. A preview counts against neither.
-* `400` for a made-up person added to a real plan, anyone but the planner's made-up people and the planner added to a practice plan, or a practice plan set to come round again.
 
 ---
 
@@ -808,115 +779,3 @@ Save the requester's general timetable for a window.
 ### Notes
 
 * The range has to be valid and within two years.
-
----
-
-# Practice
-
-A planner's made-up people, for trying a plan out without anyone real hearing about it. Each one is made for one server and belongs to whoever made them.
-
-When the planner leaves that server or loses the planner role there, their made-up people in it go, with the practice plans holding them and everything kept for either, and the planner's own cards on those plans say the plan was deleted. All of a server's go if the bot leaves it. Anything the outbox keeps is dropped 30 days after it was sent.
-
-## GET `/api/practice` (session)
-
-The requester's made-up people.
-
-### Returns
-
-Each one, oldest first, with:
-
-* `id`, which always starts `practice_` and is never all digits, so one that reaches Discord by mistake is refused there rather than finding somebody
-* The server it was made for, by id and name
-* `displayName`
-* `planner`: whether they count as holding the planner role
-
-### Notes
-
-* Only people from servers where the requester still has the planner role.
-
----
-
-## GET `/api/practice/messages` (session)
-
-What the bot would have DMed the made-up person the requester is viewing the site as.
-
-### Returns
-
-* `messages`: newest first, shaped as in `GET /api/plans/:planId/thread`, each with the `planId` it is about
-* `names`: the planner's and their made-up people's names, by id, for the mentions in them
-
-### Notes
-
-* Empty for anyone real. The buttons on them are answered through the routes the site answers with (`join` and `vote`), as the made-up person.
-
----
-
-## POST `/api/practice` (session)
-
-Make someone up.
-
-### Input
-
-* `guildId`
-* `displayName`: up to 32 characters, trimmed
-* `planner` (optional): `true` to have them hold the planner role. Anything else is no.
-
-### Returns
-
-* `person`, shaped as in the list above
-
-### Notes
-
-* Needs the planner role in that server.
-* At most 10 for each planner in each server, refused with `409` past that.
-
----
-
-## DELETE `/api/practice/:id` (session)
-
-Remove one of the requester's made-up people.
-
-### Effects
-
-* They come off every plan they were on, as anyone leaving the server would, and their calendar is deleted.
-
-### Notes
-
-* Needs no planner role, since it only takes away. Someone else's, or an id that isn't there, is `404`.
-
----
-
-## POST `/api/practice/as/:id` (session)
-
-View the site as one of the requester's made-up people.
-
-### Effects
-
-* The session cookie is signed in as that person, with the requester carried as the planner behind them. See Authentication above.
-
-### Returns
-
-* `user`, the made-up person, and `real`, the planner
-
-### Notes
-
-* Only the requester's own, and only while they have the planner role in its server. Works the same while already viewing as another of theirs.
-* The list, adding and removing above all act for the planner, even while they view the site as someone.
-
----
-
-## POST `/api/practice/back`
-
-Back to the planner.
-
-### Effects
-
-* The session cookie is signed in as the planner again.
-
-### Returns
-
-* `user`, the planner, and `real` as `null`
-
-### Notes
-
-* Read straight off the cookie rather than through the usual check, so it still works once practice has had to end.

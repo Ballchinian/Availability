@@ -80,18 +80,6 @@ Two clocks, and they do different jobs. **You** have one, taken from whatever de
 
 Nothing is stored converted. Your availability is kept exactly as you wrote it, and everyone's is read onto the server's clock at the moment the overview lines you all up, which is why moving abroad re-reads your calendar as local to where you are now rather than leaving it behind. On a server where everyone shares a clock none of this shows up anywhere: the pages only mention a zone when it is not the one you are on. Where a time goes out over Discord it goes with a timestamp beside it, which Discord redraws in each reader's own clock.
 
-### Practice
-
-Planners get a **Practice** section at the bottom of My plans, for making up people to try a plan out on. Each one is made for one server, up to ten a server, and can be given the planner role. Removing one takes them off any plan they were on and deletes their calendar.
-
-**View as** opens the site as that person, from their own My plans, with a line under the header saying who you're viewing as and a way back to you. Logging out logs you out, not them. If they're removed, or you lose the planner role in their server, you're put back as yourself.
-
-**Start a practice plan** opens the usual form with only you and your made-up people to pick from, and so does Start a plan for a made-up person with the planner role. A plan with anyone made up on it is a practice plan: it can only hold your made-up people and you, never comes round again, and nobody else in the server can see it or find it with `/mylink`. Your practice plans sit in the Practice section rather than among your real ones, and the overview says practice next to the server's name.
-
-Nothing about a practice plan reaches Discord except what it sends you, which still comes to your DMs. Everything else the bot would send is kept on the site: its thread, pinned post and all, is drawn on the plan's overview as **The thread**, and viewing as a made-up person shows **Their messages** under their plans, each drawn the way Discord would draw it, with buttons that work. A no asks for its reason first, the way Discord's box does.
-
-Practice doesn't hang around. Leave the server, or lose the planner role there, and your made-up people in it go, along with the practice plans they were on. Anything kept for practice is dropped after 30 days either way.
-
 ## Commands
 
 Seven of them, and they sort into three lots: two for setting the server up, four anyone can run, and one for whoever runs the plan. Everything the bot says back to you here is only visible to you.
@@ -123,7 +111,6 @@ The site lives in `web/src/`, a folder per page or part of a page:
 - `plan-form/` is the parts of the form: who's coming, the dates and weekdays, coming round again, and the review before an edit saves.
 - `calendar/` is the month grid people fill in, the hours picker, and the dates, hours and clocks behind them.
 - `my-plans/` is the plan cards and the Start a plan button.
-- `practice/` is the Practice section and the messages kept for made-up people.
 - `site/` is what every page leans on: the header, the API calls, who's logged in, the status lines, and how dates and names read.
 
 The backend lives in `backend/src/`:
